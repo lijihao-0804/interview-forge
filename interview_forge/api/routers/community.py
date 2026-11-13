@@ -3,11 +3,12 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request
 
-from interview_forge.api.support import async_require_admin, async_require_user, error_response, json_response, read_json, require_admin, require_user, service_error, user_db
+from interview_forge.api.support import async_require_admin, async_require_user, client_ip, current_user, error_response, json_response, read_json, require_admin, require_user, service_error, user_db
 from interview_forge.services.community import (
     chat_delete, chat_has_older, chat_messages_after, chat_messages_before, chat_rate_limit_ok,
     chat_rate_limit_record, chat_send, search_index_server_with_count,
 )
+from interview_forge.services.registration import public_search_rate_limit
 
 router = APIRouter()
 
@@ -18,14 +19,21 @@ def _handled(exc: BaseException, *, write: bool = False):
 
 @router.get("/api/search")
 def search(request: Request):
-    user, denied = require_user(request)
-    if denied is not None:
-        return denied
     try:
-        items, count = search_index_server_with_count(request.query_params.get("q", ""))
+        query = request.query_params.get("q", "")
+        if len(query) > 120:
+            return error_response("搜索词不能超过 120 个字符", 400)
+        if current_user(request) is None:
+            public_search_rate_limit(client_ip(request))
+        items, count = search_index_server_with_count(query)
         return json_response({"items": items, "count": count, "has_more": count > len(items)})
-    except (OSError, ValueError, TypeError):
-        return error_response("搜索索引不可用", 500)
+    except BaseException as exc:
+        handled = service_error(exc, write=True)
+        if handled is not None:
+            return handled
+        if isinstance(exc, (OSError, ValueError, TypeError)):
+            return error_response("搜索索引不可用", 500)
+        return error_response("服务暂时不可用", 500)
 
 
 @router.get("/api/chat/messages")

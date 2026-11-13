@@ -1,8 +1,9 @@
+import shutil
+import subprocess
 import unittest
 from pathlib import Path
 
-from interview_forge.api.routers.static import _inject_html
-
+from interview_forge.api.routers.static import _WIDGET_SCRIPTS, _inject_html
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -11,10 +12,15 @@ class AiFrontendIntegrationTests(unittest.TestCase):
     def test_static_html_injects_launcher_assets(self):
         body = "<!doctype html><html><body><main>学习</main></body></html>".encode()
         rendered = _inject_html("/books/hot100/03-题解/0146-LRU.html", body).decode()
-        self.assertIn("ai-launcher.css?v=5", rendered)
-        self.assertIn("ai-page-context.js", rendered)
-        self.assertIn("ai-launcher.js?v=3", rendered)
-        self.assertIn("auth-widget.js?v=4", rendered)
+        for script in _WIDGET_SCRIPTS:
+            self.assertIn(script, rendered)
+        for current_asset in (
+            "/assets/ai-launcher.js?v=4",
+            "/assets/feedback-widget.js?v=4",
+            "/assets/auth-widget.js?v=6",
+        ):
+            self.assertIn(current_asset, _WIDGET_SCRIPTS)
+            self.assertIn(current_asset, rendered)
 
     def test_embedded_assistant_does_not_receive_auth_or_feedback_widgets(self):
         body = b"<html><body></body></html>"
@@ -101,18 +107,33 @@ class AiFrontendIntegrationTests(unittest.TestCase):
     def test_generated_page_markup_uses_shared_launcher_contract(self):
         from scripts.build import build_html_site, build_library
 
-        self.assertIn("/ai-launcher.css?v=5", "".join(str(item) for item in build_html_site.render_markdown.__code__.co_consts))
+        rendered_constants = "".join(str(item) for item in build_html_site.render_markdown.__code__.co_consts)
+        self.assertIn("/ai-launcher.css?v=5", rendered_constants)
+        self.assertIn("/ai-launcher.js?v=4", rendered_constants)
         self.assertIn("data-interviewforge-ai", build_library.document("x", "", "assets/library.css"))
 
-    def test_mobile_ai_entry_is_in_auth_pill_and_drawer_opener_is_queued(self):
+    def test_mobile_ai_entry_keeps_the_auth_gate_until_session_settles(self):
         auth = (ROOT / "assets" / "auth-widget.js").read_text(encoding="utf-8")
         launcher = (ROOT / "assets" / "ai-launcher.js").read_text(encoding="utf-8")
         style = (ROOT / "assets" / "ai-launcher.css").read_text(encoding="utf-8")
         self.assertIn('className = "fap-ai"', auth)
         self.assertIn('dispatchEvent(new Event("interviewforge:open-ai"))', auth)
         self.assertIn('global.addEventListener("interviewforge:open-ai"', launcher)
-        self.assertIn("if (pendingOpen) { pendingOpen = false; open(); }", launcher)
+        self.assertIn('return auth.requireUser("使用 AI 助手")', launcher)
+        self.assertIn('error.code !== "AUTH_REQUIRED"', launcher)
         self.assertIn(".if-ai-launcher { display: none !important; }", style)
+
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("node is not installed")
+        result = subprocess.run(
+            [node, str(ROOT / "tests" / "test_ai_launcher_guest_gate.js")],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertIn("ai-launcher: delayed auth", result.stdout)
 
 
 if __name__ == "__main__":

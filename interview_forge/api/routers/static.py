@@ -6,9 +6,8 @@ keeps the same path gate and widget injection but never invokes StudyHandler.
 from __future__ import annotations
 
 import hashlib
-import posixpath
 from pathlib import Path
-from urllib.parse import quote, unquote
+from urllib.parse import quote
 
 from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
@@ -16,36 +15,27 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Resp
 from interview_forge.analytics.cache import invalidate_learning_caches
 from interview_forge.api.support import current_user, error_response
 from interview_forge.core.paths import ROOT
+from interview_forge.core.web_access import (
+    canonical_url_path,
+    is_admin_path,
+    is_public_get,
+    is_sensitive_path,
+    target_relative_path,
+)
 from interview_forge.services.catalog import load_library_manifest
 from interview_forge.services.study import record_content_view, record_view
 
 router = APIRouter()
 
-_PUBLIC_GET = {"/pages/login.html", "/pages/register.html", "/favicon.ico", "/api/health"}
-# 整个 /assets/ 都是公开前端资源（样式/脚本/字体/图标，不含用户数据）。
-# 登录页自身也引用这些脚本（服务端注入），只豁免字体会让未登录时脚本被 307
-# 成 HTML，登录/注册页的主题切换、导航策略全部静默失效。
-_PUBLIC_PREFIXES = ("/assets/",)
-_ADMIN_PAGE = "/pages/admin.html"
-# 工具箱页：与管理后台同级的仅管理员页面。
-# 工具箱是「列表页 + 若干工具子页面」结构：/pages/tools.html 是入口，
-# /pages/tools/<tool>.html 是各工具，两者都必须同样限定管理员。
-_TOOLS_PAGE = "/pages/tools.html"
-_TOOLS_PREFIX = "/pages/tools/"
-
-
-def _is_admin_only(path: str) -> bool:
-    """管理后台与工具箱（含工具子页面）都仅限管理员访问。"""
-    return path == _ADMIN_PAGE or path == _TOOLS_PAGE or path.startswith(_TOOLS_PREFIX)
 _WIDGET_STYLES = ("/assets/ai-launcher.css?v=5",)
 _WIDGET_SCRIPTS = (
     "/assets/time-utils.js?v=2",
     "/assets/navigation-policy.js?v=2",
-    "/assets/auth-widget.js?v=5",
-    "/assets/feedback-widget.js?v=2",
+    "/assets/auth-widget.js?v=6",
+    "/assets/feedback-widget.js?v=4",
     "/assets/theme-toggle.js?v=2",
     "/assets/ai-page-context.js?v=1",
-    "/assets/ai-launcher.js?v=3",
+    "/assets/ai-launcher.js?v=4",
 )
 _AUTH_WIDGET_SKIP = {"/pages/login.html", "/pages/register.html", "/pages/admin.html", "/pages/ai-assistant.html"}
 _FEEDBACK_WIDGET_SKIP = {"/pages/login.html", "/pages/register.html", "/pages/admin.html", "/pages/ai-assistant.html"}
@@ -98,36 +88,7 @@ def _not_found_response(request: Request, decoded: str) -> Response:
 
 
 def _sensitive(path: str) -> bool:
-    normalized = path or "/"
-    for _ in range(2):
-        decoded = unquote(normalized)
-        if decoded == normalized:
-            break
-        normalized = decoded
-    normalized = "/" + normalized.replace("\\", "/").lstrip("/")
-    normalized = posixpath.normpath(normalized)
-    lowered = normalized.lower()
-    if ".." in lowered.split("/"):
-        return True
-    public_docs = {"/docs/qa-report.html", "/docs/深度审查与修复报告-2026-09-08.html", "/docs/学情分析ai专项审查报告.html"}
-    if lowered in public_docs:
-        return False
-    # Allowlist, not a blacklist: only web-facing trees and the handful of
-    # root entry files are reachable. Source, logs, deploy files, tests,
-    # benchmarks, databases and dotfiles are all denied by default.
-    allowed_prefixes = ("/books/", "/library/", "/pages/", "/assets/", "/api/")
-    allowed_files = {
-        "/", "/index.html", "/cockpit.html", "/maintenance.html", "/guide.html",
-        "/manifest.webmanifest", "/service-worker.js", "/favicon.ico",
-    }
-    if lowered in allowed_files or lowered.startswith(allowed_prefixes):
-        return False
-    return True
-
-
-def _path(request: Request) -> str:
-    value = unquote(request.url.path or "/")
-    return "/" + value.lstrip("/") if value.startswith("//") else value
+    return is_sensitive_path(path)
 
 
 def _security_headers(path: str) -> dict[str, str]:
@@ -179,7 +140,7 @@ def _inject_html(path: str, body: bytes, *, embedded: bool = False) -> bytes:
             marker in script for marker in ("ai-page-context.js", "ai-launcher.js")
         ))
     if path.startswith("/books/ai-exam/"):
-        scripts = scripts + ("/assets/practice-bridge.js?v=4",)
+        scripts = scripts + ("/assets/practice-bridge.js?v=5",)
     if path.startswith("/library/"):
         scripts = scripts + (
             "/assets/toc-scroll.js?v=8",
@@ -237,15 +198,22 @@ def _record_view(path: str, db_path: Path) -> None:
 
 @router.api_route("/{path:path}", methods=["GET", "HEAD"], include_in_schema=False)
 def static_path(request: Request, path: str):
-    decoded = _path(request)
-    if _sensitive(decoded):
-        return _not_found_response(request, decoded)
+    decoded = canonical_url_path(request.url.path or "/")
+    if decoded is None or _sensitive(decoded):
+        return _not_found_response(request, decoded or "/")
     if decoded == "/":
         return RedirectResponse("/cockpit.html", status_code=307, headers={"Cache-Control": "no-store"})
     if decoded.startswith("/api/"):
         return error_response("Not Found", 404)
+
+    target_relative = target_relative_path(ROOT, decoded)
+    if target_relative is None or _sensitive(target_relative):
+        return _not_found_response(request, decoded)
     user = current_user(request)
-    if user is None and decoded not in _PUBLIC_GET and not decoded.startswith(_PUBLIC_PREFIXES):
+    if is_admin_path(decoded) or is_admin_path(target_relative):
+        if user is None or str(user["role"]) != "admin":
+            return error_response("Forbidden", 403)
+    if user is None and not is_public_get(decoded):
         # next 只保留 .html 页面（带上 query，保持与客户端 401 跳转一致的行为）：
         # 否则登录成功后会被带到裸 CSS/JS 资源文件上。
         next_value = ""
@@ -253,10 +221,8 @@ def static_path(request: Request, path: str):
             next_value = decoded + (f"?{request.url.query}" if request.url.query else "")
         next_suffix = f"?next={quote(next_value)}" if next_value else ""
         return RedirectResponse(f"/pages/login.html{next_suffix}", status_code=307, headers={"Cache-Control": "no-store"})
-    if _is_admin_only(decoded) and (user is None or str(user["role"]) != "admin"):
-        return error_response("Forbidden", 403)
     target = (ROOT / decoded.lstrip("/")).resolve()
-    if not target.is_file() or not str(target).startswith(str(ROOT.resolve())):
+    if not target.is_file() or not target.is_relative_to(ROOT.resolve()):
         return _not_found_response(request, decoded)
     db_path = Path(ROOT / "data" / "users" / str(user["username"]) / "hot100-study.db") if user is not None else None
     if db_path is not None:

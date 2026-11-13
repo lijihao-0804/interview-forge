@@ -87,7 +87,11 @@
             url: meta.url || location.pathname.replace('/books/ai-exam/', ''),
             language: language,
             codes: meta.codes,
-            samples: meta.samples
+            samples: meta.samples,
+            checker: meta.checker,
+            suite_version: meta.suite_version,
+            sample_counts: meta.sample_counts,
+            case_note: meta.case_note
           };
           try {
             localStorage.setItem(CONTEXT_PREFIX + context.id, JSON.stringify(context));

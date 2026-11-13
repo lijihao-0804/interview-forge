@@ -32,7 +32,7 @@
 <body>
 <main class="card">
   <h1>InterviewForge</h1>
-  <p class="sub">LeetCode Hot 100 深度整理版 · 请登录后继续</p>
+  <p class="sub">LeetCode Hot 100 深度整理版 · 登录后保存学习记录、运行代码和使用 AI</p>
   <form id="form">
     <label for="username">用户名</label>
     <input id="username" name="username" autocomplete="username" required autofocus>
@@ -42,21 +42,26 @@
     <div class="msg error" id="msg" role="alert"></div>
   </form>
   <div class="links">
-    <a href="register.html">使用注册码注册</a>
-    <span class="muted">内容浏览需登录（注册需注册码）</span>
+    <a id="registerLink" href="register.html">邮箱验证码注册</a>
+    <a href="/index.html">先以游客身份浏览</a>
   </div>
 </main>
 <script>
 (function () {
   var params = new URLSearchParams(location.search);
-  var next = params.get("next") || "/cockpit.html";
+  var next = params.get("next") || "/index.html";
   // 只允许当前 origin 的站内路径；URL 解析会同时拦截反斜杠绕过。
   try {
     var nextUrl = new URL(next, location.origin);
     if (nextUrl.origin !== location.origin || !nextUrl.pathname.startsWith("/")) throw new Error("external next");
     next = nextUrl.pathname + nextUrl.search + nextUrl.hash;
   } catch (_) {
-    next = "/library/index.html";
+    next = "/index.html";
+  }
+  document.getElementById("registerLink").href = "/pages/register.html?next=" + encodeURIComponent(next);
+  if (params.get("registered") === "1") {
+    document.getElementById("msg").textContent = "注册成功，请使用新账号登录。";
+    document.getElementById("msg").className = "msg";
   }
   fetch("/api/me", { cache: "no-store" }).then(function (r) {
     if (r.ok) { location.replace(next); }
@@ -67,6 +72,7 @@
     btn.disabled = true; msg.textContent = "";
     fetch("/api/login", {
       method: "POST",
+      credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         username: document.getElementById("username").value.trim(),

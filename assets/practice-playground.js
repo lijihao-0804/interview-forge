@@ -22,6 +22,30 @@
   var running = false;
 
   function $(id) { return document.getElementById(id); }
+  function waitForAuthClient() {
+    if (window.InterviewForgeAuth && window.InterviewForgeAuth.ready) return Promise.resolve(window.InterviewForgeAuth);
+    return new Promise(function (resolve, reject) {
+      var timer = window.setTimeout(function () {
+        document.removeEventListener('interviewforge:auth-ready', ready);
+        reject(new Error('登录状态确认超时，请刷新页面后重试'));
+      }, 12000);
+      function ready() {
+        window.clearTimeout(timer);
+        document.removeEventListener('interviewforge:auth-ready', ready);
+        if (window.InterviewForgeAuth) resolve(window.InterviewForgeAuth);
+        else reject(new Error('登录状态暂时不可用，请刷新页面后重试'));
+      }
+      document.addEventListener('interviewforge:auth-ready', ready, { once: true });
+    });
+  }
+  async function requireRunUser(feature) {
+    var auth = await waitForAuthClient();
+    return auth.requireUser(feature);
+  }
+  async function protectedPracticeFetch(options) {
+    var auth = await waitForAuthClient();
+    return auth.fetchProtected('/api/practice/run', Object.assign({ credentials: 'same-origin' }, options || {}), '运行或提交代码');
+  }
   function text(value) { return value == null ? '' : String(value); }
   function queryLanguage() {
     try { return new URLSearchParams(location.search).get('lang') || ''; } catch (_) { return ''; }
@@ -182,12 +206,14 @@
   }
   async function runCode() {
     if (running) return;
+    try { await requireRunUser('运行或提交代码'); }
+    catch (_) { return; }
     running = true;
     $('runBtn').disabled = true;
     setRuntime('运行中…', 'loading');
     $('stderrArea').textContent = '';
     try {
-      var response = await fetch('/api/practice/run', {
+      var response = await protectedPracticeFetch({
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },

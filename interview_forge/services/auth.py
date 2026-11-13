@@ -142,6 +142,7 @@ AUTH_SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY,
     username TEXT NOT NULL UNIQUE,
+    email TEXT,
     password_hash TEXT NOT NULL,
     role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'user')),
     is_active INTEGER NOT NULL DEFAULT 1,
@@ -166,6 +167,47 @@ CREATE TABLE IF NOT EXISTS invite_codes (
     used_at TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_invite_status ON invite_codes(status);
+CREATE TABLE IF NOT EXISTS registration_send_attempts (
+    id INTEGER PRIMARY KEY,
+    ip_hash TEXT NOT NULL,
+    email_hash TEXT NOT NULL,
+    requested_at INTEGER NOT NULL,
+    completed_at INTEGER,
+    status TEXT NOT NULL CHECK (status IN ('reserved', 'sent', 'failed')),
+    failure_category TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS ix_registration_attempt_time
+    ON registration_send_attempts(requested_at);
+CREATE INDEX IF NOT EXISTS ix_registration_attempt_ip
+    ON registration_send_attempts(ip_hash, requested_at);
+CREATE INDEX IF NOT EXISTS ix_registration_attempt_email
+    ON registration_send_attempts(email_hash, requested_at);
+CREATE TABLE IF NOT EXISTS registration_email_codes (
+    id INTEGER PRIMARY KEY,
+    email TEXT NOT NULL,
+    code_hash TEXT NOT NULL,
+    code_salt TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('pending', 'active', 'consumed', 'invalidated')),
+    created_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    send_attempt_id INTEGER NOT NULL REFERENCES registration_send_attempts(id),
+    consumed_at INTEGER,
+    invalidated_at INTEGER
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_registration_code_active_email
+    ON registration_email_codes(email COLLATE NOCASE)
+    WHERE status IN ('pending', 'active');
+CREATE INDEX IF NOT EXISTS ix_registration_code_email
+    ON registration_email_codes(email COLLATE NOCASE, id DESC);
+CREATE TABLE IF NOT EXISTS public_rate_events (
+    id INTEGER PRIMARY KEY,
+    namespace TEXT NOT NULL,
+    subject_hash TEXT NOT NULL,
+    occurred_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_public_rate_events_lookup
+    ON public_rate_events(namespace, subject_hash, occurred_at);
 CREATE TABLE IF NOT EXISTS feedback (
     id INTEGER PRIMARY KEY,
     content TEXT NOT NULL,
@@ -231,6 +273,7 @@ def connect_auth() -> sqlite3.Connection:
                 connection.executescript(AUTH_SCHEMA)
                 for statement in (
                     "ALTER TABLE users ADD COLUMN nickname TEXT NOT NULL DEFAULT ''",
+                    "ALTER TABLE users ADD COLUMN email TEXT",
                     "ALTER TABLE users ADD COLUMN lang TEXT NOT NULL DEFAULT 'java'",
                     "ALTER TABLE users ADD COLUMN last_seen TEXT",
                     "ALTER TABLE users ADD COLUMN ai_daily_limit INTEGER CHECK (ai_daily_limit IS NULL OR (ai_daily_limit >= 0 AND ai_daily_limit <= 100))",
@@ -251,6 +294,10 @@ def connect_auth() -> sqlite3.Connection:
                             (_session_digest(token), token),
                         )
                 reset_invalid_nicknames(connection)
+                connection.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ux_users_email_nocase "
+                    "ON users(email COLLATE NOCASE) WHERE email IS NOT NULL AND email <> ''"
+                )
                 connection.execute(
                     "UPDATE users SET role = 'admin' WHERE username = ? AND role <> 'admin'",
                     (runtime.PERMANENT_ADMIN_USERNAME,),
@@ -344,7 +391,8 @@ def _username_case_collision(connection: sqlite3.Connection, username: str, *, e
     return row is not None
 
 
-def create_user(username: str, password: str, role: str = "user", conn: sqlite3.Connection | None = None) -> dict[str, object]:
+def create_user(username: str, password: str, role: str = "user", conn: sqlite3.Connection | None = None,
+                email: str | None = None) -> dict[str, object]:
     runtime = server_runtime
     if not runtime.USERNAME_RE.match(username):
         raise ValueError("用户名限 2~32 位字母数字下划线连字符")
@@ -352,6 +400,7 @@ def create_user(username: str, password: str, role: str = "user", conn: sqlite3.
         raise ValueError("密码至少 8 位")
     if role not in ("admin", "user"):
         raise ValueError("非法角色")
+    email = str(email or "").strip().lower() or None
     own_connection = conn is None
     connection = conn or connect_auth()
     started_transaction = False
@@ -361,9 +410,14 @@ def create_user(username: str, password: str, role: str = "user", conn: sqlite3.
             started_transaction = True
         if _username_case_collision(connection, username):
             raise ValueError("用户名已被占用")
+        if email is not None and connection.execute(
+            "SELECT 1 FROM users WHERE email = ? COLLATE NOCASE LIMIT 1", (email,)
+        ).fetchone() is not None:
+            raise ValueError("该邮箱已注册")
         connection.execute(
-            "INSERT INTO users(username, password_hash, role, is_active, created_at) VALUES (?, ?, ?, 1, ?)",
-            (username, hash_password(password), role, runtime.now_iso()),
+            "INSERT INTO users(username, email, password_hash, role, is_active, created_at) "
+            "VALUES (?, ?, ?, ?, 1, ?)",
+            (username, email, hash_password(password), role, runtime.now_iso()),
         )
         row = connection.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
         if started_transaction:
@@ -378,7 +432,8 @@ def create_user(username: str, password: str, role: str = "user", conn: sqlite3.
         if started_transaction:
             with suppress(sqlite3.Error):
                 connection.execute("ROLLBACK")
-        raise ValueError("用户名已被占用") from exc
+        message = "该邮箱已注册" if email is not None else "用户名已被占用"
+        raise ValueError(message) from exc
     except BaseException:
         if started_transaction:
             with suppress(sqlite3.Error):
@@ -530,40 +585,8 @@ def revoke_invite_code(code: str) -> dict[str, object]:
 
 
 def register_with_code(username: str, password: str, code: str) -> dict[str, object]:
-    runtime = server_runtime
-    username = username.strip()
-    today = business_now().date().isoformat()
-    connection = connect_auth()
-    try:
-        connection.execute("BEGIN IMMEDIATE")
-        row = connection.execute("SELECT * FROM invite_codes WHERE code = ?", (code.strip().upper(),)).fetchone()
-        if row is None:
-            raise ValueError("注册码无效")
-        if row["status"] == "used":
-            raise ValueError("注册码已被使用")
-        if row["status"] == "revoked":
-            raise ValueError("注册码已被吊销")
-        if row["expires_at"] and str(row["expires_at"]) < today:
-            raise ValueError("注册码已过期")
-        if _username_case_collision(connection, username):
-            raise ValueError("用户名已被占用")
-        cursor = connection.execute(
-            "UPDATE invite_codes SET status = 'used', used_at = ? WHERE code = ? AND status = 'unused'",
-            (runtime.now_iso(), code.strip().upper()),
-        )
-        if cursor.rowcount != 1:
-            raise ValueError("注册码已被使用")
-        user = create_user(username, password, conn=connection)
-        connection.execute("COMMIT")
-    except (ValueError, sqlite3.Error):
-        with suppress(sqlite3.Error):
-            connection.execute("ROLLBACK")
-        raise
-    finally:
-        connection.close()
-    with closing(runtime.connect(user_db_path(str(user["username"])))):
-        pass
-    return user
+    """Retired entry point; invite codes may not bypass email ownership."""
+    raise ValueError("旧邀请码注册已停用，请使用邮箱验证码注册")
 
 
 def list_users() -> list[dict[str, object]]:

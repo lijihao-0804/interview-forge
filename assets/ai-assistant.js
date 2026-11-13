@@ -26,6 +26,7 @@
   var memoryDialog = document.getElementById("memoryDialog");
   var memoryList = document.getElementById("memoryList");
   var memoryClose = document.getElementById("memoryClose");
+  var authPromise = null;
   var toolLabels = { get_weather: "天气信息", get_learning_context: "学习情况", get_problem: "题目信息" };
   var memoryKinds = { preference: "偏好", goal: "目标", constraint: "约束", learning_context: "学习背景" };
 
@@ -88,11 +89,64 @@
     return text.replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>").replace(/__([^_]+)__/g, "<strong>$1</strong>").replace(/(^|[^*])\*([^*]+)\*/g, "$1<em>$2</em>").replace(/(^|[^_])_([^_]+)_/g, "$1<em>$2</em>");
   }
 
+  function authError() {
+    var problem = new Error("登录后才能使用 AI 助手");
+    problem.code = "AUTH_REQUIRED";
+    return problem;
+  }
+
+  function showAuthGate() {
+    if (document.getElementById("ai-auth-gate")) return;
+    input.disabled = true;
+    send.disabled = true;
+    status.textContent = "游客模式";
+    var next = location.pathname + location.search + location.hash;
+    var gate = document.createElement("section");
+    gate.id = "ai-auth-gate";
+    gate.setAttribute("role", "dialog");
+    gate.setAttribute("aria-modal", "true");
+    gate.innerHTML = '<div class="ai-auth-card"><h2>登录后使用 AI 助手</h2>' +
+      '<p>AI 对话、记忆和个人学习上下文属于账号私有数据。游客仍可返回题解、书架和搜索继续阅读。</p>' +
+      '<div class="ai-auth-actions"><a href="/index.html">返回首页</a>' +
+      '<a href="/pages/register.html?next=' + encodeURIComponent(next) + '">注册</a>' +
+      '<a class="primary" href="/pages/login.html?next=' + encodeURIComponent(next) + '">登录</a></div></div>';
+    docsBodyAppendGate(gate);
+  }
+
+  function docsBodyAppendGate(gate) {
+    if (!document.getElementById("ai-auth-style")) {
+      var style = document.createElement("style");
+      style.id = "ai-auth-style";
+      style.textContent = "#ai-auth-gate{position:fixed;inset:0;z-index:10020;display:grid;place-items:center;padding:20px;background:rgba(12,18,30,.58);backdrop-filter:blur(4px)}.ai-auth-card{width:min(100%,440px);padding:26px;border-radius:16px;background:var(--panel,#fff);color:var(--text,#182235);border:1px solid var(--line,#dce2ec);box-shadow:0 24px 70px rgba(10,14,22,.3);font:15px/1.65 system-ui,'Microsoft YaHei',sans-serif}.ai-auth-card h2{margin:0;font-size:21px}.ai-auth-card p{margin:10px 0 0;color:var(--muted,#647188)}.ai-auth-actions{display:flex;justify-content:flex-end;gap:9px;flex-wrap:wrap;margin-top:20px}.ai-auth-actions a{padding:8px 13px;border:1px solid var(--line,#dce2ec);border-radius:9px;color:inherit;text-decoration:none;font-weight:650}.ai-auth-actions a.primary{background:var(--brand,#5654d4);border-color:var(--brand,#5654d4);color:#fff}";
+      document.head.appendChild(style);
+    }
+    document.body.appendChild(gate);
+    gate.querySelector(".primary").focus();
+  }
+
+  function ensureAuthenticated() {
+    if (!authPromise) {
+      authPromise = fetch("/api/me", { credentials: "same-origin", cache: "no-store" })
+        .then(function (response) {
+          if (response.status === 401) return false;
+          if (!response.ok) throw new Error("暂时无法确认登录状态，请稍后重试");
+          return response.json().then(function (user) { return !!user; });
+        })
+        .catch(function () { return false; });
+    }
+    return authPromise.then(function (authenticated) {
+      if (!authenticated) showAuthGate();
+      return authenticated;
+    });
+  }
+
   async function api(path, options) {
+    if (!(await ensureAuthenticated())) throw authError();
     var response = await fetch(path, Object.assign({ credentials: "same-origin", cache: "no-store" }, options || {}));
     if (response.status === 401) {
-      location.replace("/pages/login.html?next=" + encodeURIComponent(location.pathname));
-      throw new Error("登录状态已失效");
+      authPromise = Promise.resolve(false);
+      showAuthGate();
+      throw authError();
     }
     var payload = await response.json().catch(function () { return {}; });
     if (!response.ok) throw new Error(payload.error || "请求失败");
@@ -515,7 +569,9 @@
       var pageContext = await requestFreshPageContext();
       var requestBody = { message: text };
       if (pageContext) requestBody.page_context = pageContext;
+      if (!(await ensureAuthenticated())) throw authError();
       var response = await fetch("/api/chat/sessions/" + encodeURIComponent(state.current) + "/stream", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(requestBody), signal: state.controller.signal });
+      if (response.status === 401) { authPromise = Promise.resolve(false); showAuthGate(); throw authError(); }
       if (!response.ok) { var failed = await response.json().catch(function () { return {}; }); throw new Error(failed.error || "发送失败"); }
       var reader = response.body.getReader(), decoder = new TextDecoder(), buffer = "";
       function onEvent(name, payload) {
@@ -598,5 +654,14 @@
     }
   });
   if (embedded) requestFreshPageContext();
-  loadSessions().catch(function (err) { setError(err.message || "读取会话失败"); list.innerHTML = '<div class="empty">读取失败，请刷新重试。</div>'; });
+  ensureAuthenticated().then(function (authenticated) {
+    if (!authenticated) {
+      list.innerHTML = '<div class="empty">登录后可查看 AI 会话。</div>';
+      return;
+    }
+    return loadSessions();
+  }).catch(function (err) {
+    if (err.code !== "AUTH_REQUIRED") setError(err.message || "读取会话失败");
+    list.innerHTML = '<div class="empty">读取失败，请刷新重试。</div>';
+  });
 }());

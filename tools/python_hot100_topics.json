@@ -1,0 +1,1184 @@
+{
+  "schema_version": 1,
+  "language": "python",
+  "categories": {
+    "哈希表": {
+      "summary": "哈希表把已经走过的元素加工成可快速查询的键。先决定当前元素要查什么，再决定键与值。",
+      "invariant_reason": "一次遍历中，表中只保存当前元素之前出现过、并且后续仍可能需要的信息。",
+      "why_python": "dict 与 set 提供平均 O(1) 的按键查询；键必须可哈希，列表和字典本身不能作为键。",
+      "workflow": [
+        "写清楚当前位置需要查询的历史状态",
+        "决定键保存值、下标、频次还是规范签名",
+        "先查询历史，再写入当前元素"
+      ],
+      "api_hints": [
+        {
+          "symbol": "enumerate",
+          "syntax": "for index, value in enumerate(nums)",
+          "use": "同时取得下标和值"
+        },
+        {
+          "symbol": "dict",
+          "syntax": "need in seen",
+          "use": "判断一个可哈希键是否已经出现"
+        },
+        {
+          "symbol": "setdefault",
+          "syntax": "groups.setdefault(key, []).append(value)",
+          "use": "首次遇到键时创建列表，再直接追加"
+        }
+      ],
+      "template": "def two_sum(nums: list[int], target: int) -> list[int]:\n    seen = {}\n    for index, value in enumerate(nums):\n        need = target - value\n        if need in seen:\n            return [seen[need], index]\n        seen[value] = index\n    return []\n",
+      "template_name": "先查后存的补数表",
+      "pitfalls": [
+        "先把当前元素写进字典，可能让同一个下标被使用两次。",
+        "用列表或字典作为键；需要先转换成元组或字符串等可哈希签名。"
+      ],
+      "problem_focus": [
+        {
+          "id": 1,
+          "title": "两数之和",
+          "focus": "先查后存：当前值需要 `target-value`，字典只保存下标之前的元素；`[3,3]` 验证不能使用当前元素两次。"
+        },
+        {
+          "id": 49,
+          "title": "字母异位词分组",
+          "focus": "排序后把 `\"\".join(sorted(word))` 当作抽屉标签，原单词依次追加；`eat`、`tea`、`ate` 都落到 `aet`，计数法只作扩展。"
+        },
+        {
+          "id": 128,
+          "title": "最长连续序列",
+          "focus": "集合定位连续段起点。只在 x - 1 不存在时从 x 扩展，每个连续值最多被访问一次。"
+        }
+      ],
+      "template_source": "代码随想录（programmercarl.com）",
+      "template_note": "这是“两数之和”的可运行最小例子。`seen` 的键是数值，值是下标；这一写法依赖题目的一遍补数关系，换成分组、计数或前缀和题时，键值含义需要重写。",
+      "teaching_markdown": "### 先问“当前元素想查谁”\n\n如果每遇到一个 `x` 都重新扫一遍数组找 `target - x`，同一个数会被反复检查。哈希表保存已经走过的元素，让当前这一步直接查补数。\n\n以 `nums = [2, 7, 11, 15]`、`target = 9` 为例：\n\n1. 下标 0 读到 `2`，需要 `7`。字典 `seen` 还是空的，于是记下 `seen = {2: 0}`。\n2. 下标 1 读到 `7`，需要 `2`。`2 in seen` 成立，返回 `[seen[2], 1] = [0, 1]`。\n\n先查后存还必须通过重复值检查。`nums = [3, 3]`、`target = 6` 时，第一个 `3` 查不到补数，登记为 `{3: 0}`；第二个 `3` 才查到前一个下标 0。若先存当前值，第一步就会查到自己。\n\n同一个字典结构也承担另外两类工作：计数时保存 `数值 -> 频次`，分组时保存 `规范签名 -> 原串列表`。例如 49 题把 `eat`、`tea`、`ate` 都排序成 `aet`，于是三次追加到同一个抽屉。",
+      "explanation_markdown": "### 这段 Python 的关键动作\n\n- `need in seen` 查询的是键，不会修改字典。确认命中后再取 `seen[need]`，就能避免直接索引不存在的键。\n- 字典的普通 `dict` 不需要预先申请长度，空输入最终会返回空列表；题目另有“恰好一个答案”的保证。\n- 需要“不存在时创建列表再追加”时，可用 `groups.setdefault(key, []).append(value)`；不要写成 `groups.get(key, []).append(value)`，因为那个临时列表没有放回字典。\n- 这些操作的平均复杂度为 O(1)，建立表最多占 O(n) 项；若谈最坏情况，仍要承认哈希冲突可能使单次查询退化。\n\n扫描 `nums` 一次，字典查询和写入按平均 O(1) 计，总时间 O(n)；`seen` 最多保存 n 项，额外空间 O(n)。"
+    },
+    "双指针": {
+      "summary": "双指针用一个区间或两个速度表达可证明的排除关系；两侧指针各有明确任务，不能只凭写法套模板。",
+      "invariant_reason": "每次移动前，都要能说明被排除的区域不可能再给出更优答案。",
+      "why_python": "下标可直接交换列表元素；多重赋值会先求右侧表达式，再从左到右绑定目标，常规模板无需临时变量。",
+      "workflow": [
+        "标明左右指针和开闭区间",
+        "用具体两端高度或已处理区说明为什么能排除一侧",
+        "移动一端后保持区间缩小"
+      ],
+      "api_hints": [
+        {
+          "symbol": "len",
+          "syntax": "right = len(nums) - 1",
+          "use": "定位闭区间右端"
+        },
+        {
+          "symbol": "tuple assignment",
+          "syntax": "nums[left], nums[right] = nums[right], nums[left]",
+          "use": "交换两个列表位置，不必手写临时变量"
+        },
+        {
+          "symbol": "while",
+          "syntax": "while left < right",
+          "use": "显式控制相向区间"
+        }
+      ],
+      "template": "def max_area(height: list[int]) -> int:\n    left = 0\n    right = len(height) - 1\n    best = 0\n    while left < right:\n        width = right - left\n        area = min(height[left], height[right]) * width\n        best = max(best, area)\n        if height[left] <= height[right]:\n            left += 1\n        else:\n            right -= 1\n    return best\n",
+      "template_name": "相向指针排除短板",
+      "pitfalls": [
+        "普通交换只需说明右侧先求值、左侧目标再依次绑定；不要把这段列表交换展开成额外机制。",
+        "没有排除证明就固定移动某一侧，导致漏掉最优解。"
+      ],
+      "problem_focus": [
+        {
+          "id": 283,
+          "title": "移动零",
+          "focus": "快慢指针原地覆盖。slow 之前全部是非零元素，slow 指向下一个非零值应写入的位置。"
+        },
+        {
+          "id": 11,
+          "title": "盛最多水的容器",
+          "focus": "相向双指针 + 移动短板。当前宽度下，两板较短者确定了这对边界的面积上界。"
+        },
+        {
+          "id": 15,
+          "title": "三数之和",
+          "focus": "排序 + 固定首项 + 双指针。排序后，固定 nums[i] 时，left 右移只会增大和，right 左移只会减小和。"
+        },
+        {
+          "id": 42,
+          "title": "接雨水",
+          "focus": "左右最高边界双指针。left_max 与 right_max 中较矮的一侧，其边界已经能确定当前列的可蓄水量。"
+        }
+      ],
+      "template_note": "模板解决“盛最多水的容器”。相向移动适用于能从两端单调性排除答案的题；移动零一类的同向覆盖要另定义 `write` 指针，不能照搬这里的移动条件。",
+      "template_source": "代码随想录（programmercarl.com）",
+      "teaching_markdown": "### 两端夹住一个候选区间\n\n容器面积是“短板高度 × 两板距离”。从两端开始时宽度最大，但最终高度只可能由较矮的一边决定。以 `[1,8,6,2,5,4,8,3,7]` 为例：\n\n| 当前区间 | 两板高度 | 面积 | 下一步 |\n|---|---|---:|---|\n| `[0, 8]` | 1 和 7 | 8 | 左板更矮，左移 |\n| `[1, 8]` | 8 和 7 | 49 | 右板更矮，右移 |\n| `[1, 7]` | 8 和 3 | 18 | 继续右移 |\n\n为什么能丢掉较矮的那一边？当前宽度下，它已经把“以这块矮板为一端”的最大可能高度定住了。继续保留它，宽度只会更小，面积不可能超过当前位置；只有换掉矮板，高度才有机会上升。\n\n### 同向双指针不是同一套移动规则\n\n移动零使用 `write` 记录下一个非零值应写入的位置，`read` 扫描原数组；两个指针都从头向右。删除节点、找环或维护窗口时，“快慢”指速度而非左右边界。先解释区间含义，再决定移动哪一端。",
+      "explanation_markdown": "### Python 写法与空间边界\n\n`left, right = 0, len(height) - 1` 保存的是两个下标；每轮只更新一端，区间长度严格减小，所以循环一定会结束。\n\n需要交换列表元素时，`nums[i], nums[j] = nums[j], nums[i]` 可以少写临时变量：右侧的 `nums[j]`、`nums[i]` 先按旧值求值，再从左到右赋给左侧的两个目标。\n\n切片 `nums[:]` 或 `nums[::-1]` 会产生新列表。题目要求原地修改或 O(1) 额外空间时，应直接移动下标并交换。\n\n每轮只移动两端中的一端，候选区间宽度严格减小；两个指针合计最多前进 n 次，因此时间 O(n)，除输入外只保存常数量，额外空间 O(1)。"
+    },
+    "滑动窗口": {
+      "summary": "滑动窗口维护一段连续区间；右端加入新元素，左端只在不变量被破坏或需要缩短时移动。",
+      "invariant_reason": "每次调整完成后，窗口内频次和边界必须准确对应当前连续区间。",
+      "why_python": "字典可按增量更新频次或最近位置；`enumerate` 同时给出右端下标和字符。",
+      "workflow": [
+        "定义窗口内要维护的状态",
+        "右端加入元素并更新状态",
+        "按条件移动左端，再记录题目要求的长度或起点"
+      ],
+      "api_hints": [
+        {
+          "symbol": "enumerate",
+          "syntax": "for right, value in enumerate(values)",
+          "use": "同时取得窗口右端和元素"
+        },
+        {
+          "symbol": "dict",
+          "syntax": "last[value] = right",
+          "use": "保存某个值最近出现的位置"
+        },
+        {
+          "symbol": "max",
+          "syntax": "left = max(left, last[value] + 1)",
+          "use": "让左边界只向右移动"
+        }
+      ],
+      "template": "def length_of_longest_substring(s: str) -> int:\n    last = {}\n    left = 0\n    best = 0\n    for right, ch in enumerate(s):\n        if ch in last:\n            left = max(left, last[ch] + 1)\n        last[ch] = right\n        best = max(best, right - left + 1)\n    return best\n",
+      "template_name": "最近位置窗口",
+      "pitfalls": [
+        "先更新字符位置再同时让窗口左移，导致当前字符被当成窗口外元素。",
+        "在窗口仍不合法时更新最长答案，或去掉 `max` 让左边界回退。"
+      ],
+      "problem_focus": [
+        {
+          "id": 3,
+          "title": "无重复字符的最长子串",
+          "focus": "`last` 记录字符最近位置，遇到重复时用 `left = max(left, last[ch] + 1)`；用 `abba` 解释左边界为什么不能回退。"
+        },
+        {
+          "id": 438,
+          "title": "找到字符串中所有字母异位词",
+          "focus": "定长滑动窗口 + 频次差。窗口长度恒为 len(p)，窗口字符计数等于 p 的计数即为异位词。"
+        }
+      ],
+      "template_note": "模板解决“无重复字符的最长子串”。它适合用最近位置一次跳转左端；438 题是固定长度频次窗口，76 题是最小覆盖窗口，移除步骤和答案更新时机都不同。",
+      "template_source": "代码随想录（programmercarl.com）",
+      "teaching_markdown": "### 右端扩张，左端只向右\n\n以 `s = \"abcabcbb\"` 为例，`last[ch]` 保存字符最近一次出现的下标：\n\n1. 依次读入 `a, b, c`，窗口扩成 `abc`，`best = 3`。\n2. 再读到下标 3 的 `a`。最近位置是 0，所以 `left = max(0, 0 + 1) = 1`，窗口变为 `bca`。\n3. 下标 4 的 `b` 让 `left` 跳到 2；下标 5 的 `c` 再让 `left` 跳到 3。\n4. 下标 6 的 `b` 使 `left` 跳到 5，窗口只剩 `cb`；下标 7 又读到 `b`，窗口只剩当前的 `b`。\n\n对 `abba`，最后处理 `a` 时字典仍记着旧位置 0。直接写 `left = last[ch] + 1` 会把左边界从 2 退回 1；`max(left, ...)` 则保住 2，窗口仍是 `ba`。因此左边界只会向前。",
+      "explanation_markdown": "### 为什么字典不必逐项删除\n\n`last` 记录“最近位置”，不是当前窗口的完整频次表。旧位置若已经在 `left` 左侧，`max` 会忽略它，所以不需要在移动左端时逐字符改字典。\n\n顺序固定为：遇到旧字符时调整 `left`，写入当前字符的新位置，再用 `right - left + 1` 更新答案。写入被放到边界更新之后，否则会读到当前位置而错误缩短窗口。\n\n扫描一次且左右边界都只向右，时间为 O(n)；字典最多保存不同字符的最近位置，空间为 O(min(n, 字符集大小))。"
+    },
+    "子串": {
+      "summary": "连续区间的“和”“最值”“覆盖”需要不同工具：区间和查前缀，定长最值用单调队列，覆盖条件用可变窗口。",
+      "invariant_reason": "前缀计数保存历史前缀出现次数；单调队列保存仍在窗口内、且值从队首到队尾递减的下标。",
+      "why_python": "dict 保存前缀和频次，deque 从两端增删窗口候选；两者都把关键状态维护成可直接查询的结构。",
+      "workflow": [
+        "先判断目标能否写成两个前缀或窗口状态的差",
+        "规定新元素进入、过期元素离开的时机",
+        "在结构已经对应当前区间后更新答案"
+      ],
+      "api_hints": [
+        {
+          "symbol": "dict.get",
+          "syntax": "seen.get(prefix - k, 0)",
+          "use": "读取符合条件的历史前缀次数"
+        },
+        {
+          "symbol": "deque.popleft",
+          "syntax": "window.popleft()",
+          "use": "移除已经离开窗口的队首下标"
+        },
+        {
+          "symbol": "deque.pop",
+          "syntax": "window.pop()",
+          "use": "删除不再可能成为最大值的队尾候选"
+        }
+      ],
+      "template": "def subarray_sum(nums: list[int], k: int) -> int:\n    seen = {0: 1}\n    prefix = 0\n    answer = 0\n    for value in nums:\n        prefix += value\n        answer += seen.get(prefix - k, 0)\n        seen[prefix] = seen.get(prefix, 0) + 1\n    return answer\n",
+      "template_name": "前缀和频次",
+      "pitfalls": [
+        "忘记 `{0: 1}`，漏掉从下标 0 开始的子数组。",
+        "单调队列只维护值不维护下标，无法删除已经离开窗口的候选。"
+      ],
+      "problem_focus": [
+        {
+          "id": 560,
+          "title": "和为 K 的子数组",
+          "focus": "前缀和 + 频次哈希。当前前缀和为 prefix 时，此前每个 prefix - k 都对应一个以当前位置结尾的合法子数组。"
+        },
+        {
+          "id": 239,
+          "title": "滑动窗口最大值",
+          "focus": "单调双端队列。队列保存仍在窗口内的下标，且对应值从队首到队尾严格递减。"
+        },
+        {
+          "id": 76,
+          "title": "最小覆盖子串",
+          "focus": "频次窗口 + 已满足种类数。count 记录窗口恰好满足需求的字符种类数；达到 len(need) 时窗口覆盖 t。"
+        }
+      ],
+      "template_note": "模板解决元素可为负数的“和为 K 的子数组”。遇到固定长度窗口最值或覆盖窗口时，应改看 `deque` 或频次表模板；前缀和不能直接替换窗口最值。",
+      "template_source": "代码随想录（programmercarl.com）",
+      "teaching_markdown": "### 区间和可以变成两个前缀相减\n\n令 `prefix` 表示从数组开头到当前位置的和。若此前某个前缀是 `prefix - k`，那么这两个前缀之间的连续区间和就是 `k`。\n\n以 `nums = [1, 1, 1]`、`k = 2` 为例，初始 `seen = {0: 1}`：\n\n| 元素 | 当前前缀 | 查询 `prefix-k` | 累计答案 | 记录后的字典 |\n|---|---:|---:|---:|---|\n| 1 | 1 | 查询 -1，得到 0 | 0 | `{0:1, 1:1}` |\n| 1 | 2 | 查询 0，得到 1 | 1 | `{0:1, 1:1, 2:1}` |\n| 1 | 3 | 查询 1，得到 1 | 2 | `{0:1, 1:1, 2:1, 3:1}` |\n\n初始的 0 代表空前缀，它让第一个元素就能形成从下标 0 开始的合法区间。\n\n### 另外两类连续区间\n\n- 239 题求固定长度窗口最大值：队列存下标，值递减；右端删除更小候选，左端删除已离开窗口的下标。\n- 76 题求最小覆盖窗口：先扩张到覆盖目标，再持续缩短左端，直到再删一个字符就不覆盖。",
+      "explanation_markdown": "### Python 细节\n\n`seen.get(prefix - k, 0)` 既完成查询又没有写入默认值；之后再把当前前缀加入字典。先查后存保证只统计此前的前缀。\n\n同样的前缀值可能出现多次，所以字典的值必须是次数而不是单个下标。元素含负数时也不能用普通滑动窗口，因为窗口变长不再保证和单调增加。\n\n前缀表最多保存 n+1 个不同前缀，额外空间 O(n)，扫描时间为 O(n)（`dict` 按平均 O(1) 查询计）。"
+    },
+    "普通数组": {
+      "summary": "数组题先明确下标含义，再决定原地扫描、排序、前后缀或值域映射；不是看到数组就先切片。",
+      "invariant_reason": "滚动状态只说当前结尾的最优值，前后缀只说已覆盖两侧，原地置换则要求值落到它对应的下标。",
+      "why_python": "列表支持原地改写和交换，但切片会复制；排序也不能被无条件说成 O(1) 额外空间。",
+      "workflow": [
+        "先写清下标代表什么",
+        "选择排序、滚动状态、前后缀或原地置换",
+        "检查是否会修改输入、是否产生切片或排序缓冲"
+      ],
+      "api_hints": [
+        {
+          "symbol": "enumerate",
+          "syntax": "for index, value in enumerate(nums)",
+          "use": "同时取得下标和值"
+        },
+        {
+          "symbol": "range",
+          "syntax": "for index in range(1, len(nums))",
+          "use": "从第二个元素开始滚动，不复制切片"
+        },
+        {
+          "symbol": "list.sort",
+          "syntax": "intervals.sort(key=lambda pair: pair[0])",
+          "use": "原地重排区间，但仍可能有非 O(1) 的临时缓冲"
+        }
+      ],
+      "template": "def kadane(nums: list[int]) -> int:\n    current = nums[0]\n    best = nums[0]\n    for index in range(1, len(nums)):\n        value = nums[index]\n        current = max(value, current + value)\n        best = max(best, current)\n    return best\n",
+      "template_name": "Kadane 滚动状态",
+      "pitfalls": [
+        "把 `current` 误写成全局最大值，转移失去了“当前位置结尾”的含义。",
+        "用 `nums[1:]` 启动扫描，产生 O(n) 切片，破坏题目给出的 O(1) 额外空间。",
+        "把 `list.sort` 的额外空间说成 O(1)。"
+      ],
+      "problem_focus": [
+        {
+          "id": 53,
+          "title": "最大子数组和",
+          "focus": "Kadane 滚动状态。current 表示以当前位置结尾的最大子数组和。"
+        },
+        {
+          "id": 56,
+          "title": "合并区间",
+          "focus": "排序 + 末区间合并。排序后，每个新区间只可能与结果中的最后一个区间重叠。"
+        },
+        {
+          "id": 189,
+          "title": "轮转数组",
+          "focus": "三次反转。整体反转改变了左右两段的先后；分别反转每段即可同时恢复段内顺序。"
+        },
+        {
+          "id": 238,
+          "title": "除自身以外数组的乘积",
+          "focus": "前缀积 + 滚动后缀积。answer[i] 在第一趟前缀阶段保存 i 左侧乘积；进入第二趟时，right_product 恰为 i 右侧乘积。"
+        },
+        {
+          "id": 41,
+          "title": "缺失的第一个正数",
+          "focus": "值域原地哈希 / 循环置换。若值 x 在 [1, n]，它应位于下标 x - 1；所有可归位值都归位后，首个错位下标就是答案。"
+        }
+      ],
+      "template_note": "模板解决非空“最大子数组和”。`current` 必须定义为“以当前位置结尾”的最大值；区间合并、三次反转和值域置换是另外三类数组模型。",
+      "template_source": "代码随想录（programmercarl.com）",
+      "teaching_markdown": "### 只保留“必须接上当前元素”的最优值\n\n对 `[-2, 1, -3, 4, -1, 2, 1, -5, 4]`，令 `current` 表示以当前下标结尾的最大子数组和：\n\n| 下标与值 | `current` | `best` | 选择 |\n|---|---:|---:|---|\n| 0, -2 | -2 | -2 | 从 -2 开始 |\n| 1, 1 | 1 | 1 | 丢弃更差的 `-2 + 1` |\n| 2, -3 | -2 | 1 | 接上当前值仍然更大 |\n| 3, 4 | 4 | 4 | 再次从 4 重新开始 |\n| 4, -1 | 3 | 4 | 保留 4 后接 -1 |\n| 5, 2 | 5 | 5 | 形成 `4,-1,2` |\n| 6, 1 | 6 | 6 | 形成 `4,-1,2,1` |\n| 7, -5 | 1 | 6 | 继续保留已有最佳值 6 |\n| 8, 4 | 5 | 6 | 答案仍为 6 |\n\n`max(value, current + value)` 同时覆盖“从头开始”和“接上前一段”两种选择。全部为负数时，`best` 初值取第一个元素，因此不会错误返回 0。\n\n### 其他数组模型\n\n- 合并区间先按起点排序，排序后新区间只可能与结果末尾重叠。\n- 轮转数组用三次原地反转，避免切片。\n- 41 题把 `[1, n]` 内的值放回下标 `value - 1`，下标本身成为状态。",
+      "explanation_markdown": "### 空间要按真实操作声明\n\n模板从 `range(1, len(nums))` 开始扫描，不创建 `nums[1:]`。状态只有 `current` 与 `best` 两个整数，额外空间 O(1)。\n\n`list.sort` 会原地重排调用方列表，但“原地”不等于额外空间 O(1)。判题环境限定为 Python 3.12 / CPython 时，Timsort 在最坏情况下需要 O(n) 级别的临时缓冲；如果题目严格要求 O(1)，应使用手工交换、反转、三路划分或链表重连。"
+    },
+    "矩阵": {
+      "summary": "矩阵题先固定 `rows`、`cols` 与边界开闭语义，再决定螺旋模拟、首行首列标记、转置翻转或阶梯搜索。",
+      "invariant_reason": "四条边每绕过一条就收缩；未被访问区域始终由 `[top,bottom]` 与 `[left,right]` 共同表示。",
+      "why_python": "二维列表下标直观，反向 `range` 可控制四边方向；初始化二维表必须逐行生成，不能让多行共享同一个内层列表。",
+      "workflow": [
+        "先读取行列数，避免方阵假设",
+        "为每条边写出闭区间范围",
+        "走完一条边立即收缩，并检查下一方向是否仍有区域"
+      ],
+      "api_hints": [
+        {
+          "symbol": "len",
+          "syntax": "rows, cols = len(matrix), len(matrix[0])",
+          "use": "分别取得行数和列数"
+        },
+        {
+          "symbol": "range",
+          "syntax": "range(right, left - 1, -1)",
+          "use": "从右向左遍历边界"
+        },
+        {
+          "symbol": "min",
+          "syntax": "min(up, left) + grid[row][col]",
+          "use": "在网格 DP 中合并两个前驱"
+        }
+      ],
+      "template": "def spiral(matrix: list[list[int]]) -> list[int]:\n    if not matrix or not matrix[0]:\n        return []\n    rows = len(matrix)\n    cols = len(matrix[0])\n    top = 0\n    bottom = rows - 1\n    left = 0\n    right = cols - 1\n    answer = []\n    while top <= bottom and left <= right:\n        for col in range(left, right + 1):\n            answer.append(matrix[top][col])\n        top += 1\n        for row in range(top, bottom + 1):\n            answer.append(matrix[row][right])\n        right -= 1\n        if top <= bottom:\n            for col in range(right, left - 1, -1):\n                answer.append(matrix[bottom][col])\n            bottom -= 1\n        if left <= right:\n            for row in range(bottom, top - 1, -1):\n                answer.append(matrix[row][left])\n            left += 1\n    return answer\n",
+      "template_name": "四边界螺旋模拟",
+      "pitfalls": [
+        "单行或单列时没有检查边界，重复访问最后一行或最后一列。",
+        "用 `[[0] * n] * m` 创建二维数组，所有行引用同一个列表。",
+        "把行列方向写反，方阵测试仍可能通过，但非方阵会出错。"
+      ],
+      "problem_focus": [
+        {
+          "id": 73,
+          "title": "矩阵置零",
+          "focus": "首行首列原地标记。matrix[0][c] 标记第 c 列，matrix[r][0] 标记第 r 行；首行首列自身状态另存。"
+        },
+        {
+          "id": 54,
+          "title": "螺旋矩阵",
+          "focus": "四边界收缩模拟。[top, bottom] × [left, right] 始终是尚未访问的矩形区域。"
+        },
+        {
+          "id": 48,
+          "title": "旋转图像",
+          "focus": "转置 + 水平翻转。转置后 matrix[r][c] 与 matrix[c][r] 交换；再左右翻转即得到顺时针旋转。"
+        },
+        {
+          "id": 240,
+          "title": "搜索二维矩阵 II",
+          "focus": "右上角阶梯搜索。从右上角出发，当前列下方都不小于它，当前行左侧都不大于它，因此每次比较可排除一行或一列。"
+        }
+      ],
+      "template_note": "模板解决非空或空列表都可安全处理的螺旋遍历。每收缩一条边都要重新检查剩余区域；置零、旋转和二维搜索需要各自的状态，不能共用这一个模板。",
+      "template_source": "代码随想录（programmercarl.com）",
+      "teaching_markdown": "### 四条边围住尚未访问的区域\n\n对 `[[1,2,3],[4,5,6],[7,8,9]]`，初始边界是 `top=0, bottom=2, left=0, right=2`：\n\n1. 向右读 `[1,2,3]`，随后 `top=1`。\n2. 向下读 `[6,9]`，随后 `right=1`。\n3. 向左读 `[8,7]`，随后 `bottom=1`。\n4. 向上读 `[4]`，随后 `left=1`。\n5. 剩余区域只有中间的 `[5]`，再向右读完；下一轮边界交错，循环结束。\n\n最后两条边前必须检查 `top <= bottom` 与 `left <= right`。对只有一行的矩阵，向下读时区间已经为空；若不检查，向左那一步会把同一行反向再读一遍。",
+      "explanation_markdown": "### 行列与二维列表\n\n`rows` 控制第 1 维，`cols` 控制第 2 维；写成 `matrix[row][col]`，不要依赖方阵。四个循环都包含当前边界，因此范围使用 `+1` 或 `-1`。\n\n`[[0] * cols for _ in range(rows)]` 才会创建独立的内层列表。用乘法复制一整行时，多行共享同一个对象，改一格会同时改多行。\n\n螺旋遍历访问每个元素一次，时间 O(rows × cols)；除返回列表外只保存四个边界，额外空间 O(1)。"
+    },
+    "链表": {
+      "summary": "链表题先画前驱、当前与后继。修改 `next` 前保存后路，复杂重连优先用虚拟头节点固定入口。",
+      "invariant_reason": "`previous` 始终指向已反转或已处理前缀的新头，`current` 指向尚未处理的后缀头；两者之间的指针已经按题意接好。",
+      "why_python": "节点是对象引用，`is None` 可明确表示链表结束；赋值会共享节点对象，原链表可能被原地修改。",
+      "workflow": [
+        "先画局部三节点关系",
+        "保存改指针后仍需访问的后继",
+        "依次改指针并推进，最后确认新头是否改变"
+      ],
+      "api_hints": [
+        {
+          "symbol": "is None",
+          "syntax": "while current is not None:",
+          "use": "明确判断链表结束"
+        },
+        {
+          "symbol": "attribute assignment",
+          "syntax": "current.next = previous",
+          "use": "原地改变当前节点指向"
+        },
+        {
+          "symbol": "ListNode",
+          "syntax": "Optional[ListNode]",
+          "use": "标注力扣提供的单链表节点"
+        }
+      ],
+      "template": "from typing import Optional\n\n\ndef reverse_list(head: Optional[\"ListNode\"]) -> Optional[\"ListNode\"]:\n    previous = None\n    current = head\n    while current is not None:\n        following = current.next\n        current.next = previous\n        previous = current\n        current = following\n    return previous\n",
+      "template_name": "四步原地反转",
+      "pitfalls": [
+        "先执行 `current.next = previous` 再保存后继，后半个链表从此无法到达。",
+        "最后返回原来的 `head`，而它已经是新链表的尾节点。",
+        "用节点值代替对象身份判断环、相交或公共节点。"
+      ],
+      "problem_focus": [
+        {
+          "id": 160,
+          "title": "相交链表",
+          "focus": "双指针换头对齐。两个指针走过的路径都由本链表与另一条链表的全部节点组成。"
+        },
+        {
+          "id": 206,
+          "title": "反转链表",
+          "focus": "每轮显式做四步：保存 `following`、反转 `current.next`、推进 `previous`、推进 `current`；空链表直接返回 `None`。"
+        },
+        {
+          "id": 234,
+          "title": "回文链表",
+          "focus": "找中点 + 原地反转后半段。反转后的后半段与从头部出发的前半段逐个节点比较，直到后半段耗尽。"
+        },
+        {
+          "id": 141,
+          "title": "环形链表",
+          "focus": "Floyd 快慢指针判环。无环时快指针先到空；有环时两指针都在环内，速度差一会使距离缩短到零。"
+        },
+        {
+          "id": 142,
+          "title": "环形链表 II",
+          "focus": "Floyd 相遇后重置找入口。相遇后两个同速指针分别从头和相遇点出发，会在环入口第一次相遇。"
+        },
+        {
+          "id": 21,
+          "title": "合并两个有序链表",
+          "focus": "虚拟头节点双路归并。tail 始终指向已归并结果最后一个节点，两条源链表各自仍保持有序。"
+        },
+        {
+          "id": 2,
+          "title": "两数相加",
+          "focus": "逐位相加 + 进位。每轮当前位的和等于两个输入位上数字与上一轮进位的和。"
+        },
+        {
+          "id": 19,
+          "title": "删除链表的倒数第 N 个结点",
+          "focus": "虚拟头 + 固定间距快慢指针。fast 先走 n+1 步后，fast 与 slow 之间的距离始终让 slow 停在待删节点前驱。"
+        },
+        {
+          "id": 24,
+          "title": "两两交换链表中的节点",
+          "focus": "虚拟头 + 固定顺序局部重连。previous.next 始终指向当前待交换的一对节点；每轮按固定顺序重连后前进两步。"
+        },
+        {
+          "id": 25,
+          "title": "K 个一组翻转链表",
+          "focus": "分组探测 + 组内头插反转。previous_group 指向上一组尾节点；只有从它向后能找到 k 个节点时才翻转当前组。"
+        },
+        {
+          "id": 138,
+          "title": "随机链表的复制",
+          "focus": "原链表穿插复制。每个复制节点紧跟其原节点，因此原节点的 random 后一个节点就是复制节点对应的 random。"
+        },
+        {
+          "id": 148,
+          "title": "排序链表",
+          "focus": "自顶向下归并排序。快慢指针在 `slow.next` 处切成两段，递归排序后用 `dummy` 合并；递归栈深度为 O(log n)。"
+        },
+        {
+          "id": 23,
+          "title": "合并 K 个升序链表",
+          "focus": "两两分治多路归并。每轮把当前链表数组按相邻两项合并，落单链表直接进入下一轮；链表数每轮减半。"
+        },
+        {
+          "id": 146,
+          "title": "LRU 缓存",
+          "focus": "哈希定位 + 双向链表顺序。哈希表指向每个节点；双向链表中越靠近头部越新，虚拟哨兵连接首尾。"
+        }
+      ],
+      "template_note": "模板解决 206 反转链表；`ListNode` 由力扣判题入口提供，本地运行时可传入任意具有 `next` 属性的节点对象。它原地改链，调用后原头会变成尾。",
+      "template_source": "代码随想录（programmercarl.com）",
+      "teaching_markdown": "### 改方向之前，先记住后路\n\n以 `1 -> 2 -> 3 -> None` 为例，初始 `previous = None`、`current = 1`。每一轮严格做四步：\n\n1. `following = current.next`：第一轮先记住节点 2。\n2. `current.next = previous`：让节点 1 指向 `None`。\n3. `previous = current`：已反转前缀的新头移到节点 1。\n4. `current = following`：下一轮处理节点 2，后路仍然找得到。\n\n处理后两轮时，已反转部分依次变为 `2 -> 1 -> None` 和 `3 -> 2 -> 1 -> None`。`current` 最终为 `None`，`previous` 停在节点 3，所以返回 `previous`。\n\n### 虚拟头节点解决什么\n\n当删除或交换可能改变真正的头节点时，先创建 `dummy.next = head`。这样每轮只重连 `previous.next`，返回 `dummy.next` 即可，不必为“是否在头部操作”写两套分支。",
+      "explanation_markdown": "### Python 引用与判题环境\n\n`following` 保存的是节点引用，不是复制出来的节点。赋值 `current.next = previous` 会原地修改节点；已保存的 `following` 仍然能带我们走到原后继。\n\n力扣链表题的代码块通常由平台提供 `ListNode`，提交时无需重新定义。本模板用字符串形式的前向类型名 `\"ListNode\"`，因此把函数拿到本地测试环境也能先定义并运行。\n\n每轮只有常数次引用赋值，时间 O(n)；没有新建节点，除几个引用外空间 O(1)。"
+    },
+    "二叉树": {
+      "summary": "树题先确定信息流向：父节点向下传边界，子节点向上返回高度或贡献，BFS 按层处理，BST 利用中序。",
+      "invariant_reason": "后序模板承诺返回当前子树高度；空节点返回 0，具有深层单链时也要依靠显式栈而不是 Python 调用栈。",
+      "why_python": "树节点用 `None` 表示空；显式列表栈可以避开深度 1000 左右后的递归限制，`deque` 适合层序。",
+      "workflow": [
+        "先说函数返回什么",
+        "区分需要向上贡献的值与完整答案",
+        "深链改用显式栈或迭代遍历"
+      ],
+      "api_hints": [
+        {
+          "symbol": "is None",
+          "syntax": "if node is None:",
+          "use": "明确处理空子树"
+        },
+        {
+          "symbol": "stack",
+          "syntax": "stack = [(root, False)]",
+          "use": "显式记录进入与返回两个阶段"
+        },
+        {
+          "symbol": "deque",
+          "syntax": "queue = deque([root])",
+          "use": "按层处理节点"
+        }
+      ],
+      "template": "from __future__ import annotations\n\n\ndef tree_height(root: TreeNode | None) -> int:\n    if root is None:\n        return 0\n    heights = {}\n    stack = [(root, False)]\n    while stack:\n        node, expanded = stack.pop()\n        if expanded:\n            left_height = 0 if node.left is None else heights[node.left]\n            right_height = 0 if node.right is None else heights[node.right]\n            heights[node] = 1 + max(left_height, right_height)\n            continue\n        stack.append((node, True))\n        if node.right is not None:\n            stack.append((node.right, False))\n        if node.left is not None:\n            stack.append((node.left, False))\n    return heights[root]\n",
+      "template_name": "后序返回树高",
+      "pitfalls": [
+        "把“向上只能返回一条支路的高度”与“左右两边都能参与的直径”混在一起。",
+        "深链直接递归，在 Python 默认递归限制前爆栈。",
+        "验证 BST 只比较父子，没有把上下界传给整棵子树。"
+      ],
+      "problem_focus": [
+        {
+          "id": 94,
+          "title": "二叉树的中序遍历",
+          "focus": "显式栈中序遍历。cur 指向尚未沿左链下潜的子树根；栈中依次保存等待访问的祖先。"
+        },
+        {
+          "id": 104,
+          "title": "二叉树的最大深度",
+          "focus": "显式栈记录根到节点深度。栈项 `(node, depth)` 随孩子把深度加一，`best` 取所有访问节点中的最大深度。"
+        },
+        {
+          "id": 226,
+          "title": "翻转二叉树",
+          "focus": "递归交换左右子树。处理完某节点后，其左右子树都已翻转，并且该节点的左右孩子已经交换。"
+        },
+        {
+          "id": 101,
+          "title": "对称二叉树",
+          "focus": "镜像递归比较。左右子树成镜像，当且仅当根值相同，且左外侧对右外侧、左内侧对右内侧分别镜像。"
+        },
+        {
+          "id": 543,
+          "title": "二叉树的直径",
+          "focus": "显式后序帧计算子树高度。返回给父节点的是最长单边高度，`best` 另外记录可同时连接左右两边的最大直径。"
+        },
+        {
+          "id": 102,
+          "title": "二叉树的层序遍历",
+          "focus": "BFS 固定层长度。每轮处理开始时队列长度恰为当前层节点数，只有该批节点出队后才进入下一层。"
+        },
+        {
+          "id": 108,
+          "title": "将有序数组转换为二叉搜索树",
+          "focus": "中位分治构造平衡 BST。递归区间 [left, right] 只由有序数组的一段组成；区间中点作为根，左右半段分别递归。"
+        },
+        {
+          "id": 98,
+          "title": "验证二叉搜索树",
+          "focus": "显式栈中序严格递增校验。按中序依次弹出节点，只比较 `previous` 与当前值；发现 `current.val <= previous` 立即失败。"
+        },
+        {
+          "id": 230,
+          "title": "二叉搜索树中第 K 小的元素",
+          "focus": "中序遍历提前停止。BST 的中序访问序列严格递增；弹栈计数到第 k 次时，该节点就是答案。"
+        },
+        {
+          "id": 199,
+          "title": "二叉树的右视图",
+          "focus": "BFS 记录每层最后节点。队列长度固定为当前层节点数，该批最后一个出队节点是当前层的右侧可见节点。"
+        },
+        {
+          "id": 114,
+          "title": "二叉树展开为链表",
+          "focus": "原地前驱重接先序链。处理到 current 时，其左侧子树的先序链接到 current.right，右子树接到左子树最右节点的 right。"
+        },
+        {
+          "id": 105,
+          "title": "从前序与中序遍历序列构造二叉树",
+          "focus": "前序增量附着 + 中序游标。新前序值默认接为栈顶左孩子；当栈顶与 `inorder[inorder_index]` 相等时连续弹栈，再把节点接到最后弹出的右孩子。"
+        },
+        {
+          "id": 437,
+          "title": "路径总和 III",
+          "focus": "显式进入/退出栈维护根到当前节点路径。`current` 是路径前缀和，`historical[current-target]` 统计以当前节点结尾的合法向下路径。"
+        },
+        {
+          "id": 236,
+          "title": "二叉树的最近公共祖先",
+          "focus": "父节点映射 + 祖先集合。显式遍历记录每个节点的 `parent`，从 `p` 向上标记祖先，再让 `q` 向上走到第一个集合内节点。"
+        },
+        {
+          "id": 124,
+          "title": "二叉树中的最大路径和",
+          "focus": "显式后序帧维护最大单边贡献。返回给父节点的是当前节点可向下延伸的最大非负贡献，完整路径可同时连接左右贡献。"
+        }
+      ],
+      "template_note": "模板返回二叉树高度，空树返回 0。它用 `(node, expanded)` 显式表示后序的进入与返回，`TreeNode` 由力扣提供；本地测试时传入具有 `left`、`right` 属性的节点即可。",
+      "template_source": "代码随想录（programmercarl.com）；原始递归思路，本模板改为显式栈",
+      "teaching_markdown": "### 子树先算完，父节点才能汇总\n\n以根为 1、左孩子 2、右孩子 3、节点 2 还有左孩子 4 的树为例：节点 4 返回高度 1，节点 2 得到 `1 + max(1, 0) = 2`，根节点得到 `1 + max(2, 1) = 3`。\n\n后序处理的顺序是“左子树、右子树、当前节点”。递归代码读起来短，但一条合法深链可能超过 Python 默认递归深度。因此模板把节点压栈两次：第一次标记还没处理，第二次表示左右孩子的高度都已经算好。\n\n### 不同题目的返回语义\n\n- 104 的高度为“当前子树最长向下路径”。\n- 543 的返回值是给父节点的一条单边高度，而全局答案可以同时连接左右两边。\n- 98 向下传的是取值上下界，向上返回子树是否合法。\n\n先写清函数返回什么，才能避免把全局答案误当成父节点的返回值。",
+      "explanation_markdown": "### 显式后序帧\n\n`expanded=False` 的帧负责展开左右孩子，并把 `expanded=True` 的当前节点后压入栈，使它在孩子之后弹出。孩子全部结算后，可以从 `heights` 取出左右高度；空孩子直接按 0 处理。\n\n`from __future__ import annotations` 让 `TreeNode | None` 只作为注解保存，运行时不要求先定义 `TreeNode`。力扣提交时仍使用平台提供的节点类。\n\n每个节点恰好进入和返回一次，时间 O(n)。`heights` 为每个节点保存高度，空间为 O(n)；显式栈在最深路径上占 O(h) 个帧，h 为树高，总空间仍为 O(n)。"
+    },
+    "图论": {
+      "summary": "网格是隐式图，显式依赖先建邻接表。搜索状态必须在进入容器时标记，多源问题先把所有源同时入队。",
+      "invariant_reason": "队列里只保存已经发现但尚未展开的节点；每个发现节点在入队时立即标记，因此不会因多个前驱重复进入。",
+      "why_python": "`deque.popleft()` 让 BFS 的队首操作均摊 O(1)，坐标可直接用 `(row, col)` 元组保存。",
+      "workflow": [
+        "先定义节点、边和访问标记",
+        "源节点入容器时立即标记",
+        "展开邻居，只把尚未访问的节点加入边界"
+      ],
+      "api_hints": [
+        {
+          "symbol": "deque",
+          "syntax": "queue = deque([(row, col)])",
+          "use": "保存待展开的网格坐标"
+        },
+        {
+          "symbol": "popleft",
+          "syntax": "row, col = queue.popleft()",
+          "use": "按先发现先处理顺序展开"
+        },
+        {
+          "symbol": "dict.get",
+          "syntax": "child = node.children.get(ch)",
+          "use": "查询 Trie 子节点而不误创建"
+        }
+      ],
+      "template": "from collections import deque\n\n\ndef count_islands(grid: list[list[str]]) -> int:\n    if not grid or not grid[0]:\n        return 0\n    rows = len(grid)\n    cols = len(grid[0])\n    islands = 0\n    directions = ((1, 0), (-1, 0), (0, 1), (0, -1))\n    for start_row in range(rows):\n        for start_col in range(cols):\n            if grid[start_row][start_col] != \"1\":\n                continue\n            islands += 1\n            grid[start_row][start_col] = \"0\"\n            queue = deque([(start_row, start_col)])\n            while queue:\n                row, col = queue.popleft()\n                for dr, dc in directions:\n                    next_row = row + dr\n                    next_col = col + dc\n                    if not (0 <= next_row < rows and 0 <= next_col < cols):\n                        continue\n                    if grid[next_row][next_col] != \"1\":\n                        continue\n                    grid[next_row][next_col] = \"0\"\n                    queue.append((next_row, next_col))\n    return islands\n",
+      "template_name": "入队即标记的岛屿洪泛",
+      "pitfalls": [
+        "出队时才标记，同一节点会被多个前驱重复入队。",
+        "网格题只检查上下左右中的一部分，或越界判断顺序错误。",
+        "拓扑排序只删除边却不减少后继入度。"
+      ],
+      "problem_focus": [
+        {
+          "id": 200,
+          "title": "岛屿数量",
+          "focus": "BFS 网格洪泛 + `visited`。每发现一个未访问陆地就计数一次，入队时立即标记 `visited`，再展开同一座岛的全部四连通陆地块。"
+        },
+        {
+          "id": 994,
+          "title": "腐烂的橘子",
+          "focus": "多源 BFS 分层扩散。队列在每轮开始时包含同一分钟会扩散的腐烂橘子；fresh 是尚未腐烂数量。"
+        },
+        {
+          "id": 207,
+          "title": "课程表",
+          "focus": "Kahn 拓扑排序。入度为 0 的课程是当前可修集合；每学完一门课就减少所有后继入度。"
+        },
+        {
+          "id": 208,
+          "title": "实现 Trie",
+          "focus": "字典前缀树。从根到任意节点的路径唯一表示一个前缀；is_end 区分完整单词与仅作为前缀的路径。"
+        }
+      ],
+      "template_note": "模板解决 200 题，并把访问过的陆地原地改成 `\"0\"`。若调用方之后还需要原网格，应先复制；多源最短路径和拓扑排序要另建状态，不能只换函数名。",
+      "template_source": "代码随想录（programmercarl.com）",
+      "teaching_markdown": "### 一次洪泛吞掉一个连通块\n\n看网格：\n\n```text\n1 1 0\n0 1 0\n1 0 1\n```\n\n从 `(0,0)` 发现第一块陆地，先把起点改成 `0` 并入队；展开后把 `(0,1)` 和 `(1,1)` 也标记。后续扫描相邻格都是 `0`，这一块不会重复计数。继续扫描时，`(2,0)` 与 `(2,2)` 各自开启一次洪泛，因此答案是 3。\n\n“进入即标记”很关键。若等出队时才改，两个邻居可能在同一时间把同一格加入队列，队列会膨胀，还可能重复计数。\n\n### 其它图模型\n\n- 994 题把所有腐烂橘子同时入队，BFS 的每一层对应一分钟。\n- 207 题从入度 0 的课程出发，只有处理完所有课程才无环。\n- Trie 把路径上的字符映射到子节点字典，终点标记区分完整单词与普通前缀。",
+      "explanation_markdown": "### Python 容器与访问标记\n\n`deque` 从右端加入、左端弹出，BFS 顺序稳定且操作均摊 O(1)。四个方向写成元组，避免复制四份判断代码。\n\n模板直接改 `grid`，所以除队列外不再创建同尺寸 visited 表；代价是输入被修改。网格有 `m × n` 个格子，每个至多入队一次，时间 O(mn)，队列最坏保存 O(mn) 个坐标。\n\nTrie 查询要区分 `dict.get(key)` 与 `setdefault(key, Trie())`：前者只查询，后者会在未命中时创建节点，适合插入而不适合搜索。"
+    },
+    "回溯": {
+      "summary": "回溯把题目写成一棵决策树：当前路径、下一层候选、终止条件与撤销动作共同决定搜索结果。",
+      "invariant_reason": "进入递归时，路径只包含当前分支已做出的选择；返回前恢复现场，兄弟分支看到的仍是同一份可选状态。",
+      "why_python": "列表 `append/pop` 可直接维护路径，`path[:]` 冻结答案快照；可变对象不能直接追加到结果后再继续修改。",
+      "workflow": [
+        "先写终止条件与答案快照",
+        "枚举下一层选择",
+        "做选择、递归、严格对称地撤销"
+      ],
+      "api_hints": [
+        {
+          "symbol": "append",
+          "syntax": "path.append(value)",
+          "use": "加入当前分支的选择"
+        },
+        {
+          "symbol": "pop",
+          "syntax": "path.pop()",
+          "use": "撤销最近一次选择"
+        },
+        {
+          "symbol": "slice",
+          "syntax": "path[:]",
+          "use": "复制当前路径，冻结一个完整答案"
+        }
+      ],
+      "template": "def subsets(nums: list[int]) -> list[list[int]]:\n    answer = []\n    path = []\n\n    def backtrack(start: int) -> None:\n        answer.append(path[:])\n        for index in range(start, len(nums)):\n            path.append(nums[index])\n            backtrack(index + 1)\n            path.pop()\n\n    backtrack(0)\n    return answer\n",
+      "template_name": "起点索引子集树",
+      "pitfalls": [
+        "`answer.append(path)` 保存了同一个可变列表，后续 `pop` 会改坏所有结果。",
+        "撤销选择与做出选择不对称，污染兄弟分支。",
+        "剪枝条件过强，提前删掉仍可能补全的路径。"
+      ],
+      "problem_focus": [
+        {
+          "id": 46,
+          "title": "全排列",
+          "focus": "路径 + used 数组全排列。path 中每个输入下标至多出现一次；达到长度 n 时形成一个完整排列。"
+        },
+        {
+          "id": 78,
+          "title": "子集",
+          "focus": "起点索引子集回溯。每个递归节点都是一个合法子集；start 之后的选择保证组合按输入顺序不重复。"
+        },
+        {
+          "id": 17,
+          "title": "电话号码的字母组合",
+          "focus": "逐位枚举字符回溯。递归深度等于 digits 的下标；path 长度恰为已处理的位数。"
+        },
+        {
+          "id": 39,
+          "title": "组合总和",
+          "focus": "排序 + 可重复起点回溯。余数 remaining 只由当前和决定；每层从 index 开始，允许重复当前数但禁止回到更小下标。"
+        },
+        {
+          "id": 22,
+          "title": "括号生成",
+          "focus": "左右括号计数回溯。任意前缀都有 left >= right，且 left、right 都不超过 n。"
+        },
+        {
+          "id": 79,
+          "title": "单词搜索",
+          "focus": "网格 DFS + 原位标记回溯。递归下标 i 之前，路径恰好匹配 word[0:i]，当前格子在本路径中只使用一次。"
+        },
+        {
+          "id": 131,
+          "title": "分割回文串",
+          "focus": "回文切片回溯。path 保存的分片按原顺序无重叠地覆盖 s[0:start]，下一层从切片右端加一开始。"
+        },
+        {
+          "id": 51,
+          "title": "N 皇后",
+          "focus": "列与双对角线集合回溯。逐行放皇后；columns、diag1、diag2 分别保证同列、左上右下、右上左下不冲突。"
+        }
+      ],
+      "template_note": "模板解决元素互不相同的 78 题子集。`start` 保证只向后选，避免同一种子集换顺序重复；全排列、可重复组合和棋盘回溯需要各自的选择与剪枝条件。",
+      "template_source": "代码随想录（programmercarl.com）",
+      "teaching_markdown": "### 每个递归节点都是一个子集\n\n对 `nums = [1, 2]`，从 `start = 0` 开始：\n\n1. 进入根节点，先把空路径 `[]` 复制进答案。\n2. 选择 `1`，路径变成 `[1]`，下一层从下标 1 开始；再次复制得到 `[1]`。\n3. 在 `[1]` 分支再选择 `2`，得到 `[1,2]`；返回后弹出 2，恢复 `[1]`。\n4. 根节点弹出 1，改为选择 2，得到 `[2]`；返回后路径恢复为空。\n\n最终答案包含 `[]、[1]、[1,2]、[2]`。`start` 只允许向后选，所以不会又生成 `[2,1]`。\n\n### “恢复现场”在恢复什么\n\n路径列表是共享的工作区。每次递归返回时，必须把这一层刚追加的元素弹出；否则下一次循环会在别人的路径上继续添加。输入网格题常用临时标记代替 `pop`，但恢复动作仍不可少。",
+      "explanation_markdown": "### Python 快照与递归边界\n\n`answer.append(path[:])` 复制当前路径；若直接追加 `path`，答案里的每一项最终都会指向同一个列表。\n\n`backtrack(start)` 先记录当前节点，再枚举 `start` 之后的元素。区间 `range(start, len(nums))` 为空时循环自然结束，不需要单独的“失败”分支。\n\n本题共 2ⁿ 个答案；复制每个长度为 O(n) 的路径使总时间为 O(n·2ⁿ)。递归路径和调用栈占 O(n)，答案本身按题目输出另计。"
+    },
+    "二分查找": {
+      "summary": "二分查找先固定区间的开闭语义，再用单调条件排除一半候选；每一轮都必须严格缩小。",
+      "invariant_reason": "在 `[left, right)` 模板中，`right` 永远是可以排除的边界；循环结束时 `left` 是第一个不小于目标的位置。",
+      "why_python": "`bisect_left/right` 已实现标准边界语义；手写时用整数除法 `//`，不必模拟其他语言的取整规则。",
+      "workflow": [
+        "写出候选区间是闭区间还是右开区间",
+        "说明比较结果能排除哪一半",
+        "更新边界并检查重复值与越界"
+      ],
+      "api_hints": [
+        {
+          "symbol": "bisect_left",
+          "syntax": "position = bisect_left(nums, target)",
+          "use": "找第一个大于等于目标的位置"
+        },
+        {
+          "symbol": "bisect_right",
+          "syntax": "position = bisect_right(nums, target)",
+          "use": "找第一个严格大于目标的位置"
+        },
+        {
+          "symbol": "//",
+          "syntax": "middle = (left + right) // 2",
+          "use": "取得区间中点"
+        }
+      ],
+      "template": "def lower_bound(nums: list[int], target: int) -> int:\n    left = 0\n    right = len(nums)\n    while left < right:\n        middle = (left + right) // 2\n        if nums[middle] < target:\n            left = middle + 1\n        else:\n            right = middle\n    return left\n",
+      "template_name": "右开区间下界",
+      "pitfalls": [
+        "把闭区间与右开区间的 `while` 和边界更新混用。",
+        "查找右边界时继续使用 `bisect_left`，重复值范围错误。",
+        "旋转数组题没有先确认哪一半有序就缩小区间。"
+      ],
+      "problem_focus": [
+        {
+          "id": 35,
+          "title": "搜索插入位置",
+          "focus": "闭区间二分下界。循环维持 `[0, left)` 都小于 `target`，`[left, right]` 仍可能达到或超过 `target`；`left > right` 时 `left` 就是插入位置。"
+        },
+        {
+          "id": 74,
+          "title": "搜索二维矩阵",
+          "focus": "二维映射一维二分。若把矩阵按行拼接，下标 mid 唯一映射为 row=mid//cols、col=mid%cols。"
+        },
+        {
+          "id": 34,
+          "title": "在排序数组中查找元素的第一个和最后一个位置",
+          "focus": "左右边界二分。lower_bound 找第一个 >= target，upper_bound 找第一个 > target。"
+        },
+        {
+          "id": 33,
+          "title": "搜索旋转排序数组",
+          "focus": "识别旋转数组的有序半边。每轮至少有一半在数值上连续有序，可以先判断 target 是否落在这半区间。"
+        },
+        {
+          "id": 153,
+          "title": "寻找旋转排序数组中的最小值",
+          "focus": "与右端比较的二分。nums[mid] > nums[right] 时最小值严格在 mid 右侧，否则在 [left, mid]。"
+        },
+        {
+          "id": 4,
+          "title": "寻找两个正序数组的中位数",
+          "focus": "短数组上二分分割线。分割线左侧共有 half 个元素，且 a_left <= b_right、b_left <= a_right。"
+        }
+      ],
+      "template_note": "模板返回排序数组 `nums` 中第一个大于等于 `target` 的下标；没有任何元素满足时返回 `len(nums)`。右开区间模板不能随意改成 `left <= right`。",
+      "template_source": "代码随想录（programmercarl.com）",
+      "teaching_markdown": "### 用 `[left, right)` 锁定下界\n\n在 `nums = [1, 3, 5, 7]` 中查找 `target = 4`：\n\n| `left` | `right` | `middle` 与值 | 新候选区间 |\n|---:|---:|---|---|\n| 0 | 4 | 2, 值 5 | `[0, 2)` |\n| 0 | 2 | 1, 值 3 | `[2, 2)` |\n\n循环结束时 `left = 2`，正是 4 应插入的位置。`right` 从一开始就是“不包含”的边界，因此初值是 `len(nums)`，不是最后一个下标。\n\n重复值可直接看出左右边界：在 `[1,2,2,2,3]` 中，`bisect_left(..., 2)` 返回 1，`bisect_right(..., 2)` 返回 4，重复区间是 `[1, 4)`。",
+      "explanation_markdown": "### 手写与库函数怎样对应\n\n手写模板中，`nums[middle] < target` 时，`middle` 本身不可能成为下界，所以 `left = middle + 1`；否则 `middle` 仍可能是答案，保留为 `right = middle`。\n\n`bisect_left` 直接返回下界，`bisect_right` 返回第一个严格大于目标的位置。若数组可能已经整体小于目标，返回长度是合法插入位置；若目标整体小于数组，返回 0。\n\n每次候选长度至少减半，时间 O(log n)，只有两个整数下标，额外空间 O(1)。"
+    },
+    "栈": {
+      "summary": "栈保存尚未闭合的结构，或保存仍在等待答案的元素；先说明栈中存值还是下标，再说明何时弹出。",
+      "invariant_reason": "等待室里的日期仍未找到更高温度，且对应温度从栈底到栈顶非递增；今天只会结算比它更冷的所有栈顶。",
+      "why_python": "列表 `append/pop` 直接提供栈操作，`stack[-1]` 查看顶部；`enumerate` 还能同时得到日期下标。",
+      "workflow": [
+        "确定栈中保存值、下标还是期待符号",
+        "保持栈内顺序性质",
+        "当前元素能结算哪些栈顶，结算后再把当前元素入栈"
+      ],
+      "api_hints": [
+        {
+          "symbol": "append",
+          "syntax": "stack.append(index)",
+          "use": "把仍在等待的下标压到栈顶"
+        },
+        {
+          "symbol": "pop",
+          "syntax": "previous = stack.pop()",
+          "use": "结算并移除已经等到答案的下标"
+        },
+        {
+          "symbol": "stack[-1]",
+          "syntax": "temperatures[stack[-1]]",
+          "use": "查看栈顶但暂不删除"
+        }
+      ],
+      "template": "def daily_temperatures(temperatures: list[int]) -> list[int]:\n    answer = [0] * len(temperatures)\n    stack = []\n    for today, temperature in enumerate(temperatures):\n        while stack and temperature > temperatures[stack[-1]]:\n            previous = stack.pop()\n            answer[previous] = today - previous\n        stack.append(today)\n    return answer\n",
+      "template_name": "等待室单调下标栈",
+      "pitfalls": [
+        "把比较写成 `>=`，相同温度被错误结算。",
+        "只存温度不存日期下标，无法计算等待天数或矩形宽度。",
+        "括号题在栈为空时直接访问 `stack[-1]`；应先判断空栈或使用短路。"
+      ],
+      "problem_focus": [
+        {
+          "id": 20,
+          "title": "有效的括号",
+          "focus": "期待右括号栈。扫描任意前缀时，遇到右括号必须匹配栈顶尚未闭合的期待值。"
+        },
+        {
+          "id": 155,
+          "title": "最小栈",
+          "focus": "同步最小值栈。mins 的第 i 项是从栈底到第 i 项的当前最小值。"
+        },
+        {
+          "id": 394,
+          "title": "字符串解码",
+          "focus": "双栈分别保存重复倍数和进入括号前的父层内容；多位数字持续累积，闭括号时恢复父层并展开当前片段。"
+        },
+        {
+          "id": 739,
+          "title": "每日温度",
+          "focus": "把尚未等到升温的日期放进“等待室”；相同温度不出栈，因此栈内温度从栈底到栈顶非递增，今天可连续结算多个更冷日期。"
+        },
+        {
+          "id": 84,
+          "title": "柱状图中最大的矩形",
+          "focus": "双哨兵单调非递减栈。只有当前高度严格小于栈顶高度才弹出，等高柱保留；弹栈后的新栈顶与当前下标给出左右边界。"
+        }
+      ],
+      "template_note": "模板解决 739 题。栈保存还没有等到更高温度的日期下标；相同温度仍会留在栈中，所以栈内温度是非递增而不是严格递减。",
+      "template_source": "代码随想录（programmercarl.com）",
+      "teaching_markdown": "### 把日期放进“等待室”\n\n输入 `temperatures = [73, 74, 75, 71, 69, 72, 76, 73]`，栈中保存日期编号，而不是温度本身：\n\n| 今天与温度 | 处理 | 栈底 → 栈顶 |\n|---|---|---|\n| 0, 73 | 没有可结算项，入栈 | `[0]` |\n| 1, 74 | 结算日期 0，答案 1；日期 1 入栈 | `[1]` |\n| 2, 75 | 结算日期 1，答案 1；日期 2 入栈 | `[2]` |\n| 3, 71 | 不高于栈顶，等待 | `[2,3]` |\n| 4, 69 | 不高于栈顶，等待 | `[2,3,4]` |\n| 5, 72 | 先结算 4，再结算 3；遇到 75 停下 | `[2,5]` |\n| 6, 76 | 依次结算 5、2 | `[6]` |\n| 7, 73 | 不高于 76，入栈 | `[6,7]` |\n\n最后两天没有等到更高温度，答案保持 0。结果为 `[1,1,4,2,1,1,0,0]`。\n\n一次循环可能弹出多个日期，所以用 `while`。每天最多入栈一次、出栈一次，总时间是线性的。84 题同样用下标栈，但当前高度严格小于栈顶时才弹出；等高柱会一起保留。",
+      "explanation_markdown": "### `and` 短路与严格比较\n\n条件 `while stack and temperature > temperatures[stack[-1]]` 先检查栈是否为空。`and` 短路后，空栈不会执行右侧的 `stack[-1]`。\n\n答案写入 `today - previous`，这是日期差而不是温差。相同温度不算升温，因此 `[70,70,71]` 中前两个 70 都保留到 71 到来，答案分别为 2 和 1。\n\n每个下标入栈一次、最多出栈一次，时间 O(n)；所有日期都不升温时，栈占 O(n)。"
+    },
+    "堆": {
+      "summary": "堆用于持续取得候选中的极值。先决定堆顶应是什么，再决定何时把不够好的元素挤出去。",
+      "invariant_reason": "大小为 k 的最小堆保存当前最值得保留的 k 个候选，堆顶是其中最小或最容易淘汰的一个。",
+      "why_python": "判题环境限定为 Python 3.12 / CPython；该版本标准库 `heapq` 的公开接口以最小堆为核心，最大堆通常存入负值或自定义包装对象。",
+      "workflow": [
+        "定义堆顶代表淘汰还是保留",
+        "设定容量或双堆平衡条件",
+        "插入、淘汰、再读取极值"
+      ],
+      "api_hints": [
+        {
+          "symbol": "heapq.heappush",
+          "syntax": "heapq.heappush(heap, (frequency, value))",
+          "use": "把频次与值组成的候选加入堆"
+        },
+        {
+          "symbol": "heapq.heappop",
+          "syntax": "heapq.heappop(heap)",
+          "use": "淘汰堆顶的最小候选"
+        },
+        {
+          "symbol": "Counter",
+          "syntax": "counts = Counter(nums)",
+          "use": "先建立数值到频次的映射"
+        }
+      ],
+      "template": "from collections import Counter\nimport heapq\n\n\ndef top_k_frequent(nums: list[int], k: int) -> list[int]:\n    counts = Counter(nums)\n    heap = []\n    for value, frequency in counts.items():\n        heapq.heappush(heap, (frequency, value))\n        if len(heap) > k:\n            heapq.heappop(heap)\n    answer = [0] * k\n    for index in range(k - 1, -1, -1):\n        answer[index] = heapq.heappop(heap)[1]\n    return answer\n",
+      "template_name": "容量为 k 的频次小顶堆",
+      "pitfalls": [
+        "把最大 k 个保留进最大堆，结果反而先淘汰最有价值的候选。",
+        "堆比较到并列元组后继续比较不可比较对象，触发 `TypeError`。",
+        "需要最大堆时仍按原值调用最小堆接口，结果会先弹出最小值。"
+      ],
+      "problem_focus": [
+        {
+          "id": 215,
+          "title": "数组中的第K个最大元素",
+          "focus": "随机化双指针快速选择。每次划分只保留目标下标所在的一侧，平均 O(n)，最坏仍可能 O(n²)。"
+        },
+        {
+          "id": 347,
+          "title": "前 K 个高频元素",
+          "focus": "频次哈希后维护容量 k 的小顶堆，堆顶是当前保留项中频次最低者；超过 k 时淘汰堆顶。"
+        },
+        {
+          "id": 295,
+          "title": "数据流的中位数",
+          "focus": "大顶堆与小顶堆平衡。left 中保存较小一半，right 中保存较大一半；left 元素数等于 right 或多一个，且 left_top <= right_top。"
+        }
+      ],
+      "template_note": "模板解决 347 题的前 k 个高频元素。堆按 `(频次, 数值)` 比较并只保留 k 项；题目未规定同频元素的先后时可返回其中任意一组。",
+      "template_source": "代码随想录（programmercarl.com）",
+      "teaching_markdown": "### 小顶堆看守当前最有价值的 k 个候选\n\n找 `[4,1,7,3,2]` 中第 2 大的数时，只维护容量 2 的最小堆：\n\n| 读入 | 入堆后的堆顶 | 是否超容量 | 淘汰后保留 |\n|---:|---:|---|---|\n| 4 | 4 | 否 | `{4}` |\n| 1 | 1 | 否 | `{1,4}` |\n| 7 | 1 | 是，弹出 1 | `{4,7}` |\n| 3 | 3 | 是，弹出 3 | `{4,7}` |\n| 2 | 2 | 是，弹出 2 | `{4,7}` |\n\n堆顶 4 就是当前第 2 大。较小的新值进入后只会暂时占据堆顶，随后立刻被淘汰；比堆顶大的值进入，原来的最小值离开。\n\n347 题不是找第 k 大数值，而是找频次最高的 k 个键。把候选改成 `(frequency, value)` 后，堆顶仍是“当前保留项里频次最低、最容易淘汰”的那一个。\n\n### 双堆维护中位数\n\n295 题把较小的一半放进大顶堆，较大的一半放进小顶堆。插入后要恢复“两个堆顶有序、大小差不超过 1”的状态，答案才能直接由两个堆顶给出。",
+      "explanation_markdown": "### 堆、排序与 Python 3.12\n\n`heappush` 与 `heappop` 都维护堆性质，单次操作 O(log k)。流式扫描时不必保存完整前 k 候选；超过容量就淘汰堆顶。\n\n判题环境限定为 Python 3.12 / CPython，标准库 `heapq` 以最小堆接口工作。需要最大堆时可存入负值，或使用自定义包装器。\n\n模板最后从堆中连续弹出，并倒序写入答案。时间复杂度为计数 O(n)、维护堆 O(m log k)、输出 O(k log k)，额外空间为频次表和 O(k) 堆。"
+    },
+    "贪心": {
+      "summary": "贪心每一步提交局部选择，并由交换或反证说明被放弃的选择不会让未来更优。",
+      "invariant_reason": "扫描到某一天时，`lowest` 是从开头到当天见过的最低价格；以当天为卖出日时，用它得到此前能取得的最好收益。",
+      "why_python": "少量标量与 `min/max` 就能维护历史最优，不需要保存每日收益或价格切片。",
+      "workflow": [
+        "定义当前保留的历史最优状态",
+        "确定何时提交答案",
+        "证明保留的选择不会丢掉更优未来"
+      ],
+      "api_hints": [
+        {
+          "symbol": "min",
+          "syntax": "lowest = min(lowest, price)",
+          "use": "维护历史最低买入价"
+        },
+        {
+          "symbol": "max",
+          "syntax": "best = max(best, price - lowest)",
+          "use": "刷新当前最好利润"
+        },
+        {
+          "symbol": "dict",
+          "syntax": "last[ch] = index",
+          "use": "记录字符最后出现的位置"
+        }
+      ],
+      "template": "def max_profit(prices: list[int]) -> int:\n    lowest = float(\"inf\")\n    best = 0\n    for price in prices:\n        lowest = min(lowest, price)\n        best = max(best, price - lowest)\n    return best\n",
+      "template_name": "历史最低价滚动",
+      "pitfalls": [
+        "先用未来价格更新最低价再计算过去某天的利润，逻辑顺序失去时间约束。",
+        "只说明“看起来更优”，没有交代反例或交换论证。",
+        "把一次交易模板套到允许多次交易的题上。"
+      ],
+      "problem_focus": [
+        {
+          "id": 121,
+          "title": "买卖股票的最佳时机",
+          "focus": "历史最低价贪心。扫描当天价格后，`lowest` 是截至当天的最低买入价；用当天价格卖出时，最低买价给出截至当天的最好收益。"
+        },
+        {
+          "id": 55,
+          "title": "跳跃游戏",
+          "focus": "最远可达边界贪心。farthest 是从已扫描位置能够到达的最右下标；当前位置不超过它才可继续。"
+        },
+        {
+          "id": 45,
+          "title": "跳跃游戏 II",
+          "focus": "分层最远边界贪心。[level_start, current_end] 是当前步数可以覆盖的一层；扫描它时维护下一层最远点 next_end。"
+        },
+        {
+          "id": 763,
+          "title": "划分字母区间",
+          "focus": "最后出现位置 + 片段最远边界。当前片段 [start, end] 必须包含片段内每个字符的最后出现位置，最大 last 就是最早可切点。"
+        }
+      ],
+      "template_note": "模板解决 121 题：只能先买后卖且交易一次。`lowest` 包含当天价格，但当天卖出利润为 0；跳跃游戏和字符分段使用不同的最远边界，不能直接套用。",
+      "template_source": "代码随想录（programmercarl.com）",
+      "teaching_markdown": "### 到当前为止，最低买点足够回答今天\n\n对 `prices = [7,1,5,3,6,4]`：\n\n| 今天价格 | 截至今天最低价 | 今天卖出的利润 | 历史最好利润 |\n|---:|---:|---:|---:|\n| 7 | 7 | 0 | 0 |\n| 1 | 1 | 0 | 0 |\n| 5 | 1 | 4 | 4 |\n| 3 | 1 | 2 | 4 |\n| 6 | 1 | 5 | 5 |\n| 4 | 1 | 3 | 5 |\n\n以今天卖出时，未来信息没有用途；所有合法买点中，最低价必然给出最大利润。维护最低价和当前最好利润就足够，不需要保存整张按天状态表。\n\n### 最远边界也是同一种滚动状态\n\n跳跃游戏题保存“已经扫描的位置能到达的最远下标”，只要当前位置没越过它就能继续扩展；如果最远下标停在终点之前，就不可达。这里的证明是：所有能到达的位置都已扫描，边界之外的下一格没有任何路径可进入。",
+      "explanation_markdown": "### 顺序与边界\n\n先更新 `lowest`，再用它计算当日利润，得到的总是“当天或之前买入、当天卖出”的最好结果；当天利润最小为 0，因此 `best` 不会为负。\n\n只有一个价格时循环执行一次，利润为 0。缺少买入或卖出交易的题目答案通常规定为 0，模板与这一约定一致。\n\n扫描一次、只保存两个标量，时间 O(n)，额外空间 O(1)。贪心的难点在正确性说明，不是代码长度。"
+    },
+    "动态规划": {
+      "summary": "动态规划先写状态含义，再写转移、初始化与遍历方向；空间压缩必须保留转移真正需要的旧状态。",
+      "invariant_reason": "0-1 背包的 `reachable[capacity]` 表示只用已经处理过的元素能否凑出目标和；容量倒序避免本轮刚更新的状态被重复使用。",
+      "why_python": "布尔列表和整数列表可直接表示可达性与最优值；`any`、`min`、循环方向能把转移写清楚。",
+      "workflow": [
+        "用完整句子定义 `dp`",
+        "初始化空集合或边界状态",
+        "确定依赖方向和元素使用次数",
+        "最后检查是否值得压缩空间"
+      ],
+      "api_hints": [
+        {
+          "symbol": "range",
+          "syntax": "range(target, value - 1, -1)",
+          "use": "0-1 背包倒序更新容量"
+        },
+        {
+          "symbol": "any",
+          "syntax": "any(reachable)",
+          "use": "检查是否存在某种可达状态"
+        },
+        {
+          "symbol": "bisect_left",
+          "syntax": "position = bisect_left(tails, value)",
+          "use": "扩展追问中用 `tails` 维护最小末尾候选；本专题主解仍是以每个位置结尾的 O(n²) DP"
+        }
+      ],
+      "template": "def can_partition(nums: list[int]) -> bool:\n    total = sum(nums)\n    if total % 2:\n        return False\n    target = total // 2\n    reachable = [False] * (target + 1)\n    reachable[0] = True\n    for value in nums:\n        for capacity in range(target, value - 1, -1):\n            reachable[capacity] = reachable[capacity] or reachable[capacity - value]\n    return reachable[target]\n",
+      "template_name": "一维 0-1 背包可达性",
+      "pitfalls": [
+        "0-1 背包容量正序遍历，把当前元素当成可以重复使用。",
+        "先写代码再猜 `dp[i]` 含义，导致初始化与最终答案不一致。",
+        "压缩二维状态时覆盖了后续仍需要的旧行或左上角值。"
+      ],
+      "problem_focus": [
+        {
+          "id": 70,
+          "title": "爬楼梯",
+          "focus": "滚动 Fibonacci DP。到达第 i 阶的方法数只依赖 i-1 与 i-2 两步。"
+        },
+        {
+          "id": 118,
+          "title": "杨辉三角",
+          "focus": "逐行递推杨辉三角。每行首尾为 1，内部第 c 项等于上一行 c-1 与 c 两项之和。"
+        },
+        {
+          "id": 198,
+          "title": "打家劫舍",
+          "focus": "打家劫舍滚动 DP。处理到第 i 家时，skip 是不偷当前家的最优值，take 是偷当前家的最优值。"
+        },
+        {
+          "id": 279,
+          "title": "完全平方数",
+          "focus": "完全背包最少平方数。dp[x] 表示和为 x 的最少完全平方数个数，x 可由 x - j² 再加一个平方数得到。"
+        },
+        {
+          "id": 322,
+          "title": "零钱兑换",
+          "focus": "完全背包最少硬币。dp[x] 表示凑出金额 x 的最少硬币数；x - coin 的值加一可以得到 x。"
+        },
+        {
+          "id": 139,
+          "title": "单词拆分",
+          "focus": "前缀可达性 DP + startswith 按位置匹配。reachable[end] 为真，表示 s[0:end] 能由字典单词完整切分。"
+        },
+        {
+          "id": 300,
+          "title": "最长递增子序列",
+          "focus": "`dp[i]` 表示以 `nums[i]` 结尾的最长递增子序列长度，向前查找比自己小的末尾值；主解 O(n²)。"
+        },
+        {
+          "id": 152,
+          "title": "乘积最大子数组",
+          "focus": "同时维护最大与最小乘积。以当前位置结尾的最大/最小乘积只由上一位置最大/最小乘积与当前值产生。"
+        },
+        {
+          "id": 416,
+          "title": "分割等和子集",
+          "focus": "0-1 背包可行性。dp[s] 表示从已处理元素中选出一部分能否正好得到和 s；每个元素只能使用一次。"
+        },
+        {
+          "id": 32,
+          "title": "最长有效括号",
+          "focus": "无效右括号基准栈。栈底保存最近一个无法匹配的右括号下标；当前下标与栈顶之差是一段合法候选长度。"
+        }
+      ],
+      "template_note": "模板解决 416 题：每个元素最多使用一次，目标是恰好凑出数组总和的一半。完全背包、序列 DP 和区间 DP 的遍历方向不同，需要重新推导。 300 题逐题抓手采用以每个位置结尾的 O(n²) DP，`tails + bisect_left` 只作扩展。",
+      "template_source": "灵茶山艾府题解（MIT License）",
+      "teaching_markdown": "### 状态表里到底保存什么\n\n416 题的目标是判断能否选出一些元素，使它们的和正好等于总和的一半。以 `nums = [1,5,11,5]` 为例，总和为 22，目标为 11。\n\n先用“可达和集合”理解：初始只有 `{0}`；处理 1 后是 `{0,1}`；处理第一个 5 后是 `{0,1,5,6}`；处理 11 时新增 `11,12,16,17`，已经包含目标 11；最后一个 5 也保留这一可达性。\n\n一维数组只是把这些集合铺成布尔表：`reachable[s]` 表示是否存在一组已处理元素，和恰好为 s。处理新元素 `value` 时，可以从旧的 `s - value` 来到 `s`。",
+      "explanation_markdown": "### 为什么容量必须倒序\n\n如果容量从小到大更新，`reachable[s - value]` 可能已经在本轮被当前元素修改，于是同一个数字被用了多次。倒序时，较小容量还没在本轮更新，读到的是上一轮状态，正好对应“每个元素最多一次”。\n\n总和为奇数时无法拆成两个整数和，提前返回 `False`。总和为偶数时，初始化 `reachable[0] = True` 表示什么都不选可以凑出 0。\n\n时间和目标容量与元素数有关，为 O(n·target)；一维表占 O(target)。"
+    },
+    "多维动态规划": {
+      "summary": "二维 DP 的每个坐标都要有一句完整定义；先填边界，再确认当前格只依赖已经完成的相邻状态。",
+      "invariant_reason": "填到 `dp[row][col]` 时，上方与左方都表示从左上角到达对应格子的最小累计代价。",
+      "why_python": "二维列表允许直接写下坐标语义；逐行生成可避免内层列表共享，双行滚动时再处理旧值覆盖。",
+      "workflow": [
+        "定义 `dp[row][col]` 的完整语义",
+        "初始化第一行与第一列",
+        "按依赖方向填内部格子",
+        "最后再考虑空间压缩"
+      ],
+      "api_hints": [
+        {
+          "symbol": "enumerate",
+          "syntax": "for col, char in enumerate(text, start=1)",
+          "use": "让字符串位置与 DP 列对齐"
+        },
+        {
+          "symbol": "min",
+          "syntax": "min(up, left) + grid[row][col]",
+          "use": "组合网格的两个前驱"
+        },
+        {
+          "symbol": "max",
+          "syntax": "max(up, left)",
+          "use": "双序列不相等时继承较优前缀"
+        }
+      ],
+      "template": "def min_path_sum(grid: list[list[int]]) -> int:\n    rows = len(grid)\n    cols = len(grid[0])\n    dp = [[0] * cols for _ in range(rows)]\n    dp[0][0] = grid[0][0]\n    for col in range(1, cols):\n        dp[0][col] = dp[0][col - 1] + grid[0][col]\n    for row in range(1, rows):\n        dp[row][0] = dp[row - 1][0] + grid[row][0]\n    for row in range(1, rows):\n        for col in range(1, cols):\n            dp[row][col] = grid[row][col] + min(\n                dp[row - 1][col], dp[row][col - 1]\n            )\n    return dp[rows - 1][cols - 1]\n",
+      "template_name": "网格最小路径和",
+      "pitfalls": [
+        "行和列方向写反，在非方阵上得到错误下标或结果。",
+        "双序列滚动时先覆盖左上角旧值，之后无法执行对角线转移。",
+        "把所有二维题都误认为必须使用 `m×n` 表，忽略可安全滚动的一维状态。"
+      ],
+      "problem_focus": [
+        {
+          "id": 62,
+          "title": "不同路径",
+          "focus": "一维组合 DP。处理下一行前，dp[col] 表示到达上一行该格的路径数；更新后表示当前行。"
+        },
+        {
+          "id": 64,
+          "title": "最小路径和",
+          "focus": "二维前缀最小路径 DP。`dp[row][col]` 保存从左上角到当前格的最小路径和，上、左两个已算状态取较小值；输入网格保持不变。"
+        },
+        {
+          "id": 5,
+          "title": "最长回文子串",
+          "focus": "中心扩展。每次扩展都在左右字符相等且仍在边界内时进行，因此候选区间始终是回文。"
+        },
+        {
+          "id": 1143,
+          "title": "最长公共子序列",
+          "focus": "二维最长公共子序列 DP。`dp[i][j]` 表示两个字符串前 i、j 个字符的最长公共子序列；末尾相同走左上角加一，不同则取上方或左方。"
+        },
+        {
+          "id": 72,
+          "title": "编辑距离",
+          "focus": "二维编辑距离 DP。`dp[i][j]` 表示两个前缀间的最少编辑次数；删、插、换分别对应上方、左方与左上角来源，末尾相同直接继承。"
+        }
+      ],
+      "template_note": "模板解决非空网格的 64 题，保留完整二维表以便逐步核对。它没有修改输入；若使用一维滚动，必须把“上方旧值”与“左方新值”分别保存。",
+      "template_source": "经典解法实现",
+      "teaching_markdown": "### 每个格子的答案只从前两个格子来\n\n对 `[[1,3,1],[1,5,1],[4,2,1]]` 逐行填表：\n\n1. 第一行只能向右：`[1, 4, 5]`。\n2. 第二行第一列只能向下：`1 + 1 = 2`；中间格取上方 4、左方 2 的最小值 2，再加 5 得 7；右格为 `min(5,7)+1 = 6`。\n3. 第三行第一列为 `4+2=6`；中间格为 `min(7,6)+2=8`；终点为 `min(6,8)+1=7`。\n\n完整表为：\n\n```text\n1  4  5\n2  7  6\n6  8  7\n```\n\n最终答案是右下角 7。第一行与第一列必须单独初始化，因为它们只有一个前驱；若从 `(0,0)` 统一循环，就需要额外的越界分支。",
+      "explanation_markdown": "### 二维列表与转移方向\n\n先用 `[[0] * cols for _ in range(rows)]` 创建独立行。`dp[row - 1][col]` 是上方，`dp[row][col - 1]` 是左方，两者都已在当前格之前算好。\n\n64 题也可原地覆盖 `grid`，把额外空间降到 O(1)，代价是输入被修改。1143 和 72 题处理两个字符串前缀时，通常只需上一行与当前行，但必须保存左上角的旧值。\n\n完整表有 O(rows × cols) 个状态，每个格子常数时间，因此时间与空间（未压缩时）都是 O(rows × cols)。"
+    },
+    "技巧": {
+      "summary": "技巧题先识别隐藏模型：异或代数、投票抵消、三路分区、字典序定义或下标到值的隐式链表。",
+      "invariant_reason": "三路划分始终把已扫描区间分成 0 区、1 区和右侧 2 区；中间未检查区随指针移动而缩小。",
+      "why_python": "交换与位运算表达紧凑；但“能写成一行”不等于充分说明，仍需保持原地语义并解释交换后是否推进。",
+      "workflow": [
+        "先找出题目对应的数学模型或区间定义",
+        "写出每次移动后的分区或抵消状态",
+        "用重复值、负数和首尾位置检验"
+      ],
+      "api_hints": [
+        {
+          "symbol": "tuple assignment",
+          "syntax": "nums[i], nums[j] = nums[j], nums[i]",
+          "use": "交换列表位置，不写临时变量"
+        },
+        {
+          "symbol": "^=",
+          "syntax": "result ^= value",
+          "use": "把元素折叠进异或累加器"
+        },
+        {
+          "symbol": "set",
+          "syntax": "seen = set()",
+          "use": "记录已经访问的位置或值"
+        }
+      ],
+      "template": "def sort_colors(nums: list[int]) -> None:\n    left = 0\n    index = 0\n    right = len(nums) - 1\n    while index <= right:\n        if nums[index] == 0:\n            nums[left], nums[index] = nums[index], nums[left]\n            left += 1\n            index += 1\n        elif nums[index] == 2:\n            nums[index], nums[right] = nums[right], nums[index]\n            right -= 1\n        else:\n            index += 1\n",
+      "template_name": "三路原地划分",
+      "pitfalls": [
+        "从右端换入新值后仍推进 `index`，漏检刚进入未知区的元素。",
+        "交换后没有重新检查刚换入当前位置的值，或把目标绑定顺序当成了额外的交换语义。",
+        "Floyd 找到第一次相遇后直接把它当重复值；还应从起点与相遇点同步寻找环入口。"
+      ],
+      "problem_focus": [
+        {
+          "id": 136,
+          "title": "只出现一次的数字",
+          "focus": "异或归约。处理过的元素异或结果中，成对出现的值互相抵消，只剩下已扫描部分中唯一的那个值。"
+        },
+        {
+          "id": 169,
+          "title": "多数元素",
+          "focus": "Boyer-Moore 投票。遍历到当前位置时，candidate 等于把此前元素按“相同加一、不同抵消”后仍未被消掉的候选；count 是它的净票数。"
+        },
+        {
+          "id": 75,
+          "title": "颜色分类",
+          "focus": "荷兰国旗三指针。扫描时维护 [0,left) 全为 0、[left,index) 全为 1、(right,n) 全为 2，index 指向尚未检查区间的首项。"
+        },
+        {
+          "id": 31,
+          "title": "下一个排列",
+          "focus": "右端拐点 + 最小增大交换 + 后缀反转。pivot 右侧始终是递减后缀；交换后它仍可被反转为最小的递增后缀。"
+        },
+        {
+          "id": 287,
+          "title": "寻找重复数",
+          "focus": "Floyd 判环定位重复值。把下标 i 映射到 nums[i]，序列形成带环的函数图；重复值正好是被多个下标指向的环入口。"
+        }
+      ],
+      "template_note": "模板解决 75 题并原地修改 `nums`。交换进当前位置的新值必须先检查；其余技巧题需要使用各自的代数或函数图模型。",
+      "template_source": "经典解法实现",
+      "teaching_markdown": "### 一次扫描维护三个颜色区域\n\n目标数组划分后有三个范围：`[0,left)` 全是 0，`[left,index)` 全是 1，`(right,n)` 全是 2；`[index,right]` 仍未检查。\n\n以 `nums = [2,0,2,1,1,0]` 为例：\n\n1. 下标 0 是 2，与右端 0 交换，数组变为 `[0,0,2,1,1,2]`，`right=4`；当前位置仍是 2，不能推进。\n2. 下标 0 是 0，与 0 区后一位交换，`left`、`index` 都变为 1。\n3. 下标 1 仍是 0，同样归入左侧，`left=index=2`。\n4. 下标 2 是 2，与右端 1 交换，数组变为 `[0,0,1,1,2,2]`，`right=3`，当前位置重新检查。\n5. 下标 2、3 都是 1，依次前进；未知区清空，数组已经有序。\n\n从右端换进来的值可能是 0，因此遇到 2 时只缩小 `right`，不推进 `index`。",
+      "explanation_markdown": "### 交换、位运算与函数图\n\n`nums[i], nums[j] = nums[j], nums[i]` 会先按旧值求出右侧的两个元素，再从左到右赋给两个目标，因而可完成常规交换。\n\n136 题依赖 `x ^ x = 0` 与 `x ^ 0 = x`，把出现两次的数两两抵消。169 题把相同票加一、不同票减一，多数元素的票数超过其余元素总和，因此抵消后仍能留下。\n\n287 题把下标映射到 `nums[index]`。先由快慢指针在环中找到一次相遇，再让一个指针回到起点，双方同步前进，第二次相遇的位置就是重复值。\n\n这些模板的额外工作变量都是常数个，符合题目要求的 O(1) 空间；返回数组或输入本身不计入额外工作空间。"
+    }
+  }
+}

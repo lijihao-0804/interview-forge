@@ -14,10 +14,13 @@ import uuid
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI
+from fastapi.routing import APIRoute
 from fastapi.responses import JSONResponse, Response
+from starlette.routing import Match
 
 from interview_forge.api.routers.health import router as health_router
 from interview_forge.api.routers.auth import router as auth_router
+from interview_forge.api.routers.catalog import router as catalog_router
 from interview_forge.api.routers.admin import router as admin_router
 from interview_forge.api.routers.analytics import router as analytics_router
 from interview_forge.api.routers.community import router as community_router
@@ -66,6 +69,7 @@ app = FastAPI(
     version="2",
     docs_url=None,
     redoc_url=None,
+    openapi_url=None,
     lifespan=lifespan,
 )
 
@@ -77,6 +81,14 @@ _DEFAULT_ALLOWED_ORIGINS = frozenset({
     "http://127.0.0.1",
     "http://localhost:8765",
     "http://127.0.0.1:8765",
+})
+_PUBLIC_API_OPERATIONS = frozenset({
+    ("GET", "/api/health"),
+    ("GET", "/api/catalog"),
+    ("GET", "/api/search"),
+    ("POST", "/api/login"),
+    ("POST", "/api/register"),
+    ("POST", "/api/register/send-code"),
 })
 
 
@@ -114,6 +126,21 @@ def _same_origin_request(request) -> bool:
         return True
     return origin in _allowed_origins() or _is_loopback_origin(origin)
 
+
+def _private_api_route(request) -> bool:
+    """Return whether the request matches a known private API operation."""
+    if not request.url.path.startswith("/api/"):
+        return False
+    if (request.method, request.url.path) in _PUBLIC_API_OPERATIONS:
+        return False
+    for route in app.router.routes:
+        if not isinstance(route, APIRoute) or not route.path.startswith("/api/"):
+            continue
+        match, _child = route.matches(request.scope)
+        if match is not Match.NONE:
+            return True
+    return False
+
 @app.middleware("http")
 async def request_observability(request, call_next):
     """Add a bounded request id and structured, credential-free access log."""
@@ -145,6 +172,13 @@ async def request_observability(request, call_next):
                           "请设置环境变量 INTERVIEW_FORGE_ALLOWED_ORIGINS（逗号分隔）后重启服务。"},
                 status_code=403,
             )
+        elif _private_api_route(request):
+            from interview_forge.api.support import current_user
+            user = await asyncio.to_thread(current_user, request)
+            if user is None:
+                response = JSONResponse({"error": "未登录"}, status_code=401)
+            else:
+                response = await call_next(request)
         else:
             response = await call_next(request)
     except Exception as exc:
@@ -209,6 +243,7 @@ async def request_observability(request, call_next):
 
 app.include_router(health_router)
 app.include_router(auth_router)
+app.include_router(catalog_router)
 app.include_router(study_router)
 app.include_router(leetcode_router)
 app.include_router(analytics_router)

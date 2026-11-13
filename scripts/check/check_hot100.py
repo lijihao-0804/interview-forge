@@ -14,10 +14,10 @@
 #   生成脚本执行，不能单独运行或跳过。
 #
 # 【执行方式】
-#   在 学习站 根目录执行：python tools/check_hot100.py
+#   在 学习站 根目录执行：python scripts/check/check_hot100.py
 #   （脚本内部 `from build_hot100 import ...` 直接引用生成脚本模块并读取仓库文件，
 #    所以必须在项目根目录运行，不能把单文件挪走执行。）
-#   发布前先做语法自检：python -m py_compile tools/check_hot100.py
+#   发布前先做语法自检：python -m py_compile scripts/check/check_hot100.py
 #
 # 【errors 数组用途与退出码语义】
 #   - errors  ：发布阻断项列表。任何一条成立都说明产物不合格，必须修复后重新生成；
@@ -42,11 +42,29 @@ from bs4 import BeautifulSoup
 from scripts.build.build_html_site import VISUAL_EMBEDS
 from scripts.build.build_hot100 import LEETCODE_SLUGS, PROBLEMS
 from scripts.build.library_catalog import LIBRARY_MODULES
+from scripts.check.release_content_scope import (
+    is_release_content_path,
+    iter_release_content_files,
+)
 
 
 from interview_forge.core.paths import ROOT
 errors: list[str] = []
 warnings: list[str] = []
+
+# Discover the release corpus once. Every document and generated-script scan
+# below narrows these files instead of walking development directories again.
+release_document_files = iter_release_content_files(ROOT, {".md", ".html"})
+release_markdown_files = tuple(
+    path for path in release_document_files if path.suffix.casefold() == ".md"
+)
+release_html_files = tuple(
+    path for path in release_document_files if path.suffix.casefold() == ".html"
+)
+hot100_root = ROOT / "books" / "hot100"
+problem_root = hot100_root / "03-题解"
+visualization_root = hot100_root / "05-可视化"
+library_root = ROOT / "library"
 
 
 # ============================================================================
@@ -56,7 +74,9 @@ warnings: list[str] = []
 #   还有独立的力扣 slug 链接断言（见“力扣原题链接覆盖”注释段）。任何一条
 #   失败都会登记一条对应文案的 error。
 # ============================================================================
-problem_files = sorted((ROOT / "books" / "hot100" / "03-题解").rglob("*.md"))
+problem_files = sorted(
+    path for path in release_markdown_files if path.is_relative_to(problem_root)
+)
 ids: list[int] = []
 for path in problem_files:
     # 标题行约定：页面里必须是 “# 编号.” 形式的 H1（(?m) 表示按行匹配，
@@ -98,9 +118,14 @@ for path in problem_files:
     # 发布模板约定每题固定具备这 4 部分：题目与约束、核心不变量（想清楚维护的量）、
     # 时间/空间复杂度。缺任何一项都说明该页没有按模板撰写完毕，属于“半成品页面”，
     # 直接阻断发布。
-    for required in ("## 题目与约束", "## 核心不变量", "时间复杂度", "空间复杂度"):
+    for required in ("## 题目与约束", "时间复杂度", "空间复杂度"):
         if required not in text:
             errors.append(f"缺少 {required}：{path}")
+    # Language-specific headings are equivalent to the old shared heading.
+    # Python now explains the maintained state in an authored example rather
+    # than repeating the same heading on every page; the Java invariant stays.
+    if not re.search(r"(?m)^#{2,3}\s+(?:Java\s+)?核心不变量\s*$", text):
+        errors.append(f"缺少核心不变量：{path}")
     # 题面是页面级公共内容，只能出现一次，并且必须位于推导/解法之前。
     # 这条是构建模板的回归约束，防止原稿重复的“### 题目与约束”小节泄漏到解法正文。
     statement_headings = list(re.finditer(r"(?m)^##\s+题目与约束\s*$", text))
@@ -114,7 +139,7 @@ for path in problem_files:
     # emoji 分类标题（📌🧠🛠️⏱️）、以及四句整理说明（“保留原方法”“仅做结构和
     # 措辞整理”“来源：`”“完整推导与代码”）。这些是面向作者自己的待办/溯源文案，
     # 正式发布后不应出现在读者面前，因此一律视为残留错误。
-    if "先记住" in text:
+    if re.search(r"(?m)^#{1,6}\s+先记住(?:\s|[：:]|$)", text):
         errors.append(f"题目页仍使用旧标题“先记住”：{path}")
     if re.search(r"📌|🧠|🛠️|⏱️", text):
         errors.append(f"题目页残留 emoji 整理标题：{path}")
@@ -158,17 +183,15 @@ for path in problem_files:
 
 
 # ============================================================================
-# ② 链接完整性扫描（全站 md + html）
+# ② 链接完整性扫描（发布范围 md + html）
 #   全站发布最常见的翻车点是“链接指向不存在”，来源包括：文件名大小写写错、
 #   目录改名、误删文件。这里用两条正则分别抽取 Markdown 链接/图片目标
 #   （[..](url)）与 HTML 的 href/src 目标，再对每个“本地相对链接”做存在性校验，
-#   不存在即登记 error。扫描范围是所有 .md / .html 文件（含 _rglob_ 子目录）。
+#   不存在即登记 error。扫描范围是发布内容根目录与根级页面/维护文档。
 # ============================================================================
 markdown_link = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 html_link = re.compile(r"(?i)(?:href|src)=[\"']([^\"']+)[\"']")
-for path in ROOT.rglob("*"):
-    if not path.is_file() or path.suffix.lower() not in {".md", ".html"}:
-        continue
+for path in release_document_files:
     text = path.read_text(encoding="utf-8-sig", errors="replace")
     # Markdown 文件按行扫链接并跳过代码围栏（``` 块内的文本不是链接语法，
     # 否则 print(ops["square"](4)) 之类代码会被误判为指向文件"4"的失效链接）；
@@ -232,14 +255,14 @@ for path in ROOT.rglob("*"):
 
 
 # ============================================================================
-# ③ HTML 结构检查（全站 *.html）
+# ③ HTML 结构检查（发布范围 *.html）
 #   按四层静态检查：A) 基础结构（页脚残留、lang/title/viewport、重复 id、
 #   指向 md 的本地链接）；B) 阅读页正文（.markdown-body/.reader 容器里的
 #   Markdown 残留与结构顺序）；C) 可视化页（05-可视化/）专属约束；D) 学习面板
 #   dashboard（index.html）功能区与后端契约断言。同时顺手统计 reader_pages 与
 #   math_formulas 两个发布度量（含义见末尾 summary 注释）。
 # ============================================================================
-html_files = sorted(ROOT.rglob("*.html"))
+html_files = list(release_html_files)
 # 页脚残留：如果正式阅读页的脚注还写着“Markdown 保留作可编辑源稿”，说明该页
 # 仍是“面向作者的临时过渡版”模板，没有切换成面向读者的正式版式。
 stale_footer = "Markdown 保留作可编辑源稿"
@@ -488,7 +511,9 @@ for source_rel, (visual_name, query) in VISUAL_EMBEDS.items():
 #   个 ``` 会把后面的正文整段吞进代码块，这条断言同样会把它揪出来。
 # ============================================================================
 CODE_SMELL = re.compile(r"(;|\)\s*\{)\s*$")
-for chapter in sorted((ROOT / "books" / "hot100").glob("*.md")):
+for chapter in sorted(
+    path for path in release_markdown_files if path.parent == hot100_root
+):
     chapter_lines = chapter.read_text(encoding="utf-8-sig").splitlines()
     fence_open: tuple[int, str] | None = None  # (行号, info)
     body: list[str] = []
@@ -598,7 +623,10 @@ if _LANG_JSON.exists():
 # 书架章节正文体量门禁：reader-body 净文本过少（且无图片）的章节对用户就是
 # "白页"——源稿空小节或章节切分把过渡句切成独立章都会产生（2026-10-03 全站
 # 审计发现 lora/chapter-03 正文为空）。按 <div> 括号深度平衡提取正文判断。
-_library_chapters = sorted(Path("library").rglob("chapter-*.html"))
+_library_chapters = sorted(
+    path for path in release_html_files
+    if path.is_relative_to(library_root) and re.fullmatch(r"chapter-.*\.html", path.name)
+)
 for _chapter in _library_chapters:
     _chapter_text = _chapter.read_text(encoding="utf-8-sig", errors="replace")
     _m = re.search(r'<div class="reader-body">', _chapter_text)
@@ -724,7 +752,9 @@ for asset_path in (site_js_path, site_css_path):
 # 题解页与书架章节页的沉浸残留抽查：只取前 3 页做代价可控的采样（全量做
 # 字符串扫描太慢），检查旧的沉浸按钮 id 与旧脚本引用是否仍混进生成产物——
 # 生成脚本若漏掉清理步骤，旧模板的痕迹会原样带进所有新页面。
-problem_pages = sorted((ROOT / "books" / "hot100" / "03-题解").rglob("*.html"))
+problem_pages = sorted(
+    path for path in release_html_files if path.is_relative_to(problem_root)
+)
 if not problem_pages:
     errors.append("题解页目录为空")
 for problem_path in problem_pages[:3]:
@@ -734,7 +764,10 @@ for problem_path in problem_pages[:3]:
 # 书架章节页同样抽查前 3 页：不允许残留 immersive.js 引用或沉浸按钮；且必须带
 # “下次复习”行（#chapterDue + /api/daily?module= 请求）——这是书架与普通题解页
 # 不同的核心功能点（章节级复习状态）。
-library_chapter_pages = sorted((ROOT / "library").rglob("chapter-*.html"))
+library_chapter_pages = sorted(
+    path for path in release_html_files
+    if path.is_relative_to(library_root) and re.fullmatch(r"chapter-.*\.html", path.name)
+)
 if not library_chapter_pages:
     errors.append("学习书架章节页为空")
 for chapter_path in library_chapter_pages[:3]:
@@ -760,7 +793,10 @@ else:
 # 每个书架模块页（library/*/index.html）抽查前 5 个：必须带本模块待复习区块
 # （#moduleDue）、due 筛选选项与 /api/daily?module= 请求，三者缺一即模块页的
 # 复习功能不完整。
-library_module_pages = sorted((ROOT / "library").glob("*/index.html"))
+library_module_pages = sorted(
+    path for path in release_html_files
+    if path.parent.parent == library_root and path.name == "index.html"
+)
 if not library_module_pages:
     errors.append("学习书架模块页为空")
 for module_path in library_module_pages[:5]:
@@ -847,7 +883,7 @@ for definition in LIBRARY_MODULES:
 # ③ 每张图的 pre.mermaid 源码必须存在且非空（否则图上没有可渲染内容）；
 # ④ 图内不得残留 &#x20; 空格实体。最后 rendered != expected 时给出双方数量。
 rendered_mermaid = 0
-for chapter_path in sorted((ROOT / "library").glob("*/chapter-*.html")):
+for chapter_path in library_chapter_pages:
     chapter_text = chapter_path.read_text(encoding="utf-8-sig")
     chapter_soup = BeautifulSoup(chapter_text, "html.parser")
     figures = chapter_soup.select("figure.mermaid-diagram")
@@ -873,7 +909,7 @@ if rendered_mermaid != expected_mermaid:
 # main.reader > .breadcrumb 面包屑要有课程目录链接；标题下要有学习记录状态条
 # （#chapterStatus）。反向断言：.chapter-layout 固定双栏是已废弃的旧布局
 # （新版是响应式单栏），出现即报错。
-for chapter_path in sorted((ROOT / "library").glob("*/chapter-*.html")):
+for chapter_path in library_chapter_pages:
     chapter_text = chapter_path.read_text(encoding="utf-8-sig")
     chapter_soup = BeautifulSoup(chapter_text, "html.parser")
     nav = chapter_soup.select_one(".chapter-nav")
@@ -942,7 +978,12 @@ if node:
         # 提取内联脚本的正则：(?is) 忽略大小写并让 . 匹配换行；(?!…\bsrc=) 是
         # 负向前瞻，排除带 src（外部文件引用）的 <script>——外部文件不进这里，
         # 单独当作一个 JS 文件整体 --check（见下面 generated_scripts）。
-        script_pages = sorted((ROOT / "books" / "hot100" / "05-可视化").glob("*.html")) + sorted((ROOT / "library").rglob("*.html")) + [ROOT / "index.html"]
+        script_pages = sorted(
+            path for path in release_html_files
+            if path.parent == visualization_root
+            or path.is_relative_to(library_root)
+            or path == ROOT / "index.html"
+        )
         jobs: list[tuple[str, Path, str | None, Path | None]] = []
         inline_number = 0
         for html_path in script_pages:
@@ -960,7 +1001,12 @@ if node:
                 inline_number += 1
         # 生成脚本资产：assets/*.js 与 library/assets/*.js 是构建产物（独立文件，
         # 不是从 HTML 提取的），直接整体 --check；报错信息带相对路径便于定位。
-        generated_scripts = list((ROOT / "assets").glob("*.js")) + list((ROOT / "library" / "assets").glob("*.js"))
+        generated_scripts = [
+            path
+            for path in iter_release_content_files(ROOT, {".js"})
+            if path.parent in {ROOT / "assets", library_root / "assets"}
+            and is_release_content_path(path, ROOT)
+        ]
         for js_path in sorted(generated_scripts):
             jobs.append((js_path.relative_to(ROOT).as_posix(), js_path, None, None))
         if jobs:
@@ -982,8 +1028,8 @@ else:
 #                     正常应等于 problem_pages）；
 #     topic_pages   : 02-专题 下的专题 md 页数；
 #     visuals       : 05-可视化 下的演示页数；
-#     markdown_files: 全站 .md 文件总数；
-#     html_files    : 全站 .html 文件总数；
+#     markdown_files: 发布范围 .md 文件总数；
+#     html_files    : 发布范围 .html 文件总数；
 #     reader_pages  : 带 .markdown-body/.reader 容器的阅读页数（③-B 的检查对象）；
 #     math_formulas : 阅读页 <math> 标签总数（站点公式渲染量的度量）；
 #     broken_links  : errors 中以“失效本地链接”开头的错误条数（② 的专用统计，
@@ -996,9 +1042,12 @@ else:
 summary = {
     "problem_pages": len(problem_files),
     "unique_ids": len(set(ids)),
-    "topic_pages": len(list((ROOT / "books" / "hot100" / "02-专题").glob("*.md"))),
-    "visuals": len(list((ROOT / "books" / "hot100" / "05-可视化").glob("*.html"))),
-    "markdown_files": len(list(ROOT.rglob("*.md"))),
+    "topic_pages": sum(
+        1 for path in release_markdown_files
+        if path.parent == ROOT / "books" / "hot100" / "02-专题"
+    ),
+    "visuals": sum(1 for path in release_html_files if path.parent == visualization_root),
+    "markdown_files": len(release_markdown_files),
     "html_files": len(html_files),
     "reader_pages": reader_pages,
     "math_formulas": math_formulas,
@@ -1011,7 +1060,7 @@ summary = {
 # 背景：ed72e89e 引入多语言题解时，部分题 Python 代码只生成了开头几行，
 # 因为当时校验只查链接/mermaid、不查代码本身是否完整，一直没被发现。
 _import_re, _import_ast = __import__("re"), __import__("ast")
-for _md in sorted((ROOT / "books" / "hot100" / "03-题解").rglob("*.md")):
+for _md in problem_files:
     _text = _md.read_text(encoding="utf-8")
     for _m in _import_re.finditer(r"```(?:python|py)\n(.*?)```", _text, _import_re.S):
         _code = _m.group(1)

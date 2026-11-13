@@ -67,8 +67,7 @@ public class Main {
                 if (!data.isEmpty()) {
                     Map<String, String> event = new LinkedHashMap<>();
                     event.put("event", eventType);
-                    event.put("data", String.join("
-", data));
+                    event.put("data", String.join("\n", data));
                     events.add(event);
                 }
                 eventType = "message";
@@ -86,8 +85,7 @@ public class Main {
     private static String stripTrailingNewlines(String value) {
         int end = value.length();
         // 循环处理
-        while (end > 0 && value.charAt(end - 1) == '
-') {
+        while (end > 0 && value.charAt(end - 1) == '\n') {
             end--;
         }
         // 返回结果

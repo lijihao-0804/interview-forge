@@ -68,7 +68,7 @@ class ProblemLeetCodeLinkTests(unittest.TestCase):
             md_path = ROOT / "books" / "hot100" / "03-题解" / str(problem["folder"]) / problem_filename(problem)
             markdown = md_path.read_text(encoding="utf-8")
             statement_start = markdown.index("## 题目与约束")
-            statement_end = markdown.index("## 核心不变量", statement_start)
+            statement_end = markdown.index('<section class="legacy-solution-panel', statement_start)
             statement = markdown[statement_start:statement_end]
             example_heading = r"(?m)^\s*(?:[-*]\s+)?\*\*示例\s+\d+：?\*\*"
             self.assertEqual(len(re.findall(example_heading, statement)), example_count, md_path.name)
@@ -87,7 +87,9 @@ class ProblemLeetCodeLinkTests(unittest.TestCase):
             heading = next(h for h in soup.find_all("h2") if h.get_text(" ", strip=True) == "题目与约束")
             section_nodes = []
             sibling = heading.find_next_sibling()
-            while sibling and not (sibling.name == "h2" and sibling.get_text(" ", strip=True) == "核心不变量"):
+            while sibling and not (
+                sibling.name == "section" and sibling.get("data-legacy-scope") == "true"
+            ):
                 section_nodes.append(sibling)
                 sibling = sibling.find_next_sibling()
             rendered_statement = " ".join(node.get_text(" ", strip=True) for node in section_nodes)
@@ -117,7 +119,7 @@ class ProblemLeetCodeLinkTests(unittest.TestCase):
             markdown = md_path.read_text(encoding="utf-8")
             self.assertEqual(markdown.count(f"]({expected})"), 2, md_path.name)
             statement_start = markdown.index("## 题目与约束")
-            invariant_start = markdown.index("## 核心不变量", statement_start)
+            invariant_start = markdown.index('<section class="legacy-solution-panel', statement_start)
             self.assertIn(f"]({expected})", markdown[statement_start:invariant_start])
 
             soup = BeautifulSoup(html_path.read_text(encoding="utf-8"), "html.parser")

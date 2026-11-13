@@ -6,10 +6,10 @@
 <meta content="width=device-width,initial-scale=1" name="viewport"/>
 <meta content="light dark" name="color-scheme"/>
 <title>连通图边权和最大化 · InterviewForge</title>
-<link href="../../../../assets/site.css?v=20261101-pop-bg" rel="stylesheet"/>
+<link href="../../../../assets/site.css?v=20261112-guest-python" rel="stylesheet"/>
 <link data-interviewforge-ai="" href="../../../../assets/ai-launcher.css?v=5" rel="stylesheet"/>
 <script defer="" src="../../../../assets/navigation-policy.js?v=2"></script>
-<script defer="" src="../../../../assets/ui.js?v=20261101-pop-bg"></script>
+<script defer="" src="../../../../assets/ui.js?v=20261112-guest-python"></script>
 <style>@media(min-width:1101px){.site-shell-cols{grid-template-columns:200px minmax(0,1fr) 220px!important}.sol-rail-left{display:block!important}.sol-rail-right{display:block!important}}@media(max-width:1100px){.site-shell-cols{grid-template-columns:1fr!important}.sol-rail{display:none!important}}</style><style>
 .selftest-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 0 6px}
 .selftest-toggle{padding:7px 14px;border:1px solid color-mix(in srgb,var(--brand) 35%,var(--line));border-radius:999px;color:var(--brand-strong);background:var(--panel);cursor:pointer;font:inherit;font-size:13px;font-weight:650}
@@ -26,8 +26,8 @@
 .selftest-active .sol-rail-right{display:none !important}
 @media print{.selftest-bar,.selftest-reveal{display:none}.selftest-content[hidden]{display:block}}
 </style>
-<link rel="stylesheet" href="../../../../assets/solution-progress.css?v=20261009-static">
-<link rel="stylesheet" href="../../../../assets/term-tooltip.css?v=20261101-pop-bg">
+<link href="../../../../assets/solution-progress.css?v=20261009-static" rel="stylesheet"/>
+<link href="../../../../assets/term-tooltip.css?v=20261112-guest-python" rel="stylesheet"/>
 </head>
 <body>
 <a class="skip-link" href="#main-content">跳到正文</a>
@@ -48,24 +48,39 @@
 <article class="markdown-body">
 <nav aria-label="当前位置" class="page-kicker page-breadcrumb"><a href="../../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 面板</a><span aria-hidden="true">›</span><span>题解</span><span aria-hidden="true">›</span><span aria-current="page">百度专题</span></nav>
 <h1 id="_1">连通图边权和最大化</h1><div class="selftest-bar" id="selftestBar"><button aria-pressed="false" class="selftest-toggle" id="selftestToggle" type="button">自测模式</button><span class="selftest-hint">遮住推导与代码，先自己想，再逐段揭示</span></div>
-
 <blockquote>
 <p><a href="https://onefly.top/zero2Leetcode/04_real_interviews/baidu/algo-20260820/" target="_blank" rel="noopener noreferrer">原题解析</a> · 百度 · 2026-08-20 · 算法岗 · ACM 模式（stdin/stdout）</p>
+<p>站内勘误：修正原参考实现把 min 边权按较大端累计的问题。保留排序与线性扫描框架，改为完整图总权值减去最小前缀层内部权值；正、零、负权均已用独立分层枚举核验。</p>
 </blockquote>
 <h2 id="_2">题目描述</h2>
 <p>给定权值数组 <span aria-label="a" class="plain-math">a</span>，构造整数数组 <span aria-label="b" class="plain-math">b</span>。对任意两个不同节点 <span aria-label="i,j" class="plain-math">i,j</span>：</p>
 <p>若 <span class="math-inline-wrap"><math aria-label="b_i≠ b_j" class="math-inline"><mrow><msub><mi>b</mi><mi>i</mi></msub><mo>≠</mo><mspace width=".18em"></mspace><msub><mi>b</mi><mi>j</mi></msub></mrow></math></span>，就在两点之间连一条边，边权为 <span class="math-inline-wrap"><math aria-label="min(a_i,a_j)" class="math-inline"><mrow><mi mathvariant="normal">min</mi><mo>(</mo><msub><mi>a</mi><mi>i</mi></msub><mo>,</mo><msub><mi>a</mi><mi>j</mi></msub><mo>)</mo></mrow></math></span>； 若 <span aria-label="b_i=b_j" class="plain-math">b<sub>i</sub>=b<sub>j</sub></span>，两点之间不连边。</p>
 <p>要求构造出的图连通，并最大化所有边权之和。</p>
-<h2 id="_3">分层化简</h2>
-<p><span aria-label="b" class="plain-math">b</span> 的具体数值并不重要，重要的是它把节点分成了若干层。不同层之间全部有边，同层之间没有边。为了保证连通，至少需要两层（<span aria-label="n=1" class="plain-math">n=1</span> 时答案为 0）。</p>
-<p>将 <span aria-label="a" class="plain-math">a</span> 按降序排列。若一个点位于某层，而它下面有若干点，则它会作为较小端点参与与这些点的连边，贡献为这些下方点的权值之和。于是应优先让较大的权值处在更低的层，尽可能被更多边计入。</p>
-<p>定义降序数组的前缀和：</p>
-<p><span class="math-display-wrap"><math aria-label="P_t=sum_i=0^t-1a_i" class="math-display" display="block"><mrow><msub><mi>P</mi><mi>t</mi></msub><mo>=</mo><msup><msub><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>0</mn></mrow></msub><mrow><mi>t</mi><mo>-</mo><mn>1</mn></mrow></msup><msub><mi>a</mi><mi>i</mi></msub></mrow></math></span></p>
-<p>枚举分层的切分位置，使用前缀和计算每种层数的贡献。由于 <span aria-label="a" class="plain-math">a</span> 已降序，<span aria-label="P_t" class="plain-math">P<sub>t</sub></span> 的增量单调不增，前缀和序列先增后降，可以线性扫描峰值和最优切分点。</p>
+<h2 id="_3">思路推导</h2>
+<p>先看一个不会算错的上限。假设权值是 <code>[1, 2, 3, 4]</code>，把四个点各放一层，所有点对都有边：</p>
+<ul>
+<li>权值 1 和后面三个点相连，贡献 <code>1 + 1 + 1 = 3</code>；</li>
+<li>权值 2 和后面两个点相连，贡献 <code>2 + 2 = 4</code>；</li>
+<li>权值 3 和最后一个点相连，贡献 <code>3</code>。</li>
+</ul>
+<p>总和就是 <code>3 + 4 + 3 = 10</code>。这已经包含全部六条可能的边，结果不可能超过 10。原实现按降序累计时把较大端的权值算了进去，得到 20，方向反了。</p>
+<p>但也不能直接说“全部连边就好”。如果允许负权，例如 <code>[-3, -1, 2]</code>，全连边会得到 <code>-3 - 3 - 1 = -7</code>；把前两个点放在同一层，删掉它们之间权值为 -3 的边，反而得到更大的 <code>-4</code>。</p>
+<p>于是换个角度：<strong>先把所有点对连好，再减去同层内部的边。</strong></p>
+<p>将权值按升序排列。对于位置 <code>i</code>，它和后面每个点相连时都是较小端，完整图总权值为：</p>
+<p><span class="math-display-wrap"><math aria-label="T=sum_i=0^n-1a_i(n-1-i)." class="math-display" display="block"><mrow><mi>T</mi><mo>=</mo><msup><msub><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>0</mn></mrow></msub><mrow><mi>n</mi><mo>-</mo><mn>1</mn></mrow></msup><msub><mi>a</mi><mi>i</mi></msub><mo>(</mo><mi>n</mi><mo>-</mo><mn>1</mn><mo>-</mo><mi>i</mi><mo>)</mo><mo>.</mo></mrow></math></span></p>
+<p>接下来要让“被删掉的同层内部权值”尽可能小。可以用交换说明：含负权的节点集中到一组，其它只含非负权的组拆开，不会使最优值变差；共同组需要带入非负节点时，优先选较小的值。因此只需考虑：把升序数组最前面的若干个点放在同一层，其余点各自一层。全为非正数时，最大节点单独一层、其它点共同一层同样属于这个结构。</p>
+<p><strong>至少留一个点在共同层外</strong>，这样不同层之间的边会让整个图连通；<code>n=1</code> 时单独返回 0。</p>
+<p>用两个量就能一路扫描：<code>prefix_sum</code> 是当前共同层已有点的权值和，<code>inside_sum</code> 是它们的内部边权和。放入下一个更大的点时，它与之前每个点的边权都等于之前那个点的权值，所以：</p>
+<ol>
+<li><code>inside_sum += prefix_sum</code>：把新出现的内部边全部记上；</li>
+<li><code>prefix_sum += value</code>：新点也进入共同层；</li>
+<li>记住至今最小的 <code>inside_sum</code>。</li>
+</ol>
+<p>最小值初始为 0，表示不删除任何边。最后返回 <code>T - best_inside</code>：删掉负权内部边会提高答案；若权值都非负，最好的选择自然是不删边。</p>
 <h2 id="_4">参考实现</h2>
 <h2 id="_5">复杂度</h2>
-<p>排序是主要开销，时间复杂度为 <span aria-label="O(n\log n)" class="plain-math">O(nlog n)</span>，前缀和与最优切分扫描为 <span aria-label="O(n)" class="plain-math">O(n)</span>，额外空间复杂度为 <span aria-label="O(n)" class="plain-math">O(n)</span>。</p>
-<div class="lang-section" data-lang="java"><h3 id="java">Java 实现</h3>
+<p>排序时间为 <span aria-label="O(n\log n)" class="plain-math">O(nlog n)</span>，计算完整图权值与扫描前缀层均为 <span aria-label="O(n)" class="plain-math">O(n)</span>；输入存储和排序辅助空间为 <span aria-label="O(n)" class="plain-math">O(n)</span>，扫描仅需常数个累计变量。</p>
+<div class="lang-section" data-lang="java" data-lang-scope="true"><h3 id="java">Java 实现</h3>
 <div class="codehilite" data-lang="java"><pre><span></span><code><span class="c1">// 题目：连通图边权和最大化</span>
 <span class="c1">// 算法：排序 + 扫描</span>
 <span class="c1">// 模式：ACM（stdin/stdout）</span>
@@ -87,22 +102,21 @@
 <span class="w">    </span><span class="kd">static</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">nextInt</span><span class="p">()</span><span class="w"> </span><span class="kd">throws</span><span class="w"> </span><span class="n">IOException</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">Integer</span><span class="p">.</span><span class="na">parseInt</span><span class="p">(</span><span class="n">next</span><span class="p">());</span><span class="w"> </span><span class="p">}</span>
 <span class="w">    </span><span class="kd">static</span><span class="w"> </span><span class="kt">long</span><span class="w"> </span><span class="nf">nextLong</span><span class="p">()</span><span class="w"> </span><span class="kd">throws</span><span class="w"> </span><span class="n">IOException</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">Long</span><span class="p">.</span><span class="na">parseLong</span><span class="p">(</span><span class="n">next</span><span class="p">());</span><span class="w"> </span><span class="p">}</span>
 <span class="w"> </span><span class="c1">// 核心方法：bestSum</span>
-<span class="w"> </span><span class="kd">static</span><span class="w"> </span><span class="kt">long</span><span class="w"> </span><span class="nf">bestSum</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">a</span><span class="p">){</span>
-<span class="w">  </span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="o">=</span><span class="n">a</span><span class="p">.</span><span class="na">length</span><span class="p">;</span><span class="k">if</span><span class="p">(</span><span class="n">n</span><span class="o">&lt;=</span><span class="mi">1</span><span class="p">)</span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
-<span class="w">  </span><span class="n">Integer</span><span class="o">[]</span><span class="w"> </span><span class="n">arr</span><span class="o">=</span><span class="k">new</span><span class="w"> </span><span class="n">Integer</span><span class="o">[</span><span class="n">n</span><span class="o">]</span><span class="p">;</span><span class="k">for</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span><span class="n">i</span><span class="o">&lt;</span><span class="n">n</span><span class="p">;</span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="n">arr</span><span class="o">[</span><span class="n">i</span><span class="o">]=</span><span class="n">a</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="p">;</span>
-<span class="w">  </span><span class="n">Arrays</span><span class="p">.</span><span class="na">sort</span><span class="p">(</span><span class="n">arr</span><span class="p">,</span><span class="n">Collections</span><span class="p">.</span><span class="na">reverseOrder</span><span class="p">());</span>
-<span class="w">  </span><span class="kt">long</span><span class="o">[]</span><span class="w"> </span><span class="n">pref</span><span class="o">=</span><span class="k">new</span><span class="w"> </span><span class="kt">long</span><span class="o">[</span><span class="n">n</span><span class="o">]</span><span class="p">;</span><span class="k">for</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">t</span><span class="o">=</span><span class="mi">1</span><span class="p">;</span><span class="n">t</span><span class="o">&lt;</span><span class="n">n</span><span class="p">;</span><span class="n">t</span><span class="o">++</span><span class="p">)</span><span class="n">pref</span><span class="o">[</span><span class="n">t</span><span class="o">]=</span><span class="n">pref</span><span class="o">[</span><span class="n">t</span><span class="o">-</span><span class="mi">1</span><span class="o">]+</span><span class="n">arr</span><span class="o">[</span><span class="n">t</span><span class="o">-</span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
-<span class="w">  </span><span class="kt">int</span><span class="w"> </span><span class="n">peak</span><span class="o">=</span><span class="mi">1</span><span class="p">;</span><span class="k">for</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">t</span><span class="o">=</span><span class="mi">2</span><span class="p">;</span><span class="n">t</span><span class="o">&lt;</span><span class="n">n</span><span class="p">;</span><span class="n">t</span><span class="o">++</span><span class="p">)</span><span class="k">if</span><span class="p">(</span><span class="n">pref</span><span class="o">[</span><span class="n">t</span><span class="o">]&gt;</span><span class="n">pref</span><span class="o">[</span><span class="n">peak</span><span class="o">]</span><span class="p">)</span><span class="n">peak</span><span class="o">=</span><span class="n">t</span><span class="p">;</span>
-<span class="w">  </span><span class="kt">long</span><span class="w"> </span><span class="n">sumPref</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span><span class="n">minSumPref</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span>
-<span class="w">  </span><span class="c1">// 循环处理</span>
-<span class="w">  </span><span class="k">for</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">k</span><span class="o">=</span><span class="mi">1</span><span class="p">;</span><span class="n">k</span><span class="o">&lt;</span><span class="n">peak</span><span class="p">;</span><span class="n">k</span><span class="o">++</span><span class="p">){</span><span class="n">sumPref</span><span class="o">+=</span><span class="n">pref</span><span class="o">[</span><span class="n">k</span><span class="o">]</span><span class="p">;</span><span class="n">minSumPref</span><span class="o">=</span><span class="n">Math</span><span class="p">.</span><span class="na">min</span><span class="p">(</span><span class="n">minSumPref</span><span class="p">,</span><span class="n">sumPref</span><span class="p">);}</span>
-<span class="w">  </span><span class="n">sumPref</span><span class="o">+=</span><span class="n">pref</span><span class="o">[</span><span class="n">peak</span><span class="o">]</span><span class="p">;</span>
-<span class="w">  </span><span class="kt">long</span><span class="w"> </span><span class="n">best</span><span class="o">=</span><span class="p">(</span><span class="n">sumPref</span><span class="o">-</span><span class="n">minSumPref</span><span class="p">)</span><span class="o">+</span><span class="p">(</span><span class="kt">long</span><span class="p">)(</span><span class="n">n</span><span class="o">-</span><span class="mi">1</span><span class="o">-</span><span class="n">peak</span><span class="p">)</span><span class="o">*</span><span class="n">pref</span><span class="o">[</span><span class="n">peak</span><span class="o">]</span><span class="p">;</span>
-<span class="w">  </span><span class="c1">// 枚举阶段 j</span>
-<span class="w">  </span><span class="k">for</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">j</span><span class="o">=</span><span class="n">peak</span><span class="o">+</span><span class="mi">1</span><span class="p">;</span><span class="n">j</span><span class="o">&lt;</span><span class="n">n</span><span class="p">;</span><span class="n">j</span><span class="o">++</span><span class="p">)</span><span class="n">best</span><span class="o">=</span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">best</span><span class="p">,(</span><span class="kt">long</span><span class="p">)(</span><span class="n">n</span><span class="o">-</span><span class="n">j</span><span class="p">)</span><span class="o">*</span><span class="n">pref</span><span class="o">[</span><span class="n">j</span><span class="o">]</span><span class="p">);</span>
-<span class="w">  </span><span class="c1">// 返回结果</span>
-<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="n">best</span><span class="p">;</span>
-<span class="w"> </span><span class="p">}</span>
+<span class="w"> </span><span class="kd">static</span><span class="w"> </span><span class="kt">long</span><span class="w"> </span><span class="nf">bestSum</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">a</span><span class="p">.</span><span class="na">length</span><span class="p">;</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">n</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="n">Arrays</span><span class="p">.</span><span class="na">sort</span><span class="p">(</span><span class="n">a</span><span class="p">);</span>
+<span class="w">        </span><span class="kt">long</span><span class="w"> </span><span class="n">total</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="n">total</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="p">(</span><span class="kt">long</span><span class="p">)</span><span class="w"> </span><span class="n">a</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="p">(</span><span class="n">n</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">i</span><span class="p">);</span>
+<span class="w">        </span><span class="kt">long</span><span class="w"> </span><span class="n">prefixSum</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">insideSum</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">bestInside</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="c1">// 至少留一个点在共同层外，保持图连通。</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">insideSum</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">prefixSum</span><span class="p">;</span>
+<span class="w">            </span><span class="n">prefixSum</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">a</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="p">;</span>
+<span class="w">            </span><span class="n">bestInside</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">min</span><span class="p">(</span><span class="n">bestInside</span><span class="p">,</span><span class="w"> </span><span class="n">insideSum</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">total</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">bestInside</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
 <span class="w"> </span><span class="c1">// 主函数：读取输入并输出答案</span>
 <span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">static</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="n">String</span><span class="o">[]</span><span class="w"> </span><span class="n">args</span><span class="p">)</span><span class="w"> </span><span class="kd">throws</span><span class="w"> </span><span class="n">IOException</span><span class="w"> </span><span class="p">{</span>
 <span class="w">  </span><span class="kt">int</span><span class="w"> </span><span class="n">t</span><span class="o">=</span><span class="n">nextInt</span><span class="p">();</span><span class="n">StringBuilder</span><span class="w"> </span><span class="n">out</span><span class="o">=</span><span class="k">new</span><span class="w"> </span><span class="n">StringBuilder</span><span class="p">();</span><span class="kt">char</span><span class="w"> </span><span class="n">NL</span><span class="o">=</span><span class="p">(</span><span class="kt">char</span><span class="p">)</span><span class="mi">10</span><span class="p">;</span>
@@ -112,7 +126,7 @@
 <span class="w"> </span><span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div>
-</div><div class="lang-section" data-lang="python"><h3 id="python">Python 实现</h3>
+</div><div class="lang-section" data-lang="python" data-lang-scope="true"><h3 id="python">Python 实现</h3>
 <div class="codehilite" data-lang="python"><pre><span></span><code><span class="c1"># 题目：连通图边权和最大化</span>
 <span class="c1"># 算法：排序 + 扫描</span>
 <span class="c1"># 模式：ACM（stdin/stdout）</span>
@@ -123,40 +137,22 @@
 <span class="c1"># 核心函数：best_sum</span>
 <span class="k">def</span> <span class="nf">best_sum</span><span class="p">(</span><span class="n">a</span><span class="p">):</span>
     <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
-    <span class="c1"># 条件判断</span>
     <span class="k">if</span> <span class="n">n</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
-        <span class="c1"># 返回结果</span>
         <span class="k">return</span> <span class="mi">0</span>
 
-    <span class="n">a</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-    <span class="n">pref</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">n</span>
-    <span class="c1"># 遍历 t</span>
-    <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
-        <span class="n">pref</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="n">pref</span><span class="p">[</span><span class="n">t</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">a</span><span class="p">[</span><span class="n">t</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+    <span class="n">a</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+    <span class="n">total</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">value</span> <span class="o">*</span> <span class="p">(</span><span class="n">n</span> <span class="o">-</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">a</span><span class="p">))</span>
+    <span class="n">prefix_sum</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">inside_sum</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">best_inside</span> <span class="o">=</span> <span class="mi">0</span>
 
-    <span class="n">peak</span> <span class="o">=</span> <span class="mi">1</span>
-    <span class="c1"># 遍历 t</span>
-    <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
-        <span class="c1"># 条件判断</span>
-        <span class="k">if</span> <span class="n">pref</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">pref</span><span class="p">[</span><span class="n">peak</span><span class="p">]:</span>
-            <span class="n">peak</span> <span class="o">=</span> <span class="n">t</span>
+    <span class="c1"># 只把最小的一段放在同一层，至少留一个点在层外。</span>
+    <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">a</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
+        <span class="n">inside_sum</span> <span class="o">+=</span> <span class="n">prefix_sum</span>
+        <span class="n">prefix_sum</span> <span class="o">+=</span> <span class="n">value</span>
+        <span class="n">best_inside</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">best_inside</span><span class="p">,</span> <span class="n">inside_sum</span><span class="p">)</span>
 
-    <span class="c1"># 首层切在峰值之前的情况</span>
-    <span class="n">sum_pref</span> <span class="o">=</span> <span class="mi">0</span>
-    <span class="n">min_sum_pref</span> <span class="o">=</span> <span class="mi">0</span>
-    <span class="c1"># 遍历 k</span>
-    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">peak</span><span class="p">):</span>
-        <span class="n">sum_pref</span> <span class="o">+=</span> <span class="n">pref</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
-        <span class="n">min_sum_pref</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">min_sum_pref</span><span class="p">,</span> <span class="n">sum_pref</span><span class="p">)</span>
-    <span class="n">sum_pref</span> <span class="o">+=</span> <span class="n">pref</span><span class="p">[</span><span class="n">peak</span><span class="p">]</span>
-    <span class="n">best</span> <span class="o">=</span> <span class="p">(</span><span class="n">sum_pref</span> <span class="o">-</span> <span class="n">min_sum_pref</span><span class="p">)</span> <span class="o">+</span> <span class="p">(</span><span class="n">n</span> <span class="o">-</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">peak</span><span class="p">)</span> <span class="o">*</span> <span class="n">pref</span><span class="p">[</span><span class="n">peak</span><span class="p">]</span>
-
-    <span class="c1"># 首层越过峰值后的情况</span>
-    <span class="c1"># 枚举阶段 j</span>
-    <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">peak</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
-        <span class="n">best</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">best</span><span class="p">,</span> <span class="p">(</span><span class="n">n</span> <span class="o">-</span> <span class="n">j</span><span class="p">)</span> <span class="o">*</span> <span class="n">pref</span><span class="p">[</span><span class="n">j</span><span class="p">])</span>
-    <span class="c1"># 返回结果</span>
-    <span class="k">return</span> <span class="n">best</span>
+    <span class="k">return</span> <span class="n">total</span> <span class="o">-</span> <span class="n">best_inside</span>
 
 
 <span class="c1"># 读取输入并输出答案</span>
@@ -180,13 +176,13 @@
 </main><aside aria-label="本页目录" class="sol-rail sol-rail-right"><div class="sol-rail-title">本页目录</div><div class="toc">
 <ul>
 <li><a href="#_2">题目描述</a></li>
-<li><a href="#_3">分层化简</a></li>
+<li><a href="#_3">思路推导</a></li>
 <li><a href="#_4">参考实现</a><ul>
-<li><a href="#python">Python 实现</a></li>
+<li><a data-lang="python" data-lang-scope="true" href="#python">Python 实现</a></li>
 </ul>
 </li>
 <li><a href="#_5">复杂度</a><ul>
-<li><a href="#java">Java 实现</a></li>
+<li><a data-lang="java" data-lang-scope="true" href="#java">Java 实现</a></li>
 </ul>
 </li>
 </ul>
@@ -194,9 +190,9 @@
 </aside>
 <footer class="site-footer">Interview Forge · 在线学习站</footer>
 </div>
-<script defer="" src="../../../../assets/site.js?v=20261014-code-block-visibility"></script>
+<script defer="" src="../../../../assets/site.js?v=20261112-python-teaching"></script>
 <script data-interviewforge-ai="" defer="" src="../../../../assets/ai-page-context.js?v=1"></script>
-<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-launcher.js?v=3"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-launcher.js?v=4"></script>
 <script>
 (function () {
   "use strict";
@@ -262,16 +258,36 @@
   function collectSections() {
     var article = document.querySelector("article.markdown-body");
     if (!article) return [];
-    var out = [], current = null;
-    Array.prototype.forEach.call(article.children, function (node) {
-      if (node.tagName === "H2") {
-        current = { title: node.textContent.trim(), head: node, nodes: [] };
-        out.push(current);
-      } else if (current && (" " + node.className + " ").indexOf("problem-nav") !== -1) {
-        current = null; // 底部上一题/下一题导航永不纳入遮罩
-      } else if (current) {
-        current.nodes.push(node);
+    function hasClass(node, name) {
+      return node && node.nodeType === 1 &&
+        (" " + node.className + " ").indexOf(" " + name + " ") !== -1;
+    }
+    function isLanguageContainer(node) {
+      return hasClass(node, "language-panel") ||
+        hasClass(node, "lang-section") || hasClass(node, "legacy-solution-panel");
+    }
+    var out = [];
+    // 语言面板内部也有自己的 H2。只扫描 article.children 会把整个面板误归入
+    // 前面公共「题目与约束」区；这里同时扫描语言面板内的 H2，并让每段只遍历
+    // 同父级的后续兄弟节点。wrapper 留在 panel 内，因此 Java/Python/C++
+    // 面板显隐时，隐藏正文和揭示按钮会随容器一起切换。
+    Array.prototype.forEach.call(article.querySelectorAll("h2"), function (head) {
+      var parent = head.parentNode;
+      if (parent !== article && !isLanguageContainer(parent)) return;
+      var section = { title: head.textContent.trim(), head: head, nodes: [] };
+      var node = head.nextSibling;
+      while (node) {
+        if (node.nodeType === 1 && node.tagName === "H2") break;
+        if (node.nodeType === 1 && hasClass(node, "problem-nav")) break;
+        // 顶层的语言面板由它自己的 H2 分段处理，不能整块算进公共题面。
+        if (parent === article && node.nodeType === 1 && isLanguageContainer(node)) {
+          node = node.nextSibling;
+          continue;
+        }
+        section.nodes.push(node);
+        node = node.nextSibling;
       }
+      out.push(section);
     });
     return out;
   }
@@ -367,9 +383,9 @@
   apply();
 })();
 </script>
-<script src="../../../../assets/solution-progress.js?v=20261101-pop-bg" defer></script>
-<script src="../../../../assets/engagement-tracker.js?v=20261101-pop-bg" defer></script>
-<script src="../../../../assets/term-tooltip.js?v=20261101-pop-bg" defer></script>
+<script defer="" src="../../../../assets/solution-progress.js?v=20261112-guest-python"></script>
+<script defer="" src="../../../../assets/engagement-tracker.js?v=20261112-guest-python"></script>
+<script defer="" src="../../../../assets/term-tooltip.js?v=20261112-guest-python"></script>
 <script>(function(){function go(){if(!window.GlossaryEngine)return;GlossaryEngine.init({root:document.querySelector(".markdown-body"),glossaryUrl:"../../../../assets/glossary.json",style:"underline",trigger:"hover",scopeKey:"hot100-solution"});}if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",go);}else{go();}})();</script>
 </body>
 </html>

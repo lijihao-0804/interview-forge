@@ -3,11 +3,236 @@
  * 聊天室：自研轻量公屏（轮询增量），自己的消息靠右、别人的靠左，消息保留最近 2000 条。 */
 (function () {
   "use strict";
-  if (document.getElementById("forge-auth-pill")) return;
-  fetch("/api/me", { cache: "no-store" })
-    .then(function (r) { return r.ok ? r.json() : null; })
-    .then(function (me) {
-      if (!me || document.getElementById("forge-auth-pill")) return;
+  if (window.InterviewForgeAuth) return;
+
+  var authState = { status: "checking", user: null, reason: "" };
+  var authReady = null;
+  var resolveAuthReady = null;
+  var authSettled = false;
+
+  function snapshot() {
+    return { status: authState.status, user: authState.user, reason: authState.reason };
+  }
+
+  function currentNext() {
+    return (window.location.pathname || "/index.html") + (window.location.search || "") + (window.location.hash || "");
+  }
+
+  function authHref(path) {
+    return path + (path.indexOf("?") >= 0 ? "&" : "?") + "next=" + encodeURIComponent(currentNext());
+  }
+
+  function emit(name) {
+    try {
+      document.dispatchEvent(new CustomEvent(name, { detail: snapshot() }));
+    } catch (_) { }
+  }
+
+  function publish(status, user, reason) {
+    authState = { status: status, user: user || null, reason: reason || "" };
+    emit("interviewforge:auth-change");
+    if (!authSettled) {
+      authSettled = true;
+      resolveAuthReady(snapshot());
+      emit("interviewforge:auth-ready");
+    }
+  }
+
+  function installAuthStyles() {
+    if (document.getElementById("forge-auth-fallback-style")) return;
+    var style = document.createElement("style");
+    style.id = "forge-auth-fallback-style";
+    style.textContent =
+      "#forge-auth-pill{position:fixed;right:16px;bottom:16px;z-index:9998;display:flex;align-items:center;gap:8px;flex-wrap:wrap;max-width:calc(100vw - 20px);" +
+      "padding:6px 8px 6px 12px;border:1px solid var(--line,#dfe4ee);border-radius:999px;background:var(--surface,var(--panel,#fff));box-shadow:0 8px 24px rgba(33,45,73,.16);" +
+      "font:13px/1.4 -apple-system,'Segoe UI','Microsoft YaHei',sans-serif;color:var(--text,#182235)}" +
+      "#forge-auth-pill button{border:0;background:var(--brand-soft,#eeedff);color:var(--brand-strong,#4543bd);font:inherit;font-size:12px;font-weight:650;padding:5px 11px;border-radius:999px;cursor:pointer}" +
+      "#forge-auth-pill button:hover{background:color-mix(in srgb,var(--brand-soft,#eeedff) 82%,var(--brand,#5654d4))}" +
+      "#forge-auth-pill .fap-guest-label{color:var(--muted,#66748a);font-weight:650;white-space:nowrap}" +
+      "#forge-auth-pill .fap-auth-link{display:inline-flex;align-items:center;min-height:28px;padding:0 10px;border-radius:999px;background:var(--brand-soft,#eeedff);color:var(--brand-strong,#4543bd);text-decoration:none;font-size:12px;font-weight:700}" +
+      "#forge-auth-pill .fap-auth-link.is-primary{background:var(--brand,#5654d4);color:#fff}" +
+      "#forge-auth-pill .fap-auth-link:hover{filter:brightness(.96);text-decoration:none}" +
+      "#forge-auth-pill .fap-retry{background:transparent;color:var(--muted,#66748a)!important;padding:4px 6px!important}" +
+      "#forge-auth-modal{position:fixed;inset:0;z-index:10020;display:grid;place-items:center;padding:20px;background:rgba(12,18,30,.5);backdrop-filter:blur(3px)}" +
+      "#forge-auth-modal[hidden]{display:none}.forge-auth-dialog{width:min(100%,430px);padding:24px;border:1px solid var(--line,#dfe4ee);border-radius:16px;background:var(--surface,var(--panel,#fff));color:var(--text,#182235);box-shadow:0 24px 70px rgba(10,14,22,.28);font:14px/1.65 -apple-system,'Segoe UI','Microsoft YaHei',sans-serif}" +
+      ".forge-auth-dialog h2{margin:0;font-size:20px}.forge-auth-dialog p{margin:10px 0 0;color:var(--muted,#66748a)}.forge-auth-actions{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap;margin-top:20px}" +
+      ".forge-auth-actions a,.forge-auth-actions button{border:1px solid var(--line,#dfe4ee);border-radius:9px;padding:8px 13px;background:var(--soft,#f7f8fc);color:var(--text,#182235);font:inherit;font-weight:650;text-decoration:none;cursor:pointer}" +
+      ".forge-auth-actions .is-primary{border-color:var(--brand,#5654d4);background:var(--brand,#5654d4);color:#fff}.forge-auth-actions .is-quiet{background:transparent;color:var(--muted,#66748a)}" +
+      "@media(max-width:640px){#forge-auth-pill{right:10px;bottom:calc(10px + env(safe-area-inset-bottom));gap:6px}.forge-auth-dialog{padding:20px}}";
+    document.head.appendChild(style);
+  }
+
+  function openLoginPrompt(feature, options) {
+    installAuthStyles();
+    var old = document.getElementById("forge-auth-modal");
+    if (old) old.remove();
+    var action = String(feature || "使用此功能");
+    var isError = authState.status === "error";
+    var modal = document.createElement("div");
+    modal.id = "forge-auth-modal";
+    modal.setAttribute("role", "dialog");
+    modal.setAttribute("aria-modal", "true");
+    modal.setAttribute("aria-labelledby", "forge-auth-title");
+    modal.innerHTML = '<section class="forge-auth-dialog" tabindex="-1">' +
+      '<h2 id="forge-auth-title">' + (isError ? "暂时无法确认登录状态" : "登录后即可继续") + '</h2>' +
+      '<p id="forge-auth-copy"></p><div class="forge-auth-actions">' +
+      '<button class="is-quiet" type="button" data-auth-close>暂不登录</button>' +
+      (isError ? '<button type="button" data-auth-retry>重新检查</button>' : '') +
+      '<a href="' + authHref("/pages/register.html") + '" data-auth-register>注册</a>' +
+      '<a class="is-primary" href="' + authHref("/pages/login.html") + '" data-auth-login>登录</a></div></section>';
+    document.body.appendChild(modal);
+    var copy = modal.querySelector("#forge-auth-copy");
+    copy.textContent = isError
+      ? "当前网络暂时无法确认账号状态。阅读不受影响；恢复连接后可以重试，或直接登录/注册。"
+      : "游客模式可阅读和搜索。登录后才能" + action + "，完成后会回到当前页面。";
+    var dialog = modal.querySelector(".forge-auth-dialog");
+    function close() {
+      modal.remove();
+      document.removeEventListener("keydown", onKeydown);
+    }
+    function onKeydown(event) { if (event.key === "Escape") close(); }
+    modal.querySelector("[data-auth-close]").onclick = close;
+    modal.addEventListener("click", function (event) { if (event.target === modal) close(); });
+    var retry = modal.querySelector("[data-auth-retry]");
+    if (retry) retry.onclick = function () { close(); checkSession(true); };
+    document.addEventListener("keydown", onKeydown);
+    if (options && options.focusSelector) {
+      var target = document.querySelector(options.focusSelector);
+      if (target && typeof target.focus === "function") target.focus();
+    }
+    dialog.focus();
+    return modal;
+  }
+
+  function authRequired(feature) {
+    var error = new Error("登录后才能" + String(feature || "使用此功能"));
+    error.code = "AUTH_REQUIRED";
+    error.category = "unauthorized";
+    return error;
+  }
+
+  function setGuest(reason) {
+    installAuthStyles();
+    publish("guest", null, reason || "unauthorized");
+    renderGuestIdentity("guest");
+  }
+
+  function setError(reason) {
+    installAuthStyles();
+    publish("error", null, reason || "session_check_failed");
+    renderGuestIdentity("error");
+  }
+
+  function reserveFloatingSpace(pill) {
+    function update() {
+      var height = Math.ceil(pill.getBoundingClientRect().height || 0);
+      document.documentElement.style.setProperty("--forge-auth-reserve", (height + 28) + "px");
+    }
+    update();
+    if (typeof ResizeObserver === "function") new ResizeObserver(update).observe(pill);
+    window.addEventListener("resize", update, { passive: true });
+  }
+
+  function renderGuestIdentity(mode) {
+    installAuthStyles();
+    var existing = document.getElementById("forge-auth-pill");
+    if (existing) existing.remove();
+    var pill = document.createElement("div");
+    pill.id = "forge-auth-pill";
+    pill.dataset.authState = mode || "guest";
+    var label = document.createElement("span");
+    label.className = "fap-guest-label";
+    label.textContent = mode === "error" ? "游客 · 状态未确认" : "游客";
+    pill.appendChild(label);
+    var login = document.createElement("a");
+    login.className = "fap-auth-link";
+    login.href = authHref("/pages/login.html");
+    login.textContent = "登录";
+    pill.appendChild(login);
+    var register = document.createElement("a");
+    register.className = "fap-auth-link is-primary";
+    register.href = authHref("/pages/register.html");
+    register.textContent = "注册";
+    pill.appendChild(register);
+    if (mode === "error") {
+      var retry = document.createElement("button");
+      retry.type = "button";
+      retry.className = "fap-retry";
+      retry.textContent = "重试";
+      retry.setAttribute("aria-label", "重新检查登录状态");
+      retry.onclick = function () { retry.disabled = true; checkSession(true); };
+      pill.appendChild(retry);
+    }
+    document.body.appendChild(pill);
+    reserveFloatingSpace(pill);
+    return pill;
+  }
+
+  var authApi = Object.freeze({
+    ready: null,
+    getState: snapshot,
+    loginUrl: function () { return authHref("/pages/login.html"); },
+    registerUrl: function () { return authHref("/pages/register.html"); },
+    promptLogin: openLoginPrompt,
+    markGuest: function (reason) { setGuest(reason); },
+    markError: function (reason) { setError(reason); },
+    handleUnauthorized: function (feature) {
+      setGuest("unauthorized");
+      openLoginPrompt(feature);
+      return authRequired(feature);
+    },
+    requireUser: function (feature) {
+      return authReady.then(function () {
+        var current = snapshot();
+        if (current.status === "authenticated" && current.user) return current.user;
+        openLoginPrompt(feature);
+        throw authRequired(feature);
+      });
+    },
+    fetchProtected: function (input, options, feature) {
+      return authApi.requireUser(feature).then(function () {
+        var request = Object.assign({ credentials: "same-origin" }, options || {});
+        return fetch(input, request).then(function (response) {
+          if (response.status === 401) throw authApi.handleUnauthorized(feature);
+          return response;
+        });
+      });
+    },
+    refresh: function () { return checkSession(true); }
+  });
+
+  authReady = new Promise(function (resolve) { resolveAuthReady = resolve; });
+  authApi = Object.freeze(Object.assign({}, authApi, { ready: authReady }));
+  window.InterviewForgeAuth = authApi;
+
+  function checkSession(isRetry) {
+    if (!isRetry && authState.status !== "checking") return authReady;
+    authState = { status: "checking", user: null, reason: "" };
+    emit("interviewforge:auth-change");
+    var controller = typeof AbortController === "function" ? new AbortController() : null;
+    var timer = controller ? window.setTimeout(function () { controller.abort(); }, 10000) : null;
+    return fetch("/api/me", { credentials: "same-origin", cache: "no-store", signal: controller ? controller.signal : undefined })
+      .then(function (response) {
+        if (response.status === 401) { setGuest("anonymous"); return null; }
+        if (!response.ok) throw new Error("session_http_" + response.status);
+        return response.json();
+      })
+      .then(function (me) {
+        if (!me) return null;
+        publish("authenticated", me, "authenticated");
+        return me;
+      })
+      .catch(function (error) {
+        setError(error && error.name === "AbortError" ? "timeout" : "session_check_failed");
+        return null;
+      })
+      .finally(function () { if (timer) window.clearTimeout(timer); });
+  }
+
+  checkSession(false);
+  authReady.then(function (session) {
+    var me = session && session.user;
+    if (!me || document.getElementById("forge-auth-pill")) return;
 
       var style = document.createElement("style");
       style.textContent =
@@ -72,8 +297,15 @@
         if (b) { b.textContent = n > 0 ? String(n) : ""; b.style.display = n > 0 ? "inline-block" : "none"; }
         document.title = n > 0 ? "(" + n + ") " + baseTitle : baseTitle;
       }
-      function authGone() {
-        location.replace("/pages/login.html?next=" + encodeURIComponent(location.pathname + location.search));
+      function authGone(feature, quiet) {
+        closePanels();
+        if (unreadTimer) { clearInterval(unreadTimer); unreadTimer = null; }
+        unreadInFlight = false;
+        if (quiet) {
+          authApi.markGuest("unauthorized");
+          return;
+        }
+        authApi.handleUnauthorized(feature || "继续使用聊天室");
       }
 
       function toggleChat() {
@@ -584,7 +816,7 @@
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: "{}"
-        }).finally(function () { location.replace("/pages/login.html"); });
+        }).finally(function () { window.location.assign("/index.html"); });
       };
       pill.appendChild(logout);
 
@@ -600,9 +832,9 @@
       if (typeof ResizeObserver === "function") new ResizeObserver(updateFloatingReserve).observe(pill);
       window.addEventListener("resize", updateFloatingReserve, { passive: true });
 
-      // ---- 聊天未读感知：面板关闭时每 15 秒探针一次；401 视为会话过期跳登录 ----
+      // ---- 聊天未读感知：面板关闭时每 15 秒探针一次；401 转为游客提示，不强制跳转 ----
       fetch("/api/chat/messages?after=-1&limit=1", { cache: "no-store" })
-        .then(function (r) { if (r.status === 401) { authGone(); return null; } return r.json(); })
+        .then(function (r) { if (r.status === 401) { authGone("继续使用聊天室", true); return null; } return r.json(); })
         .then(function (d) { if (d && d.items && d.items.length) seenId = d.items[0].id; })
         .catch(function () {});
       unreadTimer = setInterval(function () {
@@ -612,7 +844,7 @@
         unreadInFlight = true;
         fetch("/api/chat/messages?after=" + seenId + "&limit=50", { cache: "no-store" })
           .then(function (r) {
-            if (r.status === 401) { authGone(); return null; }
+            if (r.status === 401) { authGone("继续使用聊天室", true); return null; }
             return r.json().then(function (d) { return { status: r.status, data: d }; });
           })
           .then(function (res) {

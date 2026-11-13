@@ -24,9 +24,10 @@ class DashboardLeetcodeSyncTests(unittest.TestCase):
                 r'<a href="pages/leetcode-connect\.html" target="_blank" '
                 r'rel="noopener noreferrer">力扣连接</a>',
             )
-            self.assertIn(
-                '<button class="lc-button" id="leetcodeSyncBtn" type="button">一键同步</button>',
+            self.assertRegex(
                 markup,
+                r'<button(?=[^>]*\bid="leetcodeSyncBtn")(?=[^>]*\bdata-online-action\b)'
+                r'[^>]*>一键同步</button>',
             )
             self.assertNotRegex(markup, r'<a class="lc-button"[^>]*>力扣连接</a>')
 

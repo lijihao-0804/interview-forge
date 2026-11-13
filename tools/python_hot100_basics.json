@@ -1,0 +1,232 @@
+{
+  "schema_version": 1,
+  "language": "python",
+  "basics": {
+    "01-Java刷题速查.md": {
+      "title": "Python 刷题速查",
+      "summary": "先写清函数输入、返回值、空值语义和容器变量，再利用 Python 真值与解包减少样板代码。",
+      "concepts": [
+        {
+          "heading": "函数、方法与节点类",
+          "body": "力扣题面会在对应题目中提供 `ListNode`、`TreeNode` 等节点定义和函数签名，提交时不要重复定义；只有在本地独立运行、需要自己构造输入时，才补节点类或测试辅助函数。实例方法的第一个参数是 `self`，嵌套辅助函数不需要它。"
+        },
+        {
+          "heading": "真值不是“值等于零”",
+          "body": "`None`、数字 0、空列表、空字典和空字符串 `\"\"` 为假；字符串 `\"0\"` 和只含空格的 `\" \"` 为真。需要区分 `0` 与 `None` 时必须写 `value is None`，不要依赖真假值。"
+        },
+        {
+          "heading": "多重赋值与异常",
+          "body": "多重赋值会先整体求右侧表达式的值，再从左到右绑定左侧目标；交换 `a, b = b, a` 时，右侧读到的是两个旧值。面试主解不要依赖输入异常；确实不可能到达的分支可显式抛出 `ValueError`。"
+        }
+      ],
+      "api_hints": [
+        {
+          "symbol": "enumerate",
+          "syntax": "for index, value in enumerate(values)",
+          "use": "同时取得下标与值"
+        },
+        {
+          "symbol": "len",
+          "syntax": "size = len(values)",
+          "use": "取得序列或容器长度"
+        },
+        {
+          "symbol": "is None",
+          "syntax": "if value is None:",
+          "use": "把 `None` 与数字 0 区分开"
+        }
+      ],
+      "template_name": "显式处理 None 的类方法",
+      "template": "class Solution:\n    def first_positive(self, nums: list[int]) -> int:\n        answer = None\n        for value in nums:\n            if value > 0:\n                answer = value\n                break\n        return -1 if answer is None else answer\n",
+      "pitfalls": [
+        "把空字符串、数字 0 和字符串 `\"0\"` 都当成同一种“空”状态。",
+        "在力扣提交代码里重复定义平台已经提供的 `ListNode` 或 `TreeNode`。",
+        "把 `a, b = b, a` 误解成先改 `a`、再读取已变化的 `b`；右侧应先整体求值。"
+      ],
+      "teaching_markdown": "### 函数入口与节点类到底由谁提供\n\n力扣会根据题目签名接收代码。链表和树题通常已经在判题环境中提供 `ListNode`、`TreeNode`；提交时只需写 `Solution` 方法和函数体，不需要再定义一份节点类。若在本地写独立测试，才需要自己构造节点或调用测试辅助函数。\n\n实例方法的第一个参数 `self` 表示当前对象，调用时 `solution.method(value)` 不需要手写 `self`。嵌套辅助函数若只读写闭包变量，就不能再把它当实例方法调用。\n\n### 真值表要结合具体类型\n\n| 值 | `bool(value)` | 常见判断 |\n|---|---:|---|\n| `None` | `False` | 用 `is None` 判断缺失 |\n| `0` | `False` | 数字 0 |\n| `\"\"` | `False` | 空字符串 |\n| `[]`、`{}`、`set()` | `False` | 空容器 |\n| `\"0\"` | `True` | 长度为 1 的字符串 |\n| `\" \"` | `True` | 字符串不为空 |\n\n所以 `if not value` 可能同时表示“没有值”和“值为数字 0”。节点适合写 `while node is not None`；数字 0 仍然可能有效时，要明确检查 `is None`。\n\n### 多重赋值做了什么\n\n`a, b = b, a` 会先按旧值求出右侧的 `b`、`a`，再从左到右绑定 `a`、`b`。因此交换时不需要额外写临时变量，也不会因为先改 `a` 而让右侧的 `b` 读到新值。",
+      "explanation_markdown": "### 示例如何读\n\n`first_positive` 用 `answer = None` 表示“还没遇到正数”，而不是把 0 当哨兵。找到第一个正数后保存并退出；最终用 `answer is None` 判断是否需要返回题目约定的 `-1`。\n\n只循环一次且每轮常量工作，时间 O(n)；除输入外只保存一个候选变量，额外空间 O(1)。"
+    },
+    "02-Java数组.md": {
+      "title": "Python 数组与序列",
+      "summary": "刷题主容器通常是 `list`：随机访问和尾部操作方便，头部插入删除会搬移元素，切片则会复制。",
+      "concepts": [
+        {
+          "heading": "访问、追加与覆盖",
+          "body": "`nums[i]`、`nums[-1]` 是 O(1) 下标访问；`append` 与尾部 `pop` 按均摊 O(1) 处理。`insert(0, x)`、`pop(0)` 需要搬移后续元素，通常为 O(n)。"
+        },
+        {
+          "heading": "遍历与原地写入",
+          "body": "只读值用 `for value in nums`；需要位置时用 `enumerate`。原地覆盖可以用一个 `write` 指针，写到当前位置之前不会破坏尚未读取的元素。"
+        },
+        {
+          "heading": "引用、切片与二维表",
+          "body": "`other = nums` 只复制引用，`other = nums[:]` 才复制列表。`nums[left:right]` 是左闭右开并创建新列表；`[[0] * n for _ in range(m)]` 才会得到互不共享的内层列表。"
+        }
+      ],
+      "api_hints": [
+        {
+          "symbol": "append",
+          "syntax": "answer.append(value)",
+          "use": "在答案尾部追加"
+        },
+        {
+          "symbol": "enumerate",
+          "syntax": "for index, value in enumerate(nums)",
+          "use": "同时读取下标和值"
+        },
+        {
+          "symbol": "range",
+          "syntax": "range(len(nums) - 1, -1, -1)",
+          "use": "从右向左遍历下标"
+        }
+      ],
+      "template_name": "非零元素原地前移",
+      "template": "def compact_nonzero(nums: list[int]) -> None:\n    write = 0\n    for value in nums:\n        if value != 0:\n            nums[write] = value\n            write += 1\n    while write < len(nums):\n        nums[write] = 0\n        write += 1\n",
+      "pitfalls": [
+        "把 `insert(0, x)` 或 `pop(0)` 当作 O(1)。",
+        "把 `other = nums` 当成复制列表，之后修改 `other` 同时改了原列表。",
+        "用 `[[0] * n] * m` 创建二维表，导致所有行共享同一个内层列表。"
+      ],
+      "teaching_markdown": "### 引用、复制和切片要看对象身份\n\n```python\nnums = [1, 2]\nsame = nums\ncopy = nums[:]\nsame.append(3)\n```\n\n执行后 `nums` 与 `same` 都是 `[1,2,3]`，因为它们指向同一个列表；`copy` 仍是 `[1,2]`。切片 `[start:end]` 的结束下标不包含在结果中，并会复制选中的元素。\n\n### 用 `[0,1,0,3,12]` 看原地覆盖\n\n`write = 0` 指向下一个非零值应放置的位置。读到 1 时写到下标 0；读到 3 时写到下标 1；读到 12 时写到下标 2。最终 `[1,3,12,3,12]`，再从 `write = 3` 到尾全部补 0，得到 `[1,3,12,0,0]`。\n\n### 二维列表不能直接乘整行\n\n`[[0] * cols] * rows` 复制的是内层列表的引用，改一格会改多行。应写成 `[[0] * cols for _ in range(rows)]`，每一轮生成式都会创建新的内层列表。",
+      "explanation_markdown": "### 复杂度与边界\n\n模板只向 `nums` 写入，不创建非零元素副本；扫描一次并在尾部补零，时间 O(n)，额外空间 O(1)。空列表时循环和补零循环都不会执行。\n\n需要先进先出的队列时不要用 `list.pop(0)`，它要移动头部之后的元素；应改用 `collections.deque.popleft()`。"
+    },
+    "03-Java字符串.md": {
+      "title": "Python 字符串",
+      "summary": "字符串不可变：下标取出字符，切片和拼接产生新字符串；循环收集片段后用 `join` 一次拼接更稳妥。",
+      "concepts": [
+        {
+          "heading": "不可变与切片",
+          "body": "`s[i]` 返回单字符，`s[start:end]` 返回左闭右开的新字符串。不能写 `s[i] = ch`；需要修改时应构造列表或重新拼接。"
+        },
+        {
+          "heading": "计数与签名",
+          "body": "`ord(ch)` 取得字符码点，`Counter` 统计频次；只含小写 `a-z` 时可映射到长度 26 的计数列表，再用元组作为可哈希签名。"
+        },
+        {
+          "heading": "查找与拼接",
+          "body": "`find` 未命中返回 -1，`index` 未命中抛 `ValueError`。`\"\".join(parts)` 的分配与总字符量同阶；大量循环 `+=` 可能反复创建整段新字符串。"
+        }
+      ],
+      "api_hints": [
+        {
+          "symbol": "join",
+          "syntax": "\"\".join(parts)",
+          "use": "一次连接多个字符或字符串片段"
+        },
+        {
+          "symbol": "ord",
+          "syntax": "ord(ch) - ord(\"a\")",
+          "use": "把确定的小写字母映射到 0..25"
+        },
+        {
+          "symbol": "startswith",
+          "syntax": "s.startswith(word, start)",
+          "use": "从指定位置检查单词前缀"
+        }
+      ],
+      "template_name": "小写字母频次签名",
+      "template": "def frequency_signature(word: str) -> tuple[int, ...]:\n    counts = [0] * 26\n    for ch in word:\n        counts[ord(ch) - ord(\"a\")] += 1\n    return tuple(counts)\n",
+      "pitfalls": [
+        "把切片结束下标当包含端点；`s[1:3]` 只包含下标 1、2。",
+        "把 `find` 的 -1 与 `index` 抛异常的失败语义混用。",
+        "模板误用于大写、数字或非 ASCII 字符，导致下标越界或语义错误。"
+      ],
+      "teaching_markdown": "### 不可变字符串怎样变化\n\n```python\ns = \"abc\"\nt = s.upper()\npart = s[1:3]\n```\n\n`upper()` 返回新字符串 `\"ABC\"`，原来的 `s` 仍是 `\"abc\"`；`s[1:3]` 返回 `\"bc\"`，结束下标 3 不包含。若回溯或构造过程中要频繁修改字符，应先把字符放到列表中，修改后再 `\"\".join(...)`。\n\n### 用 `eat` 建立频次签名\n\n对 `word = \"eat\"`，26 个位置的计数列表最终只有 `a`、`e`、`t` 各为 1，其余为 0。转换成元组后，`eat`、`tea`、`ate` 得到同一个不可变签名，可作为字典键。该模板只适用于输入保证为小写英文字母的题目。\n\n### `find` 与 `index`\n\n`\"banana\".find(\"na\")` 返回 2；找不到时返回 -1。`index` 找不到时抛异常。滑动窗口、解码或词典匹配经常更适合 `startswith`，因为它能限定从哪个位置开始检查。",
+      "explanation_markdown": "### Python 细节\n\n`tuple(counts)` 复制计数并转换成可哈希对象。若直接返回 `counts`，列表本身不能作为字典键。\n\n`ch.isdigit()` 能识别一些 Unicode 数字字符，不只是 ASCII 的 `0` 到 `9`。解码题如果题面只允许 ASCII 数字，可使用 `\"0\" <= ch <= \"9\"` 明确范围。\n\n小写字母固定为 26 个时，签名构造与单词长度成正比；保存签名的额外空间固定为 26 项。"
+    },
+    "04-Java集合.md": {
+      "title": "Python 容器选择",
+      "summary": "`dict` 和 `set` 负责映射与去重，`deque` 负责双端队首操作，`heapq` 负责动态极值。",
+      "concepts": [
+        {
+          "heading": "dict、set 与默认创建",
+          "body": "`dict.get(key, default)` 只读取且不写入默认值；`defaultdict(list)` 在访问缺失键时会创建空列表。字典键必须可哈希，列表和字典本身不能直接作为键。"
+        },
+        {
+          "heading": "栈、队列与双端队列",
+          "body": "列表尾部 `append/pop` 适合栈；BFS 队列用 `deque.append()` 与 `deque.popleft()`。普通列表 `pop(0)` 会移动其它元素，不适合作为大队列。"
+        },
+        {
+          "heading": "堆的版本边界",
+          "body": "判题环境限定为 Python 3.12 / CPython；该版本标准库 `heapq` 的公开接口以最小堆为核心。最大堆通常把原值取负数后入堆，或使用自定义包装对象。"
+        }
+      ],
+      "api_hints": [
+        {
+          "symbol": "Counter",
+          "syntax": "counts = Counter(nums)",
+          "use": "一次建立频次映射"
+        },
+        {
+          "symbol": "deque",
+          "syntax": "queue = deque([root])",
+          "use": "建立均摊 O(1) 的两端操作队列"
+        },
+        {
+          "symbol": "heapq.heappush",
+          "syntax": "heapq.heappush(heap, item)",
+          "use": "把一个候选加入堆"
+        }
+      ],
+      "template_name": "频次表 + 容量 k 小顶堆",
+      "template": "from collections import Counter\nimport heapq\n\n\ndef top_k_frequent(nums: list[int], k: int) -> list[int]:\n    counts = Counter(nums)\n    heap = []\n    for value, frequency in counts.items():\n        heapq.heappush(heap, (frequency, value))\n        if len(heap) > k:\n            heapq.heappop(heap)\n    answer = [0] * k\n    for index in range(k - 1, -1, -1):\n        answer[index] = heapq.heappop(heap)[1]\n    return answer\n",
+      "pitfalls": [
+        "使用 `get(key)` 后把结果当位置写入，误以为会默认插入；普通 `get` 不会。",
+        "在遍历字典时直接增删键；应先收集改动，或改为遍历副本。",
+        "需要最大堆时仍按原值调用最小堆接口，结果会先弹出最小值。"
+      ],
+      "teaching_markdown": "### 通过一个频次例子区分容器\n\n输入 `nums = [1,1,1,2,2,3]` 时，`Counter` 得到 `{1:3, 2:2, 3:1}`。若找前 2 个高频元素，可先放 `(3,1)`、`(2,2)` 进容量 2 的小顶堆；再放 `(1,3)` 后堆有 3 项，弹出最小的 `(1,3)`，保留的是频次最高的两项。\n\n`dict.get(key, [])` 只返回默认列表，不会把它写回字典；需要自动创建时应使用 `setdefault`、`defaultdict`，或显式先赋值。\n\n### 栈和队列看从哪一端操作\n\n列表模拟栈：`stack.append(x)` 入栈，`stack.pop()` 从末尾删除。BFS 需要从最早进入的一端取出，所以使用 `deque.popleft()`；从头部反复删除普通列表会让每次操作搬移元素。",
+      "explanation_markdown": "### 模板动作与 Python 3.12 范围\n\n`Counter` 扫描 n 个元素建立频次，平均 O(n)。设不同数值个数为 m，每个频次进入容量 k 的最小堆，维护成本 O(m log k)；最后输出 k 项。频次表占 O(m)，堆占 O(k)。\n\n判题环境限定为 Python 3.12 / CPython；该版本标准库 `heapq` 以最小堆接口工作。需要最大堆时可存入负值，或使用自定义包装器。\n\n堆中放 `(frequency, value)` 时，频次相同的候选还能继续比较整数 value，不会落到不可比较的普通对象上。"
+    },
+    "05-排序算法.md": {
+      "title": "Python 排序与二分",
+      "summary": "`sorted` 返回新列表，`list.sort` 原地重排；判题环境限定为 Python 3.12 / CPython，其 Timsort 不能保证额外空间 O(1)。",
+      "concepts": [
+        {
+          "heading": "排序返回值与 key",
+          "body": "`list.sort()` 返回 `None`，结果留在原列表；`sorted()` 返回新列表。`key` 只计算一次比较键，多关键字可用 `(-frequency, value)` 或元组键。"
+        },
+        {
+          "heading": "二分边界",
+          "body": "`bisect_left` 返回第一个大于等于目标的位置，`bisect_right` 返回第一个严格大于目标的位置；`right-left` 是重复值的数量。"
+        },
+        {
+          "heading": "稳定性与额外空间",
+          "body": "Python 的 `sort/sorted` 是稳定排序。判题环境限定为 Python 3.12 / CPython，其 Timsort 最坏可分配 O(n) 临时缓冲；“原地列表排序”不表示额外空间 O(1)。"
+        }
+      ],
+      "api_hints": [
+        {
+          "symbol": "list.sort",
+          "syntax": "intervals.sort(key=lambda pair: pair[0])",
+          "use": "按指定键原地重排列表"
+        },
+        {
+          "symbol": "sorted",
+          "syntax": "ordered = sorted(values)",
+          "use": "保留输入并返回新列表"
+        },
+        {
+          "symbol": "bisect_left",
+          "syntax": "left = bisect_left(nums, target)",
+          "use": "查找下界或重复值左边界"
+        },
+        {
+          "symbol": "bisect_right",
+          "syntax": "right = bisect_right(nums, target)",
+          "use": "查找第一个严格大于目标的位置"
+        }
+      ],
+      "template_name": "排序后二分查找",
+      "template": "from bisect import bisect_left\n\n\ndef sorted_search(nums: list[int], target: int) -> bool:\n    nums.sort()\n    position = bisect_left(nums, target)\n    return position < len(nums) and nums[position] == target\n",
+      "pitfalls": [
+        "把 `list.sort()` 的返回值赋给变量；它返回的是 `None`。",
+        "把 `list.sort` 当成额外空间 O(1)；严格 O(1) 需要另写原地选择、交换、三路划分或链表重连。",
+        "对链表节点列表排序来冒充链表原地归并，忽略了输入结构和题目约束。",
+        "查询重复值的左右边界时混用 `bisect_left` 与 `bisect_right`。"
+      ],
+      "teaching_markdown": "### 一个列表既有返回值也有原地操作\n\n```python\nnums = [3, 1, 2]\nother = sorted(nums)\n```\n\n`other` 是 `[1,2,3]`，原来的 `nums` 仍为 `[3,1,2]`。若调用 `nums.sort()`，它返回 `None`，但 `nums` 本身会变为 `[1,2,3]`。\n\n对于记录 `[(3,\"a\"), (1,\"b\"), (1,\"c\")]`，按编号排序后的相对顺序是 `b,c,a`。稳定性保证相等的 1 仍保持原先后顺序。多关键字常写成 `key=lambda item: (item.priority, item.value)`。\n\n### 重复值的左右边界\n\n在 `[1,2,2,2,3]` 中，`bisect_left(..., 2)` 返回 1，`bisect_right(..., 2)` 返回 4。目标不存在时，两者返回同一个插入点；目标低于所有元素时都返回 0，高于所有元素时都返回 `len(nums)`。",
+      "explanation_markdown": "### 空间与复杂度要说清实现边界\n\n`key=` 会为每个元素构造比较键，增加与键对象相关的空间。判题环境限定为 Python 3.12 / CPython，其 Timsort 通常时间为 O(n log n)，最坏额外缓冲为 O(n) 级别，因此 `list.sort` 不能作为严格 O(1) 空间的证明。\n\n模板会修改传入列表：先排序，再在下界位置检查目标。若原顺序还要使用，应复制后再排序。排序占主导，时间 O(n log n)，额外空间按当前实现最坏 O(n)。\n\n`bisect_left/right` 只适用于已经有序的序列。"
+    }
+  }
+}

@@ -19,6 +19,32 @@
     else { toast.textContent = message; toast.className = "toast" + (kind === "error" ? " error" : ""); }
   }
 
+  function getAuthClient() {
+    if (window.InterviewForgeAuth && window.InterviewForgeAuth.ready) return Promise.resolve(window.InterviewForgeAuth);
+    return new Promise(function (resolve, reject) {
+      function ready() {
+        document.removeEventListener("interviewforge:auth-ready", ready);
+        window.clearTimeout(timer);
+        if (window.InterviewForgeAuth && window.InterviewForgeAuth.ready) resolve(window.InterviewForgeAuth);
+        else reject(new Error("登录状态暂时不可用，请刷新页面后重试"));
+      }
+      var timer = window.setTimeout(function () {
+        document.removeEventListener("interviewforge:auth-ready", ready);
+        reject(new Error("登录状态确认超时，请刷新页面后重试"));
+      }, 12000);
+      document.addEventListener("interviewforge:auth-ready", ready, { once: true });
+    });
+  }
+
+  function setControlsEnabled(enabled) {
+    markSelect.disabled = !enabled;
+    weakButton.disabled = !enabled;
+    Array.prototype.forEach.call(ratingButtons, function (button) { button.disabled = !enabled; });
+    var fav = document.getElementById("solutionFavoriteToggle");
+    if (fav) fav.disabled = !enabled;
+    if (historyButton) historyButton.disabled = !enabled;
+  }
+
   function paintMark(mark) {
     currentMark = mark || "";
     markSelect.value = currentMark;
@@ -36,38 +62,73 @@
     paintMark(data.mark || "");
   }
 
+  function paintGuest(reason) {
+    summary.textContent = reason === "error"
+      ? "暂时无法确认登录状态；题解仍可阅读"
+      : "游客可阅读题解；登录后可记录复习、薄弱题和收藏";
+    due.textContent = "登录后同步学习状态";
+    paintMark("");
+    panel.classList.add("is-auth-required");
+    setControlsEnabled(true);
+  }
+
+  function paintAuthenticated() {
+    panel.classList.remove("is-auth-required");
+    setControlsEnabled(true);
+  }
+
   async function loadProgress() {
+    summary.textContent = "正在确认登录状态…";
+    due.textContent = "请稍候";
+    setControlsEnabled(false);
     try {
-      var response = await fetch("/api/problem/" + problemId + "/progress", { cache: "no-store" });
+      var auth = await getAuthClient();
+      var session = await auth.ready;
+      if (session.status !== "authenticated") {
+        paintGuest(session.status);
+        return;
+      }
+      var response = await fetch("/api/problem/" + problemId + "/progress", {
+        credentials: "same-origin", cache: "no-store"
+      });
       if (response.status === 401) {
-        var next = window.location.pathname + window.location.search + window.location.hash;
-        window.location.replace("/pages/login.html?next=" + encodeURIComponent(next));
+        auth.handleUnauthorized("记录本题学习进度");
+        paintGuest("guest");
         return;
       }
       if (!response.ok) throw new Error("暂时无法读取学习记录");
       paintProgress(await response.json());
-      markSelect.disabled = false;
-      weakButton.disabled = false;
-      Array.prototype.forEach.call(ratingButtons, function (button) { button.disabled = false; });
-    } catch (_) {
-      summary.textContent = "暂时无法读取学习记录；可稍后刷新重试";
-      markSelect.disabled = true;
-      weakButton.disabled = true;
-      Array.prototype.forEach.call(ratingButtons, function (button) { button.disabled = true; });
+      paintAuthenticated();
+    } catch (error) {
+      summary.textContent = error.message || "暂时无法读取学习记录；可稍后刷新重试";
+      due.textContent = "未同步";
+      panel.classList.add("is-auth-required");
+      setControlsEnabled(true);
     }
   }
 
+  async function requireUser(feature) {
+    var auth = await getAuthClient();
+    return auth.requireUser(feature);
+  }
+
+  async function protectedFetch(path, options, feature) {
+    var auth = await getAuthClient();
+    return auth.fetchProtected(path, options, feature);
+  }
+
   async function recordReview(rating, button) {
+    try { await requireUser("记录本题复习评分"); }
+    catch (_) { return; }
     Array.prototype.forEach.call(ratingButtons, function (item) { item.disabled = true; });
     notify("正在保存本次复习评分…", "");
     try {
-      var response = await fetch("/api/complete", {
+      var response = await protectedFetch("/api/complete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ problem_id: problemId, rating: rating })
-      });
+      }, "记录本题复习评分");
       var result = await response.json().catch(function () { return {}; });
-      if (response.status === 401) { redirectToLogin(); return; }
       if (!response.ok) throw new Error(result.error || "复习记录失败");
       await loadProgress();
       var ratingLabel = { again: "忘了", hard: "有点困难", good: "记得", easy: "很轻松" }[result.rating_name]
@@ -79,11 +140,6 @@
       notify(error.message || "复习记录失败，请稍后重试", "error");
       Array.prototype.forEach.call(ratingButtons, function (item) { item.disabled = false; });
     }
-  }
-
-  function redirectToLogin() {
-    var next = window.location.pathname + window.location.search + window.location.hash;
-    window.location.replace("/pages/login.html?next=" + encodeURIComponent(next));
   }
 
   function renderSubmissionHistory(items) {
@@ -111,34 +167,39 @@
   async function loadSubmissionHistory() {
     historyPanel.textContent = "正在读取 AC 提交记录…";
     try {
-      var response = await fetch("/api/submissions?problem_id=" + encodeURIComponent(problemId), { cache: "no-store" });
-      if (response.status === 401) { redirectToLogin(); return; }
+      var response = await protectedFetch("/api/submissions?problem_id=" + encodeURIComponent(problemId), {
+        cache: "no-store"
+      }, "查看提交记录");
       if (!response.ok) throw new Error("暂时无法读取提交记录，请稍后重试");
       var payload = await response.json();
       renderSubmissionHistory(payload.items || []);
     } catch (error) {
-      historyPanel.textContent = error.message || "暂时无法读取提交记录，请稍后重试";
+      historyPanel.textContent = error.code === "AUTH_REQUIRED"
+        ? "游客可阅读题解；登录后可查看自己的提交记录。"
+        : (error.message || "暂时无法读取提交记录，请稍后重试");
     }
   }
 
   async function saveMark(nextMark) {
     var previous = currentMark;
+    try { await requireUser("标记题目学习状态"); }
+    catch (_) { markSelect.value = previous; return; }
     paintMark(nextMark);
     markSelect.disabled = true;
     weakButton.disabled = true;
     try {
-      var response = await fetch("/api/mark", {
+      var response = await protectedFetch("/api/mark", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ target_type: "problem", target_id: String(problemId), mark: nextMark })
-      });
+      }, "标记题目学习状态");
       var result = await response.json().catch(function () { return {}; });
       if (!response.ok) throw new Error(result.error || "标记保存失败");
       paintMark(nextMark);
       notify(nextMark ? "已更新本题标记" : "已清除本题标记", "success");
     } catch (error) {
       paintMark(previous);
-      notify(error.message || "标记保存失败，请稍后重试", "error");
+      if (error.code !== "AUTH_REQUIRED") notify(error.message || "标记保存失败，请稍后重试", "error");
     } finally {
       markSelect.disabled = false;
       weakButton.disabled = false;
@@ -148,47 +209,47 @@
   markSelect.addEventListener("change", function () { saveMark(markSelect.value); });
   weakButton.addEventListener("click", function () { saveMark(currentMark === "weak" ? "" : "weak"); });
 
-  // ---- 收藏 ----
-  // 与「标记薄弱」同属个人状态，但走独立的 favorites 表：
-  // 标记表达掌握程度，收藏表达「想再回来看」，两者互不影响。
   var favButton = document.getElementById("solutionFavoriteToggle");
   if (favButton) {
-    var favOn = false;
     function paintFav(on) {
-      favOn = !!on;
-      favButton.setAttribute("aria-pressed", favOn ? "true" : "false");
-      favButton.textContent = favOn ? "⭐ 已收藏" : "⭐ 收藏";
-      favButton.classList.toggle("on", favOn);
+      favButton.setAttribute("aria-pressed", on ? "true" : "false");
+      favButton.textContent = on ? "⭐ 已收藏" : "⭐ 收藏";
+      favButton.classList.toggle("on", !!on);
+      favButton.disabled = false;
     }
-    // 初始状态：从收藏列表判断本题是否已收藏
-    fetch("/api/favorites", { cache: "no-store" })
-      .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
-      .then(function (d) {
-        paintFav(Array.isArray(d.ids) && d.ids.indexOf("problem:" + problemId) >= 0);
-      })
-      .catch(function () {});
-    favButton.addEventListener("click", function () {
+    paintFav(false);
+    getAuthClient().then(function (auth) { return auth.ready; }).then(function (session) {
+      if (session.status !== "authenticated") return;
+      return fetch("/api/favorites", { credentials: "same-origin", cache: "no-store" }).then(function (r) {
+        return r.ok ? r.json() : {};
+      }).then(function (d) { paintFav(Array.isArray(d.ids) && d.ids.indexOf("problem:" + problemId) >= 0); });
+    }).catch(function () { });
+    favButton.addEventListener("click", async function () {
+      try { await requireUser("收藏题解"); }
+      catch (_) { return; }
       favButton.disabled = true;
       var titleEl = document.querySelector("h1");
-      fetch("/api/favorites/toggle", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          target_type: "problem",
-          target_id: String(problemId),
-          module_id: "hot100",
-          module_title: "Hot 100 算法刷题",
-          title: titleEl ? titleEl.textContent.trim() : ("题目 " + problemId),
-          url: location.pathname + location.search
-        })
-      })
-        .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
-        .then(function (res) {
-          paintFav(res.favorited);
-          notify(res.favorited ? "已加入收藏，可在「我的收藏」查看" : "已取消收藏");
-        })
-        .catch(function () { notify("操作失败，请重试", "error"); })
-        .finally(function () { favButton.disabled = false; });
+      try {
+        var response = await protectedFetch("/api/favorites/toggle", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            target_type: "problem",
+            target_id: String(problemId),
+            module_id: "hot100",
+            module_title: "Hot 100 算法刷题",
+            title: titleEl ? titleEl.textContent.trim() : ("题目 " + problemId),
+            url: location.pathname + location.search
+          })
+        }, "收藏题解");
+        var res = await response.json().catch(function () { return {}; });
+        if (!response.ok) throw new Error(res.error || "收藏失败");
+        paintFav(res.favorited);
+        notify(res.favorited ? "已加入收藏，可在「我的收藏」查看" : "已取消收藏");
+      } catch (error) {
+        if (error.code !== "AUTH_REQUIRED") notify(error.message || "操作失败，请重试", "error");
+        favButton.disabled = false;
+      }
     });
   }
 

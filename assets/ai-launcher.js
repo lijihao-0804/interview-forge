@@ -10,12 +10,40 @@
   var openDrawer = null;
   var pendingOpen = false;
   global.addEventListener("interviewforge:open-ai", function () {
-    if (openDrawer) openDrawer();
-    else pendingOpen = true;
+    pendingOpen = true;
+    requestOpen();
   });
 
-  function boot(me) {
-    if (!me || document.getElementById("if-ai-launcher")) return;
+  function waitForAuth() {
+    if (global.InterviewForgeAuth && global.InterviewForgeAuth.ready) return Promise.resolve(global.InterviewForgeAuth);
+    return new Promise(function (resolve, reject) {
+      var timer = global.setTimeout(function () {
+        document.removeEventListener("interviewforge:auth-ready", ready);
+        reject(new Error("登录状态暂时不可用，请刷新页面后重试"));
+      }, 12000);
+      function ready() {
+        global.clearTimeout(timer);
+        document.removeEventListener("interviewforge:auth-ready", ready);
+        if (global.InterviewForgeAuth) resolve(global.InterviewForgeAuth);
+        else reject(new Error("登录状态暂时不可用，请刷新页面后重试"));
+      }
+      document.addEventListener("interviewforge:auth-ready", ready, { once: true });
+    });
+  }
+
+  function requestOpen() {
+    waitForAuth().then(function (auth) {
+      return auth.requireUser("使用 AI 助手");
+    }).then(function () {
+      if (openDrawer) openDrawer();
+      else pendingOpen = true;
+    }).catch(function (error) {
+      if (error && error.code !== "AUTH_REQUIRED") global.alert(error.message || "登录状态暂时不可用，请刷新页面后重试。");
+    });
+  }
+
+  function boot() {
+    if (document.getElementById("if-ai-launcher")) return;
     var button = document.createElement("button");
     button.id = "if-ai-launcher";
     button.type = "button";
@@ -79,7 +107,7 @@
       }
     }
     openDrawer = open;
-    button.addEventListener("click", open);
+    button.addEventListener("click", requestOpen);
     global.addEventListener("message", function (event) {
       if (event.origin !== global.location.origin || !event.data) return;
       if (event.data.type === "interviewforge:request-page-context") sendContext(event.data.request_id);
@@ -88,11 +116,8 @@
     global.addEventListener("scroll", update, { passive: true });
     document.addEventListener("selectionchange", update);
     global.addEventListener("pagehide", clearDrawerOpenState, { once: true });
-    if (pendingOpen) { pendingOpen = false; open(); }
+    if (pendingOpen) { pendingOpen = false; requestOpen(); }
   }
 
-  fetch("/api/me", { credentials: "same-origin", cache: "no-store" })
-    .then(function (response) { return response.ok ? response.json() : null; })
-    .then(boot)
-    .catch(function () { /* 未登录或服务暂不可用时不显示入口 */ });
+  boot();
 }(window));

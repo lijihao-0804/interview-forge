@@ -374,13 +374,9 @@ def send_mail(
     body: str,
 ) -> None:
     """用全局发件配置给该用户的收件邮箱发邮件；未配置/失败抛 GymServiceError。"""
-    import smtplib
-    from email.header import Header
-    from email.mime.text import MIMEText
-
     smtp = smtp_config_status()
     if not smtp.get("configured"):
-        raise GymServiceError("发件 SMTP 尚未在管理后台配置")
+        raise SMTPNotConfiguredError("发件 SMTP 尚未在管理后台配置")
     conn = connect()
     try:
         row = conn.execute(
@@ -388,12 +384,34 @@ def send_mail(
     finally:
         conn.close()
     recipient = (row["notify_to"] if row else "") or smtp["smtp_user"]  # 未设收件人时发给发件箱自己
+    send_email(recipient, subject, body)
+
+
+def send_email(recipient: str, subject: str, body: str) -> None:
+    """Send through the encrypted global SMTP config with mandatory TLS.
+
+    This is the shared delivery primitive for gym notifications and account
+    verification.  It never logs the authorization code or message body.
+    """
+    import smtplib
+    import ssl
+    from email.header import Header
+    from email.mime.text import MIMEText
+
+    recipient = str(recipient or "").strip()
+    if not _EMAIL_PATTERN.fullmatch(recipient):
+        raise GymServiceError("收件邮箱格式不正确")
+    smtp = smtp_config_status()
+    if not smtp.get("configured"):
+        raise SMTPNotConfiguredError("发件 SMTP 尚未在管理后台配置")
     conn = connect()
     try:
         enc = conn.execute(
             "SELECT auth_code_encrypted FROM gym_smtp_config WHERE id = 1").fetchone()
     finally:
         conn.close()
+    if enc is None or not enc["auth_code_encrypted"]:
+        raise SMTPNotConfiguredError("发件 SMTP 尚未在管理后台配置")
     try:
         auth_code = _fernet().decrypt(enc["auth_code_encrypted"].encode("ascii")).decode("utf-8")
     except InvalidToken as exc:
@@ -402,14 +420,24 @@ def send_mail(
     msg["From"] = str(smtp["smtp_user"])
     msg["To"] = recipient
     msg["Subject"] = Header(subject, "utf-8")
+    tls_context = ssl.create_default_context()
     if int(smtp["smtp_port"]) == 465:
-        server = smtplib.SMTP_SSL(str(smtp["smtp_host"]), int(smtp["smtp_port"]), timeout=15)
+        server = smtplib.SMTP_SSL(
+            str(smtp["smtp_host"]), int(smtp["smtp_port"]), timeout=15,
+            context=tls_context,
+        )
     else:
         server = smtplib.SMTP(str(smtp["smtp_host"]), int(smtp["smtp_port"]), timeout=15)
         try:
-            server.starttls()
-        except smtplib.SMTPException:  # noqa: BLE001
-            pass
+            server.ehlo()
+            server.starttls(context=tls_context)
+            server.ehlo()
+        except BaseException:
+            try:
+                server.close()
+            except Exception:  # noqa: BLE001
+                pass
+            raise
     try:
         server.login(str(smtp["smtp_user"]), auth_code)
         server.send_message(msg)
@@ -755,6 +783,10 @@ def verify_credentials(account: str, password: str) -> dict:
 
 class GymServiceError(Exception):
     """用户可见的排程错误（参数非法/状态不允许）。"""
+
+
+class SMTPNotConfiguredError(GymServiceError):
+    """The shared encrypted SMTP sender has not been configured."""
 
 
 def create_job(target_date: str, slots: list[str], created_by: str, venue: str = "129") -> dict:

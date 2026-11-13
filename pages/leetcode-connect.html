@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>力扣连接 · InterviewForge</title>
+<script src="../assets/guest-auth.js?v=2"></script>
 <style>
 :root{color-scheme:light dark;--bg:#f3f5fa;--panel:#fff;--soft:#f7f8fc;--text:#172033;--muted:#647188;--line:#dce2ec;--brand:#5654d4;--brand-soft:#eeedff;--success:#13764b;--success-soft:#e7f6ee;--danger:#c1363e;--danger-soft:#fdeaea}
 @media(prefers-color-scheme:dark){:root{--bg:#0f131b;--panel:#181e29;--soft:#141a24;--text:#edf2fb;--muted:#a7b2c4;--line:#313b4c;--brand:#b2b0ff;--brand-soft:#292955;--success:#79d8a8;--success-soft:#17382b;--danger:#ff969d;--danger-soft:#3a1f24}}
@@ -30,6 +31,8 @@ button.danger{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 4
 .round-button{padding:5px 10px;border:1px solid color-mix(in srgb,var(--brand) 34%,var(--line));border-radius:8px;color:var(--brand);background:var(--panel);cursor:pointer;font:inherit;font-size:13px}
 .round-button:focus-visible{outline:3px solid color-mix(in srgb,var(--brand) 40%,transparent);outline-offset:2px}
 #syncResult{margin-top:12px;font-size:14px;white-space:pre-line}
+.auth-gate{margin:18px 0 4px;padding:14px 16px;border:1px solid color-mix(in srgb,var(--brand) 28%,var(--line));border-radius:11px;background:var(--brand-soft);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.auth-gate[hidden]{display:none}.auth-gate p{margin:0;color:var(--muted);font-size:14px}.auth-gate-actions{display:flex;gap:8px;flex-wrap:wrap}.auth-gate-actions a{padding:7px 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel);font-weight:650}.auth-gate-actions .primary{border-color:var(--brand);background:var(--brand);color:#fff}
 footer{margin-top:22px;color:var(--muted);font-size:13px;text-align:center}
 
 /* 统一面包屑导航：中控台 › 当前页 */
@@ -49,6 +52,8 @@ padding:2px 8px;border-radius:6px;transition:background-color .15s ease}
     <h1>⚡ 力扣连接</h1>
     <p class="muted">把你在力扣的提交结果同步到学习站：面板显示“今日已 AC / 累计 AC”、题卡出现“已 AC”徽标，AC/WA 会联动复习调度<br>
     （AC 提示可推进复习；WA 自动标记薄弱并提前进入“今日待复习”）。</p>
+
+    <div class="auth-gate" id="authGate" hidden><p id="authGateCopy">游客可阅读全部说明。保存凭证、清除连接和同步提交需要先登录。</p><div class="auth-gate-actions"><a id="authLogin" href="/pages/login.html">登录</a><a class="primary" id="authRegister" href="/pages/register.html">注册</a></div></div>
 
     <h2>说明：力扣没有第三方授权（无 OAuth）</h2>
     <p class="muted">本站无法做“一键授权”，改为<b>导入你的登录会话</b>：会话通过 HTTPS 保存到当前账号的服务器端数据库，仅用于同步你的提交记录；凭证不会在页面回显，可随时一键清除。提交代码仍只在力扣官网进行，本站不会自动提交。</p>
@@ -86,6 +91,9 @@ padding:2px 8px;border-radius:6px;transition:background-color .15s ease}
 <script>
 const statusBox=document.getElementById('status');
 const syncBox=document.getElementById('syncResult');
+const guestAuth=window.InterviewForgeGuestAuth;
+let authStatus='checking';
+let loadedSessionKey='';
 const sessionInput=document.getElementById('session');
 const csrfInput=document.getElementById('csrf');
 const syncBtn=document.getElementById('syncBtn');
@@ -137,14 +145,30 @@ function saveLeetcodeSyncCursor(full,data){
     else sessionStorage.removeItem(leetcodeSyncCursorKey(full));
   }catch(_){/* sessionStorage may be unavailable; the next run safely starts at zero. */}
 }
-async function api(path,options){
-  const response=await fetchWithTimeout(path,options||{});
-  if(response.status===401){location.replace('/pages/login.html?next='+encodeURIComponent(location.pathname));throw new Error('登录状态已失效');}
+async function api(path,options,feature){
+  const response=await guestAuth.request(path,options||{},feature||'使用力扣同步');
   const data=await response.json().catch(()=>({}));
   if(!response.ok)throw new Error(data.error||('请求失败 HTTP '+response.status));
   return data;
 }
+async function requireAuthenticated(feature){
+  try{await guestAuth.requireUser(feature);return true}catch(_){return false}
+}
+function paintAuthState(session){
+  authStatus=session&&session.status||'error';
+  const authenticated=authStatus==='authenticated';
+  const gate=document.getElementById('authGate');
+  gate.hidden=authenticated;
+  document.getElementById('authGateCopy').textContent=authStatus==='error'
+    ?'游客可继续阅读说明。当前网络暂时无法确认账号状态，可稍后重试，或先登录/注册；完成后会回到本页。'
+    :'游客可阅读全部说明。保存凭证、清除连接和同步提交需要先登录。';
+  const page=location.pathname+location.search+location.hash;
+  document.getElementById('authLogin').href=guestAuth.authHref('/pages/login.html',page);
+  document.getElementById('authRegister').href=guestAuth.authHref('/pages/register.html',page);
+  if(!authenticated){statusBox.className='';statusBox.hidden=true;syncBox.textContent='';}
+}
 async function loadStatus(){
+  if(authStatus!=='authenticated')return;
   try{
     const data=await api('/api/leetcode/status');
     if(data.credentials_saved){
@@ -156,6 +180,7 @@ async function loadStatus(){
   }catch(_){showStatusRetry('暂时无法读取力扣凭证状态，请检查网络后重试','重试',loadStatus);}
 }
 document.getElementById('saveBtn').addEventListener('click',async()=>{
+  if(!await requireAuthenticated('保存力扣连接'))return;
   const session=document.getElementById('session').value.trim();
   const csrf=document.getElementById('csrf').value.trim();
   if(!session){showStatus(false,'请先粘贴 LEETCODE_SESSION');return;}
@@ -169,6 +194,7 @@ document.getElementById('saveBtn').addEventListener('click',async()=>{
   }catch(error){showStatus(false,'保存失败：'+error.message);}
 });
 document.getElementById('clearBtn').addEventListener('click',async()=>{
+  if(!await requireAuthenticated('清除力扣连接'))return;
   try{await api('/api/leetcode/clear',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});clearLeetcodeFullSyncCursor();clearLeetcodeSyncUser();sessionInput.value='';csrfInput.value='';showStatus(false,'凭证已清除');syncBox.textContent='';}
   catch(error){showStatus(false,'清除失败：'+error.message);}
 });
@@ -176,6 +202,7 @@ syncBtn.addEventListener('click',()=>runSync(false));
 syncFullBtn.addEventListener('click',()=>runSync(true));
 async function runSync(full){
   if(syncInFlight)return;
+  if(!await requireAuthenticated(full?'全量同步力扣提交':'增量同步力扣提交'))return;
   setSyncBusy(true);
   syncBox.textContent=full?'全量同步中，正在启动任务…':'增量同步中，正在启动任务…';
   try{
@@ -208,7 +235,21 @@ async function runSync(full){
   }catch(error){syncBox.textContent+='\n同步失败：'+error.message;showStatus(false,'同步失败：'+error.message);}
   finally{setSyncBusy(false);}
 }
-loadStatus();
+document.addEventListener('interviewforge:auth-change',event=>{
+  if(!event||!event.detail||event.detail.status==='checking')return;
+  paintAuthState(event.detail);
+  if(event.detail.status==='authenticated'){
+    const key=String(event.detail.user&&(event.detail.user.id||event.detail.user.username)||'authenticated');
+    if(key!==loadedSessionKey){loadedSessionKey=key;loadStatus();}
+  }else{loadedSessionKey='';}
+});
+guestAuth.ready().then(session=>{
+  paintAuthState(session);
+  if(session.status==='authenticated'){
+    const key=String(session.user&&(session.user.id||session.user.username)||'authenticated');
+    if(!loadedSessionKey){loadedSessionKey=key;loadStatus();}
+  }
+}).catch(error=>paintAuthState({status:'error',reason:error&&error.message||'session_check_failed'}));
 </script>
 
 <script>

@@ -14,6 +14,25 @@
 
   var HEARTBEAT_MS = 30000;
   var MAX_SINGLE_SECONDS = 3600;
+  var authClient = null;
+  var authenticated = false;
+
+  function waitForAuthClient() {
+    if (window.InterviewForgeAuth && window.InterviewForgeAuth.ready) return Promise.resolve(window.InterviewForgeAuth);
+    return new Promise(function (resolve, reject) {
+      var timer = window.setTimeout(function () {
+        document.removeEventListener("interviewforge:auth-ready", ready);
+        reject(new Error("auth unavailable"));
+      }, 12000);
+      function ready() {
+        window.clearTimeout(timer);
+        document.removeEventListener("interviewforge:auth-ready", ready);
+        if (window.InterviewForgeAuth) resolve(window.InterviewForgeAuth);
+        else reject(new Error("auth unavailable"));
+      }
+      document.addEventListener("interviewforge:auth-ready", ready, { once: true });
+    });
+  }
 
   function detectTarget() {
     var panel = document.querySelector("[data-problem-id]");
@@ -38,6 +57,7 @@
   }
 
   function post(path, body) {
+    if (!authenticated || !authClient) return Promise.resolve();
     try {
       return fetch(path, {
         method: "POST",
@@ -45,6 +65,13 @@
         body: JSON.stringify(body),
         keepalive: true,
         credentials: "same-origin",
+      }).then(function (response) {
+        if (response.status === 401) {
+          authenticated = false;
+          stopTimer();
+          authClient.markGuest("unauthorized");
+        }
+        return response;
       }).catch(function () {});
     } catch (e) {
       return Promise.resolve();
@@ -79,7 +106,7 @@
   }
 
   function startTimer() {
-    if (timer || !target) return;
+    if (timer || !target || !authenticated) return;
     lastTick = Date.now();
     timer = setInterval(function () {
       if (document.visibilityState === "visible") flush();
@@ -92,7 +119,6 @@
   }
 
   if (target) {
-    startTimer();
     document.addEventListener("visibilitychange", function () {
       if (document.visibilityState === "hidden") { flush(); stopTimer(); }
       else { startTimer(); }
@@ -107,6 +133,7 @@
 
   function reportKeyword(input, source) {
     var keyword = String(input.value || "").trim();
+    if (!authenticated || !authClient) return;
     if (keyword.length < 2) return;
     if (keyword === reportedKeyword) return;
     reportedKeyword = keyword;
@@ -143,4 +170,21 @@
   } else {
     initSearch();
   }
+
+  document.addEventListener("interviewforge:auth-change", function (event) {
+    var session = event.detail || {};
+    authenticated = session.status === "authenticated";
+    if (authenticated && target) startTimer();
+    else stopTimer();
+  });
+  waitForAuthClient().then(function (client) {
+    authClient = client;
+    return client.ready;
+  }).then(function (session) {
+    authenticated = session.status === "authenticated";
+    if (authenticated && target) startTimer();
+  }).catch(function () {
+    authenticated = false;
+    stopTimer();
+  });
 })();

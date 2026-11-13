@@ -400,6 +400,12 @@ border-color:color-mix(in srgb,var(--success) 45%,var(--line));color:var(--succe
 .chapter-status .due-line{font-variant-numeric:tabular-nums}
 .chapter-status .due-line.due-overdue{color:var(--danger);font-weight:650}
 
+/* 游客可读模式：仅隐藏个人统计和写作控件，公开正文、目录与搜索保持可用 */
+body.auth-checking .auth-private,body.is-guest .auth-private,body.auth-error .auth-private{display:none!important}
+.guest-mode{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin:0 0 20px;padding:16px 18px;border:1px solid color-mix(in srgb,var(--brand) 28%,var(--line));border-radius:var(--radius-3);background:linear-gradient(135deg,var(--brand-soft),var(--panel));box-shadow:var(--shadow)}
+.guest-mode[hidden]{display:none}.guest-mode strong{display:block;font-size:16px}.guest-mode p{margin:3px 0 0;color:var(--muted);font-size:13px}.guest-mode-actions{display:flex;gap:8px;flex-wrap:wrap}.guest-mode-actions a{padding:7px 12px;border:1px solid var(--line);border-radius:9px;color:var(--text);background:var(--panel);font-size:13px;font-weight:650}.guest-mode-actions .primary{border-color:var(--brand);color:#fff;background:var(--brand)}.guest-read-note{display:inline-flex;padding:2px 8px;border-radius:999px;color:var(--muted);background:var(--soft);font-size:12px;white-space:nowrap}
+.chapter-status .guest-mode{margin:10px 0 0;padding:12px 14px;box-shadow:none}
+
 /* 代码高亮：固定深色主题（与 Hot100 题解页一致），不随明暗主题切换，任意主题下都清晰 */
 :root{--code-bg:#151a24;--code-text:#e9edf7}
 .reader pre{color:var(--code-text);background:var(--code-bg)}
@@ -1199,15 +1205,16 @@ def document(
     )
     ai_assets = (
         f'<script src="{time_asset_base}/time-utils.js?v=2"></script>'
+        f'<script src="{time_asset_base}/guest-auth.js?v=2"></script>'
         f'<script src="{time_asset_base}/ui.js?v={ASSET_VERSION}" defer></script>'
         # 导航策略构建期写入：离线（file://）打开时服务端不注入，书架页顶栏
         # /面包屑/上一章下一章才不会被历史 target=_blank 全部新开标签。
         f'<script src="{time_asset_base}/navigation-policy.js?v=2" defer></script>'
         f'<link rel="stylesheet" data-interviewforge-ai href="{asset_base}/ai-launcher.css?v=5">'
         f'<script src="{asset_base}/ai-page-context.js?v=1" defer data-interviewforge-ai></script>'
-        f'<script src="{asset_base}/ai-launcher.js?v=3" defer data-interviewforge-ai></script>'
+        f'<script src="{asset_base}/ai-launcher.js?v=4" defer data-interviewforge-ai></script>'
     )
-    page = f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>{html.escape(title)}</title><link rel="stylesheet" href="{css_href}?v={css_version}">{extra_head}{ai_assets}</head><body>{body}
+    page = f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>{html.escape(title)}</title><link rel="stylesheet" href="{css_href}?v={css_version}">{extra_head}{ai_assets}</head><body class="auth-checking">{body}
 <script>
 /* Esc 返回上级：章节→模块→书架→中控台。输入框/弹窗内不触发。 */
 (function(){{
@@ -1260,9 +1267,21 @@ def chapter_topic_navigation(raw_chapters: list[dict[str, object]], current_inde
 def apply_chapter_reader_layout(reader: str, topic_navigation: str) -> str:
     """Attach the topic rail and Hot100-style three-column shell to a chapter page."""
     shell_class = "chapter-shell site-shell-cols"
-    reader = reader.replace('<div class="shell">', f'<div class="shell {shell_class}">', 1)
-    reader = reader.replace('\n <main class="reader"', f'\n{topic_navigation}\n <main class="reader"', 1)
-    reader = re.sub(r'class="reader-grid[^\"]*"', 'class="reader-grid"', reader, count=1)
+    reader = _replace_required(
+        reader,
+        '<div class="shell">',
+        f'<div class="shell {shell_class}">',
+        "章节三栏外壳",
+    )
+    main_match = re.search(r'<main class="reader"', reader)
+    if main_match is None:
+        raise RuntimeError("章节专题导航模板锚点缺失：<main class=\"reader\"")
+    reader = reader[: main_match.start()] + topic_navigation + "\n" + reader[main_match.start() :]
+    reader, reader_grid_count = re.subn(
+        r'class="reader-grid[^\"]*"', 'class="reader-grid"', reader, count=1
+    )
+    if reader_grid_count != 1:
+        raise RuntimeError('章节正文网格模板锚点缺失：class="reader-grid"')
     right_rail = re.search(
         r'<aside class="sol-rail sol-rail-right shelf-page-rail".*?</aside>',
         reader,
@@ -1277,7 +1296,12 @@ def apply_chapter_reader_layout(reader: str, topic_navigation: str) -> str:
             '<div class="sol-rail-title">本页目录</div>'
             '<div class="toc"><ul><li class="toc-empty">本页暂无小节</li></ul></div></aside>'
         )
-    reader = reader.replace('</main></div>', f'</main>{rail_html}</div>', 1)
+    reader = _replace_required(
+        reader,
+        '</main></div>',
+        f'</main>{rail_html}</div>',
+        "章节右侧目录挂载",
+    )
     return reader
 
 
@@ -1407,12 +1431,38 @@ const serverNotice=document.getElementById('serverNotice');
 const serverRetry=document.getElementById('serverRetry');
 const moduleDue=document.getElementById('moduleDue');
 const moduleDueList=document.getElementById('moduleDueList');
+const guestAuth=window.InterviewForgeGuestAuth;
+let authStatus='checking';
 const state={online:false,data:{modules:{},contents:{}},due:{today:'',items:{}}};
 function fetchWithTimeout(input,options,timeout=12000){
   const controller=new AbortController();
   const request=Object.assign({},options||{},{signal:controller.signal});
   const timer=setTimeout(()=>controller.abort(),timeout);
   return fetch(input,request).finally(()=>clearTimeout(timer));
+}
+function paintAuthState(session){
+  authStatus=session&&session.status||'error';
+  document.body.classList.remove('auth-checking','is-authenticated','is-guest','auth-error');
+  document.body.classList.add(authStatus==='authenticated'?'is-authenticated':authStatus==='guest'?'is-guest':'auth-error');
+  const guestMode=document.getElementById('guestMode');
+  guestMode.hidden=authStatus==='authenticated';
+  document.getElementById('guestModeTitle').textContent=authStatus==='error'?'登录状态暂未确认':'游客模式';
+  document.getElementById('guestModeCopy').textContent=authStatus==='error'
+    ?'章节内容仍可直接阅读。当前网络暂时无法确认账号状态，可稍后重试，或先登录/注册；完成后会回到本页。'
+    :'本模块所有章节均可直接阅读；登录后可记录轮次、收藏、安排复习并使用 AI。';
+  const page=location.pathname+location.search+location.hash;
+  document.getElementById('guestLoginLink').href=guestAuth.authHref('../../pages/login.html',page);
+  document.getElementById('guestRegisterLink').href=guestAuth.authHref('../../pages/register.html',page);
+  status.disabled=authStatus!=='authenticated';
+  if(authStatus!=='authenticated'){
+    state.online=false;
+    connection.classList.remove('online');
+    connection.textContent=authStatus==='error'?'账号状态未确认 · 章节可阅读':'游客模式 · 章节可阅读';
+    renderCards();
+  }
+}
+async function requireAuthenticated(feature){
+  try{await guestAuth.requireUser(feature);return true}catch(_){return false}
 }
 if(!hasTopics){topicWrap.hidden=true;topicWrap.style.display='none'}
 topics.forEach(name=>{const option=document.createElement('option');option.value=name;option.textContent=name;topic.appendChild(option)});
@@ -1443,6 +1493,7 @@ function updateStats(){
 }
 function renderCards(){
   const query=search.value.trim().toLowerCase();
+  const personal=authStatus==='authenticated'&&state.online;
   const list=chapters.filter(c=>{
     const rounds=Number(contentInfo(c.id).rounds||0);
     const due=dueInfo(c.id);
@@ -1459,13 +1510,18 @@ function renderCards(){
     const meta=[];
     if(c.category)meta.push(`<span class="pill">${esc(c.category)}</span>`);
     if(c.difficulty)meta.push(`<span class="difficulty-${c.difficulty}">${esc(c.difficulty)}</span>`);
-    const dueBadge=due?`<span class="due-pill ${overdue?'overdue':''}">${overdue?'逾期':'待复习'}</span>`:'';
-    return `<article class="chapter-card ${rounds?'studied':''}"><div class="card-head"><h2><a href="${esc(c.href)}" target="_blank" rel="noopener noreferrer">${esc(c.title)}</a></h2><span class="round-count">${rounds} 轮</span>${dueBadge}</div>${meta.length?`<div class="meta">${meta.join('')}</div>`:''}<div class="card-actions"><span class="last-study">最近：${localTime(info.last_activity_at)}</span><button class="round-button" type="button" data-chapter="${esc(c.id)}" ${state.online?'':'disabled'}>完成一轮</button></div></article>`;
+    const dueBadge=personal&&due?`<span class="due-pill ${overdue?'overdue':''}">${overdue?'逾期':'待复习'}</span>`:'';
+    const personalStatus=personal?`<span class="round-count">${rounds} 轮</span>${dueBadge}`:'<span class="guest-read-note">公开阅读</span>';
+    const actions=personal
+      ?`<div class="card-actions"><span class="last-study">最近：${localTime(info.last_activity_at)}</span><button class="round-button" type="button" data-chapter="${esc(c.id)}" ${state.online?'':'disabled'}>完成一轮</button></div>`
+      :`<div class="card-actions"><span class="last-study">游客可阅读全文并运行示例查看；登录后记录轮次与复习。</span><a class="round-button" href="${guestAuth.authHref('../../pages/login.html')}">登录后记录</a></div>`;
+    return `<article class="chapter-card ${personal&&rounds?'studied':''}"><div class="card-head"><h2><a href="${esc(c.href)}" target="_blank" rel="noopener noreferrer">${esc(c.title)}</a></h2>${personalStatus}</div>${meta.length?`<div class="meta">${meta.join('')}</div>`:''}${actions}</article>`;
   }).join('');
   empty.hidden=list.length!==0;
   grid.querySelectorAll('[data-chapter]').forEach(button=>button.addEventListener('click',()=>completeChapter(button)));
 }
 async function completeChapter(button,rating){
+  if(!await requireAuthenticated('记录本章学习进度'))return;
   if(rating===undefined){
     const host=button.parentNode;
     if(!host)return;
@@ -1489,7 +1545,7 @@ async function completeChapter(button,rating){
   try{
     const isProblem=Boolean(chapter.problem_id);
     const payload=isProblem?{problem_id:Number(chapter.problem_id),rating}:{module_id:moduleId,content_id:chapter.id,rating};
-    const response=await fetchWithTimeout(isProblem?'/api/complete':'/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const response=await guestAuth.request(isProblem?'/api/complete':'/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)},'记录本章学习进度');
     const result=await response.json();
     if(!response.ok)throw new Error(result.error||'记录失败');
     const ratingName={again:'忘了',hard:'有点困难',good:'记得',easy:'很轻松'}[result.rating_name]||{1:'忘了',2:'有点困难',3:'记得',4:'很轻松'}[rating];
@@ -1505,10 +1561,14 @@ async function completeChapter(button,rating){
   }
 }
 async function refresh(){
+  if(authStatus!=='authenticated'){
+    paintAuthState(guestAuth.getState());
+    return;
+  }
   try{
     const [libraryResponse,dailyResponse]=await Promise.all([
-      fetchWithTimeout('/api/library',{cache:'no-store'}),
-      fetchWithTimeout(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})
+      guestAuth.request('/api/library',{cache:'no-store'},'查看学习进度'),
+      guestAuth.request(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'},'查看复习计划')
     ]);
     if(!libraryResponse.ok||!dailyResponse.ok)throw new Error('database unavailable');
     state.data=await libraryResponse.json();
@@ -1519,6 +1579,10 @@ async function refresh(){
     state.online=true;
     connection.classList.add('online');connection.textContent='学习服务已连接';serverNotice.hidden=true;
   }catch(error){
+    if(error&&error.category==='unauthorized'){
+      paintAuthState(guestAuth.getState());
+      return;
+    }
     state.online=false;
     state.due.today='';state.due.items={};
     connection.classList.remove('online');connection.textContent='暂时无法连接学习服务';serverNotice.hidden=false;
@@ -1527,8 +1591,22 @@ async function refresh(){
 }
 search.addEventListener('input',renderCards);
 [topic,status].forEach(control=>control.addEventListener('change',renderCards));
-refresh();
 if(serverRetry)serverRetry.addEventListener('click',refresh);
+let moduleSessionKey='';
+function activateModuleSession(session){
+  if(!session||session.status==='checking')return;
+  paintAuthState(session);
+  if(session.status!=='authenticated'){moduleSessionKey='';return}
+  const key=String(session.user&&(session.user.id||session.user.username)||'authenticated');
+  if(moduleSessionKey===key)return;
+  moduleSessionKey=key;
+  refresh();
+}
+document.addEventListener('interviewforge:auth-change',event=>{
+  if(event&&event.detail&&event.detail.status!=='checking')activateModuleSession(event.detail);
+});
+renderCards();
+guestAuth.ready().then(activateModuleSession).catch(()=>paintAuthState({status:'error',reason:'session_check_failed'}));
 </script>"""
 
 
@@ -1567,21 +1645,22 @@ def module_index_page(module: dict[str, object], page_chapters: list[dict[str, o
     <h1>{html.escape(str(module['title']))}</h1>
     <div class="module-sub">{html.escape(str(module['category']))} · {count} {unit} · 支持多轮学习记录</div>
     <div class="module-about">{about}</div>
-    <div id="connection" class="connection">正在连接学习服务</div>
+    <div id="connection" class="connection">正在确认账号状态</div>
   </div>
   <div class="module-stats">
     <div class="stat"><span>{unit}数</span><strong>{count}</strong></div>
-    <div class="stat"><span>已完成</span><strong id="completedCount">0</strong></div>
-    <div class="stat"><span>累计轮次</span><strong id="totalRounds">0</strong></div>
+    <div class="stat auth-private"><span>已完成</span><strong id="completedCount">0</strong></div>
+    <div class="stat auth-private"><span>累计轮次</span><strong id="totalRounds">0</strong></div>
   </div>
 </header>
+<section class="guest-mode" id="guestMode" hidden aria-live="polite"><div><strong id="guestModeTitle">游客模式</strong><p id="guestModeCopy">本章节及所有公开题解均可直接阅读；登录后可记录轮次、收藏、安排复习并使用 AI。</p></div><div class="guest-mode-actions"><a id="guestLoginLink" href="../../pages/login.html">登录</a><a class="primary" id="guestRegisterLink" href="../../pages/register.html">注册</a></div></section>
 <div id="serverNotice" class="notice" hidden>暂时无法连接学习服务，当前仅可浏览内容；恢复连接后才能记录学习进度。<button id="serverRetry" type="button">重试</button></div>
-<section class="module-progress" aria-labelledby="progressLabel"><div class="progress-head"><span id="progressLabel">至少完成一轮的{unit}</span><strong id="progressText">0 / {count}</strong></div><div id="progressBar" class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="{count}" aria-valuenow="0"><div id="progress"></div></div></section>
-<section id="moduleDue" class="module-due" aria-labelledby="moduleDueTitle"><div class="due-head"><h2 id="moduleDueTitle">本模块待复习</h2><span id="moduleDueSummary" class="due-summary">正在读取…</span></div><div id="moduleDueList" class="due-list"></div></section>
+<section class="module-progress auth-private" aria-labelledby="progressLabel"><div class="progress-head"><span id="progressLabel">至少完成一轮的{unit}</span><strong id="progressText">0 / {count}</strong></div><div id="progressBar" class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="{count}" aria-valuenow="0"><div id="progress"></div></div></section>
+<section id="moduleDue" class="module-due auth-private" aria-labelledby="moduleDueTitle"><div class="due-head"><h2 id="moduleDueTitle">本模块待复习</h2><span id="moduleDueSummary" class="due-summary">正在读取…</span></div><div id="moduleDueList" class="due-list"></div></section>
 <section class="module-controls" aria-label="筛选章节">
   <div class="field"><label for="search">搜索</label><input id="search" type="search" placeholder="标题、方法或简介" autocomplete="off"></div>
   <div class="field" id="topicWrap"><label for="topic">专题</label><select id="topic"><option value="">全部专题</option></select></div>
-  <div class="field"><label for="status">学习轮次</label><select id="status"><option value="">全部轮次</option><option value="due">待复习</option><option value="new">尚未完成</option><option value="once">完成 1 轮</option><option value="repeat">完成 2 轮以上</option></select></div>
+  <div class="field auth-private"><label for="status">学习轮次</label><select id="status"><option value="">全部轮次</option><option value="due">待复习</option><option value="new">尚未完成</option><option value="once">完成 1 轮</option><option value="repeat">完成 2 轮以上</option></select></div>
 </section>
 <section class="chapter-grid" id="chapterGrid"></section>
 <div id="empty" class="empty" hidden>没有匹配的内容，请调整搜索词或筛选条件。</div>
@@ -1807,6 +1886,13 @@ document.addEventListener('click',function(e){var a=e.target&&e.target.closest?e
     return document("全文搜索 · InterviewForge", body, "assets/library.css")
 
 
+def _replace_required(source: str, old: str, new: str, label: str) -> str:
+    """Apply one ordered template transform and fail loudly if its anchor moved."""
+    if old not in source:
+        raise RuntimeError(f"{label}模板锚点缺失：{old[:72]}")
+    return source.replace(old, new, 1)
+
+
 # ---------------------------------------------------------------------------
 # 主流程 build()：资产准备 → Hot 100 模块登记 → 逐模块“拆章 → 逐章渲染 →
 # 模块页落盘” → manifest / 搜索索引 / 总页落盘。
@@ -2007,7 +2093,7 @@ def build() -> None:
             otp_class = " has-otp" if otp_items else ""
             topic_nav_html = chapter_topic_navigation(raw_chapters, index)
             reader = f'''<div class="shell">{topbar("..", "学习书架")}
- <main class="reader" data-page-type="library/chapter" data-content-id="{html.escape(chapter_id)}"><nav class="breadcrumb" aria-label="面包屑"><a href="../../cockpit.html">🎛️ 中控台</a><span aria-hidden="true">›</span><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">{html.escape(definition['title'])}</a><span aria-hidden="true">›</span><span aria-current="page">{html.escape(raw_chapter['title'])}</span></nav><div class="module-meta">{html.escape(definition['category'])} · 第 {index} / {len(raw_chapters)} 章 · <span class="muted">更新于 {book_updated}</span></div><h1>{html.escape(raw_chapter['title'])}</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><span class="auto-read-hint" title="停留 20 秒且读到文末会自动记一轮，无需手动点击">读满 20 秒并读到文末会自动记录</span><button id="exportChapter" class="complete-button" type="button">导出本章</button><button id="favoriteChapter" class="complete-button fav-chapter" type="button" aria-pressed="false">⭐ 收藏</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid{otp_class}"><div class="reader-body">{content}</div>{otp_html}</div><div class="chapter-complete-bottom"><button type="button" id="completeChapterBottom" class="complete-bottom-btn">✓ 完成本章一轮</button><span class="complete-bottom-hint">读完点一下即可记录；停留 20 秒并读到文末也会自动记一次</span></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a>{previous_html}{next_html}</nav></main></div>'
+<main class="reader" data-page-type="library/chapter" data-content-id="{html.escape(chapter_id)}"><nav class="breadcrumb" aria-label="章节导航"><a href="../../cockpit.html">🎛️ 中控台</a><span aria-hidden="true">›</span><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">{html.escape(definition['title'])}</a><span aria-hidden="true">›</span><span aria-current="page">{html.escape(raw_chapter['title'])}</span></nav><div class="module-meta">{html.escape(definition['category'])} · 第 {index} / {len(raw_chapters)} 章 · <span class="muted">更新于 {book_updated}</span></div><h1>{html.escape(raw_chapter['title'])}</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在确认账号状态</span><span id="chapterDue" class="due-line">登录后查看复习安排</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><div class="guest-mode" id="chapterGuestGate" hidden><div><strong id="chapterGuestTitle">游客模式</strong><p id="chapterGuestCopy">本章正文可直接阅读；登录后可记录轮次、收藏并安排复习。</p></div><div class="guest-mode-actions"><a id="chapterGuestLogin" href="../../pages/login.html">登录</a><a class="primary" id="chapterGuestRegister" href="../../pages/register.html">注册</a></div></div><button id="completeChapter" class="complete-button" type="button" disabled>完成本章一轮</button><span class="auto-read-hint" title="登录后会按阅读时长自动记录一轮">登录后可记录学习轮次，正文阅读不受影响</span><button id="exportChapter" class="complete-button" type="button">导出本章</button><button id="favoriteChapter" class="complete-button fav-chapter" type="button" aria-pressed="false" disabled>⭐ 收藏</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid{otp_class}"><div class="reader-body">{content}</div>{otp_html}</div><div class="chapter-complete-bottom"><button type="button" id="completeChapterBottom" class="complete-bottom-btn" disabled>✓ 完成本章一轮</button><span class="complete-bottom-hint">读完点一下即可记录；停留 20 秒并读到文末也会自动记一次</span></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a>{previous_html}{next_html}</nav></main></div>'
 <script>const contentId={json.dumps(chapter_id, ensure_ascii=False)},moduleId={json.dumps(definition['id'], ensure_ascii=False)};const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{{if(!value)return '';return InterviewForgeTime.formatDateTime(value,{{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}})}};async function loadStatus(){{try{{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{{cache:'no-store'}}),fetch(`/api/daily?module=${{encodeURIComponent(moduleId)}}`,{{cache:'no-store'}})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{{rounds:0,last_activity_at:null}};status.textContent=`已完成 ${{info.rounds||0}} 轮${{info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){{const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${{String(dueItem.due_date).slice(5)}}${{overdue?'（已逾期）':''}}`;dueLine.classList.toggle('due-overdue',overdue)}}else{{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}}}catch(_){{status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}}}button.addEventListener('click',async()=>{{button.disabled=true;button.textContent='记录中…';try{{const response=await fetch('/api/content/complete',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{module_id:moduleId,content_id:contentId}})}});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${{String(result.next_due).slice(5)}}）`:'';toast.textContent=`已记录第 ${{result.round_no}} 轮${{next}}`;button.textContent='完成本章一轮';await loadStatus()}}catch(error){{toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}}}});
 // ---- Ctrl+← / Ctrl+→ 切换上下章（与力扣一致）----
 (function(){{
@@ -2251,18 +2337,21 @@ otpMap.forEach(function(a,id){{var h=document.getElementById(id);if(h)io.observe
     btn.textContent=on?'⭐ 已收藏':'⭐ 收藏';
   }}
   function key(){{ return 'content:'+moduleId+':'+contentId; }}
-  // 初始状态
-  fetch('/api/favorites',{{cache:'no-store'}}).then(function(r){{return r.ok?r.json():Promise.reject()}})
-    .then(function(d){{
-      var k='content:'+contentId;
-      var list=Array.isArray(d.ids)?d.ids:[];
-      // 章节 target_id 形如 "<module>:<chapter>"，ids 里拼成 content:<module>:<chapter>
-      paint(list.indexOf('content:'+moduleId+':'+contentId)>=0 || list.indexOf(k)>=0);
-    }}).catch(function(){{}});
-  btn.addEventListener('click',function(){{
+  // 初始状态只在账号确认后读取；游客不会发起私有请求。
+  guestAuth.ready().then(function(session){{
+    if(session.status!=='authenticated')return;
+    return fetch('/api/favorites',{{cache:'no-store'}}).then(function(r){{return r.ok?r.json():Promise.reject()}})
+      .then(function(d){{
+        var k='content:'+contentId;
+        var list=Array.isArray(d.ids)?d.ids:[];
+        paint(list.indexOf('content:'+moduleId+':'+contentId)>=0 || list.indexOf(k)>=0);
+      }});
+  }}).catch(function(){{}});
+  btn.addEventListener('click',async function(){{
+    if(!await requireChapterAuth('收藏本章'))return;
     btn.disabled=true;
     var h1=document.querySelector('.reader h1')||document.querySelector('h1');
-    fetch('/api/favorites/toggle',{{
+    guestAuth.request('/api/favorites/toggle',{{
       method:'POST',headers:{{'Content-Type':'application/json'}},
       body:JSON.stringify({{
         target_type:'content',
@@ -2272,13 +2361,13 @@ otpMap.forEach(function(a,id){{var h=document.getElementById(id);if(h)io.observe
         title:h1?h1.textContent.trim():contentId,
         url:URL_KEY
       }})
-    }}).then(function(r){{return r.ok?r.json():Promise.reject()}})
+    }},'收藏本章').then(function(r){{return r.ok?r.json():Promise.reject()}})
       .then(function(res){{
         paint(res.favorited);
         var t=document.getElementById('chapterToast');
         if(t){{t.style.color=res.favorited?'var(--success)':'';t.textContent=res.favorited?'已收藏，可在「我的收藏」中找到':'已取消收藏';}}
       }})
-      .catch(function(){{var t=document.getElementById('chapterToast');if(t)t.textContent='收藏失败，请重试';}})
+      .catch(function(error){{var t=document.getElementById('chapterToast');if(t)t.textContent=error&&error.category==='unauthorized'?'登录状态已失效，请重新登录后收藏':'收藏失败，请重试';}})
       .finally(function(){{btn.disabled=false;}});
   }});
 }})();
@@ -2301,18 +2390,100 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
             reader = apply_chapter_reader_layout(reader, topic_nav_html)
             # 章节脚本写在单行模板中，为避免重复维护整段 HTML，在生成前统一注入
             # 请求超时、状态检查和线上错误提示。这样所有章节页都由同一权威源产生。
-            chapter_helpers = "function fetchWithTimeout(input,options,timeout=12000){const controller=new AbortController();const request=Object.assign({},options||{},{signal:controller.signal});const timer=setTimeout(()=>controller.abort(),timeout);return fetch(input,request).finally(()=>clearTimeout(timer));}function readableError(error,fallback){return error&&error.name==='AbortError'?'请求超时，请检查网络后重试':(error&&error.message)||fallback;}const topicRail=document.querySelector('.shelf-topic-rail');if(topicRail&&window.matchMedia('(max-width: 1280px)').matches)topicRail.open=false;"
-            reader = reader.replace("<script>const contentId=", "<script>" + chapter_helpers + "const contentId=", 1)
-            reader = reader.replace("fetch('/api/library',", "fetchWithTimeout('/api/library',", 1)
-            reader = reader.replace("fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,", "fetchWithTimeout(`/api/daily?module=${encodeURIComponent(moduleId)}`,", 1)
-            reader = reader.replace("fetch('/api/content/complete',", "fetchWithTimeout('/api/content/complete',", 1)
-            reader = reader.replace("status.textContent='当前是静态浏览模式';", "status.textContent='暂时无法读取本章记录';", 1)
-            reader = reader.replace("notice.hidden=false;dueLine.textContent=", "notice.hidden=false;notice.textContent='暂时无法连接学习服务，请检查网络后重试。';toast.textContent=readableError(_, '暂时无法连接学习服务');dueLine.textContent=", 1)
-            reader = reader.replace("const result=await response.json();", "const result=await response.json().catch(()=>({}));", 1)
-            reader = reader.replace("result.error||'记录失败'", "result.error||'记录失败，请检查网络后重试'", 1)
-            reader = reader.replace("toast.textContent=error.message;", "toast.textContent=readableError(error,'记录失败，请检查网络后重试');", 1)
-            reader = reader.replace(f"const css=await (await fetch('../assets/library.css?v={ASSET_VERSION}')).text();", f"const cssResponse=await fetchWithTimeout('../assets/library.css?v={chapter_style_version}');if(!cssResponse.ok)throw new Error('样式加载失败');const css=await cssResponse.text();", 1)
-            reader = reader.replace("catch(_){toast.textContent='导出失败，请检查网络后重试'}", "catch(error){toast.textContent='导出失败：'+readableError(error,'请检查网络后重试')}", 1)
+            chapter_helpers = (
+                "function fetchWithTimeout(input,options,timeout=12000){const controller=new AbortController();const request=Object.assign({},options||{},{signal:controller.signal});const timer=setTimeout(()=>controller.abort(),timeout);return fetch(input,request).finally(()=>clearTimeout(timer));}"
+                "function readableError(error,fallback){return error&&error.name==='AbortError'?'请求超时，请检查网络后重试':(error&&error.message)||fallback;}"
+                "var guestAuth=window.InterviewForgeGuestAuth;var authStatus='checking';var chapterSessionKey='';"
+                "function paintChapterAuth(session){authStatus=session&&session.status||'error';document.body.classList.remove('auth-checking','is-authenticated','is-guest','auth-error');document.body.classList.add(authStatus==='authenticated'?'is-authenticated':authStatus==='guest'?'is-guest':'auth-error');var gate=document.getElementById('chapterGuestGate');gate.hidden=authStatus==='authenticated';document.getElementById('chapterGuestTitle').textContent=authStatus==='error'?'登录状态暂未确认':'游客模式';document.getElementById('chapterGuestCopy').textContent=authStatus==='error'?'正文仍可直接阅读。当前网络暂时无法确认账号状态，可稍后重试，或先登录/注册；完成后会回到本章。':'本章正文可直接阅读；登录后可记录轮次、收藏并安排复习。';var page=location.pathname+location.search+location.hash;document.getElementById('chapterGuestLogin').href=guestAuth.authHref('../../pages/login.html',page);document.getElementById('chapterGuestRegister').href=guestAuth.authHref('../../pages/register.html',page);if(authStatus!=='authenticated'){status.textContent=authStatus==='error'?'账号状态未确认 · 正文可阅读':'游客模式 · 正文可阅读';dueLine.textContent='登录后查看复习安排';notice.hidden=true;button.disabled=false;document.getElementById('completeChapterBottom').disabled=false;document.getElementById('favoriteChapter').disabled=false;}}"
+                "async function requireChapterAuth(feature){try{await guestAuth.requireUser(feature);return true}catch(_){return false}}"
+                "function handleChapterSession(session){if(!session||session.status==='checking')return;paintChapterAuth(session);if(session.status!=='authenticated'){chapterSessionKey='';return}var key=String(session.user&&(session.user.id||session.user.username)||'authenticated');if(chapterSessionKey===key)return;chapterSessionKey=key;loadStatus();}"
+                "document.addEventListener('interviewforge:auth-change',function(event){if(event&&event.detail&&event.detail.status!=='checking')handleChapterSession(event.detail);});"
+                "const topicRail=document.querySelector('.shelf-topic-rail');if(topicRail&&window.matchMedia('(max-width: 1280px)').matches)topicRail.open=false;"
+            )
+            chapter_reader_replacements = (
+                (
+                    "<script>const contentId=",
+                    "<script>" + chapter_helpers + "const contentId=",
+                    "章节脚本注入",
+                ),
+                (
+                    "async function loadStatus(){try{",
+                    "async function loadStatus(){if(authStatus!=='authenticated'){paintChapterAuth(guestAuth.getState());return}try{",
+                    "章节状态认证门禁",
+                ),
+                (
+                    "fetch('/api/library',",
+                    "guestAuth.request('/api/library',",
+                    "章节书架进度请求",
+                ),
+                (
+                    "fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,",
+                    "guestAuth.request(`/api/daily?module=${encodeURIComponent(moduleId)}`,",
+                    "章节每日复习请求",
+                ),
+                (
+                    "fetch('/api/content/complete',",
+                    "guestAuth.request('/api/content/complete',",
+                    "章节完成请求",
+                ),
+                (
+                    "loadStatus();document.getElementById('exportChapter')",
+                    "guestAuth.ready().then(handleChapterSession).catch(function(){paintChapterAuth({status:'error',reason:'session_check_failed'});});document.getElementById('exportChapter')",
+                    "章节认证初始化",
+                ),
+                (
+                    "}catch(_){status.textContent=",
+                    "}catch(error){if(error&&error.category==='unauthorized'){paintChapterAuth(guestAuth.getState());return}status.textContent=",
+                    "章节状态错误分类",
+                ),
+                (
+                    "function maybeAuto(){\n    if(done||autoTried)return;",
+                    "function maybeAuto(){\n    if(authStatus!=='authenticated'||done||autoTried)return;",
+                    "章节自动记录认证门禁",
+                ),
+                (
+                    "fetch('/api/content/complete',{",
+                    "guestAuth.request('/api/content/complete',{",
+                    "章节自动完成请求",
+                ),
+                (
+                    "status.textContent='当前是静态浏览模式';",
+                    "status.textContent='暂时无法读取本章记录';",
+                    "章节状态兜底文案",
+                ),
+                (
+                    "notice.hidden=false;dueLine.textContent=",
+                    "notice.hidden=false;notice.textContent='暂时无法连接学习服务，请检查网络后重试。';toast.textContent=readableError(error, '暂时无法连接学习服务');dueLine.textContent=",
+                    "章节网络错误提示",
+                ),
+                (
+                    "const result=await response.json();",
+                    "const result=await response.json().catch(()=>({}));",
+                    "章节完成响应解析",
+                ),
+                (
+                    "result.error||'记录失败'",
+                    "result.error||'记录失败，请检查网络后重试'",
+                    "章节完成错误兜底",
+                ),
+                (
+                    "toast.textContent=error.message;",
+                    "toast.textContent=readableError(error,'记录失败，请检查网络后重试');",
+                    "章节完成异常文案",
+                ),
+                (
+                    f"const css=await (await fetch('../assets/library.css?v={ASSET_VERSION}')).text();",
+                    f"const cssResponse=await fetchWithTimeout('../assets/library.css?v={chapter_style_version}');if(!cssResponse.ok)throw new Error('样式加载失败');const css=await cssResponse.text();",
+                    "章节导出样式请求",
+                ),
+                (
+                    "catch(_){toast.textContent='导出失败，请检查网络后重试'}",
+                    "catch(error){toast.textContent='导出失败：'+readableError(error,'请检查网络后重试')}",
+                    "章节导出错误提示",
+                ),
+            )
+            for old_fragment, new_fragment, label in chapter_reader_replacements:
+                reader = _replace_required(reader, old_fragment, new_fragment, label)
             # 章节完成采取轻量乐观更新：先让本章轮数立即前进一步，失败时回滚
             # 文案与轮数；服务端成功后仍以 loadStatus() 的持久化结果为准。
             chapter_ui_replacements = (
@@ -2342,9 +2513,16 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
                 ),
             )
             for old_fragment, new_fragment in chapter_ui_replacements:
-                if old_fragment not in reader:
-                    raise RuntimeError(f"章节学习状态模板锚点缺失：{old_fragment[:56]}")
-                reader = reader.replace(old_fragment, new_fragment, 1)
+                reader = _replace_required(
+                    reader, old_fragment, new_fragment, "章节学习状态"
+                )
+            # FSRS 选择器已经改写点击处理器，登录门禁必须接在最终版本的入口处。
+            reader = _replace_required(
+                reader,
+                "button.addEventListener('click',async()=>{if(!button.dataset.fsrsRating){",
+                "button.addEventListener('click',async()=>{if(!await requireChapterAuth('记录本章学习进度'))return;if(!button.dataset.fsrsRating){",
+                "章节完成登录门禁",
+            )
             # Mermaid 依赖按需注入：只有正文含 .mermaid-diagram 的章节页才引入
             # mermaid 运行库与渲染驱动(library-mermaid.js)，其余页面零额外脚本；
             # 图表脚本使用独立版本号，避免影响其他前端资源缓存。
@@ -2686,6 +2864,31 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
         ").catch(()=>{});",
         ").catch(()=>{const el=document.getElementById('shelfDueSummary');if(el)el.innerHTML='<span>暂时无法读取学习记录，请检查网络后重试。</span> <button type=\"button\" onclick=\"location.reload()\">重试</button>';});",
     )
+    # 书架公开内容先渲染；个人进度、收藏数和待复习只在认证状态确认后读取。
+    index_body = index_body.replace(
+        '<section id="shelfDueSummary" class="shelf-due-summary"',
+        '<section class="guest-mode" id="shelfGuestMode" hidden aria-live="polite"><div><strong id="shelfGuestTitle">游客模式</strong><p id="shelfGuestCopy">全部课程、章节和全文搜索均可直接阅读；登录后可记录进度、收藏和安排复习。</p></div><div class="guest-mode-actions"><a id="shelfGuestLogin" href="../pages/login.html">登录</a><a class="primary" id="shelfGuestRegister" href="../pages/register.html">注册</a></div></section><section id="shelfDueSummary" class="shelf-due-summary auth-private"',
+        1,
+    )
+    index_body = index_body.replace('class="module-progress-row"', 'class="module-progress-row auth-private"')
+    index_body = index_body.replace('class="module-due-badge"', 'class="module-due-badge auth-private"')
+    personal_start = index_body.rfind("<script>function fetchWithTimeout")
+    personal_fetch = index_body.find("fetchWithTimeout('/api/library'", personal_start)
+    if personal_start < 0 or personal_fetch < 0:
+        raise RuntimeError("书架个人状态脚本锚点缺失")
+    shelf_auth_prefix = (
+        "var guestAuth=window.InterviewForgeGuestAuth;"
+        "function paintShelfAuth(session){var status=session&&session.status||'error';document.body.classList.remove('auth-checking','is-authenticated','is-guest','auth-error');document.body.classList.add(status==='authenticated'?'is-authenticated':status==='guest'?'is-guest':'auth-error');var gate=document.getElementById('shelfGuestMode');gate.hidden=status==='authenticated';document.getElementById('shelfGuestTitle').textContent=status==='error'?'登录状态暂未确认':'游客模式';document.getElementById('shelfGuestCopy').textContent=status==='error'?'所有课程仍可直接阅读。当前网络暂时无法确认账号状态，可稍后重试，或先登录/注册；完成后会回到书架。':'全部课程、章节和全文搜索均可直接阅读；登录后可记录进度、收藏和安排复习。';var page=location.pathname+location.search+location.hash;document.getElementById('shelfGuestLogin').href=guestAuth.authHref('../pages/login.html',page);document.getElementById('shelfGuestRegister').href=guestAuth.authHref('../pages/register.html',page);}"
+        "document.addEventListener('interviewforge:auth-change',function(event){if(event&&event.detail&&event.detail.status!=='checking')paintShelfAuth(event.detail);});"
+    )
+    index_body = index_body[:personal_fetch] + shelf_auth_prefix + "guestAuth.ready().then(function(session){paintShelfAuth(session);if(session.status!=='authenticated')return;" + index_body[personal_fetch:]
+    personal_script_end = index_body.find("</script>", personal_fetch + len(shelf_auth_prefix))
+    if personal_script_end < 0:
+        raise RuntimeError("书架个人状态脚本结束锚点缺失")
+    index_body = index_body[:personal_script_end] + "}).catch(function(){paintShelfAuth(guestAuth.getState());});" + index_body[personal_script_end:]
+    index_body = index_body.replace("fetchWithTimeout('/api/library'", "guestAuth.request('/api/library'", 1)
+    index_body = index_body.replace("fetchWithTimeout('/api/favorites'", "guestAuth.request('/api/favorites'", 1)
+    index_body = index_body.replace("fetchWithTimeout('/api/daily'", "guestAuth.request('/api/daily'", 1)
     # Windows 上索引页可能被浏览器/杀毒软件短暂占用；先写同目录临时文件再
     # 原子替换，避免直接截断写入偶发 OSError 后留下半个页面。
     # 书架首页也要加载埋点脚本（搜索关键词上报）

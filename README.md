@@ -1,13 +1,13 @@
-# InterviewForge · LeetCode Hot 100 深度整理版（Java）
+# InterviewForge · LeetCode Hot 100 深度整理版（Java · Python）
 
-面向大厂校招的**在线学习平台**：把 Hot 100 高频题整理成独立题页（题目、核心不变量、完整推导、Java 实现、复杂度与交互演示），并配套 17 个专题框架、算法模板、复习清单，以及覆盖 Java 核心、并发、JVM、数据库、网络、Spring、分布式、RAG/Agent 等校招主线的**学习书架（49 模块 / 880 章）**。
+面向大厂校招的**在线学习平台**：把 Hot 100 高频题整理成独立题页（公共题面与动画、按语言切换的完整推导、不变量、Python API、复杂度与实现），并配套 17 个专题框架、Python 基础速查、算法模板、复习清单，以及覆盖语言根基、Java 核心、并发、JVM、数据库、网络、Spring、分布式、RAG/Agent 等校招主线的**学习书架（49 模块 / 880 章）**。
 
 项目内置**学习记录、间隔重复复习、学习轨迹、限时模拟、力扣提交同步**等能力，形成“学 → 练 → 复盘 → 复习”的完整闭环；学习数据按账号隔离保存在服务端数据库。
 
 ## 立即开始
 
-1. 访问线上学习站 [hot100.xyz](https://hot100.xyz/) 并登录；
-2. 进入 [项目首页](index.html) 或 [学习中控台](cockpit.html)；
+1. 游客可直接访问 [hot100.xyz](https://hot100.xyz/) 阅读公开题解、专题和学习书架；
+2. 需要记录进度、复习和收藏时，使用邮箱验证注册或登录，再进入 [学习中控台](cockpit.html)；
 3. 首次使用建议按 [四阶段学习路线](books/hot100/00-总览/01-学习路线.md) 开始；
 4. 打开任意题解页或章节会自动记录浏览，点“完成一轮”推进复习。
 
@@ -17,14 +17,14 @@
 
 ### 1. Hot 100 算法精讲
 
-- 100 道高频题独立题页：题目与约束、核心不变量、完整推导、Java 实现、复杂度、易错点与扩展、高频追问；
-- [17 个专题框架](books/hot100/02-专题/)（哈希表、双指针、滑动窗口、动态规划…）、[算法模式地图](books/hot100/00-总览/02-算法模式地图.md)、[复习清单](books/hot100/00-总览/03-复习清单.md)、[Java 刷题速查](books/hot100/01-基础/01-Java刷题速查.md)、[算法模板](books/hot100/04-模板/01-Hot100算法模板.md)；
+- 100 道高频题逐题提供 **Java 与 Python 完整主解**：同一题保留公共题面、导航和动画，语言切换会隐藏另一门语言的思路、代码、复杂度、提醒、元数据和侧栏锚点；
+- Python 主解逐题包含选择理由、不变量、推导步骤、Python API/写法、完整可提交代码、易错点和真实复杂度；并给出至少两个可执行样例或关键反例；
+- [17 个专题框架](books/hot100/02-专题/)（哈希表、双指针、滑动窗口、动态规划…）、[算法模式地图](books/hot100/00-总览/02-算法模式地图.md)、[复习清单](books/hot100/00-总览/03-复习清单.md)、[刷题与 Python API 速查](books/hot100/01-基础/01-Java刷题速查.md)、[算法模板](books/hot100/04-模板/01-Hot100算法模板.md)；
 - 24 个交互可视化演示与 1 个集中导航页覆盖算法和工程专题（哈希表、双指针、链表、锁升级、TCP 握手挥手、ReadView 版本链等），只展示关键状态变化，支持一键播放/分步。
 
 ### 2. 学习书架（49 模块 / 880 章）
 
 - 校招主线全覆盖：语言根基、并发、JVM、MySQL、网络、Spring 家族、设计模式、消息队列、分布式、微服务、部署运维、RAG/Agent 等；
-- 新增《AI 岗数学复习手册：线代与概率速查》，10 章串起矩阵运算、特征值/SVD/PCA、矩阵微积分、概率统计与信息论，适合已有基础者考前快速复习；
 - 新增《小林面试笔记》系列 7 本与《Agent 面经》，覆盖大厂 Agent、RAG、工具调用、大模型工程、LangChain 面试题与图解专栏；
 - Mermaid 流程图渲染（浅色主题、品牌配色）、Pygments 代码高亮（Java/Python 等）、章节内嵌交互演示；
 - 模块页“本模块待复习”区块、章节卡到期徽标、章节页“下次复习”日期、章节级多轮学习记录；
@@ -115,7 +115,7 @@
 
 ## 每道题怎么学
 
-1. 先读题页顶部的“核心模式”和“核心不变量”，用自己的话复述不变量。
+1. 先在语言切换条选择 Java 或 Python，再读该语言专属的“主方法”和“核心不变量”，用自己的话复述。
 2. 在题解底部运行对应的交互演示或手算示例，只跟踪关键状态，不急着看代码。
 3. 关闭笔记写出主循环/递归，再对照题解。
 4. 用空输入、最小规模、重复值、极端顺序四类用例自测。
@@ -159,7 +159,7 @@ interview-forge/
 │  ├─ history.html           学习记录页
 │  ├─ leetcode-connect.html  力扣连接向导页
 │  ├─ login.html             登录页
-│  ├─ register.html          注册码注册页
+│  ├─ register.html          邮箱验证注册页
 │  └─ admin.html             管理后台（仅管理员）
 ├─ docs/                     文档与报告
 │  ├─ QA-REPORT.md/.html     发布前校验报告
@@ -168,11 +168,18 @@ interview-forge/
 ├─ assets/                   公共样式、脚本与图标（生成结果）
 ├─ data/                     SQLite 学习记录（首次启动自动创建，不入库）
 ├─ library/                  学习书架生成结果（49 模块 / 880 章）
-├─ tools/                    生成、校验、服务与维护脚本
-│  ├─ build_hot100.py        全量重建 Hot 100 面板与题解
-│  ├─ build_library.py       学习书架生成器
-│  ├─ build_html_site.py     阅读页渲染与公共资源生成
-│  ├─ check_hot100.py        发布前全站校验
+├─ scripts/
+│  ├─ build/
+│  │  ├─ build_hot100.py     全量重建 Hot 100 面板与题解
+│  │  ├─ build_library.py    学习书架生成器
+│  │  ├─ build_html_site.py  阅读页渲染与公共资源生成
+│  │  └─ python_hot100.py    Python 课程加载、校验与面板渲染
+│  └─ check/
+│     └─ check_hot100.py     发布前全站校验
+├─ tools/                    数据、模板、服务与离线依赖
+│  ├─ python_hot100.json     100 题 Python 教学内容与执行用例
+│  ├─ python_hot100_topics.json   17 个 Python 专题框架
+│  ├─ python_hot100_basics.json   Python 基础速查与模板
 │  ├─ study_server.py        HTTP 服务 + SQLite 学习记录
 │  ├─ library_catalog.py     书架模块登记表
 │  ├─ scrape_xiaolinnote.py  小林面试笔记抓取脚本
@@ -197,8 +204,8 @@ interview-forge/
 
 ```bash
 cd interview-forge
-python .\tools\build_hot100.py   # 全量重建（面板 + 书架 + 全部页面）
-python .\tools\check_hot100.py   # 发布前检查（必须 errors: 0）
+python .\scripts\build\build_hot100.py   # 全量重建（面板 + 书架 + 全部页面）
+python .\scripts\check\check_hot100.py   # 发布前检查（必须 errors: 0）
 ```
 
 详细约定见 [MAINTENANCE.md](MAINTENANCE.md)。

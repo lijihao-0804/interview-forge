@@ -1,0 +1,2419 @@
+{
+  "version": 1,
+  "items": {
+    "ai-2026/华为/050-轻量化推理引擎中的-Masked-Fused-RMSNorm.html": {
+      "checker": {
+        "mode": "float",
+        "reason": "输出统一保留两位小数，用 0.0051 吸收标准四舍五入差异。",
+        "abs_tol": 0.0051,
+        "rel_tol": 1e-09
+      },
+      "samples": [
+        {
+          "input": "1 2 0\n1 1\n7 8\n0 0 0 0 0 0",
+          "expected": "0.00 0.00 | 0.00 | 0.00",
+          "name": "全 padding 且 eps 为零",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "独立按题意逐项计算融合值、能量和 RMS；期望由 solve_050 直接生成。"
+        },
+        {
+          "input": "1 3 0\n1 1 1\n0 0 0\n1 2 2 0 0 0 0 0",
+          "expected": "1.00 0.00 0.00 | 2.00 | 4.00",
+          "name": "单有效位零稳定项",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "独立按题意逐项计算融合值、能量和 RMS；期望由 solve_050 直接生成。"
+        },
+        {
+          "input": "1 3 0.5\n1 2 -1\n0 1 5\n2 2 3 -4 0 -2 2 99",
+          "expected": "-1.00 1.00 0.00 | 1.00 | 1.00",
+          "name": "负残差与部分 padding",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "独立按题意逐项计算融合值、能量和 RMS；期望由 solve_050 直接生成。"
+        },
+        {
+          "input": "2 2 1\n2 1\n1 -1\n2 -1 1 1 -1 1\n1 1000 1 1 0 0",
+          "expected": "3.31 -1.00 | 1.73 | 4.00\n2.41 0.00 | 1.41 | 1.00",
+          "name": "多样本及正负残差",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "独立按题意逐项计算融合值、能量和 RMS；期望由 solve_050 直接生成。"
+        },
+        {
+          "input": "1 4 0.0001\n3 2 1 -2\n0 1 -1 2\n3 0.5 1 2 3 4 4 3 2 1",
+          "expected": "2.55 2.99 0.14 0.00 | 3.52 | 37.25",
+          "name": "大残差系数和共享位置参数",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "独立按题意逐项计算融合值、能量和 RMS；期望由 solve_050 直接生成。"
+        }
+      ]
+    },
+    "ai-2026/华为/051-X-Means-聚类算法的实现.html": {
+      "checker": {
+        "mode": "float",
+        "reason": "中心明确要求保留两位小数，用 0.0051 作为打印精度容差。",
+        "abs_tol": 0.0051,
+        "rel_tol": 1e-09
+      },
+      "samples": [
+        {
+          "input": "1 1\n5.0\n1 1",
+          "expected": "1\n5.00\n0",
+          "name": "单个点单簇",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "K_min=K_max=1 时唯一中心必为全部点的均值；用 Fraction 精确求均值并自主舍入。"
+        },
+        {
+          "input": "2 1\n0\n3\n1 1",
+          "expected": "1\n1.50\n0 0",
+          "name": "两个点单簇",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "K_min=K_max=1 时唯一中心必为全部点的均值；用 Fraction 精确求均值并自主舍入。"
+        },
+        {
+          "input": "3 2\n1 0\n1 2\n1 4\n1 1",
+          "expected": "1\n1.00 2.00\n0 0 0",
+          "name": "第一维并列的单簇",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "K_min=K_max=1 时唯一中心必为全部点的均值；用 Fraction 精确求均值并自主舍入。"
+        },
+        {
+          "input": "4 2\n-2 3\n1 -1\n4 0\n5 -4\n1 1",
+          "expected": "1\n2.00 -0.50\n0 0 0 0",
+          "name": "负坐标单簇",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "K_min=K_max=1 时唯一中心必为全部点的均值；用 Fraction 精确求均值并自主舍入。"
+        }
+      ]
+    },
+    "ai-2026/华为/052-网游皮肤智能推荐系统.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "输出为按顺序的整数标签，空白不敏感但顺序必须一致。"
+      },
+      "samples": [
+        {
+          "input": "2 3\n0 0 0 1\n1 1 1 1\n0 0 0\n1 0 1\n1 1 1",
+          "expected": "1\n1\n1",
+          "name": "纯类叶子",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "独立按信息增益定义建树，并用元组树逐项预测；不调用参考实现。"
+        },
+        {
+          "input": "4 4\n0 0 1 0\n0 0 0 0\n1 1 0 1\n1 1 1 1\n0 1 1\n0 0 1\n1 0 0\n1 1 0",
+          "expected": "0\n0\n1\n1",
+          "name": "特征零为根且可完全分开",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "独立按信息增益定义建树，并用元组树逐项预测；不调用参考实现。"
+        },
+        {
+          "input": "4 4\n0 0 1 0\n0 1 1 0\n1 0 0 1\n1 1 0 1\n0 0 1\n0 1 0\n1 0 1\n1 1 1",
+          "expected": "0\n0\n1\n1",
+          "name": "增益并列选小编号",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "独立按信息增益定义建树，并用元组树逐项预测；不调用参考实现。"
+        },
+        {
+          "input": "4 4\n0 0 0 0\n0 1 1 1\n1 0 1 1\n1 1 0 0\n0 0 0\n0 1 0\n1 0 1\n1 1 1",
+          "expected": "0\n0\n1\n1",
+          "name": "三特征零增益时停为多数类",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "独立按信息增益定义建树，并用元组树逐项预测；不调用参考实现。"
+        },
+        {
+          "input": "5 3\n0 0 0 0\n1 0 0 0\n0 1 0 1\n1 1 0 1\n0 0 1 1\n0 0 0\n1 0 1\n0 1 1",
+          "expected": "0\n1\n1",
+          "name": "重复样本参与信息增益和多数表决",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "独立按信息增益定义建树，并用元组树逐项预测；不调用参考实现。"
+        }
+      ]
+    },
+    "ai-2026/华为/053-OCR-智能纠错系统迭代训练和推理.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "输出单个按字符顺序拼接的字符串。"
+      },
+      "samples": [
+        {
+          "input": "1 0 0 1\nq q\nq",
+          "expected": "q",
+          "name": "零轮自训练的已知映射",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "独立实现整数交叉相乘的朴素贝叶斯，每轮重建计数并逐字符解码。"
+        },
+        {
+          "input": "1 0 0 2\nx a\nx",
+          "expected": "a",
+          "name": "无观测时的平滑并列取字典序最小",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "独立实现整数交叉相乘的朴素贝叶斯，每轮重建计数并逐字符解码。"
+        },
+        {
+          "input": "1 2 1 1\nab ax\naz\naz\naz",
+          "expected": "aa",
+          "name": "一轮伪标注更新发射计数",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "独立实现整数交叉相乘的朴素贝叶斯，每轮重建计数并逐字符解码。"
+        },
+        {
+          "input": "2 1 3 2\nab ab\nbz ba\nabz\nabz",
+          "expected": "aba",
+          "name": "多轮替换伪标签而非累计",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "独立实现整数交叉相乘的朴素贝叶斯，每轮重建计数并逐字符解码。"
+        },
+        {
+          "input": "2 2 2 1\nax ab\nyy yy\naa\nyz\nay",
+          "expected": "ay",
+          "name": "不等长训练对与多个未标注串",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "独立实现整数交叉相乘的朴素贝叶斯，每轮重建计数并逐字符解码。"
+        }
+      ]
+    },
+    "ai-2026/华为/054-大模型推理-KV-Cache-内存池管理.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "输出单个整数。"
+      },
+      "samples": [
+        {
+          "input": "1 1 1\n1",
+          "expected": "1",
+          "name": "单请求恰好占满",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "枚举至多 8 个请求的全部接受子集，直接检查 Block 总量和数量。"
+        },
+        {
+          "input": "2 4 3\n4 5 8",
+          "expected": "1",
+          "name": "所有非空请求都超容量",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "枚举至多 8 个请求的全部接受子集，直接检查 Block 总量和数量。"
+        },
+        {
+          "input": "5 3 5\n1 3 4 6 9",
+          "expected": "3",
+          "name": "等 Block 需求和容量边界",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "枚举至多 8 个请求的全部接受子集，直接检查 Block 总量和数量。"
+        },
+        {
+          "input": "4 2 4\n1 2 3 8",
+          "expected": "3",
+          "name": "大请求必须被放弃",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "枚举至多 8 个请求的全部接受子集，直接检查 Block 总量和数量。"
+        },
+        {
+          "input": "10 7 6\n7 8 14 21 22 70",
+          "expected": "4",
+          "name": "一般容量与撤销收益",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "枚举至多 8 个请求的全部接受子集，直接检查 Block 总量和数量。"
+        }
+      ]
+    },
+    "ai-2026/华为/055-基于信息增益的决策树分类器.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "输出逐测试样本的整数标签，顺序具有意义。"
+      },
+      "samples": [
+        {
+          "input": "2\n3\n0 0 0\n0 1 1\n1 0 1\n3\n0 0\n0 1\n1 1",
+          "expected": "0\n1\n1",
+          "name": "两特征完全分开",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "独立按多取值信息增益递归建树；测试仅使用已见特征值，并避开未定义平票。"
+        },
+        {
+          "input": "2\n4\n0 0 5\n0 1 5\n1 0 8\n1 1 9\n2\n0 0\n1 1",
+          "expected": "5\n9",
+          "name": "多类别叶子",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "独立按多取值信息增益递归建树；测试仅使用已见特征值，并避开未定义平票。"
+        },
+        {
+          "input": "3\n4\n0 0 0 0\n0 1 1 0\n1 0 1 1\n1 1 0 1\n3\n0 0 0\n0 1 0\n1 0 1",
+          "expected": "0\n0\n1",
+          "name": "增益并列时选索引较小特征",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "独立按多取值信息增益递归建树；测试仅使用已见特征值，并避开未定义平票。"
+        },
+        {
+          "input": "2\n5\n0 0 0\n0 0 0\n1 2 1\n2 1 1\n1 1 0\n3\n0 0\n1 2\n2 1",
+          "expected": "0\n1\n1",
+          "name": "多取值和重复行",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "独立按多取值信息增益递归建树；测试仅使用已见特征值，并避开未定义平票。"
+        },
+        {
+          "input": "2\n4\n0 0 0\n1 0 0\n0 1 0\n1 1 1\n3\n0 0\n0 1\n1 1",
+          "expected": "0\n0\n1",
+          "name": "无增益时退化为多数类",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "独立按多取值信息增益递归建树；测试仅使用已见特征值，并避开未定义平票。"
+        }
+      ]
+    },
+    "ai-2026/华为/056-最优流水线并行切分.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "输出单个整数瓶颈耗时。"
+      },
+      "samples": [
+        {
+          "input": "7\n99\n1",
+          "expected": "7",
+          "name": "单层单卡忽略末层通信",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "枚举全部恰好 K 段的切分并直接取最大阶段耗时的最小值。"
+        },
+        {
+          "input": "4 9\n2 30\n2",
+          "expected": "9",
+          "name": "两层两卡只有首层通信",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "枚举全部恰好 K 段的切分并直接取最大阶段耗时的最小值。"
+        },
+        {
+          "input": "2 2 2 2\n1 100 1 1\n2",
+          "expected": "6",
+          "name": "反向输入通信影响切分",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "枚举全部恰好 K 段的切分并直接取最大阶段耗时的最小值。"
+        },
+        {
+          "input": "1 2 3 4 5\n5 4 3 2 100\n1",
+          "expected": "15",
+          "name": "必须全放一张卡",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "枚举全部恰好 K 段的切分并直接取最大阶段耗时的最小值。"
+        },
+        {
+          "input": "8 1 7 2 6\n3 3 2 8 9\n3",
+          "expected": "11",
+          "name": "一般三阶段平衡",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "枚举全部恰好 K 段的切分并直接取最大阶段耗时的最小值。"
+        }
+      ]
+    },
+    "ai-2026/得物/057-外卖下楼等待时长.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "每组输出固定顺序的整数数组。"
+      },
+      "samples": [
+        {
+          "input": "1\n1 0\n0",
+          "expected": "0",
+          "name": "宿舍楼最小输入",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "逐位置应用 max(0, d_i-m)，并独立处理多测试组。"
+        },
+        {
+          "input": "1\n3 10\n1 10 0",
+          "expected": "0 0 0",
+          "name": "用户晚于外卖到达",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "逐位置应用 max(0, d_i-m)，并独立处理多测试组。"
+        },
+        {
+          "input": "2\n2 5\n4 0\n4 0\n10 3 8 0",
+          "expected": "0 0\n10 3 8 0",
+          "name": "多组混合",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "逐位置应用 max(0, d_i-m)，并独立处理多测试组。"
+        },
+        {
+          "input": "1\n5 4\n4 5 1 8 0",
+          "expected": "0 1 0 4 0",
+          "name": "非单调距离",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "逐位置应用 max(0, d_i-m)，并独立处理多测试组。"
+        },
+        {
+          "input": "1\n4 1000000000\n1000000000 999999999 1 0",
+          "expected": "0 0 0 0",
+          "name": "大数边界",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "逐位置应用 max(0, d_i-m)，并独立处理多测试组。"
+        }
+      ]
+    },
+    "ai-2026/得物/058-密码强度字符串计数.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "每组输出一个模数计数整数。"
+      },
+      "samples": [
+        {
+          "input": "1\n1",
+          "expected": "26",
+          "name": "最小长度",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "独立用末尾连续相同字符长度 1/2/3 的状态转移计数。"
+        },
+        {
+          "input": "4\n2\n3\n4\n5",
+          "expected": "676\n17576\n456950\n11880050",
+          "name": "首次排除四连字符",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "独立用末尾连续相同字符长度 1/2/3 的状态转移计数。"
+        },
+        {
+          "input": "3\n6\n7\n10",
+          "expected": "308864400\n30034944\n728074716",
+          "name": "较长重复边界",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "独立用末尾连续相同字符长度 1/2/3 的状态转移计数。"
+        },
+        {
+          "input": "2\n25\n50",
+          "expected": "249710964\n419923509",
+          "name": "中等长度模运算",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "独立用末尾连续相同字符长度 1/2/3 的状态转移计数。"
+        },
+        {
+          "input": "1\n200",
+          "expected": "331712422",
+          "name": "大长度递推",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "独立用末尾连续相同字符长度 1/2/3 的状态转移计数。"
+        }
+      ]
+    },
+    "ai-2026/拼多多/059-CLIP-对比学习损失.html": {
+      "checker": {
+        "mode": "float",
+        "reason": "题面规定保留六位小数，用 6e-7 容差。",
+        "abs_tol": 6e-07,
+        "rel_tol": 1e-09
+      },
+      "samples": [
+        {
+          "input": "{\"image_embeds\": [[1.0]], \"text_embeds\": [[1.0]], \"temperature\": 0.5}",
+          "expected": "0.000000",
+          "name": "单样本损失为零",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "用标准库 math 独立计算相似度矩阵、稳定 softmax 两方向交叉熵和平均值。"
+        },
+        {
+          "input": "{\"image_embeds\": [[1,0],[0,1]], \"text_embeds\": [[1,0],[0,1]], \"temperature\": 1.0}",
+          "expected": "0.313262",
+          "name": "二维正交嵌入",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "用标准库 math 独立计算相似度矩阵、稳定 softmax 两方向交叉熵和平均值。"
+        },
+        {
+          "input": "{\"image_embeds\": [[1,0],[1,0]], \"text_embeds\": [[1,0],[1,0]], \"temperature\": 1.0}",
+          "expected": "0.693147",
+          "name": "完全相同嵌入的最大混淆",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "用标准库 math 独立计算相似度矩阵、稳定 softmax 两方向交叉熵和平均值。"
+        },
+        {
+          "input": "{\"image_embeds\": [[0.6,0.8],[0.8,-0.6],[1,0]], \"text_embeds\": [[0.6,0.8],[1,0],[0.8,-0.6]], \"temperature\": 0.25}",
+          "expected": "0.894734",
+          "name": "三维非恒等匹配",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "用标准库 math 独立计算相似度矩阵、稳定 softmax 两方向交叉熵和平均值。"
+        },
+        {
+          "input": "{\"image_embeds\": [[1,0],[0,1],[0.6,0.8]], \"text_embeds\": [[1,0],[0.6,0.8],[0,1]], \"temperature\": 2.0}",
+          "expected": "1.002903",
+          "name": "高温缩放",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "用标准库 math 独立计算相似度矩阵、稳定 softmax 两方向交叉熵和平均值。"
+        }
+      ]
+    },
+    "ai-2026/拼多多/060-多多捕蝇.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "输出最小总代价整数。"
+      },
+      "samples": [
+        {
+          "input": "1\n9\n1",
+          "expected": "9",
+          "name": "单自环",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "枚举放板房间集合，逐个起点沿函数图行走并检查是否经过粘蝇板。"
+        },
+        {
+          "input": "2\n7 3\n2 2",
+          "expected": "3",
+          "name": "单二环",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "枚举放板房间集合，逐个起点沿函数图行走并检查是否经过粘蝇板。"
+        },
+        {
+          "input": "5\n8 2 6 3 9\n2 3 2 5 4",
+          "expected": "5",
+          "name": "两个独立环与树枝",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "枚举放板房间集合，逐个起点沿函数图行走并检查是否经过粘蝇板。"
+        },
+        {
+          "input": "4\n5 1 1 4\n1 2 3 3",
+          "expected": "7",
+          "name": "并列最低代价",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "枚举放板房间集合，逐个起点沿函数图行走并检查是否经过粘蝇板。"
+        },
+        {
+          "input": "6\n10 20 3 30 4 5\n2 3 1 5 6 4",
+          "expected": "7",
+          "name": "长链汇入多个环",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "枚举放板房间集合，逐个起点沿函数图行走并检查是否经过粘蝇板。"
+        }
+      ]
+    },
+    "ai-2026/拼多多/061-多多的营救行动.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "输出 SUCCESS 或剩余人数的整数。"
+      },
+      "samples": [
+        {
+          "input": "1\n1 0",
+          "expected": "SUCCESS",
+          "name": "无人监视可单杀",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "位掩码穷举所有合法单杀/双杀顺序并取最小剩余人数。"
+        },
+        {
+          "input": "2\n1 1 2\n2 1 1",
+          "expected": "SUCCESS",
+          "name": "互为唯一监视的双杀",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "位掩码穷举所有合法单杀/双杀顺序并取最小剩余人数。"
+        },
+        {
+          "input": "3\n1 1 2\n2 1 3\n3 1 1",
+          "expected": "3",
+          "name": "三节点不能双杀的环",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "位掩码穷举所有合法单杀/双杀顺序并取最小剩余人数。"
+        },
+        {
+          "input": "4\n1 0\n2 1 1\n3 1 2\n4 1 3",
+          "expected": "SUCCESS",
+          "name": "链式单杀剥离",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "位掩码穷举所有合法单杀/双杀顺序并取最小剩余人数。"
+        },
+        {
+          "input": "5\n1 0\n2 1 3\n3 1 2\n4 1 5\n5 1 4",
+          "expected": "SUCCESS",
+          "name": "自由守卫加一个二环",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "位掩码穷举所有合法单杀/双杀顺序并取最小剩余人数。"
+        }
+      ]
+    },
+    "ai-2026/拼多多/062-对角线遍历矩阵.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "每题输出固定顺序的矩阵元素序列。"
+      },
+      "samples": [
+        {
+          "input": "1 1\n5",
+          "expected": "5",
+          "name": "单格矩阵",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "按左下到右上的对角线逐条枚举，并按轮次交替上下方向。"
+        },
+        {
+          "input": "1 4\n1 2 3 4",
+          "expected": "1 2 3 4",
+          "name": "单行矩阵",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "按左下到右上的对角线逐条枚举，并按轮次交替上下方向。"
+        },
+        {
+          "input": "4 1\n1\n2\n3\n4",
+          "expected": "4 3 2 1",
+          "name": "单列矩阵",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "按左下到右上的对角线逐条枚举，并按轮次交替上下方向。"
+        },
+        {
+          "input": "2 3\n1 2 3\n4 5 6",
+          "expected": "4 1 5 6 2 3",
+          "name": "非方阵",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "按左下到右上的对角线逐条枚举，并按轮次交替上下方向。"
+        },
+        {
+          "input": "3 3\n9 8 7\n6 5 4\n3 2 1",
+          "expected": "3 6 2 1 5 9 8 4 7",
+          "name": "逆序方阵",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "按左下到右上的对角线逐条枚举，并按轮次交替上下方向。"
+        }
+      ]
+    },
+    "ai-2026/拼多多/063-机房维护.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "输出最大收益整数。"
+      },
+      "samples": [
+        {
+          "input": "1\n0 1 7",
+          "expected": "7",
+          "name": "单任务",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "枚举任务子集，按半开区间冲突定义逐一检查并取最大收益。"
+        },
+        {
+          "input": "3\n1 4 10\n4 7 20\n7 8 5",
+          "expected": "35",
+          "name": "首尾相接可同时选择",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "枚举任务子集，按半开区间冲突定义逐一检查并取最大收益。"
+        },
+        {
+          "input": "3\n1 10 100\n2 3 30\n4 5 40",
+          "expected": "100",
+          "name": "等价加权取舍",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "枚举任务子集，按半开区间冲突定义逐一检查并取最大收益。"
+        },
+        {
+          "input": "5\n5 9 8\n0 2 3\n2 5 4\n9 10 100\n6 8 7",
+          "expected": "115",
+          "name": "乱序输入",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "枚举任务子集，按半开区间冲突定义逐一检查并取最大收益。"
+        },
+        {
+          "input": "4\n1 5 1\n2 6 1\n3 7 1\n4 8 1",
+          "expected": "1",
+          "name": "全部互相重叠",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "枚举任务子集，按半开区间冲突定义逐一检查并取最大收益。"
+        }
+      ]
+    },
+    "ai-2026/拼多多/064-神秘三件套.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "输出合法三元组数量。"
+      },
+      "samples": [
+        {
+          "input": "1",
+          "expected": "0",
+          "name": "最小 n",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "直接枚举满足 a<=b<=c 的全部三元组，独立检查异或和严格三角不等式。"
+        },
+        {
+          "input": "2",
+          "expected": "0",
+          "name": "仅含一和二",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "直接枚举满足 a<=b<=c 的全部三元组，独立检查异或和严格三角不等式。"
+        },
+        {
+          "input": "6",
+          "expected": "1",
+          "name": "首个合法三元组",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "直接枚举满足 a<=b<=c 的全部三元组，独立检查异或和严格三角不等式。"
+        },
+        {
+          "input": "10",
+          "expected": "2",
+          "name": "重复边组合",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "直接枚举满足 a<=b<=c 的全部三元组，独立检查异或和严格三角不等式。"
+        },
+        {
+          "input": "20",
+          "expected": "14",
+          "name": "较大穷举",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "直接枚举满足 a<=b<=c 的全部三元组，独立检查异或和严格三角不等式。"
+        }
+      ]
+    },
+    "ai-2026/拼多多/065-递增边路径.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "输出最大路径边数。"
+      },
+      "samples": [
+        {
+          "input": "1 1\n1 1 0",
+          "expected": "1",
+          "name": "单个自环",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "从每条边起 DFS 枚举输入编号更大的可接边，同时要求权值严格上升。"
+        },
+        {
+          "input": "2 2\n1 2 1\n2 1 2",
+          "expected": "2",
+          "name": "两段后继路径",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "从每条边起 DFS 枚举输入编号更大的可接边，同时要求权值严格上升。"
+        },
+        {
+          "input": "2 3\n1 2 5\n1 2 5\n1 2 6",
+          "expected": "1",
+          "name": "重边与等权不可接",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "从每条边起 DFS 枚举输入编号更大的可接边，同时要求权值严格上升。"
+        },
+        {
+          "input": "3 4\n1 2 3\n2 3 1\n3 1 2\n1 3 9",
+          "expected": "3",
+          "name": "权值逆序阻挡",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "从每条边起 DFS 枚举输入编号更大的可接边，同时要求权值严格上升。"
+        },
+        {
+          "input": "4 5\n1 2 1\n2 3 2\n1 4 1\n4 3 3\n3 1 4",
+          "expected": "3",
+          "name": "两条候选支路",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "从每条边起 DFS 枚举输入编号更大的可接边，同时要求权值严格上升。"
+        }
+      ]
+    },
+    "ai-2026/拼多多/066-魔法通道.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "输出固定四种模式词之一。"
+      },
+      "samples": [
+        {
+          "input": "a\na",
+          "expected": "both",
+          "name": "单字符两种模式均可",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "队列直接比较字符串；栈用双指针边压入边匹配目标串。"
+        },
+        {
+          "input": "abc\nabc",
+          "expected": "both",
+          "name": "原顺序队列与栈均可",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "队列直接比较字符串；栈用双指针边压入边匹配目标串。"
+        },
+        {
+          "input": "abcd\ndcba",
+          "expected": "stack",
+          "name": "完整逆序仅栈可行",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "队列直接比较字符串；栈用双指针边压入边匹配目标串。"
+        },
+        {
+          "input": "abcd\ncdab",
+          "expected": "neither",
+          "name": "相同字符多重集但栈不可行",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "队列直接比较字符串；栈用双指针边压入边匹配目标串。"
+        },
+        {
+          "input": "aabb\nbbaa",
+          "expected": "stack",
+          "name": "重复字符的栈逆序",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "队列直接比较字符串；栈用双指针边压入边匹配目标串。"
+        }
+      ]
+    },
+    "ai-2026/拼多多/067-和差方程最少标定.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "输出 YES/NO 及确定数量或 -1。"
+      },
+      "samples": [
+        {
+          "input": "1 0",
+          "expected": "YES\n1",
+          "name": "单变量无约束",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "把方程写成有理数增广矩阵，精确高斯消元求秩和一致性；自由度即最少实测值数。"
+        },
+        {
+          "input": "3 0",
+          "expected": "YES\n3",
+          "name": "三个变量均无约束",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "把方程写成有理数增广矩阵，精确高斯消元求秩和一致性；自由度即最少实测值数。"
+        },
+        {
+          "input": "2 2\nS 1 2 9\nD 1 2 -1",
+          "expected": "YES\n0",
+          "name": "和差方程完全确定两值",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "把方程写成有理数增广矩阵，精确高斯消元求秩和一致性；自由度即最少实测值数。"
+        },
+        {
+          "input": "1 1\nS 1 1 6",
+          "expected": "YES\n0",
+          "name": "自相加固定变量",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "把方程写成有理数增广矩阵，精确高斯消元求秩和一致性；自由度即最少实测值数。"
+        },
+        {
+          "input": "3 3\nD 1 2 2\nS 2 3 5\nD 1 1 0",
+          "expected": "YES\n1",
+          "name": "一条冗余自差方程",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "把方程写成有理数增广矩阵，精确高斯消元求秩和一致性；自由度即最少实测值数。"
+        },
+        {
+          "input": "4 3\nD 1 2 1\nD 2 3 1\nS 3 4 8",
+          "expected": "YES\n1",
+          "name": "四变量秩三",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "把方程写成有理数增广矩阵，精确高斯消元求秩和一致性；自由度即最少实测值数。"
+        }
+      ]
+    },
+    "ai-2026/拼多多/068-展廊灯带后缀点亮.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "输出最少操作次数。"
+      },
+      "samples": [
+        {
+          "input": "1\n0",
+          "expected": "1",
+          "name": "单段全灭",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "从左到右维护已翻转后缀的奇偶性，当前位为 0 时必须操作。"
+        },
+        {
+          "input": "1\n1",
+          "expected": "0",
+          "name": "单段已亮",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "从左到右维护已翻转后缀的奇偶性，当前位为 0 时必须操作。"
+        },
+        {
+          "input": "5\n0 0 0 0 0",
+          "expected": "1",
+          "name": "全灭交替后缀翻转",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "从左到右维护已翻转后缀的奇偶性，当前位为 0 时必须操作。"
+        },
+        {
+          "input": "6\n1 0 0 1 0 1",
+          "expected": "4",
+          "name": "一般交替状态",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "从左到右维护已翻转后缀的奇偶性，当前位为 0 时必须操作。"
+        },
+        {
+          "input": "8\n1 1 1 1 1 1 1 1",
+          "expected": "0",
+          "name": "全亮无需操作",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "从左到右维护已翻转后缀的奇偶性，当前位为 0 时必须操作。"
+        }
+      ]
+    },
+    "ai-2026/拼多多/069-护栏补强.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "输出最大最小高度整数。"
+      },
+      "samples": [
+        {
+          "input": "1 0 1\n7",
+          "expected": "7",
+          "name": "零次施工",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "对候选最小高度做左到右贪心覆盖，并用差分数组精确统计区间增量，外层二分答案。"
+        },
+        {
+          "input": "1 3 1\n0",
+          "expected": "3",
+          "name": "单段全额度施工",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "对候选最小高度做左到右贪心覆盖，并用差分数组精确统计区间增量，外层二分答案。"
+        },
+        {
+          "input": "5 3 2\n1 1 1 1 1",
+          "expected": "2",
+          "name": "短区间覆盖全部",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "对候选最小高度做左到右贪心覆盖，并用差分数组精确统计区间增量，外层二分答案。"
+        },
+        {
+          "input": "5 2 5\n3 0 4 1 5",
+          "expected": "2",
+          "name": "超长区间上限截为全长",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "对候选最小高度做左到右贪心覆盖，并用差分数组精确统计区间增量，外层二分答案。"
+        },
+        {
+          "input": "7 5 3\n2 7 1 8 3 6 4",
+          "expected": "5",
+          "name": "一般高低起伏",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "对候选最小高度做左到右贪心覆盖，并用差分数组精确统计区间增量，外层二分答案。"
+        }
+      ]
+    },
+    "ai-2026/拼多多/070-驿站补给最短耗时.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "每组输出最短时间或 -1。"
+      },
+      "samples": [
+        {
+          "input": "2 1 2\n0 0\n1 2 2 9",
+          "expected": "9",
+          "name": "满电恰好过单边",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "在 (节点, 电量) 状态上做 Dijkstra；充电是逐格代价，行路扣电并加时间。"
+        },
+        {
+          "input": "3 2 3\n5 1 9\n1 2 2 4\n2 3 2 6",
+          "expected": "11",
+          "name": "中途廉价充电",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "在 (节点, 电量) 状态上做 Dijkstra；充电是逐格代价，行路扣电并加时间。"
+        },
+        {
+          "input": "2 1 2\n0 0\n1 2 3 1",
+          "expected": "-1",
+          "name": "单边耗能超过容量",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "在 (节点, 电量) 状态上做 Dijkstra；充电是逐格代价，行路扣电并加时间。"
+        },
+        {
+          "input": "3 3 4\n0 0 0\n1 2 1 10\n1 3 4 1\n3 2 1 1",
+          "expected": "1",
+          "name": "多条路径权衡能量",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "在 (节点, 电量) 状态上做 Dijkstra；充电是逐格代价，行路扣电并加时间。"
+        },
+        {
+          "input": "3 2 2\n0 9 0\n1 2 1 4\n2 3 1 5",
+          "expected": "9",
+          "name": "一般路径",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "在 (节点, 电量) 状态上做 Dijkstra；充电是逐格代价，行路扣电并加时间。"
+        }
+      ]
+    },
+    "ai-2026/拼多多/071-冰柜指令看反后仍安全的位置数.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "输出合法交换位置数量。"
+      },
+      "samples": [
+        {
+          "input": "1 1 0\n0",
+          "expected": "0",
+          "name": "n=1 无权交换",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "对每个相邻交换独立重放完整指令串，并检查闭区间前缀和约束。"
+        },
+        {
+          "input": "2 5 2\n2 -2",
+          "expected": "1",
+          "name": "交换同值仍计数",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "对每个相邻交换独立重放完整指令串，并检查闭区间前缀和约束。"
+        },
+        {
+          "input": "3 2 1\n1 -1 1",
+          "expected": "1",
+          "name": "容量边界上的上下移动",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "对每个相邻交换独立重放完整指令串，并检查闭区间前缀和约束。"
+        },
+        {
+          "input": "5 6 3\n2 -4 3 1 -2",
+          "expected": "2",
+          "name": "一般正负指令",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "对每个相邻交换独立重放完整指令串，并检查闭区间前缀和约束。"
+        },
+        {
+          "input": "6 10 5\n-5 10 -1 0 0 0",
+          "expected": "3",
+          "name": "零值与越界混合",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "对每个相邻交换独立重放完整指令串，并检查闭区间前缀和约束。"
+        }
+      ]
+    },
+    "ai-2026/拼多多/072-冷链物流网络最小总代价.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "输出最小总代价整数。"
+      },
+      "samples": [
+        {
+          "input": "1 0\n17",
+          "expected": "17",
+          "name": "单城仍须建中心",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "把航空互通建成虚拟节点 0，用 Kruskal 求包含至少一个中心边的最小生成树。"
+        },
+        {
+          "input": "3 0\n9 2 5",
+          "expected": "16",
+          "name": "无公路只能选中心",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "把航空互通建成虚拟节点 0，用 Kruskal 求包含至少一个中心边的最小生成树。"
+        },
+        {
+          "input": "3 2\n10 10 10\n1 2 1\n2 3 1",
+          "expected": "12",
+          "name": "低成本公路优先",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "把航空互通建成虚拟节点 0，用 Kruskal 求包含至少一个中心边的最小生成树。"
+        },
+        {
+          "input": "4 3\n50 50 50 1\n1 2 40\n2 3 40\n3 4 40",
+          "expected": "121",
+          "name": "公路与跨城中心权衡",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "把航空互通建成虚拟节点 0，用 Kruskal 求包含至少一个中心边的最小生成树。"
+        },
+        {
+          "input": "4 4\n8 7 6 5\n1 2 2\n2 3 2\n3 4 2\n4 1 2",
+          "expected": "11",
+          "name": "环形低费公路",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "把航空互通建成虚拟节点 0，用 Kruskal 求包含至少一个中心边的最小生成树。"
+        }
+      ]
+    },
+    "ai-2026/拼多多/073-团子体重可能不变的最长连续日子.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "输出最长连续段长度。"
+      },
+      "samples": [
+        {
+          "input": "1\n5 7",
+          "expected": "1",
+          "name": "单日无需忽略",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "枚举连续段与至多一个忽略项，用区间交集下界/上界判断共同整数是否存在。"
+        },
+        {
+          "input": "3\n1 2\n10 12\n3 4",
+          "expected": "2",
+          "name": "隔一天形成最长段",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "枚举连续段与至多一个忽略项，用区间交集下界/上界判断共同整数是否存在。"
+        },
+        {
+          "input": "4\n2 2\n2 2\n2 2\n9 9",
+          "expected": "4",
+          "name": "同点区间与唯一离群日",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "枚举连续段与至多一个忽略项，用区间交集下界/上界判断共同整数是否存在。"
+        },
+        {
+          "input": "5\n1 5\n2 4\n8 9\n3 6\n4 7",
+          "expected": "5",
+          "name": "一般区间交集",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "枚举连续段与至多一个忽略项，用区间交集下界/上界判断共同整数是否存在。"
+        },
+        {
+          "input": "4\n1 1\n3 3\n1 1\n3 3",
+          "expected": "3",
+          "name": "交替不相交区间",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "枚举连续段与至多一个忽略项，用区间交集下界/上界判断共同整数是否存在。"
+        }
+      ]
+    },
+    "ai-2026/拼多多/074-环线巡游巡检全部道路的最小花费.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "每组输出最小花费整数。"
+      },
+      "samples": [
+        {
+          "input": "1\n2 1\n1 2 7",
+          "expected": "14",
+          "name": "走一条边再快线返回",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "对 (景点, 已巡检边位掩码) 做 Dijkstra；快线代价由 Floyd 求路径最大输入编号的最小值。"
+        },
+        {
+          "input": "1\n2 2\n1 2 4\n1 2 6",
+          "expected": "10",
+          "name": "重边分别巡检",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "对 (景点, 已巡检边位掩码) 做 Dijkstra；快线代价由 Floyd 求路径最大输入编号的最小值。"
+        },
+        {
+          "input": "1\n3 3\n1 2 5\n2 3 5\n3 1 5",
+          "expected": "15",
+          "name": "三角形欧拉回路",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "对 (景点, 已巡检边位掩码) 做 Dijkstra；快线代价由 Floyd 求路径最大输入编号的最小值。"
+        },
+        {
+          "input": "1\n4 4\n1 2 10\n2 3 10\n3 4 10\n1 1 1",
+          "expected": "32",
+          "name": "自环与末号快线",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "对 (景点, 已巡检边位掩码) 做 Dijkstra；快线代价由 Floyd 求路径最大输入编号的最小值。"
+        },
+        {
+          "input": "2\n1 0\n3 2\n1 2 3\n2 3 4",
+          "expected": "0\n11",
+          "name": "单点零道路及一般两组",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "对 (景点, 已巡检边位掩码) 做 Dijkstra；快线代价由 Floyd 求路径最大输入编号的最小值。"
+        }
+      ]
+    },
+    "ai-2026/滴滴/075-找朋友.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "每组输出最小总矛盾值。"
+      },
+      "samples": [
+        {
+          "input": "1\n1 7\n3\n5",
+          "expected": "1",
+          "name": "单对唯一排列",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "枚举 B 班所有排列，按定义计算取模矛盾值总和并取最小。"
+        },
+        {
+          "input": "1\n2 5\n0 4\n0 1",
+          "expected": "0",
+          "name": "零与互补余数",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "枚举 B 班所有排列，按定义计算取模矛盾值总和并取最小。"
+        },
+        {
+          "input": "1\n3 6\n1 2 5\n5 4 1",
+          "expected": "0",
+          "name": "需要跨序配对",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "枚举 B 班所有排列，按定义计算取模矛盾值总和并取最小。"
+        },
+        {
+          "input": "1\n4 10\n0 1 2 3\n5 6 7 8",
+          "expected": "12",
+          "name": "重复最优匹配值",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "枚举 B 班所有排列，按定义计算取模矛盾值总和并取最小。"
+        },
+        {
+          "input": "2\n2 2\n0 1\n0 1\n3 10\n9 9 9\n9 9 9",
+          "expected": "0\n24",
+          "name": "多组并列最值",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "枚举 B 班所有排列，按定义计算取模矛盾值总和并取最小。"
+        }
+      ]
+    },
+    "ai-2026/滴滴/076-滑动窗口.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "输出最小总增量整数。"
+      },
+      "samples": [
+        {
+          "input": "1 3 1\n2",
+          "expected": "1",
+          "name": "单窗口必须补到模零",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "枚举每组公共余数，直接验证余数总和为零并累加每项最小增量。"
+        },
+        {
+          "input": "3 2 3\n0 1 0",
+          "expected": "1",
+          "name": "整段单组",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "枚举每组公共余数，直接验证余数总和为零并累加每项最小增量。"
+        },
+        {
+          "input": "5 3 2\n2 1 0 2 1",
+          "expected": "4",
+          "name": "两个模类",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "枚举每组公共余数，直接验证余数总和为零并累加每项最小增量。"
+        },
+        {
+          "input": "6 4 3\n0 0 0 0 0 0",
+          "expected": "0",
+          "name": "已全零下界",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "枚举每组公共余数，直接验证余数总和为零并累加每项最小增量。"
+        },
+        {
+          "input": "7 5 4\n4 3 2 1 0 4 3",
+          "expected": "5",
+          "name": "递减下界一般情况",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "枚举每组公共余数，直接验证余数总和为零并累加每项最小增量。"
+        }
+      ]
+    },
+    "ai-2026/百度/077-开关控制灯.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "每组输出最少按键次数。"
+      },
+      "samples": [
+        {
+          "input": "1\n1\n1",
+          "expected": "1",
+          "name": "单灯点亮",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "从左到右唯一确定每个开关是否必须按下，并用相邻翻转奇偶性模拟。"
+        },
+        {
+          "input": "1\n1\n0",
+          "expected": "0",
+          "name": "单灯已熄灭",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "从左到右唯一确定每个开关是否必须按下，并用相邻翻转奇偶性模拟。"
+        },
+        {
+          "input": "1\n4\n0 0 0 0",
+          "expected": "0",
+          "name": "全暗无需按键",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "从左到右唯一确定每个开关是否必须按下，并用相邻翻转奇偶性模拟。"
+        },
+        {
+          "input": "1\n6\n1 0 1 0 1 0",
+          "expected": "4",
+          "name": "交替状态",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "从左到右唯一确定每个开关是否必须按下，并用相邻翻转奇偶性模拟。"
+        },
+        {
+          "input": "2\n3\n0 1 1\n5\n1 1 1 1 1",
+          "expected": "1\n3",
+          "name": "多组一般状态",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "从左到右唯一确定每个开关是否必须按下，并用相邻翻转奇偶性模拟。"
+        }
+      ]
+    },
+    "ai-2026/百度/078-格子行走翻转.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "每组固定为翻转数量行和升序位置行，顺序必须一致。"
+      },
+      "samples": [
+        {
+          "input": "1\n1\n0",
+          "expected": "1\n4",
+          "name": "第一步到最近白格",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "小指令串上直接重走每位人员的完整路径，逐个寻找动态棋盘右侧最近目标颜色。"
+        },
+        {
+          "input": "1\n1\n1",
+          "expected": "1\n2",
+          "name": "第一步到质数格",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "小指令串上直接重走每位人员的完整路径，逐个寻找动态棋盘右侧最近目标颜色。"
+        },
+        {
+          "input": "1\n2\n11",
+          "expected": "2\n2 5",
+          "name": "翻转后重新计算路径",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "小指令串上直接重走每位人员的完整路径，逐个寻找动态棋盘右侧最近目标颜色。"
+        },
+        {
+          "input": "1\n3\n010",
+          "expected": "3\n4 7 12",
+          "name": "交替颜色指令",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "小指令串上直接重走每位人员的完整路径，逐个寻找动态棋盘右侧最近目标颜色。"
+        },
+        {
+          "input": "2\n4\n0000\n4\n1010",
+          "expected": "4\n4 8 10 14\n4\n2 4 7 12",
+          "name": "多组长路径小样本",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "小指令串上直接重走每位人员的完整路径，逐个寻找动态棋盘右侧最近目标颜色。"
+        }
+      ]
+    },
+    "ai-2026/百度/079-魔法藤蔓.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "每组输出最少操作次数。"
+      },
+      "samples": [
+        {
+          "input": "1\n1\n5",
+          "expected": "1",
+          "name": "单段直接剪掉",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "BFS 枚举每次最右最大/最小前缀截断后的前缀长度，首次到 0 即最短步数。"
+        },
+        {
+          "input": "1\n5\n1 2 3 4 5",
+          "expected": "1",
+          "name": "单调递增多步",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "BFS 枚举每次最右最大/最小前缀截断后的前缀长度，首次到 0 即最短步数。"
+        },
+        {
+          "input": "1\n5\n5 4 3 2 1",
+          "expected": "1",
+          "name": "单调递减",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "BFS 枚举每次最右最大/最小前缀截断后的前缀长度，首次到 0 即最短步数。"
+        },
+        {
+          "input": "1\n6\n4 2 4 2 4 1",
+          "expected": "3",
+          "name": "最大并列取最右",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "BFS 枚举每次最右最大/最小前缀截断后的前缀长度，首次到 0 即最短步数。"
+        },
+        {
+          "input": "2\n3\n1 3 2\n4\n3 1 3 1",
+          "expected": "1\n2",
+          "name": "多组往返选择",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "BFS 枚举每次最右最大/最小前缀截断后的前缀长度，首次到 0 即最短步数。"
+        }
+      ]
+    },
+    "ai-2026/百度/080-余数游走.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "每组输出所有起点游走长度之和。"
+      },
+      "samples": [
+        {
+          "input": "1\n1 2\n1",
+          "expected": "1",
+          "name": "单元素",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "对每个起点直接累加环形序列，遇到重复前缀余数即停止，并累计步数。"
+        },
+        {
+          "input": "1\n3 5\n0 0 0",
+          "expected": "3",
+          "name": "全零立即重复",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "对每个起点直接累加环形序列，遇到重复前缀余数即停止，并累计步数。"
+        },
+        {
+          "input": "1\n4 7\n1 2 3 4",
+          "expected": "12",
+          "name": "一般互异前缀",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "对每个起点直接累加环形序列，遇到重复前缀余数即停止，并累计步数。"
+        },
+        {
+          "input": "1\n5 6\n2 -2 2 -2 3",
+          "expected": "13",
+          "name": "负值标准余数",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "对每个起点直接累加环形序列，遇到重复前缀余数即停止，并累计步数。"
+        },
+        {
+          "input": "2\n3 3\n1 1 1\n4 10\n5 5 5 5",
+          "expected": "9\n8",
+          "name": "多组重复最早停止",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "对每个起点直接累加环形序列，遇到重复前缀余数即停止，并累计步数。"
+        }
+      ]
+    },
+    "ai-2026/百度/081-最大乘积操作.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "每组输出模意义最大乘积。"
+      },
+      "samples": [
+        {
+          "input": "1\n1 0\n8",
+          "expected": "8",
+          "name": "零次操作",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "对排序后的多重集合枚举每一步可减元素，动态规划求最大余数乘积。"
+        },
+        {
+          "input": "1\n3 10\n2 3 4",
+          "expected": "1",
+          "name": "提前停到全一",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "对排序后的多重集合枚举每一步可减元素，动态规划求最大余数乘积。"
+        },
+        {
+          "input": "1\n3 3\n2 2 3",
+          "expected": "2",
+          "name": "多元素削平",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "对排序后的多重集合枚举每一步可减元素，动态规划求最大余数乘积。"
+        },
+        {
+          "input": "1\n4 2\n5 1 3 2",
+          "expected": "18",
+          "name": "已有一不参与操作",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "对排序后的多重集合枚举每一步可减元素，动态规划求最大余数乘积。"
+        },
+        {
+          "input": "2\n2 1\n2 2\n5 4\n1 1 2 3 5",
+          "expected": "2\n8",
+          "name": "并列元素与混合边界",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "对排序后的多重集合枚举每一步可减元素，动态规划求最大余数乘积。"
+        }
+      ]
+    },
+    "ai-2026/百度/082-消失的括号层.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "每组按原字符顺序输出整数轮次。"
+      },
+      "samples": [
+        {
+          "input": "1\n2\n()",
+          "expected": "1 1",
+          "name": "单对一轮消失",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "自建括号栈求每对原始深度，并用嵌套链性质得到消失轮次 max_depth-depth+1。"
+        },
+        {
+          "input": "1\n4\n(())",
+          "expected": "2 1 1 2",
+          "name": "两层嵌套",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "自建括号栈求每对原始深度，并用嵌套链性质得到消失轮次 max_depth-depth+1。"
+        },
+        {
+          "input": "1\n6\n()()()",
+          "expected": "1 1 1 1 1 1",
+          "name": "三个并列浅层",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "自建括号栈求每对原始深度，并用嵌套链性质得到消失轮次 max_depth-depth+1。"
+        },
+        {
+          "input": "1\n8\n(()(()))",
+          "expected": "3 2 2 2 1 1 2 3",
+          "name": "不平衡分支深度",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "自建括号栈求每对原始深度，并用嵌套链性质得到消失轮次 max_depth-depth+1。"
+        },
+        {
+          "input": "2\n6\n((()))\n10\n((())()())",
+          "expected": "3 2 1 1 2 3\n3 2 1 1 2 2 2 2 2 3",
+          "name": "多组深嵌套",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "自建括号栈求每对原始深度，并用嵌套链性质得到消失轮次 max_depth-depth+1。"
+        }
+      ]
+    },
+    "ai-2026/百度/083-平衡度划分.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "每组输出最大总价值整数。"
+      },
+      "samples": [
+        {
+          "input": "1\n1\n9",
+          "expected": "0",
+          "name": "单元素划分",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "对每个起点枚举所有非空连续子段，记忆化穷举全部合法划分。"
+        },
+        {
+          "input": "1\n4\n2 2 2 4",
+          "expected": "8",
+          "name": "仅一处波动",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "对每个起点枚举所有非空连续子段，记忆化穷举全部合法划分。"
+        },
+        {
+          "input": "1\n6\n1 3 2 5 4 6",
+          "expected": "30",
+          "name": "连续段通常更优",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "对每个起点枚举所有非空连续子段，记忆化穷举全部合法划分。"
+        },
+        {
+          "input": "1\n5\n5 4 3 2 1",
+          "expected": "20",
+          "name": "单调递减",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "对每个起点枚举所有非空连续子段，记忆化穷举全部合法划分。"
+        },
+        {
+          "input": "2\n1\n7\n8\n1 4 2 7 3 8 1 5",
+          "expected": "0\n56",
+          "name": "多组及不同波动",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "对每个起点枚举所有非空连续子段，记忆化穷举全部合法划分。"
+        }
+      ]
+    },
+    "ai-2026/百度/084-旋转跳跃.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "每组输出最小正操作次数的模。"
+      },
+      "samples": [
+        {
+          "input": "1\n1\na\n1",
+          "expected": "1",
+          "name": "单点恒等排列",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "分解排列循环，并在每个循环上直接寻找字符序列的最小正移位，再求循环节 lcm。"
+        },
+        {
+          "input": "1\n4\naaaa\n2 3 4 1",
+          "expected": "1",
+          "name": "四环但字符周期一",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "分解排列循环，并在每个循环上直接寻找字符序列的最小正移位，再求循环节 lcm。"
+        },
+        {
+          "input": "1\n5\nabcde\n2 3 1 5 4",
+          "expected": "6",
+          "name": "长度三和二的两循环",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "分解排列循环，并在每个循环上直接寻找字符序列的最小正移位，再求循环节 lcm。"
+        },
+        {
+          "input": "1\n4\nabab\n2 3 4 1",
+          "expected": "2",
+          "name": "循环内字符周期二",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "分解排列循环，并在每个循环上直接寻找字符序列的最小正移位，再求循环节 lcm。"
+        },
+        {
+          "input": "2\n3\naab\n2 1 3\n6\nxyzxyz\n2 3 4 5 6 1",
+          "expected": "1\n3",
+          "name": "多组循环节",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "分解排列循环，并在每个循环上直接寻找字符序列的最小正移位，再求循环节 lcm。"
+        }
+      ]
+    },
+    "ai-2026/百度/085-最小爆发值.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "每组输出最小异或值整数。"
+      },
+      "samples": [
+        {
+          "input": "1\n1",
+          "expected": "1",
+          "name": "最小 n",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "在合法小范围内直接枚举全部 x，计算 x xor (n-x) 的最小值。"
+        },
+        {
+          "input": "4\n2 3 4 5",
+          "expected": "0\n3\n0\n1",
+          "name": "小值边界",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "在合法小范围内直接枚举全部 x，计算 x xor (n-x) 的最小值。"
+        },
+        {
+          "input": "4\n7 8 11 15",
+          "expected": "7\n0\n3\n15",
+          "name": "二进制边界",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "在合法小范围内直接枚举全部 x，计算 x xor (n-x) 的最小值。"
+        },
+        {
+          "input": "3\n16 17 31",
+          "expected": "0\n1\n31",
+          "name": "2 的幂附近",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "在合法小范围内直接枚举全部 x，计算 x xor (n-x) 的最小值。"
+        },
+        {
+          "input": "2\n63 64",
+          "expected": "63\n0",
+          "name": "连续跨幂次",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "在合法小范围内直接枚举全部 x，计算 x xor (n-x) 的最小值。"
+        }
+      ]
+    },
+    "ai-2026/百度/086-排列子数组和最大化.html": {
+      "checker": {
+        "mode": "permutation-sum",
+        "reason": "题面允许输出任意最大排列；语义 checker 应校验第二行是 1..n 排列、其加权和可独立算出最大值，并核对第一行最大值取模。"
+      },
+      "samples": [
+        {
+          "input": "1",
+          "expected": "1\n1",
+          "name": "唯一长度一的排列",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "枚举全部 n! 个排列并代入位置出现次数权重，独立取得最大总和；同分时固定选字典序最大的合法排列。"
+        },
+        {
+          "input": "2",
+          "expected": "6\n2 1",
+          "name": "长度二的两个相同权重",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "枚举全部 n! 个排列并代入位置出现次数权重，独立取得最大总和；同分时固定选字典序最大的合法排列。"
+        },
+        {
+          "input": "3",
+          "expected": "21\n2 3 1",
+          "name": "奇数长度且中间权重唯一最大",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "枚举全部 n! 个排列并代入位置出现次数权重，独立取得最大总和；同分时固定选字典序最大的合法排列。"
+        },
+        {
+          "input": "4",
+          "expected": "54\n2 4 3 1",
+          "name": "偶数长度且中心两权重并列",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "枚举全部 n! 个排列并代入位置出现次数权重，独立取得最大总和；同分时固定选字典序最大的合法排列。"
+        },
+        {
+          "input": "5",
+          "expected": "116\n2 4 5 3 1",
+          "name": "奇数长度五的位置权重",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "枚举全部 n! 个排列并代入位置出现次数权重，独立取得最大总和；同分时固定选字典序最大的合法排列。"
+        },
+        {
+          "input": "7",
+          "expected": "382\n2 4 6 7 5 3 1",
+          "name": "更大奇数长度的并列最优解",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "枚举全部 n! 个排列并代入位置出现次数权重，独立取得最大总和；同分时固定选字典序最大的合法排列。"
+        }
+      ]
+    },
+    "ai-2026/百度/087-数组公约数改造.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "输出最少修改元素数。"
+      },
+      "samples": [
+        {
+          "input": "1\n1",
+          "expected": "1",
+          "name": "单元素一需修改",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "枚举不超过最大值的质数，统计可保留的整除元素数，取可保留最多者。"
+        },
+        {
+          "input": "1\n2",
+          "expected": "0",
+          "name": "单元素大于一无需修改",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "枚举不超过最大值的质数，统计可保留的整除元素数，取可保留最多者。"
+        },
+        {
+          "input": "3\n2 4 6",
+          "expected": "0",
+          "name": "已有公共因子",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "枚举不超过最大值的质数，统计可保留的整除元素数，取可保留最多者。"
+        },
+        {
+          "input": "3\n1 1 1",
+          "expected": "3",
+          "name": "全为一需全部修改",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "枚举不超过最大值的质数，统计可保留的整除元素数，取可保留最多者。"
+        },
+        {
+          "input": "5\n6 10 15 7 9",
+          "expected": "2",
+          "name": "多个质因子竞争",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "枚举不超过最大值的质数，统计可保留的整除元素数，取可保留最多者。"
+        },
+        {
+          "input": "6\n35 49 22 26 2 3",
+          "expected": "3",
+          "name": "二和七各自可保留不同数量",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "枚举不超过最大值的质数，统计可保留的整除元素数，取可保留最多者。"
+        }
+      ]
+    },
+    "ai-2026/百度/088-阈值分界总和逼近.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "输出与目标总和的最小绝对差。"
+      },
+      "samples": [
+        {
+          "input": "1\n5\n3 1 9",
+          "expected": "4",
+          "name": "单元素阈值两侧",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "枚举所有分段会变化的整数阈值小范围，直接计算最终总和与目标差的绝对值。"
+        },
+        {
+          "input": "2\n0\n1 -4 5\n2 3 -6",
+          "expected": "1",
+          "name": "可精确达到负目标",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "枚举所有分段会变化的整数阈值小范围，直接计算最终总和与目标差的绝对值。"
+        },
+        {
+          "input": "3\n10\n1 5 100\n2 3 50\n3 1 20",
+          "expected": "1",
+          "name": "目标落在中间和值",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "枚举所有分段会变化的整数阈值小范围，直接计算最终总和与目标差的绝对值。"
+        },
+        {
+          "input": "4\n7\n2 0 1\n2 8 9\n5 -3 4\n5 10 10",
+          "expected": "8",
+          "name": "阈值相等必须整体切换",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "枚举所有分段会变化的整数阈值小范围，直接计算最终总和与目标差的绝对值。"
+        },
+        {
+          "input": "5\n100\n-2 -10 1\n0 2 3\n4 -8 7\n9 1 -1\n12 5 20",
+          "expected": "70",
+          "name": "含负门槛值与负值属性",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "枚举所有分段会变化的整数阈值小范围，直接计算最终总和与目标差的绝对值。"
+        }
+      ]
+    },
+    "ai-2026/百度/089-相邻逆序交换洗牌.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "每组输出固定顺序的最终排列。"
+      },
+      "samples": [
+        {
+          "input": "1\n1 100\n1",
+          "expected": "1",
+          "name": "单元素无相邻对",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "按定义直接寻找最左下降并交换；小 k 用例只做有限次真实操作。"
+        },
+        {
+          "input": "1\n4 50\n1 2 3 4",
+          "expected": "1 2 3 4",
+          "name": "已升序操作空转",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "按定义直接寻找最左下降并交换；小 k 用例只做有限次真实操作。"
+        },
+        {
+          "input": "1\n4 1\n4 3 2 1",
+          "expected": "3 4 2 1",
+          "name": "只交换最左逆序",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "按定义直接寻找最左下降并交换；小 k 用例只做有限次真实操作。"
+        },
+        {
+          "input": "1\n4 100\n4 3 2 1",
+          "expected": "1 2 3 4",
+          "name": "大 k 收敛到升序",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "按定义直接寻找最左下降并交换；小 k 用例只做有限次真实操作。"
+        },
+        {
+          "input": "2\n3 0\n3 1 2\n5 3\n2 5 1 4 3",
+          "expected": "3 1 2\n1 2 4 5 3",
+          "name": "零次及一般三步",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "按定义直接寻找最左下降并交换；小 k 用例只做有限次真实操作。"
+        }
+      ]
+    },
+    "ai-2026/百度/090-蜂蜜回文数组最少搬运.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "每组输出最少单位搬运数或 -1。"
+      },
+      "samples": [
+        {
+          "input": "1\n1\n7",
+          "expected": "0",
+          "name": "单元素已是回文",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "枚举每对最终公共值的非负分配，直接最小化 L1 搬运量并除以二。"
+        },
+        {
+          "input": "1\n2\n1 2",
+          "expected": "-1",
+          "name": "偶数长度奇数和不可行",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "枚举每对最终公共值的非负分配，直接最小化 L1 搬运量并除以二。"
+        },
+        {
+          "input": "1\n4\n1 2 3 4",
+          "expected": "2",
+          "name": "每对都需调整",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "枚举每对最终公共值的非负分配，直接最小化 L1 搬运量并除以二。"
+        },
+        {
+          "input": "1\n4\n1 2 2 5",
+          "expected": "2",
+          "name": "成对耦合的反例",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "枚举每对最终公共值的非负分配，直接最小化 L1 搬运量并除以二。"
+        },
+        {
+          "input": "2\n3\n1 1 3\n5\n4 1 6 1 4",
+          "expected": "1\n0",
+          "name": "奇数长度多组",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "枚举每对最终公共值的非负分配，直接最小化 L1 搬运量并除以二。"
+        }
+      ]
+    },
+    "ai-2026/百度/091-连通图边权和最大化.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "每组输出最大边权和。"
+      },
+      "samples": [
+        {
+          "input": "1\n1\n5",
+          "expected": "0",
+          "name": "单节点无边",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "用受限增长串枚举全部无序分层，直接累加跨层 min(a_i,a_j) 并取最大。"
+        },
+        {
+          "input": "1\n2\n3 3",
+          "expected": "3",
+          "name": "两节点必须分两层",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "用受限增长串枚举全部无序分层，直接累加跨层 min(a_i,a_j) 并取最大。"
+        },
+        {
+          "input": "1\n2\n1 2",
+          "expected": "1",
+          "name": "两节点不等权时唯一交叉边",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "用受限增长串枚举全部无序分层，直接累加跨层 min(a_i,a_j) 并取最大。"
+        },
+        {
+          "input": "1\n4\n1 2 3 4",
+          "expected": "10",
+          "name": "递增权值",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "用受限增长串枚举全部无序分层，直接累加跨层 min(a_i,a_j) 并取最大。"
+        },
+        {
+          "input": "1\n5\n5 5 5 5 5",
+          "expected": "50",
+          "name": "全相等权值",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "用受限增长串枚举全部无序分层，直接累加跨层 min(a_i,a_j) 并取最大。"
+        },
+        {
+          "input": "2\n3\n9 1 5\n6\n2 7 3 6 1 4",
+          "expected": "7\n36",
+          "name": "多组不同权值",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "用受限增长串枚举全部无序分层，直接累加跨层 min(a_i,a_j) 并取最大。"
+        },
+        {
+          "input": "1\n3\n-5 -4 -3",
+          "expected": "-9",
+          "name": "全负权值最小内部和",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "独立枚举受限增长串表示的全部无序分层，直接累加跨层 min(a_i,a_j)；允许整数权值为负，不做非负假设。"
+        },
+        {
+          "input": "1\n3\n-3 -1 2",
+          "expected": "-4",
+          "name": "混合符号删负内部边",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "独立枚举受限增长串表示的全部无序分层，直接累加跨层 min(a_i,a_j)；允许整数权值为负，不做非负假设。"
+        },
+        {
+          "input": "1\n6\n1000000000 1000000000 1000000000 1000000000 1000000000 1000000000",
+          "expected": "15000000000",
+          "name": "十五亿级边权和",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "独立枚举受限增长串表示的全部无序分层，以 Python 任意精度整数直接累加跨层 min(a_i,a_j)。"
+        }
+      ]
+    },
+    "ai-2026/百度/092-刀盾分配最小总伤害.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "每组输出最小总伤害。"
+      },
+      "samples": [
+        {
+          "input": "1\n1 0 0 1\n0",
+          "expected": "0",
+          "name": "零伤害无道具",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "对每轮刀/盾/不用三种策略枚举全部分配并检查资源上限。"
+        },
+        {
+          "input": "1\n2 1 1 10\n5 100",
+          "expected": "0",
+          "name": "刀应留给最大伤害",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "对每轮刀/盾/不用三种策略枚举全部分配并检查资源上限。"
+        },
+        {
+          "input": "1\n3 0 2 5\n1 6 20",
+          "expected": "17",
+          "name": "盾多于有效防守轮",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "对每轮刀/盾/不用三种策略枚举全部分配并检查资源上限。"
+        },
+        {
+          "input": "1\n4 2 0 100\n9 8 7 6",
+          "expected": "13",
+          "name": "只有刀需挑选两轮",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "对每轮刀/盾/不用三种策略枚举全部分配并检查资源上限。"
+        },
+        {
+          "input": "2\n3 1 1 5\n10 20 2\n4 0 1 10\n100 20 20 10",
+          "expected": "7\n140",
+          "name": "多组资源分配",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "对每轮刀/盾/不用三种策略枚举全部分配并检查资源上限。"
+        }
+      ]
+    },
+    "ai-2026/百度/093-窗口内严格极峰位置.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "每组输出数量行与升序位置行。"
+      },
+      "samples": [
+        {
+          "input": "1\n1 0\n-5",
+          "expected": "1\n1",
+          "name": "d 为零单点必为峰",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "对每个位置直接扫描距离 d 内全部邻项，严格要求大于。"
+        },
+        {
+          "input": "1\n5 10\n1 2 3 4 5",
+          "expected": "1\n5",
+          "name": "窗口覆盖全数组",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "对每个位置直接扫描距离 d 内全部邻项，严格要求大于。"
+        },
+        {
+          "input": "1\n6 1\n1 3 2 2 4 0",
+          "expected": "2\n2 5",
+          "name": "相邻并列",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "对每个位置直接扫描距离 d 内全部邻项，严格要求大于。"
+        },
+        {
+          "input": "1\n7 2\n9 1 2 8 3 7 0",
+          "expected": "2\n1 4",
+          "name": "多个局部峰",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "对每个位置直接扫描距离 d 内全部邻项，严格要求大于。"
+        },
+        {
+          "input": "2\n4 0\n1 1 1 1\n5 1\n5 4 3 2 1",
+          "expected": "4\n1 2 3 4\n1\n1",
+          "name": "全并列与单调下降",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "对每个位置直接扫描距离 d 内全部邻项，严格要求大于。"
+        }
+      ]
+    },
+    "ai-2026/百度/094-雾幕聚光最终亮度.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "每组按位置顺序输出亮度数组。"
+      },
+      "samples": [
+        {
+          "input": "1\n1 0 0\n7",
+          "expected": "7",
+          "name": "无装置保持原值",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "逐位置扫描全部雾幕/聚光区间，直接取下界最大和上界最小后代入公式。"
+        },
+        {
+          "input": "1\n3 1 0\n1 2 3\n1 3 0",
+          "expected": "0 0 0",
+          "name": "雾幕全遮为负过",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "逐位置扫描全部雾幕/聚光区间，直接取下界最大和上界最小后代入公式。"
+        },
+        {
+          "input": "1\n4 0 2\n2 2 2 2\n1 2 5\n3 4 7",
+          "expected": "5 5 7 7",
+          "name": "仅聚光抬升",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "逐位置扫描全部雾幕/聚光区间，直接取下界最大和上界最小后代入公式。"
+        },
+        {
+          "input": "1\n5 2 2\n4 2 7 1 3\n2 4 3\n3 5 5\n1 3 6\n4 5 2",
+          "expected": "6 3 3 2 3",
+          "name": "上下界同时覆盖",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "逐位置扫描全部雾幕/聚光区间，直接取下界最大和上界最小后代入公式。"
+        },
+        {
+          "input": "1\n4 1 1\n0 5 9 1\n1 4 4\n2 3 20",
+          "expected": "0 4 4 1",
+          "name": "下界高于雾幕仍被截断",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "逐位置扫描全部雾幕/聚光区间，直接取下界最大和上界最小后代入公式。"
+        }
+      ]
+    },
+    "ai-2026/百度/095-可删去的-01-串计数.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "输出可删去字符串数量。"
+      },
+      "samples": [
+        {
+          "input": "1\n0",
+          "expected": "0",
+          "name": "单字符",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "理论性质：每次删除各一个 0/1，因此等量是必要条件；等量时总能删到一个连续异色边界直至清空。"
+        },
+        {
+          "input": "3\n01\n10\n0011",
+          "expected": "3",
+          "name": "所有等量小串",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "理论性质：每次删除各一个 0/1，因此等量是必要条件；等量时总能删到一个连续异色边界直至清空。"
+        },
+        {
+          "input": "4\n000111\n010101\n0110\n1110",
+          "expected": "3",
+          "name": "多种排列等量",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "理论性质：每次删除各一个 0/1，因此等量是必要条件；等量时总能删到一个连续异色边界直至清空。"
+        },
+        {
+          "input": "5\n000\n111\n001\n1100\n101010",
+          "expected": "2",
+          "name": "不等量与长交替",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "理论性质：每次删除各一个 0/1，因此等量是必要条件；等量时总能删到一个连续异色边界直至清空。"
+        },
+        {
+          "input": "2\n00001111\n000111",
+          "expected": "2",
+          "name": "长重复游程",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "理论性质：每次删除各一个 0/1，因此等量是必要条件；等量时总能删到一个连续异色边界直至清空。"
+        }
+      ]
+    },
+    "ai-2026/百度/096-循环血量怪物最少讨伐天数.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "每组输出最少天数。"
+      },
+      "samples": [
+        {
+          "input": "1\n1 1 5\n1",
+          "expected": "1",
+          "name": "首日即可击败",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "对天数候选直接逐日模拟血量相位和攻击力，计数成功日并二分最早可行天。"
+        },
+        {
+          "input": "1\n1 2 0\n3",
+          "expected": "5",
+          "name": "每轮仅一天成功",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "对天数候选直接逐日模拟血量相位和攻击力，计数成功日并二分最早可行天。"
+        },
+        {
+          "input": "1\n3 5 2\n1 3 2",
+          "expected": "6",
+          "name": "相位轮转计数",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "对天数候选直接逐日模拟血量相位和攻击力，计数成功日并二分最早可行天。"
+        },
+        {
+          "input": "1\n4 6 0\n5 1 5 1",
+          "expected": "16",
+          "name": "混合血量",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "对天数候选直接逐日模拟血量相位和攻击力，计数成功日并二分最早可行天。"
+        },
+        {
+          "input": "2\n2 3 1\n2 4\n3 4 0\n2 3 5",
+          "expected": "7\n13",
+          "name": "多组缓慢成长",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "对天数候选直接逐日模拟血量相位和攻击力，计数成功日并二分最早可行天。"
+        }
+      ]
+    },
+    "ai-2026/百度/097-相邻异或路径权值和.html": {
+      "checker": {
+        "mode": "tokens",
+        "reason": "每组输出路径权值和的模。"
+      },
+      "samples": [
+        {
+          "input": "1\n1",
+          "expected": "0",
+          "name": "无边的单点路径",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "按路径定义直接累加每条相邻边 i xor (i+1)，再用前缀公式交叉检查小 n 结果。"
+        },
+        {
+          "input": "3\n2 3 4",
+          "expected": "3\n4\n11",
+          "name": "连续小值",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "按路径定义直接累加每条相邻边 i xor (i+1)，再用前缀公式交叉检查小 n 结果。"
+        },
+        {
+          "input": "3\n7 8 15",
+          "expected": "16\n31\n48",
+          "name": "二进制进位边界",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "按路径定义直接累加每条相邻边 i xor (i+1)，再用前缀公式交叉检查小 n 结果。"
+        },
+        {
+          "input": "2\n16 31",
+          "expected": "79\n128",
+          "name": "跨二的四次幂",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "按路径定义直接累加每条相邻边 i xor (i+1)，再用前缀公式交叉检查小 n 结果。"
+        },
+        {
+          "input": "2\n63 64",
+          "expected": "320\n447",
+          "name": "连续跨幂边界",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "按路径定义直接累加每条相邻边 i xor (i+1)，再用前缀公式交叉检查小 n 结果。"
+        }
+      ]
+    },
+    "ai-2026/百度/098-区间平衡01串构造.html": {
+      "checker": {
+        "mode": "balanced-intervals",
+        "reason": "题面明确允许输出任意满足条件的 01 串；语义 checker 应校验长度、字符集以及每个给定区间内 0 与 1 数量相等。"
+      },
+      "samples": [
+        {
+          "input": "2\n2\n1 2\n1 2",
+          "expected": "01",
+          "name": "两个重复最短区间的最简合法构造",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "手工构造并核验：两个相同的 [1,2] 区间都恰含一个 0 和一个 1，且 m=2 满足偶数区间数约束。"
+        },
+        {
+          "input": "4\n2\n1 4\n2 3",
+          "expected": "0011",
+          "name": "全串与非交替内区间同时平衡",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "手工核验 [1,4]=0011、[2,3]=01，两个区间均各含一个 0 和一个 1；结果是非交替串。"
+        },
+        {
+          "input": "6\n2\n1 4\n3 6",
+          "expected": "001100",
+          "name": "两个重叠区间接受非交替构造",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "手工核验 [1,4]=0011、[3,6]=1100，两个重叠区间各含两个 0 和两个 1。"
+        },
+        {
+          "input": "7\n2\n1 2\n2 7",
+          "expected": "1010101",
+          "name": "奇数总长度与非全串区间",
+          "kind": "boundary",
+          "source": "supplemental",
+          "verification": "手工核验 [1,2]=10、[2,7]=010101，均各含相等数量的 0/1。"
+        },
+        {
+          "input": "8\n4\n1 8\n1 4\n5 8\n2 3",
+          "expected": "00111001",
+          "name": "多个嵌套区间接受非交替构造",
+          "kind": "typical",
+          "source": "supplemental",
+          "verification": "手工核验 [1,8]=00111001、[1,4]=0011、[5,8]=1001、[2,3]=01，均满足 0/1 各半且 m=4。"
+        },
+        {
+          "input": "10\n4\n1 10\n1 4\n7 10\n2 3",
+          "expected": "0011011100",
+          "name": "总长度大且首尾区间并列",
+          "kind": "adversarial",
+          "source": "supplemental",
+          "verification": "手工核验 [1,10]=0011011100、[1,4]=0011、[7,10]=1100、[2,3]=01，所有区间均平衡且 m=4。"
+        }
+      ]
+    }
+  }
+}

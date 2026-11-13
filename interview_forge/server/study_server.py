@@ -46,7 +46,6 @@ import argparse
 import getpass
 import hashlib
 import hmac
-import ipaddress
 import json
 import os
 import random
@@ -288,8 +287,23 @@ from interview_forge.services.community import (
 # DATA_DIR  数据目录（data/），放置 SQLite 文件；
 # DB_PATH   全部学习记录的唯一落盘位置（data/hot100-study.db）。
 from interview_forge.core.paths import AUTH_DB_PATH, DATA_DIR, DB_PATH, ROOT, USERS_DIR
+from interview_forge.core.client_ip import client_ip as resolve_client_ip
 from interview_forge.core.runtime import server_runtime
+from interview_forge.core.web_access import (
+    canonical_url_path,
+    is_admin_path,
+    is_public_get,
+    is_sensitive_path,
+    target_relative_path,
+)
 from interview_forge.runtime.task_manager import task_manager
+from interview_forge.services.catalog import public_catalog
+from interview_forge.services.registration import (
+    RegistrationError,
+    public_search_rate_limit,
+    register_with_email_code,
+    send_registration_code,
+)
 
 # Composition root: domain services consume this registry instead of importing
 # the HTTP assembly.  Capture the real module when imported normally.  The
@@ -531,7 +545,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
     # 管理页与登录页不显示反馈悬浮按钮，避免遮挡页面自身的操作区。
     FEEDBACK_WIDGET_SKIP_PATHS = {"/pages/login.html", "/pages/register.html", "/pages/admin.html", "/pages/ai-assistant.html"}
     # 页面增强脚本清单（v 参数用于更新缓存）：导航策略/认证胶囊/反馈/主题切换。
-    WIDGET_SCRIPTS = ["/assets/navigation-policy.js?v=2", "/assets/auth-widget.js?v=4", "/assets/feedback-widget.js?v=2", "/assets/theme-toggle.js?v=1"]
+    WIDGET_SCRIPTS = ["/assets/navigation-policy.js?v=2", "/assets/auth-widget.js?v=6", "/assets/feedback-widget.js?v=4", "/assets/theme-toggle.js?v=1"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
@@ -603,49 +617,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
         self.send_error(HTTPStatus.METHOD_NOT_ALLOWED)
 
     def _sensitive_path(self, decoded_path: str) -> bool:
-        """敏感/开发者内容判定：先规范化再匹配（防 /x/../data/auth.db 绕过），
-        且拒绝任何含 `..` 段的路径 —— SimpleHTTPRequestHandler.translate_path
-        会在落盘前再做一次 normpath，前缀黑名单必须以规范化后的路径为准。"""
-        import posixpath
-        # do_GET normally unquotes once before this check.  Unquote once more
-        # here to cover double-encoded traversal/case variants before the
-        # filesystem handler normalizes the path on Windows.
-        normalized = decoded_path or "/"
-        for _ in range(2):
-            unquoted = unquote(normalized)
-            if unquoted == normalized:
-                break
-            normalized = unquoted
-        # ``posixpath.normpath`` deliberately preserves exactly two leading
-        # slashes (POSIX implementation-defined network-path semantics).  The
-        # Windows static handler does not preserve that distinction and would
-        # still map ``//data/...`` to ROOT/data/..., so canonicalize the URL
-        # root before applying the sensitive-path allow/deny rules.
-        normalized = "/" + normalized.replace("\\", "/").lstrip("/")
-        normalized = posixpath.normpath(normalized)
-        lowered = normalized.lower()
-        if ".." in lowered.split("/"):
-            return True
-        # These reports are intentionally public release artifacts referenced
-        # by README/guide.  Markdown and every other docs file remain private.
-        public_docs = {
-            "/docs/qa-report.html",
-            "/docs/深度审查与修复报告-2026-09-08.html",
-            "/docs/学情分析ai专项审查报告.html",
-        }
-        if lowered in public_docs:
-            return False
-        # Allowlist, not a blacklist: keep the same web-facing surface as the
-        # FastAPI static router. Everything else (logs, deploy, scripts,
-        # tests, benchmarks, source and databases) is denied by default.
-        allowed_prefixes = ("/books/", "/library/", "/pages/", "/assets/", "/api/")
-        allowed_files = {
-            "/", "/index.html", "/cockpit.html", "/maintenance.html", "/guide.html",
-            "/manifest.webmanifest", "/service-worker.js", "/favicon.ico",
-        }
-        if lowered in allowed_files or lowered.startswith(allowed_prefixes):
-            return False
-        return True
+        return is_sensitive_path(decoded_path)
 
     def _access_gate(self, decoded_path: str) -> bool:
         """GET/HEAD 共用的安全门禁：敏感路径 404 + 登录门禁。
@@ -653,23 +625,31 @@ class StudyHandler(SimpleHTTPRequestHandler):
         # 敏感/开发者内容不对外：403 = 存在但禁止；404 = 不暴露存在性。
         # data/：数据库与凭证；tools/：服务端脚本；.git 与点文件：版本库与缓存；
         # .md 与 docs/：开发者文档（含部署信息）；maintenance/QA-REPORT：维护与校验报告。
-        if self._sensitive_path(decoded_path):
+        canonical = canonical_url_path(decoded_path)
+        self._gate_path = canonical
+        if canonical is None or self._sensitive_path(canonical):
+            self.send_error(HTTPStatus.NOT_FOUND)
+            return False
+        target_relative = target_relative_path(ROOT, canonical)
+        if target_relative is None or self._sensitive_path(target_relative):
             self.send_error(HTTPStatus.NOT_FOUND)
             return False
         # ---- 认证门禁：未登录页面跳登录页、API 回 401；管理页/管理 API 仅限管理员 ----
-        # 公开白名单：登录页、注册页、图标与健康检查。
         user = self.current_user()
         self._gate_user = user  # 复用给 do_GET，避免同请求二次查会话库
-        public_get = {"/pages/login.html", "/pages/register.html", "/favicon.ico", "/api/health"}
-        # 整个 /assets/ 都是公开前端资源（与 api/routers/static.py 保持一致）：
-        # 登录页注入的脚本也在这里，只豁免字体会让未登录时脚本被 307 成 HTML。
-        public_prefixes = ("/assets/",)
-        if user is None and decoded_path not in public_get                 and not decoded_path.startswith(public_prefixes):
-            if decoded_path.startswith("/api/"):
+        if is_admin_path(canonical) or is_admin_path(target_relative):
+            if user is None or str(user["role"]) != "admin":
+                if canonical.startswith("/api/"):
+                    self.send_json({"error": "需要管理员权限"}, HTTPStatus.FORBIDDEN)
+                else:
+                    self.send_error(HTTPStatus.FORBIDDEN)
+                return False
+        if user is None and not is_public_get(canonical):
+            if canonical.startswith("/api/"):
                 self.send_json({"error": "未登录"}, HTTPStatus.UNAUTHORIZED)
             else:
                 # next 只保留 .html 页面，避免登录后落到裸 CSS/JS 资源文件上。
-                next_path = decoded_path if decoded_path.lower().endswith(".html") else ""
+                next_path = canonical if canonical.lower().endswith(".html") else ""
                 next_suffix = f"?next={quote(next_path)}" if next_path else ""
                 self.send_response(HTTPStatus.TEMPORARY_REDIRECT)
                 self.send_header("Location", f"/pages/login.html{next_suffix}")
@@ -701,18 +681,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
         if not self._access_gate(decoded_path):
             return
         user = getattr(self, "_gate_user", None)
-        # 管理后台与工具箱（含 /pages/tools/ 下的工具子页面）都仅限管理员；
-        # 工具箱会随工具增加而扩展子页面，因此按前缀判定，避免新工具漏掉鉴权。
-        if (decoded_path == "/pages/admin.html"
-                or decoded_path == "/pages/tools.html"
-                or decoded_path.startswith("/pages/tools/")
-                or decoded_path.startswith("/api/admin/")):
-            if user is None or str(user["role"]) != "admin":
-                if decoded_path.startswith("/api/"):
-                    self.send_json({"error": "需要管理员权限"}, HTTPStatus.FORBIDDEN)
-                else:
-                    self.send_error(HTTPStatus.FORBIDDEN)
-                return
+        decoded_path = self._gate_path
         # 已登录用户的独立学习库：本请求内所有 /api/* 读写与浏览埋点都落到该库。
         db = user_db_path(str(user["username"])) if user is not None else DB_PATH
         # 根路径 302 重定向到书架首页 library/index.html："打开学习站"直达内容而非目录列表。
@@ -748,11 +717,28 @@ class StudyHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(blob)
             return
-        # /api/search：服务端全文搜索（?q=关键词），公网免下载索引。
+        # /api/catalog：公开只读学习目录元数据，不含账号或学习状态。
+        if parsed.path == "/api/catalog":
+            try:
+                self.send_json(public_catalog())
+            except (OSError, ValueError, TypeError):
+                self.send_json({"error": "公开目录暂时不可用"}, HTTPStatus.INTERNAL_SERVER_ERROR)
+            return
+        # /api/search：服务端全文搜索（?q=关键词），游客可用但有跨进程限流。
         if parsed.path == "/api/search":
             params = {key: values[0] for key, values in parse_qs(parsed.query).items()}
             try:
-                self.send_json({"items": search_index_server(params.get("q", ""))})
+                query = params.get("q", "")
+                if len(query) > 120:
+                    self.send_json({"error": "搜索词不能超过 120 个字符"}, HTTPStatus.BAD_REQUEST)
+                    return
+                if user is None:
+                    public_search_rate_limit(self.client_ip())
+                items = search_index_server(query)
+                self.send_json({"items": items, "count": len(items), "has_more": False})
+            except RegistrationError as exc:
+                extra = [("Retry-After", str(exc.retry_after))] if exc.retry_after else None
+                self.send_json({"error": exc.message, "error_category": exc.category}, HTTPStatus(exc.status), extra_headers=extra)
             except (OSError, ValueError, json.JSONDecodeError):
                 self.send_json({"error": "搜索索引不可用"}, HTTPStatus.INTERNAL_SERVER_ERROR)
             return
@@ -1178,14 +1164,14 @@ class StudyHandler(SimpleHTTPRequestHandler):
         # （不会误入静态文件服务）。
         parsed = urlparse(self.path)
         path = parsed.path
-        public_post = {"/api/login", "/api/register", "/api/feedback"}
+        public_post = {"/api/login", "/api/register/send-code", "/api/register"}
         admin_post = {"/api/admin/codes", "/api/admin/codes/revoke", "/api/admin/users/toggle",
                       "/api/admin/users/role", "/api/admin/users/nickname/reset",
                       "/api/admin/users/ai-quota/reset", "/api/admin/users/ai-quota/limit",
                       "/api/admin/users/reset-password",
                       "/api/admin/feedback/resolve", "/api/admin/chat/delete"}
         known_post = public_post | admin_post | {
-            "/api/logout", "/api/password", "/api/profile", "/api/chat/send", "/api/complete",
+            "/api/feedback", "/api/logout", "/api/password", "/api/profile", "/api/chat/send", "/api/complete",
             "/api/weather/preferences",
             "/api/content/complete", "/api/mark", "/api/settings", "/api/submit",
             "/api/favorites/toggle", "/api/favorites/remove",
@@ -1230,6 +1216,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
         db = user_db_path(str(user["username"])) if user is not None else DB_PATH
         learning_write_path = path in _ANALYTICS_WRITE_PATHS
         cookie_headers: list[tuple[str, str]] = []
+        response_status = HTTPStatus.CREATED
         try:
             # 请求体约束：必须是 JSON 且 1~4096 字节（/api/profile 例外：头像 base64
             # 膨胀 1.33 倍后仍需容纳 150KB 图片，上限放宽到 220KB），空体/超大直接拒绝。
@@ -1353,7 +1340,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
                 token = create_session(int(row_user["id"]))
                 cookie_headers.append(("Set-Cookie", self.session_cookie(token)))
                 result = {"ok": True, "username": str(row_user["username"]), "role": str(row_user["role"])}
-            # /api/feedback：公开的 Bug/问题反馈（频控防灌水），由悬浮按钮提交。
+            # /api/feedback：登录用户的 Bug/问题反馈（频控防灌水），由悬浮按钮提交。
             elif path == "/api/feedback":
                 fb_ip = self.client_ip()
                 if not feedback_rate_limit_ok(fb_ip):
@@ -1364,18 +1351,20 @@ class StudyHandler(SimpleHTTPRequestHandler):
                     str(payload.get("contact", "")),
                     str(payload.get("page", "")),
                     self.headers.get("User-Agent", ""),
-                    str(user["username"]) if user is not None else "",
+                    str(user["username"]),
                 )
-            # /api/register：注册码注册 —— 频控 → 原子兑换码 + 建用户 + 初始化独立学习库，成功即自动登录。
+            # /api/register/send-code：SQLite 原子限额 -> 哈希验证码 -> 公共 SMTP 发送。
+            elif path == "/api/register/send-code":
+                result = send_registration_code(payload.get("email", ""), self.client_ip())
+                response_status = HTTPStatus.OK
+            # /api/register：邮箱验证码一次性兑换 + 唯一邮箱建用户，成功即自动登录。
             elif path == "/api/register":
-                reg_ip = self.client_ip()
-                if not register_rate_limit_ok(reg_ip):
-                    raise ValueError("注册尝试过于频繁，请稍后再试")
-                register_rate_limit_record(reg_ip)
-                row_user = register_with_code(
-                    str(payload.get("username", "")),
-                    str(payload.get("password", "")),
-                    str(payload.get("code", "")),
+                row_user = register_with_email_code(
+                    payload.get("email", ""),
+                    payload.get("username", ""),
+                    payload.get("password", ""),
+                    payload.get("code", ""),
+                    self.client_ip(),
                 )
                 token = create_session(int(row_user["id"]))
                 cookie_headers.append(("Set-Cookie", self.session_cookie(token)))
@@ -1595,6 +1584,13 @@ class StudyHandler(SimpleHTTPRequestHandler):
                 clear_credentials(db)
                 lc_status_invalidate(db)
                 result = {"cleared": True}
+        except RegistrationError as exc:
+            extra = [("Retry-After", str(exc.retry_after))] if exc.retry_after else None
+            response: dict[str, object] = {"error": exc.message, "error_category": exc.category}
+            if exc.retry_after:
+                response["retry_after"] = exc.retry_after
+            self.send_json(response, HTTPStatus(exc.status), extra_headers=extra)
+            return
         except LeetCodeSyncError as exc:
             self.send_json(
                 {"error": exc.user_message, "error_category": exc.category},
@@ -1648,7 +1644,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
         elif path not in public_post and path != "/api/coach/context":
             _invalidate_dashboard_cache(db)
         # POST 创建/更新资源成功统一回 201 Created；send_json 内部附加 CORS 与 Set-Cookie 头。
-        self.send_json(result, HTTPStatus.CREATED, extra_headers=cookie_headers)
+        self.send_json(result, response_status, extra_headers=cookie_headers)
 
     def session_cookie(self, token: str, expire: bool = False) -> str:
         """会话 Cookie：HttpOnly + SameSite=Lax（Lax 阻断跨站 POST 携带 Cookie，天然防 CSRF）。
@@ -1667,29 +1663,9 @@ class StudyHandler(SimpleHTTPRequestHandler):
         return f"{SESSION_COOKIE}={token}; Path=/; HttpOnly; SameSite=Lax{secure}; Max-Age={max_age}"
 
     def client_ip(self) -> str:
-        """客户端真实 IP：经 Cloudflare Tunnel（cloudflared 走本机回环）时，socket 对端
-        恒为 127.0.0.1，此时改取可信反代明确覆盖的 X-Real-IP，兼容 CF-Connecting-IP；
-        若仅有 X-Forwarded-For 则取最右侧合法地址（nginx $proxy_add_x_forwarded_for
-        会把客户端可伪造链放在左侧）；其余情况用 socket 对端地址。"""
+        """Resolve client IP only through explicitly configured trusted proxies."""
         peer = self.client_address[0] if self.client_address else ""
-        if peer in ("127.0.0.1", "::1"):
-            # Only trust forwarding headers from the loopback proxy.  Prefer
-            # headers explicitly overwritten by the proxy.  With nginx
-            # $proxy_add_x_forwarded_for, the left side is client-controlled,
-            # so use the rightmost valid address from the chain instead.
-            for header_name in ("X-Real-IP", "CF-Connecting-IP"):
-                candidate = (self.headers.get(header_name) or "").strip()
-                try:
-                    return str(ipaddress.ip_address(candidate))
-                except ValueError:
-                    continue
-            forwarded = self.headers.get("X-Forwarded-For") or ""
-            for candidate in reversed(forwarded.split(",")):
-                try:
-                    return str(ipaddress.ip_address(candidate.strip()))
-                except ValueError:
-                    continue
-        return peer
+        return resolve_client_ip(peer, self.headers)
 
     def current_token(self) -> str:
         """从 Cookie 头提取会话令牌（登出时用于删除服务端会话行）。"""

@@ -21,6 +21,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from scripts.build.build_html_site import render_markdown  # noqa: E402
+from scripts.build.acm_samples import append_cases, merge_reviewed_cases  # noqa: E402
+from scripts.build.acm_fixes import apply_reviewed_fixes  # noqa: E402
 
 SRC = ROOT / "books" / "ai-exam"
 CODING = ROOT / "assets" / "ai-exam-coding.json"
@@ -420,15 +422,17 @@ def practice_entry(entry: dict, *, python_code: str, java_code: str, samples: li
 
 
 def parse_markdown_samples(text: str) -> list[dict[str, str]]:
-    """提取公司 OJ Markdown 中“输入/输出”代码块；没有明确成对结构则返回空。"""
-    match = re.search(
-        r"##\s*(?:示例|样例)[^\n]*\n.*?输入[：:]\s*```[^\n]*\n(.*?)```\s*输出[：:]\s*```[^\n]*\n(.*?)```",
-        text,
-        flags=re.S,
-    )
-    if not match:
-        return []
-    return [{"input": match.group(1).strip("\n"), "expected": match.group(2).strip("\n")}]
+    """提取每个示例节的明确输入/输出对，不跨到题解代码中配对。"""
+    result = []
+    sections = re.finditer(r"^##\s*(?:示例|样例)[^\n]*\n(.*?)(?=^##\s|\Z)", text, re.M | re.S)
+    for section in sections:
+        pairs = re.finditer(
+            r"输入[：:]\s*```[^\n]*\n(.*?)```\s*输出[：:]\s*```[^\n]*\n(.*?)```",
+            section.group(1), re.S,
+        )
+        for match in pairs:
+            result.append({"input": match.group(1).strip("\n"), "expected": match.group(2).strip("\n")})
+    return result
 
 
 def parse_markdown_code(text: str, language: str) -> str:
@@ -438,13 +442,21 @@ def parse_markdown_code(text: str, language: str) -> str:
 
 def write_practice_meta(entries: list[dict]) -> None:
     items = [entry["practice"] for entry in entries if entry.get("practice") and entry["practice"].get("samples")]
+    # The reviewed Java overrides are applied to Markdown before rendering.
+    # Carry exactly those published programs, rather than stale translations.
+    for item in items:
+        text = (SRC / item["url"]).with_suffix(".md").read_text(encoding="utf-8")
+        for language in ("python", "java"):
+            code = parse_markdown_code(text, language)
+            if code:
+                item["codes"][language] = code
     (SRC / "practice-meta.json").write_text(
         json.dumps(items, ensure_ascii=False, indent=1) + "\n", encoding="utf-8"
     )
 
 
 def apply_extra_samples(entries: list[dict]) -> None:
-    """合并人工补充的可见样例；不覆盖已有样例，避免把已解析数据做二次转换。"""
+    """追加人工样例，保留题面样例；相同输入输出只收录一次。"""
     if not EXTRA_SAMPLES.exists():
         return
     data = json.loads(EXTRA_SAMPLES.read_text(encoding="utf-8"))
@@ -456,18 +468,7 @@ def apply_extra_samples(entries: list[dict]) -> None:
         entry = by_url.get(url)
         if not entry or not entry.get("practice") or not isinstance(samples, list):
             continue
-        if entry["practice"].get("samples"):
-            continue
-        clean = []
-        for sample in samples:
-            if not isinstance(sample, dict):
-                continue
-            input_text = str(sample.get("input", ""))
-            expected = str(sample.get("expected", ""))
-            if input_text.strip() or expected.strip():
-                clean.append({"input": input_text, "expected": expected})
-        if clean:
-            entry["practice"]["samples"] = clean
+        append_cases(entry["practice"], samples, source="supplemental")
 
 
 
@@ -590,6 +591,22 @@ def build_company_oj(translations: dict[str, dict[str, str]]) -> list[dict]:
 
 
 def build_index(entries: list[dict]) -> None:
+    runnable = [entry["practice"] for entry in entries if entry.get("practice", {}).get("samples")]
+    total_cases = sum(len(item["samples"]) for item in runnable)
+    suite_note = (
+        f'<p class="exam-suite-note">{len(runnable)} 道题可运行，共 {total_cases} 组公开用例。'
+        '进入题目后点击代码旁的「运行代码」，再选择「运行全部用例」。'
+        '用例包含题面样例和站内补充；通过不代表通过原平台完整评测，多解题按页面提示核对。</p>'
+    )
+    def case_label(entry: dict) -> str:
+        practice = entry.get("practice", {})
+        samples = practice.get("samples", [])
+        if not samples:
+            return ""
+        label = f" · {len(samples)} 组用例"
+        if practice.get("checker", {}).get("mode") == "manual":
+            label += " · 需核对"
+        return label
     groups = [
         ("ai-2026", "① 2026 大厂 AI 岗机试", "按公司分组，来源页披露的题干、思路与代码"),
         ("ai-agent", "② AI/Agent 手撕代码题", "模型基础算子、检索排序、工具/Agent 运行时、可观测与多 Agent"),
@@ -610,12 +627,12 @@ def build_index(entries: list[dict]) -> None:
                 company_entries = [entry for entry in group_entries if entry["company"] == company]
                 rows.append(f'<li class="exam-sub"><b>{esc(company)}</b> · {len(company_entries)} 题</li>')
                 rows += [
-                    f'<li data-k="{esc(entry["key"])}" data-company="{esc(entry["company"])}" data-lang="{esc(entry["lang"])}"><a href="{esc(entry["url"])}">{esc(entry["title"])}<span class="meta">{esc(entry["date"] or "")} · {esc(entry["lang"])}</span></a></li>'
+                    f'<li data-k="{esc(entry["key"])}" data-company="{esc(entry["company"])}" data-lang="{esc(entry["lang"])}"><a href="{esc(entry["url"])}">{esc(entry["title"])}<span class="meta">{esc(entry["date"] or "")} · {esc(entry["lang"])}{case_label(entry)}</span></a></li>'
                     for entry in sorted(company_entries, key=lambda item: (item["date"], item["title"]))
                 ]
         else:
             rows = [
-                f'<li data-k="{esc(entry["key"])}" data-company="{esc(entry["company"])}" data-lang="{esc(entry["lang"])}"><a href="{esc(entry["url"])}">{esc(entry["title"])}<span class="meta">{esc(entry["company"])} · {esc(entry["lang"])}</span></a></li>'
+                f'<li data-k="{esc(entry["key"])}" data-company="{esc(entry["company"])}" data-lang="{esc(entry["lang"])}"><a href="{esc(entry["url"])}">{esc(entry["title"])}<span class="meta">{esc(entry["company"])} · {esc(entry["lang"])}{case_label(entry)}</span></a></li>'
                 for entry in sorted(group_entries, key=lambda item: item["title"])
             ]
         sections.append(
@@ -630,7 +647,7 @@ def build_index(entries: list[dict]) -> None:
         '<header class="site-topbar" style="max-width:1180px;width:calc(100% - 100px);margin:16px auto 6px"><a class="site-brand" href="../../index.html">Hot 100 深度学习库</a><nav aria-label="主导航" class="site-nav"><a href="../../index.html">题目面板</a><a href="../../cockpit.html">中控台</a><a href="../../library/index.html">学习书架</a><a href="../../books/hot100/00-总览/01-学习路线.html">学习路线</a><a href="../../books/hot100/00-总览/02-算法模式地图.html">模式地图</a><a href="../../books/hot100/00-总览/03-复习清单.html">复习清单</a><a href="../../pages/leetcode-connect.html">力扣连接</a></nav></header>'
         '<div class="exam-shell"><nav class="page-nav" aria-label="面包屑"><a href="../../library/index.html">📚 学习书架</a><span aria-hidden="true">›</span><span aria-current="page">AI 岗机试真题库</span></nav>'
         '<header style="margin:8px 0 18px"><h1 style="margin:0 0 6px;font-size:26px">AI 岗机试真题库</h1><p style="margin:0;font-size:13.5px;color:var(--muted)">共 ' + str(len(entries)) + ' 题：2026 大厂 AI/算法岗机试 + AI/Agent 手撕题 + 企业机考真题。每道题有独立页面与目录；代码语言按题目可用项显示。</p></header>'
-        '<div class="exam-tools"><input id="q" class="exam-search" type="search" placeholder="搜索题目、公司或关键词（如 华为 / 动态规划 / Agent）"><select id="company" class="exam-select"><option value="">全部公司</option>' + ''.join(f'<option value="{esc(name)}">{esc(name)}</option>' for name in sorted({entry["company"] for entry in entries})) + '</select></div>'
+        + suite_note + '<div class="exam-tools"><input id="q" class="exam-search" type="search" placeholder="搜索题目、公司或关键词（如 华为 / 动态规划 / Agent）"><select id="company" class="exam-select"><option value="">全部公司</option>' + ''.join(f'<option value="{esc(name)}">{esc(name)}</option>' for name in sorted({entry["company"] for entry in entries})) + '</select></div>'
         '<div class="exam-layout"><nav class="exam-nav" aria-label="分组">' + ''.join(nav) + '</nav><div>' + ''.join(sections) + '</div></div></div>' + SEARCH_JS + '</body></html>'
     )
     (SRC / "index.html").write_text(page, encoding="utf-8")
@@ -648,7 +665,9 @@ def apply_java_overrides() -> None:
         if not target.exists():
             continue
         text = target.read_text(encoding="utf-8")
-        text = re.sub(r"```java\n.*?```", "```java\n" + code.strip() + "\n```", text, count=1, flags=re.S)
+        # A string replacement interprets Java '\\n' as an actual newline,
+        # corrupting character/string literals. A callable preserves source.
+        text = re.sub(r"```java\n.*?```", lambda _match: "```java\n" + code.strip() + "\n```", text, count=1, flags=re.S)
         target.write_text(text, encoding="utf-8")
 
 
@@ -671,7 +690,9 @@ def main() -> None:
     translations = load_translations()
     entries = build_ai_coding(translations) + build_agent_doc(translations) + build_company_oj(translations)
     apply_extra_samples(entries)
+    merge_reviewed_cases(entries)
     apply_java_overrides()
+    apply_reviewed_fixes(entries)
     cleanup_stale(entries)
     # 先渲染 AI/Agent/企业 OJ 的 Markdown；页内的语言小节由 build_html_site 处理。
     for md in (sorted((SRC / "ai-2026").glob("*/*.md")) if (SRC / "ai-2026").exists() else []):

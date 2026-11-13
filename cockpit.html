@@ -6,6 +6,7 @@
 <meta name="color-scheme" content="light dark">
 <script src="assets/time-utils.js?v=2"></script>
 <script src="assets/ui.js?v=1"></script>
+<script src="assets/guest-auth.js?v=2"></script>
 <title>学习中控台 · InterviewForge</title>
 <style>
 :root{
@@ -142,6 +143,10 @@ overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .intro{border:1px solid var(--line);border-radius:var(--radius-4);background:var(--panel);
 box-shadow:var(--shadow);padding:16px 20px;color:var(--muted);font-size:13px}
 .intro b{color:var(--text)}
+.guest-mode{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:18px 20px;border:1px solid color-mix(in srgb,var(--brand) 30%,var(--line));border-radius:var(--radius-4);background:linear-gradient(135deg,var(--brand-soft),var(--panel));box-shadow:var(--shadow);margin-bottom:18px}
+.guest-mode[hidden]{display:none}.guest-mode strong{display:block;font-size:17px}.guest-mode p{margin-top:3px;color:var(--muted);font-size:13px}.guest-mode-actions{display:flex;gap:8px;flex-wrap:wrap}.guest-mode-actions a{padding:8px 13px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--text);font-size:13px;font-weight:700;text-decoration:none}.guest-mode-actions .primary{border-color:var(--brand);background:var(--brand);color:#fff}
+body.auth-checking .auth-private,body.is-guest .auth-private,body.auth-error .auth-private{display:none!important}
+body.is-guest .hero-grid,body.auth-error .hero-grid,body.auth-checking .hero-grid{grid-template-columns:minmax(0,1fr)}
 @media(prefers-reduced-motion:no-preference){
 .bento,.entries{animation:rise .35s var(--ease-out)}}
 @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
@@ -220,7 +225,7 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
 </style>
 
 </head>
-<body>
+<body class="auth-checking">
 <div class="shell">
   <div class="hero">
     <div class="hero-grid">
@@ -229,10 +234,10 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
           <div class="clock" id="clock" aria-label="当前时间"><span class="clock-main" id="clock-main">--:--</span><span class="clock-seconds" id="clock-seconds">--</span></div>
         </div>
         <div class="g-day" id="gday">—</div>
-        <div class="greet"><div class="g-hello" id="ghello">你好</div><div class="hero-subtitle">今天该复习什么，已经替你排好</div></div>
+        <div class="greet"><div class="g-hello" id="ghello">你好</div><div class="hero-subtitle" id="heroSubtitle">正在确认账号状态；题解、书架和搜索仍可直接访问</div></div>
         <div class="learning-pills" aria-label="学习方式"><span class="learning-pill">识别模式</span><span class="learning-pill">独立实现</span><span class="learning-pill">间隔重复</span><span class="learning-pill">学习可追踪</span></div>
       </div>
-      <section class="weather-card" aria-labelledby="weather-place">
+      <section class="weather-card auth-private" aria-labelledby="weather-place">
         <div class="weather-head"><span class="weather-place" id="weather-place">南京</span><span class="weather-state" id="weather-state" aria-live="polite">天气加载中…</span></div>
         <div class="weather-main" id="weather-main"><span class="weather-icon" id="weather-icon" aria-hidden="true">🌤️</span><strong class="weather-temp" id="weather-temp">--°</strong><span class="weather-condition"><span class="weather-desc" id="weather-desc">等待天气数据</span><span class="weather-feels" id="weather-feels">体感 --°</span></span></div>
         <div class="weather-details"><div class="weather-datum"><span>最高</span><strong id="weather-high">--°</strong></div><div class="weather-datum"><span>最低</span><strong id="weather-low">--°</strong></div><div class="weather-datum"><span>降水</span><strong id="weather-rain">--%</strong></div></div>
@@ -241,6 +246,8 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
       </section>
     </div>
   </div>
+
+  <section class="guest-mode" id="guestMode" hidden aria-live="polite"><div><strong id="guestModeTitle">游客模式</strong><p id="guestModeCopy">Hot 100 题解、学习书架、全文搜索与公开专题均可直接阅读；登录后可记录进度、同步力扣和使用 AI 分析。</p></div><div class="guest-mode-actions"><a id="guestLoginLink" href="pages/login.html">登录</a><a class="primary" id="guestRegisterLink" href="pages/register.html">注册</a></div></section>
 
   <div class="weather-modal" id="weather-modal" hidden>
     <div class="weather-dialog" role="dialog" aria-modal="true" aria-labelledby="weather-modal-title">
@@ -259,7 +266,7 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
     </div>
   </div>
 
-  <div class="bento">
+  <div class="bento auth-private">
     <div class="card">
       <h2>今日概览</h2>
       <div class="stats">
@@ -371,6 +378,37 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
 
 <script>
 (function () {
+  var guestAuth = window.InterviewForgeGuestAuth;
+  var authStatus = "checking";
+  var activeSessionKey = "";
+  function paintAuthState(session) {
+    authStatus = session && session.status || "error";
+    var user = session && session.user || null;
+    document.body.classList.remove("auth-checking", "is-authenticated", "is-guest", "auth-error");
+    document.body.classList.add(authStatus === "authenticated" ? "is-authenticated" : authStatus === "guest" ? "is-guest" : "auth-error");
+    document.getElementById("guestMode").hidden = authStatus === "authenticated";
+    document.getElementById("guestModeTitle").textContent = authStatus === "error" ? "登录状态暂未确认" : "游客模式";
+    document.getElementById("guestModeCopy").textContent = authStatus === "error"
+      ? "题解、书架与搜索不受影响。当前网络暂无法确认账号状态，可稍后重试，或先登录/注册；完成后会回到中控台。"
+      : "Hot 100 题解、学习书架、全文搜索与公开专题均可直接阅读；登录后可记录进度、同步力扣和使用 AI 分析。";
+    var page = location.pathname + location.search + location.hash;
+    document.getElementById("guestLoginLink").href = guestAuth.authHref("/pages/login.html", page);
+    document.getElementById("guestRegisterLink").href = guestAuth.authHref("/pages/register.html", page);
+    if (authStatus === "authenticated" && user) {
+      document.getElementById("ghello").textContent = greet(new Date()) + "，" + (user.nickname || user.username);
+      document.getElementById("heroSubtitle").textContent = "今天该复习什么，已经替你排好";
+      var toolsEntry = document.getElementById("entry-tools");
+      if (toolsEntry) toolsEntry.hidden = user.role !== "admin";
+    } else {
+      document.getElementById("ghello").textContent = authStatus === "error" ? "你好，游客 · 登录状态待确认" : "你好，游客";
+      document.getElementById("heroSubtitle").textContent = "先看题解和书架；登录后可保存进度、同步力扣并使用 AI";
+      document.getElementById("entry-tools").hidden = true;
+      stopAiWaiting();
+      if (aiPollTimer) { clearTimeout(aiPollTimer); aiPollTimer = null; }
+      document.getElementById("ai-coach-card").hidden = true;
+    }
+  }
+
   if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
     window.addEventListener("load", function () {
       navigator.serviceWorker.register("/service-worker.js", { updateViaCache: "none" }).then(function (registration) {
@@ -432,7 +470,7 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
     return error;
   }
 
-  function api(path, options) {
+  function api(path, options, feature) {
     var request = Object.assign({ headers: { "Content-Type": "application/json" }, cache: "no-store" }, options || {});
     var requestUrl = String(path);
     var endpoint = requestUrl.split("?", 1)[0];
@@ -440,28 +478,33 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
     var controller = new AbortController();
     request.signal = controller.signal;
     var timer = setTimeout(function () { controller.abort(); }, 12000);
-    return fetch(requestUrl, request).then(function (r) {
-      return r.text().then(function (text) {
-        if (r.status === 401) {
-          location.replace("/pages/login.html?next=" + encodeURIComponent("/cockpit.html"));
-          throw makeApiError(endpoint, 401, "unauthorized", "登录状态已失效，请重新登录");
-        }
-        var data = null;
-        if (text) {
-          try { data = JSON.parse(text); }
-          catch (error) { throw makeApiError(endpoint, r.status, "invalid_json", "服务响应格式异常"); }
-        }
-        if (!r.ok) {
-          var message = r.status >= 500 ? "服务暂时不可用" : (r.status === 404 ? "请求的内容不存在" : "请求未成功");
-          throw makeApiError(endpoint, r.status, "http_error", message);
-        }
-        return { ok: true, data: data };
-      });
-    }).catch(function (error) {
-      if (error && error.category) throw error;
-      throw makeApiError(endpoint, 0, error && error.name === "AbortError" ? "timeout" : "network",
-        error && error.name === "AbortError" ? "请求超时，请稍后重试" : "网络暂时不可用，请稍后重试");
-    }).finally(function () { clearTimeout(timer); });
+    return guestAuth.requireUser(feature || "使用中控台个人功能").then(function () {
+      return fetch(requestUrl, request).then(function (r) {
+        return r.text().then(function (text) {
+          if (r.status === 401) {
+            guestAuth.markGuest("unauthorized");
+            throw makeApiError(endpoint, 401, "unauthorized", "登录状态已失效，请重新登录后继续");
+          }
+          var data = null;
+          if (text) {
+            try { data = JSON.parse(text); }
+            catch (error) { throw makeApiError(endpoint, r.status, "invalid_json", "服务响应格式异常"); }
+          }
+          if (!r.ok) {
+            var message = r.status >= 500 ? "服务暂时不可用" : (r.status === 404 ? "请求的内容不存在" : "请求未成功");
+            throw makeApiError(endpoint, r.status, "http_error", message);
+          }
+          return { ok: true, data: data };
+        });
+      }).catch(function (error) {
+        if (error && error.category) throw error;
+        throw makeApiError(endpoint, 0, error && error.name === "AbortError" ? "timeout" : "network",
+          error && error.name === "AbortError" ? "请求超时，请稍后重试" : "网络暂时不可用，请稍后重试");
+      }).finally(function () { clearTimeout(timer); });
+    }, function (error) {
+      clearTimeout(timer);
+      throw error;
+    });
   }
   function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
 
@@ -1125,19 +1168,25 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
     });
   });
 
-  api("/api/me").then(function (res) {
-    document.getElementById("ghello").textContent = greet(new Date()) + "，" + (res.data.nickname || res.data.username);
-    if (res.data.role === "admin") {
-      // 工具箱仅管理员可见；管理后台入口在右下角账号胶囊里，不占首页入口位。
-      var toolsEntry = document.getElementById("entry-tools");
-      if (toolsEntry) toolsEntry.hidden = false;
+  function activateAuthSession(session) {
+    if (!session || session.status === "checking") return;
+    paintAuthState(session);
+    if (session.status !== "authenticated") {
+      activeSessionKey = "";
+      return;
     }
+    var key = String(session.user && (session.user.id || session.user.username) || "authenticated");
+    if (activeSessionKey === key) return;
+    activeSessionKey = key;
     loadWeather();
     loadBootstrap();
     loadPlan();
-  }).catch(function (error) {
-    if (error && error.category === "unauthorized") return;
-    if (window.console && typeof console.warn === "function") console.warn("[cockpit module] session", error);
+  }
+  document.addEventListener("interviewforge:auth-change", function (event) {
+    if (event && event.detail && event.detail.status !== "checking") activateAuthSession(event.detail);
+  });
+  guestAuth.ready().then(activateAuthSession).catch(function (error) {
+    paintAuthState({ status: "error", reason: error && error.message || "session_check_failed" });
   });
 
   tick();
@@ -1171,8 +1220,11 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
   var mask = document.getElementById("annMask");
   var returnFocus = document.activeElement;
   var ok = document.getElementById("annOk");
-  mask.classList.add("open");
-  ok.focus();
+  window.InterviewForgeGuestAuth.ready().then(function (session) {
+    if (!session || session.status !== "authenticated") return;
+    mask.classList.add("open");
+    ok.focus();
+  }).catch(function () {});
   function closeAnnouncement() {
     try { localStorage.setItem(KEY, VERSION); } catch (e) {}
     mask.classList.remove("open");

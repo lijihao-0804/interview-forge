@@ -7,21 +7,20 @@ from fastapi import APIRouter, Request
 from fastapi.responses import Response
 
 from interview_forge.api.support import (
-    async_current_user, async_require_user, client_ip, current_user,
+    async_require_user, client_ip, current_user,
     error_response, json_response, read_json, require_user, service_error, session_cookie,
 )
 from interview_forge.core.rate_limit import (
     login_rate_limit_clear, login_rate_limit_fail, login_rate_limit_ok,
-    register_rate_limit_ok, register_rate_limit_record,
 )
 from interview_forge.services.auth import (
     auth_login, change_own_password, create_session, destroy_session,
-    register_with_code,
 )
 from interview_forge.services.community import (
     feedback_rate_limit_ok, feedback_rate_limit_record, get_avatar, get_profile,
     set_profile, submit_feedback,
 )
+from interview_forge.services.registration import register_with_email_code, send_registration_code
 
 router = APIRouter()
 
@@ -74,17 +73,31 @@ async def login(request: Request):
         return _handled(exc, write=True)
 
 
+@router.post("/api/register/send-code")
+async def register_send_code(request: Request):
+    try:
+        payload = await read_json(request)
+        result = await asyncio.to_thread(
+            send_registration_code,
+            payload.get("email", ""),
+            client_ip(request),
+        )
+        return json_response(result)
+    except BaseException as exc:
+        return _handled(exc, write=True)
+
+
 @router.post("/api/register")
 async def register(request: Request):
     try:
         payload = await read_json(request)
-        ip = client_ip(request)
-        if not register_rate_limit_ok(ip):
-            raise ValueError("注册尝试过于频繁，请稍后再试")
-        register_rate_limit_record(ip)
         user = await asyncio.to_thread(
-            register_with_code, str(payload.get("username", "")), str(payload.get("password", "")),
-            str(payload.get("code", ""))
+            register_with_email_code,
+            payload.get("email", ""),
+            payload.get("username", ""),
+            payload.get("password", ""),
+            payload.get("code", ""),
+            client_ip(request),
         )
         token = await asyncio.to_thread(create_session, int(user["id"]))
         response = json_response({"ok": True, "username": str(user["username"]), "role": str(user["role"])}, 201)
@@ -172,17 +185,19 @@ def avatar(request: Request, username: str):
 
 @router.post("/api/feedback")
 async def feedback(request: Request):
+    user, denied = await async_require_user(request)
+    if denied is not None:
+        return denied
     try:
         payload = await read_json(request)
         ip = client_ip(request)
         if not feedback_rate_limit_ok(ip):
             raise ValueError("提交过于频繁，请稍后再试")
         feedback_rate_limit_record(ip)
-        user = await async_current_user(request)
         result = await asyncio.to_thread(
             submit_feedback, str(payload.get("content", "")), str(payload.get("contact", "")),
             str(payload.get("page", "")), request.headers.get("user-agent", ""),
-            str(user["username"]) if user is not None else "",
+            str(user["username"]),
         )
         return json_response(result, 201)
     except BaseException as exc:

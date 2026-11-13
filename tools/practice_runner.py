@@ -49,6 +49,19 @@ _JAVA = os.environ.get("PRACTICE_JAVA", "/usr/bin/java")
 _JAVAC = os.environ.get("PRACTICE_JAVAC", "/usr/bin/javac")
 
 
+def _sandbox_environment() -> dict[str, str]:
+    """Keep numeric-library startup inside the same bounded execution budget."""
+    environment = dict(os.environ)
+    # The sandbox runs one program at a time. BLAS/OpenMP thread pools otherwise
+    # compete with that program and can exhaust the three-second import budget.
+    for name in (
+        "OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS",
+        "NUMEXPR_NUM_THREADS", "VECLIB_MAXIMUM_THREADS",
+    ):
+        environment[name] = "1"
+    return environment
+
+
 class RunnerError(Exception):
     def __init__(self, status: str, message: str = "") -> None:
         super().__init__(message or status)
@@ -109,6 +122,7 @@ def _bounded_run(
     started = time.perf_counter()
     proc = subprocess.Popen(
         command,
+        env=_sandbox_environment(),
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,

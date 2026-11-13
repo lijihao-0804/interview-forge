@@ -30,7 +30,8 @@
 #   ⑥ 末尾两个 subprocess：先后调用同目录的 build_library.py（构建 SQLite
 #      本地学习库）与 build_html_site.py（Markdown 编译为静态 HTML 站点、
 #      含页尾交互演示）；check=True，任一脚本失败即中断整条链（快速失败）。
-#   常用命令：python tools/build_hot100.py 一键执行；python tools/check_hot100.py 事后校验。
+#   常用命令：python scripts/build/build_hot100.py 一键执行；
+#   python scripts/check/check_hot100.py 事后校验。
 # =============================================================================
 # from __future__ import annotations：把类型注解延迟为字符串求值，
 # 使 list[...] 这类新式注解语法在低版本 Python 上也能通过编译。
@@ -50,6 +51,7 @@ from pathlib import Path
 
 from interview_forge.core.paths import ROOT
 from scripts.build import build_cache
+from scripts.build import python_hot100 as python_curriculum
 from scripts.build.asset_version import ASSET_VERSION
 from scripts.build.library_catalog import LIBRARY_MODULES
 # 标准库即够：json 序列化面板数据，re 做正文/标题清洗，subprocess 串起
@@ -299,8 +301,52 @@ def _problems_source_hash() -> str:
     lang_json = ROOT / "tools" / "lang_solutions.json"
     if lang_json.exists():
         hasher.update(lang_json.read_bytes())
+    for filename in (
+        "python_hot100.json",
+        "python_hot100_topics.json",
+        "python_hot100_basics.json",
+        "python_hot100.schema.json",
+    ):
+        path = ROOT / "tools" / filename
+        if path.exists():
+            hasher.update(path.read_bytes())
     return hasher.hexdigest()
 PROBLEM_BY_ID = {int(p["id"]): p for p in PROBLEMS}
+
+
+def load_python_hot100_bundle() -> tuple[
+    dict[int, dict[str, object]],
+    dict[str, dict[str, object]],
+    dict[str, dict[str, object]],
+]:
+    """Load and cross-check every reviewed Python teaching data source."""
+    problem_data = python_curriculum.load_problem_curriculum()
+    topic_data = python_curriculum.load_topic_curriculum()
+    basic_data = python_curriculum.load_basics_curriculum()
+    errors = python_curriculum.validate_problem_curriculum(problem_data, PROBLEMS)
+    errors.extend(
+        python_curriculum.validate_topic_curriculum(
+            topic_data,
+            [category for _, category, _, _ in CATEGORIES],
+            problem_data,
+        )
+    )
+    errors.extend(python_curriculum.validate_basics_curriculum(basic_data))
+    expected_basics = {
+        "01-Java刷题速查.md",
+        "02-Java数组.md",
+        "03-Java字符串.md",
+        "04-Java集合.md",
+        "05-排序算法.md",
+    }
+    if set(basic_data) != expected_basics:
+        errors.append(
+            "Python basics coverage mismatch: "
+            f"expected={sorted(expected_basics)}, actual={sorted(basic_data)}"
+        )
+    if errors:
+        raise python_curriculum.PythonCurriculumError("\n".join(errors))
+    return problem_data, topic_data, basic_data
 
 # === 力扣原题链接数据 ===
 # 多语言题解实现（extract_lang_solutions.py 的产物，构建期并入题解页）：
@@ -877,23 +923,21 @@ def render_problem_pages(original: dict[int, list[tuple[str, str, str]]]) -> Non
     problem_filename()；render_topics / render_overview_files 里指向本题的链接
     必须与本函数产出的路径完全一致，因此本函数是全站链接约定的“唯一真相源”。
     """
+    python_problems, _, _ = load_python_hot100_bundle()
     for index, problem in enumerate(PROBLEMS):
         pid = int(problem["id"])
+        python_problem = python_problems[pid]
         category_folder = str(problem["folder"])
         # 页顶导航：回专题页/总目录/复习清单；路径相对本页（03-题解/<专题>/xxx.md）向上两级。
         topic_path = f"../../02-专题/{category_folder}.md"
         nav = f"[← {problem['category']}专题]({topic_path}) · [总目录](../../../../README.md) · [复习清单](../../00-总览/03-复习清单.md)"
-        # 元信息表 1：题目标题 + 导航 + TSV 六项元数据，供读者 30 秒速览。
+        # 公共标题/导航保留；方法、时间、空间按语言分别渲染，避免 Python
+        # 模式看到 Java 主解元数据。
         header = f"""# {pid}. {problem['title']}
 
 {nav}
 
-| 题目信息 | 内容 |
-|---|---|
-| 难度 | {problem['difficulty']} |
-| 核心模式 | {problem['method']} |
-| 时间复杂度 | {problem['time']} |
-| 空间复杂度 | {problem['space']} |
+{python_curriculum.problem_metadata_html(problem, python_problem)}
 """
         # 取该题全部源解法段；空列表 = 源笔记里没有任何记录（只能占位或走特例分支）。
         variants = original.get(pid, [])
@@ -949,13 +993,24 @@ def render_problem_pages(original: dict[int, list[tuple[str, str, str]]]) -> Non
         statement_section = f"## 题目与约束\n\n{statement}"
         if leetcode_link:
             statement_section += f"\n\n{leetcode_link}"
-        # 页体组装：标题/元信息表 + 题面 + 核心不变量 + 各解法小节。
+        # 页体组装：公共标题/题面 -> 旧教学正文 -> 完整 Python 正文。
+        # 旧正文继续服务 Java/C++/Go/C，Python 模式按容器整体隐藏；其中的
+        # Java 实现小节再由 build_html_site 按 data-lang=java 单独控制。
         body_parts = [
             header,
             statement_section,
-            f"## 核心不变量\n\n> {problem['invariant']}。",
         ]
-        body_parts.extend(f"{title}\n\n{rest}" for title, rest in sections)
+        java_body = ["## Java 完整推导", "", "### Java 核心不变量", "", f"> {problem['invariant']}。"]
+        java_body.extend(f"{title}\n\n{rest}" for title, rest in sections)
+        body_parts.append(
+            python_curriculum.legacy_teaching_panel(
+                "\n\n".join(java_body),
+                extra_class="java-solution-panel",
+            )
+        )
+        body_parts.append(
+            python_curriculum.render_python_problem_panel(python_problem)
+        )
         if leetcode_link:
             # 原有文末入口继续保留，便于完成题解阅读后直接验证。
             body_parts.append(f"## 力扣原题\n\n{leetcode_link}")
@@ -984,13 +1039,12 @@ def render_problem_pages(original: dict[int, list[tuple[str, str, str]]]) -> Non
             + "\n</div>\n<!--/bottom-nav-->"
         )
         content = "\n\n".join(body_parts)
-        # —— 多语言实现（lang_solutions.json）：各语言以「### X 实现」小节追加在文末。
-        # 不在 md 里包 HTML 容器：语言包裹与原位替换全部交给 build_html_site 的
-        # DOM 后处理（wrap_language_sections），避免原始 HTML 混入 markdown 破坏解析。——
+        # —— 其他语言保留原实现，但 Python 已由独立完整教学数据接管，
+        # 不再追加 tools/lang_solutions.json 里只有代码的 Python 片段。——
         lang_entry = _LANG_SOLUTIONS.get(str(problem["id"]))
         lang_sections = []
         if lang_entry:
-            for lang in ("cpp", "python", "go", "c"):
+            for lang in ("cpp", "go", "c"):
                 item = lang_entry.get(lang)
                 if not item:
                     continue
@@ -998,11 +1052,18 @@ def render_problem_pages(original: dict[int, list[tuple[str, str, str]]]) -> Non
                 if item.get("steps"):
                     lis = "".join("<li>" + s + "</li>" for s in item["steps"])
                     steps_html = '<ol class="lang-steps">' + lis + '</ol>'
-                lang_sections.append(
-                    '### ' + _LANG_TITLES[lang] + ' 实现' + '\n\n'
+                markdown = (
+                    '## ' + _LANG_TITLES[lang] + ' 实现' + '\n\n'
                     + '> 实现来源：' + item["source"] + '\n\n'
                     + steps_html + '\n\n'
                     + '```' + lang + '\n' + item["code"] + '\n' + '```'
+                )
+                lang_sections.append(
+                    python_curriculum.language_panel(
+                        lang,
+                        markdown,
+                        extra_class=f"{lang}-solution-panel",
+                    )
                 )
             if lang_sections:
                 content += "\n\n" + "\n\n".join(lang_sections)
@@ -1042,6 +1103,7 @@ def render_topics() -> None:
     工具箱 → 练习顺序表（本专题题目按 TSV 顺序、链接到 03-题解 对应题页）
     → 复习标准。素材来源：CATEGORIES（信号/不变量）与 CATEGORY_DETAILS（讲解/规则/工具箱）。
     """
+    python_problems, python_topics, _ = load_python_hot100_bundle()
     # 按专题显示名把题目分组；defaultdict 保证没有任何题的专题也得到空列表。
     grouped: dict[str, list[dict[str, object]]] = defaultdict(list)
     for problem in PROBLEMS:
@@ -1049,46 +1111,53 @@ def render_topics() -> None:
     for folder, category, signal, invariant in CATEGORIES:
         intro, rules, toolkit = CATEGORY_DETAILS[category]
         rows = []
+        python_links: dict[int, str] = {}
         # 练习顺序表行：序号 / 题名链接（相对 02-专题 目录指向 03-题解）/ 难度 / 主方法 / 时间·空间。
         for order, problem in enumerate(grouped[category], start=1):
             href = f"../03-题解/{folder}/{problem_filename(problem)}"
+            python_links[int(problem["id"])] = href
             rows.append(f"| {order} | [{problem['id']}. {problem['title']}]({href}) | {problem['difficulty']} | {problem['method']} | {problem['time']} / {problem['space']} |")
         # 把“下笔顺序”规则列表按 1. 2. 3. 编号渲染成多行文本。
         rule_lines = "\n".join(f"{i}. {rule}" for i, rule in enumerate(rules, start=1))
-        content = f"""# {category}
+        java_topic = f"""## Java 模式：{category}
 
-[总目录](../../../README.md) · [算法模式地图](../00-总览/02-算法模式地图.md)
-
-## 识别信号
+### 识别信号
 
 {signal}
 
 {intro}
 
-## 核心不变量
+### Java 核心不变量
 
 > {invariant}
 
-## 下笔顺序
+### 下笔顺序
 
 {rule_lines}
 
-## 工具箱
+### 工具箱
 
-{toolkit}。完整 Java 模板见 [Hot 100 算法模板](../04-模板/01-Hot100算法模板.md)。
+{toolkit}。完整模板见 [Hot 100 算法模板](../04-模板/01-Hot100算法模板.md)。
 
-## 练习顺序
+### Java 练习顺序
 
 | 顺序 | 题目 | 难度 | 主方法 | 时间 / 空间 |
 |---:|---|---|---|---|
 {chr(10).join(rows)}
 
-## 复习标准
+### 复习标准
 
 - 能在 30 秒内说出每题的核心不变量。
 - 能不看答案写出主循环或递归函数签名。
 - 能解释为什么移动指针、弹栈、剪枝或状态转移不会漏解。
-- 能主动写出至少 3 个边界用例。
+- 能主动写出至少 3 个边界用例。"""
+        content = f"""# {category}
+
+[总目录](../../../README.md) · [算法模式地图](../00-总览/02-算法模式地图.md)
+
+{python_curriculum.language_panel("java", java_topic, extra_class="java-topic-panel")}
+
+{python_curriculum.render_python_topic_panel(category, python_topics[category], python_problems, python_links)}
 """
         # 输出 02-专题/<专题目录名>.md；目录名与 03-题解 下同名目录一致，链接因此精确对应。
         write(ROOT / "books" / "hot100" / "02-专题" / f"{folder}.md", content)
@@ -1132,16 +1201,16 @@ def render_readme() -> None:
         rows.append(f"| [{category}](books/hot100/02-专题/{folder}.md) | {grouped[category]} | {signal} |")
     library_modules, library_chapters = _library_counts()
     library_label = f"{library_modules} 模块 / {library_chapters} 章" if library_chapters else f"{library_modules} 模块 / 生成清单章数"
-    content = f"""# InterviewForge · LeetCode Hot 100 深度整理版（Java）
+    content = f"""# InterviewForge · LeetCode Hot 100 深度整理版（Java · Python）
 
-面向大厂校招的**在线学习平台**：把 Hot 100 高频题整理成独立题页（题目、核心不变量、完整推导、Java 实现、复杂度与交互演示），并配套 17 个专题框架、算法模板、复习清单，以及覆盖 Java 核心、并发、JVM、数据库、网络、Spring、分布式、RAG/Agent 等校招主线的**学习书架（{library_label}）**。
+面向大厂校招的**在线学习平台**：把 Hot 100 高频题整理成独立题页（公共题面与动画、按语言切换的完整推导、不变量、Python API、复杂度与实现），并配套 17 个专题框架、Python 基础速查、算法模板、复习清单，以及覆盖语言根基、Java 核心、并发、JVM、数据库、网络、Spring、分布式、RAG/Agent 等校招主线的**学习书架（{library_label}）**。
 
 项目内置**学习记录、间隔重复复习、学习轨迹、限时模拟、力扣提交同步**等能力，形成“学 → 练 → 复盘 → 复习”的完整闭环；学习数据按账号隔离保存在服务端数据库。
 
 ## 立即开始
 
-1. 访问线上学习站 [hot100.xyz](https://hot100.xyz/) 并登录；
-2. 进入 [项目首页](index.html) 或 [学习中控台](cockpit.html)；
+1. 游客可直接访问 [hot100.xyz](https://hot100.xyz/) 阅读公开题解、专题和学习书架；
+2. 需要记录进度、复习和收藏时，使用邮箱验证注册或登录，再进入 [学习中控台](cockpit.html)；
 3. 首次使用建议按 [四阶段学习路线](books/hot100/00-总览/01-学习路线.md) 开始；
 4. 打开任意题解页或章节会自动记录浏览，点“完成一轮”推进复习。
 
@@ -1151,8 +1220,9 @@ def render_readme() -> None:
 
 ### 1. Hot 100 算法精讲
 
-- 100 道高频题独立题页：题目与约束、核心不变量、完整推导、Java 实现、复杂度、易错点与扩展、高频追问；
-- [17 个专题框架](books/hot100/02-专题/)（哈希表、双指针、滑动窗口、动态规划…）、[算法模式地图](books/hot100/00-总览/02-算法模式地图.md)、[复习清单](books/hot100/00-总览/03-复习清单.md)、[Java 刷题速查](books/hot100/01-基础/01-Java刷题速查.md)、[算法模板](books/hot100/04-模板/01-Hot100算法模板.md)；
+- 100 道高频题逐题提供 **Java 与 Python 完整主解**：同一题保留公共题面、导航和动画，语言切换会隐藏另一门语言的思路、代码、复杂度、提醒、元数据和侧栏锚点；
+- Python 主解逐题包含选择理由、不变量、推导步骤、Python API/写法、完整可提交代码、易错点和真实复杂度；并给出至少两个可执行样例或关键反例；
+- [17 个专题框架](books/hot100/02-专题/)（哈希表、双指针、滑动窗口、动态规划…）、[算法模式地图](books/hot100/00-总览/02-算法模式地图.md)、[复习清单](books/hot100/00-总览/03-复习清单.md)、[刷题与 Python API 速查](books/hot100/01-基础/01-Java刷题速查.md)、[算法模板](books/hot100/04-模板/01-Hot100算法模板.md)；
 - 24 个交互可视化演示与 1 个集中导航页覆盖算法和工程专题（哈希表、双指针、链表、锁升级、TCP 握手挥手、ReadView 版本链等），只展示关键状态变化，支持一键播放/分步。
 
 ### 2. 学习书架（{library_label}）
@@ -1248,7 +1318,7 @@ def render_readme() -> None:
 
 ## 每道题怎么学
 
-1. 先读题页顶部的“核心模式”和“核心不变量”，用自己的话复述不变量。
+1. 先在语言切换条选择 Java 或 Python，再读该语言专属的“主方法”和“核心不变量”，用自己的话复述。
 2. 在题解底部运行对应的交互演示或手算示例，只跟踪关键状态，不急着看代码。
 3. 关闭笔记写出主循环/递归，再对照题解。
 4. 用空输入、最小规模、重复值、极端顺序四类用例自测。
@@ -1276,7 +1346,7 @@ interview-forge/
 │  ├─ history.html           学习记录页
 │  ├─ leetcode-connect.html  力扣连接向导页
 │  ├─ login.html             登录页
-│  ├─ register.html          注册码注册页
+│  ├─ register.html          邮箱验证注册页
 │  └─ admin.html             管理后台（仅管理员）
 ├─ docs/                     文档与报告
 │  ├─ QA-REPORT.md/.html     发布前校验报告
@@ -1285,11 +1355,18 @@ interview-forge/
 ├─ assets/                   公共样式、脚本与图标（生成结果）
 ├─ data/                     SQLite 学习记录（首次启动自动创建，不入库）
 ├─ library/                  学习书架生成结果（{library_label}）
-├─ tools/                    生成、校验、服务与维护脚本
-│  ├─ build_hot100.py        全量重建 Hot 100 面板与题解
-│  ├─ build_library.py       学习书架生成器
-│  ├─ build_html_site.py     阅读页渲染与公共资源生成
-│  ├─ check_hot100.py        发布前全站校验
+├─ scripts/
+│  ├─ build/
+│  │  ├─ build_hot100.py     全量重建 Hot 100 面板与题解
+│  │  ├─ build_library.py    学习书架生成器
+│  │  ├─ build_html_site.py  阅读页渲染与公共资源生成
+│  │  └─ python_hot100.py    Python 课程加载、校验与面板渲染
+│  └─ check/
+│     └─ check_hot100.py     发布前全站校验
+├─ tools/                    数据、模板、服务与离线依赖
+│  ├─ python_hot100.json     100 题 Python 教学内容与执行用例
+│  ├─ python_hot100_topics.json   17 个 Python 专题框架
+│  ├─ python_hot100_basics.json   Python 基础速查与模板
 │  ├─ study_server.py        HTTP 服务 + SQLite 学习记录
 │  ├─ library_catalog.py     书架模块登记表
 │  ├─ scrape_xiaolinnote.py  小林面试笔记抓取脚本
@@ -1314,8 +1391,8 @@ interview-forge/
 
 ```bash
 cd interview-forge
-python .\\tools\\build_hot100.py   # 全量重建（面板 + 书架 + 全部页面）
-python .\\tools\\check_hot100.py   # 发布前检查（必须 errors: 0）
+python .\\scripts\\build\\build_hot100.py   # 全量重建（面板 + 书架 + 全部页面）
+python .\\scripts\\check\\check_hot100.py   # 发布前检查（必须 errors: 0）
 ```
 
 详细约定见 [MAINTENANCE.md](MAINTENANCE.md)。
@@ -1700,8 +1777,27 @@ while (i <= right) {
 }
 ```
 '''
+    _, python_topics, python_basics = load_python_hot100_bundle()
+    heading = re.match(r"(?m)^#\s+.+?\s*$\n?", templates)
+    algorithm_java = templates[heading.end():].lstrip() if heading else templates
+    algorithm_page = (
+        "# Hot 100 算法模板\n\n"
+        "[返回总目录](../../../README.md) · "
+        "[刷题速查](../01-基础/01-Java刷题速查.md)\n\n"
+        + python_curriculum.language_panel(
+            "java",
+            f"## Java 算法模板\n\n{algorithm_java}",
+            extra_class="java-template-panel",
+        )
+        + "\n\n"
+        + python_curriculum.language_panel(
+            "python",
+            python_curriculum.render_python_template_markdown(python_topics),
+            extra_class="python-template-panel",
+        )
+    )
     # 01 算法模板落盘：04-模板/01-Hot100算法模板.md（专题页“工具箱”链接指向它）。
-    write(ROOT / "books" / "hot100" / "04-模板" / "01-Hot100算法模板.md", templates)
+    write(ROOT / "books" / "hot100" / "04-模板" / "01-Hot100算法模板.md", algorithm_page)
 
     # 02 边界自查表：纯静态表格 + 5 点代码级检查，供写代码前逐条自问。
     edge = """# 边界用例检查表
@@ -1730,7 +1826,29 @@ while (i <= right) {
 4. 链表改指针前是否保存了之后仍需访问的节点。
 5. 0-1 背包是否倒序、完全背包是否正序。
 """
-    write(ROOT / "books" / "hot100" / "04-模板" / "02-边界用例检查表.md", edge)
+    edge_split = edge.index("## 五个代码级检查")
+    edge_common = edge[:edge_split].rstrip()
+    edge_java = edge[edge_split:].strip()
+    edge_python = """## Python 代码级检查
+
+1. 原地题是否误用了切片、列表复制或集合，令额外空间从 O(1) 上升。
+2. 排序与二分是否优先使用 `list.sort(key=...)`、`bisect_left/right`，并传入正确范围。
+3. 链表改 `next` 前是否保存原后继；树递归是否说明返回值与全局答案的差别。
+4. 0-1 背包容量是否倒序、完全背包是否正序，二维滚动是否保留左上角旧值。
+5. 链表、树和堆中的比较是否比较了正确对象身份、节点值或包装后的可比较键。"""
+    edge_page = (
+        edge_common
+        + "\n\n"
+        + python_curriculum.language_panel(
+            "java", edge_java, extra_class="java-template-panel"
+        )
+        + "\n\n"
+        + python_curriculum.language_panel(
+            "python", edge_python, extra_class="python-template-panel"
+        )
+        + "\n"
+    )
+    write(ROOT / "books" / "hot100" / "04-模板" / "02-边界用例检查表.md", edge_page)
 
     # 03 数据结构选择表：纯静态表格，先推荐结构、再点常见坑。
     choose = """# Java 数据结构选择表
@@ -1750,7 +1868,22 @@ while (i <= right) {
 
 优先使用接口类型声明变量，例如 `Map<Integer, Integer> map = new HashMap<>();`。完整 API 见 [Java 刷题速查](../01-基础/01-Java刷题速查.md)。
 """
-    write(ROOT / "books" / "hot100" / "04-模板" / "03-Java数据结构选择表.md", choose)
+    choose_heading = re.match(r"(?m)^#\s+.+?\s*$\n?", choose)
+    choose_java = choose[choose_heading.end():].lstrip() if choose_heading else choose
+    choose_page = (
+        "# Hot 100 数据结构选择表\n\n"
+        "[返回总目录](../../../README.md)\n\n"
+        + python_curriculum.language_panel(
+            "java",
+            f"## Java 数据结构选择\n\n{choose_java}",
+            extra_class="java-template-panel",
+        )
+        + "\n\n"
+        + python_curriculum.render_python_basic_panel(
+            python_basics["04-Java集合.md"]
+        )
+    )
+    write(ROOT / "books" / "hot100" / "04-模板" / "03-Java数据结构选择表.md", choose_page)
 
 
 def copy_source_materials() -> None:
@@ -1764,6 +1897,14 @@ def copy_source_materials() -> None:
     """
     basics = ROOT / "books" / "hot100" / "01-基础"
     basics.mkdir(parents=True, exist_ok=True)
+    _, _, python_basics = load_python_hot100_bundle()
+    basic_titles = {
+        "01-Java刷题速查.md": "Hot 100 · 刷题速查",
+        "02-Java数组.md": "Hot 100 · 数组与序列",
+        "03-Java字符串.md": "Hot 100 · 字符串",
+        "04-Java集合.md": "Hot 100 · 集合与容器",
+        "05-排序算法.md": "Hot 100 · 排序与二分",
+    }
     # 素材重命名映射：源文件名 → 站内文件名（01-基础 下按语义顺序编号）。
     mapping = {
         "Hot100-Java基础语法、常用类与API速查.md": "01-Java刷题速查.md",
@@ -1801,8 +1942,23 @@ def copy_source_materials() -> None:
                 text = text.replace(f"]({old})", f"]({new})")
                 text = text.replace(f"]({urllib.parse.quote(old)})", f"]({new})")
         # 保持排序动画的原相对链接可用。
-        # 其余素材（数组/字符串/集合/排序）不做链接改写。
-        write(basics / target_name, text)
+        # 原稿其余素材不做链接改写。页面标题和导航作为公共区，
+        # Java 正文与独立 Python 基础正文分别进入语言容器。
+        heading = re.match(r"(?m)^#\s+.+?\s*$\n?", text)
+        java_body = text[heading.end():].lstrip() if heading else text
+        page = (
+            f"# {basic_titles[target_name]}\n\n"
+            + python_curriculum.language_panel(
+                "java",
+                f"## Java 模式\n\n{java_body}",
+                extra_class="java-basic-panel",
+            )
+            + "\n\n"
+            + python_curriculum.render_python_basic_panel(
+                python_basics[target_name]
+            )
+        )
+        write(basics / target_name, page)
     if (SOURCE / "pic").exists():
         # 图库整体复制到 01-基础/pic，供速查素材里的排序动画图片引用。
         shutil.copytree(SOURCE / "pic", basics / "pic", dirs_exist_ok=True)
@@ -1943,7 +2099,7 @@ def build() -> None:
     print(json.dumps(summary, ensure_ascii=False))
 
 
-# 命令入口：python tools/build_hot100.py 即触发整条构建链；
+# 命令入口：python scripts/build/build_hot100.py 即触发整条构建链；
 # 被其它脚本 import 时（如 check_hot100）只加载数据常量与函数定义，不执行构建。
 if __name__ == "__main__":
     build()

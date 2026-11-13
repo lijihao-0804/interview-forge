@@ -76,6 +76,26 @@ PARALLEL_WORKERS = min(8, os.cpu_count() or 4)
 # （历史归档保持 .md 源稿状态）。根级 README/MAINTENANCE 等由 build() 单独加入。
 CONTENT_DIRS = ["books/hot100/00-总览", "books/hot100/01-基础", "books/hot100/02-专题", "books/hot100/03-题解", "books/hot100/04-模板"]
 
+# Existing public HTML can contain references to shared runtime assets even when
+# its source directory is produced by another generator.  Keep this list narrow:
+# only reviewed scripts with an explicit cache-busting version are rewritten.
+SHARED_ASSET_VERSIONS = {
+    "site.js": SITE_JS_VERSION,
+    "ui.js": ASSET_VERSION,
+    "solution-progress.js": ASSET_VERSION,
+    "engagement-tracker.js": ASSET_VERSION,
+    "term-tooltip.js": ASSET_VERSION,
+    "ai-launcher.js": "4",
+    "guest-auth.js": "2",
+    "auth-widget.js": "6",
+    "feedback-widget.js": "4",
+    "ai-assistant.js": "10",
+    "register-flow.js": "4",
+    "practice-reference.js": "6",
+    "practice-checker.js": "1",
+}
+SHARED_ASSET_VERSION_ROOTS = (ROOT / "books", ROOT / "library")
+
 
 def _render_markdown_worker(job: tuple[str, str]) -> str:
     """子进程执行：渲染单个 Markdown 源为 HTML 阅读页，返回源文件绝对路径。"""
@@ -549,6 +569,14 @@ transition:all .15s var(--ease-out)}
 .forge-lang-chip.active{background:var(--brand);border-color:var(--brand);color:#fff}
 .forge-lang-chip.unavailable{opacity:.38;cursor:not-allowed}
 .lang-section{border-top:1px dashed var(--line);padding-top:14px;margin-top:26px}
+.language-panel{min-width:0}
+.python-topic-panel,.python-basic-panel,.python-template-panel,.python-solution-panel{margin-top:24px}
+html[data-code-language="python"] [data-hide-in-language="python"]{display:none!important}
+html[data-code-language="java"] [data-lang-scope][data-lang]:not([data-lang="java"]),
+html[data-code-language="python"] [data-lang-scope][data-lang]:not([data-lang="python"]),
+html[data-code-language="cpp"] [data-lang-scope][data-lang]:not([data-lang="cpp"]),
+html[data-code-language="go"] [data-lang-scope][data-lang]:not([data-lang="go"]),
+html[data-code-language="c"] [data-lang-scope][data-lang]:not([data-lang="c"]){display:none!important}
 
 /* ===== 表格统一样式（GitHub/VitePress 风格：横线为主 + hover 高亮） ===== */
 .markdown-body table{width:100%;max-width:100%;margin:var(--space-5) 0;border-collapse:separate;
@@ -770,42 +798,74 @@ readerVisualFrames.forEach((frame) => {
   });
 })();
 
-/* ===== 多语言题解：语言偏好应用 + 切换条 ===== */
+/* ===== 多语言题解：语言偏好、切换条与可见面板 ===== */
 (function () {
   const LANG_NAMES = { java: 'Java', cpp: 'C++', python: 'Python', go: 'Go', c: 'C' };
+  const SUPPORTED = new Set(Object.keys(LANG_NAMES));
+
   function getLang() {
-    try { return localStorage.getItem('forge-lang') || 'java'; } catch (e) { return 'java'; }
+    try {
+      const value = localStorage.getItem('forge-lang') || 'java';
+      return SUPPORTED.has(value) ? value : 'java';
+    } catch (_) { return 'java'; }
   }
-  function setLang(lang, syncServer) {
-    try { localStorage.setItem('forge-lang', lang); } catch (e) { }
-    applyLang(lang);
-    if (syncServer) {
-      fetch('/api/profile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lang })
-      });
+
+  function syncServerPreference(lang) {
+    function sync(auth) {
+      // 游客只在本地保存偏好；没有 authenticated 状态时绝不写 profile。
+      auth.ready.then((session) => {
+        if (!session || session.status !== 'authenticated') return;
+        fetch('/api/profile', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lang })
+        }).catch(() => {});
+      }).catch(() => {});
     }
-    document.dispatchEvent(new CustomEvent('forge-lang-change', { detail: { lang } }));
+    if (window.InterviewForgeAuth && window.InterviewForgeAuth.ready) sync(window.InterviewForgeAuth);
+    else document.addEventListener('interviewforge:auth-ready', () => {
+      if (window.InterviewForgeAuth && window.InterviewForgeAuth.ready) sync(window.InterviewForgeAuth);
+    }, { once: true });
   }
+
+  function setLang(lang, syncServer = true) {
+    if (!SUPPORTED.has(lang)) lang = 'java';
+    try { localStorage.setItem('forge-lang', lang); } catch (_) { }
+    applyLang(lang);
+    document.dispatchEvent(new CustomEvent('forge-lang-change', { detail: { lang } }));
+    if (syncServer) syncServerPreference(lang);
+  }
+
   function applyLang(lang) {
-    const main = document.querySelector('.markdown-body');
+    const main = document.querySelector('.markdown-body.hot100-solution, .markdown-body');
     if (!main) return;
-    if (!main.querySelector('.codehilite[data-lang], .lang-section')) return;
-    const blocks = [...document.querySelectorAll('.markdown-body .lang-section[data-lang], .markdown-body .codehilite[data-lang]')]
-      .filter((block) => Object.prototype.hasOwnProperty.call(LANG_NAMES, block.dataset.lang));
+    const blocks = [...main.querySelectorAll(
+      '.language-panel[data-lang], .lang-section[data-lang], ' +
+      '[data-lang-scope][data-lang], .codehilite[data-lang]'
+    )].filter((block) => Object.prototype.hasOwnProperty.call(LANG_NAMES, block.dataset.lang));
     if (!blocks.length) return;
     const available = new Set(blocks.map((block) => block.dataset.lang));
-    const effectiveLang = available.has(lang) ? lang : (available.has('java') ? 'java' : (available.values().next().value || lang));
+    const requested = SUPPORTED.has(lang) ? lang : 'java';
+    const effectiveLang = available.has(requested)
+      ? requested
+      : (available.has('java') ? 'java' : (available.values().next().value || 'java'));
+    document.documentElement.dataset.codeLanguage = effectiveLang;
+    main.dataset.activeLanguage = effectiveLang;
     blocks.forEach((block) => { block.style.display = (block.dataset.lang === effectiveLang) ? '' : 'none'; });
     const bar = buildBar();
     bar.dataset.lang = effectiveLang;
     bar.querySelectorAll('.forge-lang-chip').forEach((chip) => {
-      const l = chip.dataset.lang;
-      chip.classList.toggle('active', l === effectiveLang);
-      chip.classList.toggle('unavailable', l !== 'java' && !available.has(l));
+      const availableForChip = available.has(chip.dataset.lang);
+      chip.classList.toggle('active', chip.dataset.lang === effectiveLang);
+      chip.classList.toggle('unavailable', !availableForChip);
+      chip.disabled = !availableForChip;
+    });
+    main.querySelectorAll('iframe').forEach((frame) => {
+      try { frame.contentWindow?.postMessage({ type: 'forge-lang', lang: effectiveLang }, '*'); } catch (_) { }
     });
   }
+
   function buildBar() {
     let bar = document.getElementById('forge-lang-bar');
     if (bar) return bar;
@@ -816,41 +876,52 @@ readerVisualFrames.forEach((frame) => {
     label.className = 'flb-label';
     label.textContent = '题解语言';
     bar.appendChild(label);
-    Object.keys(LANG_NAMES).forEach((l) => {
+    Object.keys(LANG_NAMES).forEach((lang) => {
       const chip = document.createElement('button');
       chip.type = 'button';
       chip.className = 'forge-lang-chip';
-      chip.dataset.lang = l;
-      chip.textContent = LANG_NAMES[l];
-      chip.onclick = () => setLang(l, true);
+      chip.dataset.lang = lang;
+      chip.textContent = LANG_NAMES[lang];
+      chip.addEventListener('click', () => setLang(lang, true));
       bar.appendChild(chip);
     });
     const main = document.querySelector('.markdown-body');
     if (main && main.parentNode) main.parentNode.insertBefore(bar, main);
     return bar;
   }
-  document.addEventListener('forge-lang-change', (e) => applyLang(e.detail.lang));
-  /* 演示页 iframe 也带语言切换：它写 localStorage（同源，触发本页 storage 事件），
-     并 postMessage 过来，由这里补上服务端持久化，两边保持同一个偏好。 */
-  window.addEventListener('storage', (e) => {
-    if (!e || e.key === null || e.key === 'forge-lang') applyLang(getLang());
+
+  window.InterviewForgeLanguage = Object.freeze({ get: getLang, set: setLang });
+  document.addEventListener('forge-lang-change', (event) => applyLang(event.detail.lang));
+  window.addEventListener('storage', (event) => {
+    if (!event || event.key === null || event.key === 'forge-lang') applyLang(getLang());
   });
-  window.addEventListener('message', (e) => {
-    if (e && e.data && e.data.type === 'forge-lang' && e.data.lang && e.data.lang !== getLang()) {
-      setLang(e.data.lang, true);
+  window.addEventListener('message', (event) => {
+    if (event && event.data && event.data.type === 'forge-lang' && event.data.lang && event.data.lang !== getLang()) {
+      setLang(event.data.lang, true);
     }
   });
-  fetch('/api/me', { cache: 'no-store' })
-    .then((r) => (r.ok ? r.json() : null))
-    .then((me) => {
-      let lang = getLang();
-      if (me && me.lang) {
-        lang = me.lang;
-        try { localStorage.setItem('forge-lang', me.lang); } catch (e) { }
-      }
-      applyLang(lang);
-    })
-    .catch(() => applyLang(getLang()));
+  document.querySelector('.markdown-body')?.querySelectorAll('iframe').forEach((frame) => {
+    frame.addEventListener('load', () => {
+      try {
+        frame.contentWindow?.postMessage({
+          type: 'forge-lang',
+          lang: document.documentElement.dataset.codeLanguage || getLang()
+        }, '*');
+      } catch (_) { }
+    });
+  });
+  applyLang(getLang());
+
+  function applyAccountLanguage(session) {
+    const me = session && session.user;
+    if (!session || session.status !== 'authenticated' || !me || !SUPPORTED.has(me.lang)) return;
+    try { localStorage.setItem('forge-lang', me.lang); } catch (_) { }
+    applyLang(me.lang);
+  }
+  const auth = window.InterviewForgeAuth;
+  if (auth && auth.getState) applyAccountLanguage(auth.getState());
+  if (auth && auth.ready) auth.ready.then(applyAccountLanguage).catch(() => {});
+  else document.addEventListener('interviewforge:auth-ready', (event) => applyAccountLanguage(event.detail), { once: true });
 })();
 
 """
@@ -888,6 +959,91 @@ VISUAL_THEME_SYNC_JS = r"""
   window.addEventListener("message", (e) => {
     if (e.data && e.data.type === "forge-theme") apply(e.data.theme);
   });
+})();
+</script>
+"""
+
+# VISUAL_LANGUAGE_SYNC_JS：演示页的前端语言协议接收端（polish_visual 注入 <head>）。
+# 题解父页通过 localStorage / storage / postMessage 广播 forge-lang；演示页在首帧
+# 就写入 html[data-code-language]，统一隐藏 Java 专属代码块，但保留与语言无关的
+# 动画、控制按钮、状态变化和复杂度。DOMContentLoaded 后补一条可访问说明；独立打开
+# 演示页时也读取 URL ?lang= 或 localStorage，不向父页发起服务端请求。
+VISUAL_LANGUAGE_SYNC_JS = r"""
+<script id="hot100-language-sync">
+(() => {
+  const root = document.documentElement;
+  const supported = new Set(["java", "python", "cpp", "go", "c"]);
+  const params = new URLSearchParams(location.search);
+  let current = "java";
+  let ready = false;
+
+  function readStored() {
+    try {
+      const value = localStorage.getItem("forge-lang");
+      return supported.has(value) ? value : "java";
+    } catch (e) { return "java"; }
+  }
+  function neutralTitle(text) {
+    return String(text || "")
+      .replace(/（\s*Java\s*）/gi, "")
+      .replace(/\(\s*Java\s*\)/gi, "")
+      .replace(/\s*[-·|—]\s*Java(?:\s*版)?\s*$/i, "")
+      .replace(/Java\s*(?:专属)?(?:代码|实现|版)/gi, "语言无关演示")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+  }
+  function syncTitles() {
+    if (!ready) return;
+    const nodes = [document.querySelector("title"), ...document.querySelectorAll(".hot100-topnav strong, body h1")];
+    nodes.forEach((node) => {
+      if (!node) return;
+      if (!node.dataset.hot100OriginalText) node.dataset.hot100OriginalText = node.textContent;
+      node.textContent = current === "java"
+        ? node.dataset.hot100OriginalText
+        : neutralTitle(node.dataset.hot100OriginalText);
+    });
+  }
+  function syncNote() {
+    if (!ready) return;
+    const codeNodes = document.querySelectorAll(
+      ".code-section, .status > .code, [data-language=\"java\"], [data-lang=\"java\"], .language-java, .java-code"
+    );
+    let note = document.getElementById("hot100-language-note");
+    if (!note && codeNodes.length) {
+      note = document.createElement("p");
+      note.id = "hot100-language-note";
+      note.className = "hot100-language-note";
+      note.setAttribute("role", "note");
+      note.textContent = "当前语言模式隐藏 Java 专属代码；下方动画、控制与状态变化为语言无关演示。完整实现请回到题解的对应语言面板。";
+      const main = document.querySelector("main, .container, .shell") || document.body;
+      main.insertBefore(note, main.firstChild);
+    }
+    if (note) note.hidden = current === "java";
+  }
+  function apply(lang) {
+    const value = supported.has(lang) ? lang : "java";
+    current = value;
+    root.dataset.codeLanguage = value;
+    syncTitles();
+    syncNote();
+    document.dispatchEvent(new CustomEvent("forge-lang-change", { detail: { lang: value } }));
+    requestAnimationFrame(() => window.__hot100ScheduleEmbeddedMeasure?.("language-change"));
+  }
+
+  const initial = params.get("lang");
+  current = supported.has(initial) ? initial : readStored();
+  root.dataset.codeLanguage = current;
+  ready = document.readyState !== "loading";
+  const boot = () => { ready = true; apply(params.get("lang") || readStored()); };
+  if (ready) boot();
+  else document.addEventListener("DOMContentLoaded", boot, { once: true });
+  window.addEventListener("storage", (event) => {
+    if (!event || event.key === null || event.key === "forge-lang") apply(readStored());
+  });
+  window.addEventListener("message", (event) => {
+    if (event.data && event.data.type === "forge-lang" && event.data.lang) apply(event.data.lang);
+  });
+  window.addEventListener("hot100:demo-rebuilt", () => { syncTitles(); syncNote(); });
 })();
 </script>
 """
@@ -1297,6 +1453,31 @@ html.hot100-single-panel .container > .sort-tabs,
 html.hot100-single-panel .container > .ds-tabs {
   display: none !important;
 }
+/* Java 专属代码只属于 Java 语言视图；非 Java 题解模式保留通用动画并给出说明。 */
+html:not([data-code-language="java"]) .code-section,
+html:not([data-code-language="java"]) .status > .code,
+html:not([data-code-language="java"]) [data-language="java"],
+html:not([data-code-language="java"]) [data-lang="java"].language-panel,
+html:not([data-code-language="java"]) .language-java,
+html:not([data-code-language="java"]) .java-code {
+  display: none !important;
+}
+.hot100-language-note {
+  width: min(100% - 24px, 1400px);
+  margin: 10px auto 12px;
+  padding: 9px 12px;
+  color: var(--hot-muted);
+  background: var(--hot-surface-soft);
+  border: 1px solid var(--hot-line);
+  border-left: 3px solid var(--hot-brand);
+  border-radius: 9px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+html.hot100-embedded .hot100-language-note {
+  width: 100%;
+  margin: 0 0 10px;
+}
 html.hot100-embedded body > .container,
 html.hot100-embedded body > .shell,
 html.hot100-embedded body > main,
@@ -1531,6 +1712,46 @@ def mark_cross_page_links(page: str) -> str:
     for start, end, replacement in reversed(replacements):
         page = page[:start] + replacement + page[end:]
     return page
+
+
+_CLASS_ATTRIBUTE_RE = re.compile(
+    r"""(?<![\w-])class\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>/]+))""",
+    re.IGNORECASE,
+)
+
+
+def _html_has_class(markup: str, class_name: str) -> bool:
+    """Return whether an HTML class attribute contains the exact class token."""
+    for match in _CLASS_ATTRIBUTE_RE.finditer(markup):
+        class_value = next(value for value in match.groups() if value is not None)
+        if class_name in class_value.split():
+            return True
+    return False
+
+
+def annotate_language_toc(page: str) -> str:
+    """Copy a heading's language scope onto its TOC anchor."""
+    if not _html_has_class(page, "language-panel") and not _html_has_class(page, "lang-section"):
+        return page
+    from bs4 import BeautifulSoup
+    from urllib.parse import unquote
+
+    soup = BeautifulSoup(page, "html.parser")
+    for anchor in soup.select('.toc a[href^="#"]'):
+        href = str(anchor.get("href", ""))
+        target = soup.find(id=unquote(href[1:])) if len(href) > 1 else None
+        if target is None:
+            continue
+        legacy = target.find_parent(attrs={"data-hide-in-language": "python"})
+        if legacy is not None:
+            anchor["data-hide-in-language"] = "python"
+        scope = target.find_parent("section", class_="language-panel")
+        if scope is None:
+            scope = target.find_parent("div", class_="lang-section")
+        if scope is not None and scope.get("data-lang"):
+            anchor["data-lang-scope"] = "true"
+            anchor["data-lang"] = scope["data-lang"]
+    return str(soup)
 
 
 # 公式转 MathML 的两张白名单表（MathMLParser.command 查表用）：
@@ -2038,13 +2259,21 @@ def wrap_language_sections(body, soup):
     .lang-section[data-lang=X]。Java 小节来自源笔记，其余语言小节由
     build_hot100 追加在文末；包裹后的原位替换（非 Java 移到 Java 之后）
     由 transform_solution_page 完成，前端按 data-lang 整段显隐。"""
+    # Explicit panels generated by build_hot100.py already contain a complete
+    # language-specific teaching body. Do not wrap their inner headings again.
+    for panel in body.find_all("section", class_="language-panel"):
+        panel["data-lang-scope"] = "true"
+
     for h3 in list(body.find_all("h3")):
+        if h3.find_parent("section", class_="language-panel") is not None:
+            continue
         m = _LANG_HEADING_RE.match(h3.get_text(strip=True))
         if not m:
             continue
         section = soup.new_tag("div")
         section["class"] = "lang-section"
         section["data-lang"] = _LANG_HEADINGS[m.group(1)]
+        section["data-lang-scope"] = "true"
         # 收集到下一个 h2/h3 或 section 为止：文末注入的「交互演示」是
         # <section>，其 h2 在 section 内部而非兄弟节点，不排除会整段吞进语言区块。
         node = h3.next_sibling
@@ -2146,16 +2375,36 @@ SELFTEST_JS = """
   function collectSections() {
     var article = document.querySelector("article.markdown-body");
     if (!article) return [];
-    var out = [], current = null;
-    Array.prototype.forEach.call(article.children, function (node) {
-      if (node.tagName === "H2") {
-        current = { title: node.textContent.trim(), head: node, nodes: [] };
-        out.push(current);
-      } else if (current && (" " + node.className + " ").indexOf("problem-nav") !== -1) {
-        current = null; // 底部上一题/下一题导航永不纳入遮罩
-      } else if (current) {
-        current.nodes.push(node);
+    function hasClass(node, name) {
+      return node && node.nodeType === 1 &&
+        (" " + node.className + " ").indexOf(" " + name + " ") !== -1;
+    }
+    function isLanguageContainer(node) {
+      return hasClass(node, "language-panel") ||
+        hasClass(node, "lang-section") || hasClass(node, "legacy-solution-panel");
+    }
+    var out = [];
+    // 语言面板内部也有自己的 H2。只扫描 article.children 会把整个面板误归入
+    // 前面公共「题目与约束」区；这里同时扫描语言面板内的 H2，并让每段只遍历
+    // 同父级的后续兄弟节点。wrapper 留在 panel 内，因此 Java/Python/C++
+    // 面板显隐时，隐藏正文和揭示按钮会随容器一起切换。
+    Array.prototype.forEach.call(article.querySelectorAll("h2"), function (head) {
+      var parent = head.parentNode;
+      if (parent !== article && !isLanguageContainer(parent)) return;
+      var section = { title: head.textContent.trim(), head: head, nodes: [] };
+      var node = head.nextSibling;
+      while (node) {
+        if (node.nodeType === 1 && node.tagName === "H2") break;
+        if (node.nodeType === 1 && hasClass(node, "problem-nav")) break;
+        // 顶层的语言面板由它自己的 H2 分段处理，不能整块算进公共题面。
+        if (parent === article && node.nodeType === 1 && isLanguageContainer(node)) {
+          node = node.nextSibling;
+          continue;
+        }
+        section.nodes.push(node);
+        node = node.nextSibling;
       }
+      out.push(section);
     });
     return out;
   }
@@ -2279,7 +2528,8 @@ def transform_solution_page(
     java_box = body.find("div", class_="lang-section", attrs={"data-lang": "java"})
     if java_box is not None:
         moving = [sec for sec in body.find_all("div", class_="lang-section")
-                  if sec.get("data-lang") not in (None, "java")]
+                  if sec.get("data-lang") not in (None, "java")
+                  and sec.find_parent("section", class_="language-panel") is None]
         for sec in moving:
             sec.extract()
         for sec in reversed(moving):
@@ -2437,6 +2687,23 @@ def transform_solution_page(
     return page
 
 
+LANG_BOOTSTRAP = r"""
+<script id="forge-lang-bootstrap">
+(() => {
+  const supported = new Set(['java', 'python', 'cpp', 'go', 'c']);
+  let lang = 'java';
+  try {
+    const fromUrl = new URLSearchParams(location.search).get('lang');
+    const stored = localStorage.getItem('forge-lang');
+    if (supported.has(fromUrl)) lang = fromUrl;
+    else if (supported.has(stored)) lang = stored;
+  } catch (e) { }
+  document.documentElement.dataset.codeLanguage = lang;
+})();
+</script>
+"""
+
+
 def render_markdown(source: Path) -> None:
     output = output_for_markdown(source)
     raw = source.read_text(encoding="utf-8-sig")
@@ -2444,9 +2711,6 @@ def render_markdown(source: Path) -> None:
     raw = re.sub(r"\s*·\s*\[打开(?:本专题)?可视化\]\([^)]*\)", "", raw)
     raw = re.sub(r"\s*·\s*\[打开本专题演示\]\([^)]*\)", "", raw)
     raw = rewrite_markdown_links(raw, source, output)
-    # 运行期已对 maintenance.html 返回 404（开发者内容不对外），
-    # 渲染页里指向它的链接降级为纯文本，避免站内死链。
-    raw = re.sub(r'\[([^\]]+)\]\((?:MAINTENANCE\.html|maintenance\.html)\)', r"", raw)
     raw = render_math_in_markdown(raw)
     md = markdown.Markdown(
         extensions=["extra", "sane_lists", "toc", "codehilite"],
@@ -2456,6 +2720,7 @@ def render_markdown(source: Path) -> None:
         },
     )
     body = md.convert(raw)
+    has_language_panels = _html_has_class(body, "language-panel")
     # 题解页底部按钮：从正文提取，统一放到交互动画之后。
     bottom_nav = ""
     nav_match = re.search(r"<!--bottom-nav-->(.*?)<!--/bottom-nav-->", body, re.S)
@@ -2479,7 +2744,7 @@ def render_markdown(source: Path) -> None:
     ai_asset_base = web_rel(output, ROOT / "assets")
     ai_css_href = ai_asset_base + "/ai-launcher.css?v=5"
     ai_context_href = ai_asset_base + "/ai-page-context.js?v=1"
-    ai_launcher_href = ai_asset_base + "/ai-launcher.js?v=3"
+    ai_launcher_href = ai_asset_base + "/ai-launcher.js?v=4"
     policy_href = ai_asset_base + "/navigation-policy.js?v=2"
     ui_href = web_rel(output, ROOT / "assets" / "ui.js") + f"?v={ASSET_VERSION}"
     progress_css_href = web_rel(output, ROOT / "assets" / "solution-progress.css") + "?v=20261009-static"
@@ -2516,6 +2781,7 @@ def render_markdown(source: Path) -> None:
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light dark">
   <title>{html.escape(title)} · InterviewForge</title>
+{"  " + LANG_BOOTSTRAP if has_language_panels else ""}
   <link rel="stylesheet" href="{html.escape(css_href)}">
   <link rel="stylesheet" data-interviewforge-ai href="{html.escape(ai_css_href)}">
   <script src="{html.escape(policy_href)}" defer></script>
@@ -2531,7 +2797,7 @@ def render_markdown(source: Path) -> None:
       </nav>
     </header>
     <main id="main-content" class="reader-card">
-      <article class="markdown-body">
+      <article class="markdown-body{' hot100-solution' if has_language_panels else ''}"{f' data-active-language="java"' if has_language_panels else ''}>
         {breadcrumb_html}
         {page_heading}
         <details class="toc-box">
@@ -2604,6 +2870,7 @@ def render_markdown(source: Path) -> None:
             f'else{{go();}}}})();</script>\n</body>',
             1,
         )
+    page = annotate_language_toc(page)
     page = mark_cross_page_links(page)
     output.write_text(page, encoding="utf-8")
 
@@ -2683,14 +2950,50 @@ def polish_visual(path: Path) -> None:
     if not re.search(r"(?is)<meta\b[^>]*name=[\"']color-scheme[\"']", text):
         text = re.sub(r"(?is)(<head[^>]*>)", r'\1\n<meta name="color-scheme" content="light dark">', text, count=1)
     if 'id="hot100-embed-bootstrap"' in text:
-        text = re.sub(r"(?is)<script id=\"hot100-embed-bootstrap\">.*?</script>", VISUAL_EMBED_BOOTSTRAP.strip(), text, count=1)
+        text = re.sub(
+            r"(?is)<script id=\"hot100-embed-bootstrap\">.*?</script>",
+            lambda _match: VISUAL_EMBED_BOOTSTRAP.strip(),
+            text,
+            count=1,
+        )
     else:
-        text = re.sub(r"(?is)(<head[^>]*>)", r"\1\n" + VISUAL_EMBED_BOOTSTRAP.strip(), text, count=1)
+        text = re.sub(
+            r"(?is)(<head[^>]*>)",
+            lambda match: match.group(1) + "\n" + VISUAL_EMBED_BOOTSTRAP.strip(),
+            text,
+            count=1,
+        )
     # 手动主题同步：放在 embed-bootstrap 之后、样式生效前，避免深色首帧闪烁。
     if 'id="hot100-theme-sync"' in text:
-        text = re.sub(r"(?is)<script id=\"hot100-theme-sync\">.*?</script>", VISUAL_THEME_SYNC_JS.strip(), text, count=1)
+        text = re.sub(
+            r"(?is)<script id=\"hot100-theme-sync\">.*?</script>",
+            lambda _match: VISUAL_THEME_SYNC_JS.strip(),
+            text,
+            count=1,
+        )
     else:
-        text = re.sub(r"(?is)(</head>)", VISUAL_THEME_SYNC_JS.strip() + r"\1", text, count=1)
+        text = re.sub(
+            r"(?is)(</head>)",
+            lambda match: VISUAL_THEME_SYNC_JS.strip() + match.group(1),
+            text,
+            count=1,
+        )
+    # 演示页语言同步：父页 message / 同源 storage / URL / localStorage 四通道，
+    # 只操控 class、属性和说明文案，不修改各动画自身的状态机。
+    if 'id="hot100-language-sync"' in text:
+        text = re.sub(
+            r"(?is)<script id=\"hot100-language-sync\">.*?</script>",
+            lambda _match: VISUAL_LANGUAGE_SYNC_JS.strip(),
+            text,
+            count=1,
+        )
+    else:
+        text = re.sub(
+            r"(?is)(</head>)",
+            lambda match: VISUAL_LANGUAGE_SYNC_JS.strip() + match.group(1),
+            text,
+            count=1,
+        )
     # 旧柱状演示使用含 padding 的 clientWidth/clientHeight 计算柱高，
     # 指针与数值标签会因此超出内容区。改为使用真实内容盒尺寸。
     text = re.sub(
@@ -2754,7 +3057,7 @@ def update_dashboard() -> None:
     text = path.read_text(encoding="utf-8-sig")
     text = re.sub(r'("note"\s*:\s*"[^"]+)\.md"', r'\1.html"', text)
     text = text.replace('href="README.md">打开 Markdown 总目录</a>', 'href="guide.html">完整使用指南</a>')
-    quick = '<nav class="dashboard-nav" aria-label="学习入口"><a href="cockpit.html">中控台</a><a href="library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a><a href="books/hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a><a href="books/hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a><a href="books/hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a><a href="books/hot100/04-模板/01-Hot100算法模板.html" target="_blank" rel="noopener noreferrer">算法模板</a><a href="pages/history.html" target="_blank" rel="noopener noreferrer">学习记录</a><a href="pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a><button class="lc-button" id="leetcodeSyncBtn" type="button">一键同步</button></nav>'
+    quick = '<nav class="dashboard-nav" aria-label="学习入口"><a href="cockpit.html">中控台</a><a href="library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a><a href="books/hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a><a href="books/hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a><a href="books/hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a><a href="books/hot100/04-模板/01-Hot100算法模板.html" target="_blank" rel="noopener noreferrer">算法模板</a><a href="pages/history.html" target="_blank" rel="noopener noreferrer">学习记录</a><a href="pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a><button class="lc-button" id="leetcodeSyncBtn" data-online-action type="button">一键同步</button></nav>'
     if 'class="dashboard-nav"' not in text:
         text = text.replace('</header>\n<div class="bar"', '</header>\n' + quick + '\n<div class="bar"', 1)
         text = text.replace('</style>', '.dashboard-nav{display:flex;gap:9px;flex-wrap:wrap;margin:18px 0 8px}.dashboard-nav a{padding:7px 11px;background:var(--panel);border:1px solid var(--line);border-radius:9px}.dashboard-nav a:hover{background:var(--soft);text-decoration:none}.dashboard-nav a.lc-button{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:650}.dashboard-nav a.lc-button:hover{background:var(--brand-strong);color:#fff}@media(max-width:680px){.dashboard-nav{gap:7px}.dashboard-nav a{padding:6px 9px}}\n</style>', 1)
@@ -2879,6 +3182,107 @@ load();
     target.write_text(mark_cross_page_links(page), encoding="utf-8")
 
 
+_SHARED_ASSET_TOKEN_RE = re.compile(
+    r"<script\b[^>]*>.*?</script\s*>|<link\b[^>]*>",
+    flags=re.IGNORECASE | re.DOTALL,
+)
+_SHARED_ASSET_ATTR_RE = re.compile(
+    r"(?P<prefix>\b(?:src|href)\s*=\s*)(?P<quote>[\"'])(?P<value>.*?)(?P=quote)",
+    flags=re.IGNORECASE,
+)
+_SCRIPT_OPEN_TAG_RE = re.compile(r"<script\b[^>]*>", flags=re.IGNORECASE)
+_EXTERNAL_ASSET_URL_RE = re.compile(r"^(?:[a-z][a-z0-9+.-]*:|//)", flags=re.IGNORECASE)
+
+
+def _rewrite_shared_asset_url(value: str) -> tuple[str, int]:
+    if _EXTERNAL_ASSET_URL_RE.match(value):
+        return value, 0
+    path_and_query, hash_separator, fragment = value.partition("#")
+    asset_path, query_separator, query = path_and_query.partition("?")
+    normalized_path = asset_path.replace("\\", "/")
+    parts = [part for part in normalized_path.split("/") if part]
+    if "assets" not in parts:
+        return value, 0
+    target_version = SHARED_ASSET_VERSIONS.get(parts[-1])
+    if target_version is None or not query_separator:
+        return value, 0
+
+    query_parts = re.split(r"(&amp;|&)", query)
+    changed = 0
+    for index in range(0, len(query_parts), 2):
+        key, separator, current_version = query_parts[index].partition("=")
+        if key != "v" or not separator or current_version == target_version:
+            continue
+        query_parts[index] = f"v={target_version}"
+        changed += 1
+    if changed == 0:
+        return value, 0
+    rewritten = asset_path + "?" + "".join(query_parts)
+    if hash_separator:
+        rewritten += hash_separator + fragment
+    return rewritten, changed
+
+
+def _rewrite_shared_asset_tag(tag: str) -> tuple[str, int]:
+    changed = 0
+
+    def replace_attribute(match: re.Match[str]) -> str:
+        nonlocal changed
+        rewritten, count = _rewrite_shared_asset_url(match.group("value"))
+        changed += count
+        if count == 0:
+            return match.group(0)
+        return match.group("prefix") + match.group("quote") + rewritten + match.group("quote")
+
+    return _SHARED_ASSET_ATTR_RE.sub(replace_attribute, tag), changed
+
+
+def rewrite_shared_asset_versions(markup: str) -> tuple[str, int]:
+    """Rewrite reviewed local script/link versions without touching page text."""
+    changed = 0
+
+    def replace_token(match: re.Match[str]) -> str:
+        nonlocal changed
+        token = match.group(0)
+        opening_match = _SCRIPT_OPEN_TAG_RE.match(token)
+        if opening_match is None:
+            rewritten, count = _rewrite_shared_asset_tag(token)
+        else:
+            opening = opening_match.group(0)
+            rewritten_opening, count = _rewrite_shared_asset_tag(opening)
+            rewritten = rewritten_opening + token[len(opening) :]
+        changed += count
+        return rewritten
+
+    rewritten_markup = _SHARED_ASSET_TOKEN_RE.sub(replace_token, markup)
+    return rewritten_markup, changed
+
+
+def update_shared_asset_versions(
+    roots: tuple[Path, ...] = SHARED_ASSET_VERSION_ROOTS,
+) -> tuple[int, int]:
+    """Refresh cache versions in existing public HTML and report touched counts."""
+    html_files: set[Path] = set()
+    for root in roots:
+        if root.is_file() and root.suffix.lower() == ".html":
+            html_files.add(root)
+        elif root.is_dir():
+            html_files.update(root.rglob("*.html"))
+
+    changed_files = 0
+    changed_references = 0
+    for path in sorted(html_files):
+        raw = path.read_bytes()
+        markup = raw.decode("utf-8")
+        rewritten, count = rewrite_shared_asset_versions(markup)
+        if count == 0:
+            continue
+        path.write_bytes(rewritten.encode("utf-8"))
+        changed_files += 1
+        changed_references += count
+    return changed_files, changed_references
+
+
 # =============================================================================
 # build()：本生成器主流程（`python build_html_site.py` 的入口）。执行顺序：
 #   1. 公共资源：确保 assets/ 存在；把 SITE_CSS / SITE_JS 常量原样
@@ -2955,8 +3359,13 @@ def build() -> None:
     render_notebook()
     for visual in sorted((ROOT / "books" / "hot100" / "05-可视化").glob("*.html")):
         polish_visual(visual)
+    changed_files, changed_references = update_shared_asset_versions()
 
-    print(f"HTML reading pages: {len(sources)}; visual pages polished: {len(list((ROOT / 'books' / 'hot100' / '05-可视化').glob('*.html')))}")
+    visual_count = len(list((ROOT / "books" / "hot100" / "05-可视化").glob("*.html")))
+    print(
+        f"HTML reading pages: {len(sources)}; visual pages polished: {visual_count}; "
+        f"shared asset versions refreshed: {changed_references} refs in {changed_files} files"
+    )
 
 
 # 入口：直接运行时执行全量构建（python build_html_site.py）；被其它模块

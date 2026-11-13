@@ -7,7 +7,6 @@ responses so domain routers can call the existing services directly.
 from __future__ import annotations
 
 import asyncio
-import ipaddress
 import json
 import sqlite3
 from dataclasses import dataclass
@@ -21,9 +20,11 @@ from fastapi.responses import JSONResponse
 from interview_forge.ai.errors import AIServiceError
 from interview_forge.ai.actions.store import ActionRequestError
 from interview_forge.analytics.learning_analytics import AnalyticsUnavailableError
+from interview_forge.core.client_ip import client_ip as resolve_client_ip
 from interview_forge.core.paths import DB_PATH
 from interview_forge.services.auth import session_user, user_db_path
 from interview_forge.services.leetcode import LeetCodeSyncError
+from interview_forge.services.registration import RegistrationError
 
 
 @dataclass
@@ -134,19 +135,7 @@ async def read_json(request: Request, *, max_length: int = 4096) -> dict[str, An
 
 def client_ip(request: Request) -> str:
     peer = request.client.host if request.client else ""
-    if peer in ("127.0.0.1", "::1"):
-        for name in ("x-real-ip", "cf-connecting-ip"):
-            value = (request.headers.get(name) or "").strip()
-            try:
-                return str(ipaddress.ip_address(value))
-            except ValueError:
-                pass
-        for value in reversed((request.headers.get("x-forwarded-for") or "").split(",")):
-            try:
-                return str(ipaddress.ip_address(value.strip()))
-            except ValueError:
-                pass
-    return peer
+    return resolve_client_ip(peer, request.headers)
 
 
 def session_cookie(request: Request, token: str, *, expire: bool = False) -> str:
@@ -161,6 +150,12 @@ def session_cookie(request: Request, token: str, *, expire: bool = False) -> str
 
 
 def service_error(exc: BaseException, *, write: bool = False) -> JSONResponse | None:
+    if isinstance(exc, RegistrationError):
+        headers = {"Retry-After": str(exc.retry_after)} if exc.retry_after else None
+        extra = {"error_category": exc.category}
+        if exc.retry_after:
+            extra["retry_after"] = int(exc.retry_after)
+        return error_response(exc.message, exc.status, headers=headers, **extra)
     if isinstance(exc, ActionRequestError):
         return error_response(exc.message, exc.status, error_category=exc.code)
     if isinstance(exc, ApiError):

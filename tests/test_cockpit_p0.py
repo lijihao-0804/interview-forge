@@ -41,7 +41,11 @@ class CockpitP0Tests(unittest.TestCase):
         self.assertIn('"重新加载学习概览"', source)
         self.assertIn('"重试今日计划"', source)
         self.assertNotIn("学习服务暂时不可用，请检查网络后重试", source)
-        self.assertIn('error.category === "unauthorized"', source)
+        self.assertIn('guestAuth.markGuest("unauthorized")', source)
+        self.assertIn(
+            'throw makeApiError(endpoint, 401, "unauthorized", "登录状态已失效，请重新登录后继续")',
+            source,
+        )
 
     def test_cockpit_api_has_bounded_error_categories(self):
         source = (ROOT / "cockpit.html").read_text(encoding="utf-8")

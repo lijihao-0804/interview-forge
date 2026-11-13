@@ -125,44 +125,74 @@ readerVisualFrames.forEach((frame) => {
   });
 })();
 
-/* ===== 多语言题解：语言偏好应用 + 切换条 ===== */
+/* ===== 多语言题解：语言偏好、切换条与可见面板 ===== */
 (function () {
   const LANG_NAMES = { java: 'Java', cpp: 'C++', python: 'Python', go: 'Go', c: 'C' };
+  const SUPPORTED = new Set(Object.keys(LANG_NAMES));
+
   function getLang() {
-    try { return localStorage.getItem('forge-lang') || 'java'; } catch (e) { return 'java'; }
+    try {
+      const value = localStorage.getItem('forge-lang') || 'java';
+      return SUPPORTED.has(value) ? value : 'java';
+    } catch (_) { return 'java'; }
   }
-  function setLang(lang, syncServer) {
-    try { localStorage.setItem('forge-lang', lang); } catch (e) { }
-    applyLang(lang);
-    if (syncServer) {
-      fetch('/api/profile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lang })
-      });
+
+  function syncServerPreference(lang) {
+    function sync(auth) {
+      // 游客只在本地保存偏好；没有 authenticated 状态时绝不写 profile。
+      auth.ready.then((session) => {
+        if (!session || session.status !== 'authenticated') return;
+        fetch('/api/profile', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lang })
+        }).catch(() => {});
+      }).catch(() => {});
     }
-    document.dispatchEvent(new CustomEvent('forge-lang-change', { detail: { lang } }));
+    if (window.InterviewForgeAuth && window.InterviewForgeAuth.ready) sync(window.InterviewForgeAuth);
+    else document.addEventListener('interviewforge:auth-ready', () => {
+      if (window.InterviewForgeAuth && window.InterviewForgeAuth.ready) sync(window.InterviewForgeAuth);
+    }, { once: true });
   }
+
+  function setLang(lang, syncServer = true) {
+    if (!SUPPORTED.has(lang)) lang = 'java';
+    try { localStorage.setItem('forge-lang', lang); } catch (_) { }
+    applyLang(lang);
+    document.dispatchEvent(new CustomEvent('forge-lang-change', { detail: { lang } }));
+    if (syncServer) syncServerPreference(lang);
+  }
+
   function applyLang(lang) {
-    const main = document.querySelector('.markdown-body');
+    const main = document.querySelector('.markdown-body.hot100-solution, .markdown-body');
     if (!main) return;
-    if (!main.querySelector('.codehilite[data-lang], .lang-section')) return;
-    const blocks = [...document.querySelectorAll('.markdown-body .lang-section[data-lang], .markdown-body .codehilite[data-lang]')]
-      .filter((block) => Object.prototype.hasOwnProperty.call(LANG_NAMES, block.dataset.lang));
+    const blocks = [...main.querySelectorAll(
+      '.language-panel[data-lang], .lang-section[data-lang], ' +
+      '[data-lang-scope][data-lang], .codehilite[data-lang]'
+    )].filter((block) => Object.prototype.hasOwnProperty.call(LANG_NAMES, block.dataset.lang));
     if (!blocks.length) return;
     const available = new Set(blocks.map((block) => block.dataset.lang));
-    // 只有一种语言时，语言切换条没有意义，直接隐藏（华为题库只有 Python 就属此类）
-    if (available.size <= 1) { const b = document.getElementById('forge-lang-bar'); if (b) b.style.display = 'none'; return; }
-    const effectiveLang = available.has(lang) ? lang : (available.has('java') ? 'java' : (available.values().next().value || lang));
+    const requested = SUPPORTED.has(lang) ? lang : 'java';
+    const effectiveLang = available.has(requested)
+      ? requested
+      : (available.has('java') ? 'java' : (available.values().next().value || 'java'));
+    document.documentElement.dataset.codeLanguage = effectiveLang;
+    main.dataset.activeLanguage = effectiveLang;
     blocks.forEach((block) => { block.style.display = (block.dataset.lang === effectiveLang) ? '' : 'none'; });
     const bar = buildBar();
     bar.dataset.lang = effectiveLang;
     bar.querySelectorAll('.forge-lang-chip').forEach((chip) => {
-      const l = chip.dataset.lang;
-      chip.classList.toggle('active', l === effectiveLang);
-      chip.classList.toggle('unavailable', l !== 'java' && !available.has(l));
+      const availableForChip = available.has(chip.dataset.lang);
+      chip.classList.toggle('active', chip.dataset.lang === effectiveLang);
+      chip.classList.toggle('unavailable', !availableForChip);
+      chip.disabled = !availableForChip;
+    });
+    main.querySelectorAll('iframe').forEach((frame) => {
+      try { frame.contentWindow?.postMessage({ type: 'forge-lang', lang: effectiveLang }, '*'); } catch (_) { }
     });
   }
+
   function buildBar() {
     let bar = document.getElementById('forge-lang-bar');
     if (bar) return bar;
@@ -173,39 +203,50 @@ readerVisualFrames.forEach((frame) => {
     label.className = 'flb-label';
     label.textContent = '题解语言';
     bar.appendChild(label);
-    Object.keys(LANG_NAMES).forEach((l) => {
+    Object.keys(LANG_NAMES).forEach((lang) => {
       const chip = document.createElement('button');
       chip.type = 'button';
       chip.className = 'forge-lang-chip';
-      chip.dataset.lang = l;
-      chip.textContent = LANG_NAMES[l];
-      chip.onclick = () => setLang(l, true);
+      chip.dataset.lang = lang;
+      chip.textContent = LANG_NAMES[lang];
+      chip.addEventListener('click', () => setLang(lang, true));
       bar.appendChild(chip);
     });
     const main = document.querySelector('.markdown-body');
     if (main && main.parentNode) main.parentNode.insertBefore(bar, main);
     return bar;
   }
-  document.addEventListener('forge-lang-change', (e) => applyLang(e.detail.lang));
-  /* 演示页 iframe 也带语言切换：它写 localStorage（同源，触发本页 storage 事件），
-     并 postMessage 过来，由这里补上服务端持久化，两边保持同一个偏好。 */
-  window.addEventListener('storage', (e) => {
-    if (!e || e.key === null || e.key === 'forge-lang') applyLang(getLang());
+
+  window.InterviewForgeLanguage = Object.freeze({ get: getLang, set: setLang });
+  document.addEventListener('forge-lang-change', (event) => applyLang(event.detail.lang));
+  window.addEventListener('storage', (event) => {
+    if (!event || event.key === null || event.key === 'forge-lang') applyLang(getLang());
   });
-  window.addEventListener('message', (e) => {
-    if (e && e.data && e.data.type === 'forge-lang' && e.data.lang && e.data.lang !== getLang()) {
-      setLang(e.data.lang, true);
+  window.addEventListener('message', (event) => {
+    if (event && event.data && event.data.type === 'forge-lang' && event.data.lang && event.data.lang !== getLang()) {
+      setLang(event.data.lang, true);
     }
   });
-  fetch('/api/me', { cache: 'no-store' })
-    .then((r) => (r.ok ? r.json() : null))
-    .then((me) => {
-      let lang = getLang();
-      if (me && me.lang) {
-        lang = me.lang;
-        try { localStorage.setItem('forge-lang', me.lang); } catch (e) { }
-      }
-      applyLang(lang);
-    })
-    .catch(() => applyLang(getLang()));
+  document.querySelector('.markdown-body')?.querySelectorAll('iframe').forEach((frame) => {
+    frame.addEventListener('load', () => {
+      try {
+        frame.contentWindow?.postMessage({
+          type: 'forge-lang',
+          lang: document.documentElement.dataset.codeLanguage || getLang()
+        }, '*');
+      } catch (_) { }
+    });
+  });
+  applyLang(getLang());
+
+  function applyAccountLanguage(session) {
+    const me = session && session.user;
+    if (!session || session.status !== 'authenticated' || !me || !SUPPORTED.has(me.lang)) return;
+    try { localStorage.setItem('forge-lang', me.lang); } catch (_) { }
+    applyLang(me.lang);
+  }
+  const auth = window.InterviewForgeAuth;
+  if (auth && auth.getState) applyAccountLanguage(auth.getState());
+  if (auth && auth.ready) auth.ready.then(applyAccountLanguage).catch(() => {});
+  else document.addEventListener('interviewforge:auth-ready', (event) => applyAccountLanguage(event.detail), { once: true });
 })();

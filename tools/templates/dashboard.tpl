@@ -9,6 +9,7 @@
 <meta name="theme-color" content="#5654d4">
 <script src="assets/time-utils.js?v=2"></script>
 <script src="assets/navigation-policy.js?v=2" defer></script>
+<script src="assets/guest-auth.js?v=2"></script>
 <link rel="stylesheet" href="assets/uplot.min.css?v=__ASSET_VERSION__">
 <style>
 @font-face{font-family:"Inter";src:url("assets/fonts/Inter-Variable.woff2") format("woff2");font-weight:100 900;font-style:normal;font-display:swap;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
@@ -82,6 +83,10 @@ h1{margin:0;font-size:clamp(30px,4vw,46px);line-height:1.15;letter-spacing:-.025
 .lc-sync-actions a,.lc-sync-actions button{padding:7px 12px;border:1px solid var(--line);border-radius:9px;color:var(--text);background:var(--panel-soft);cursor:pointer}.lc-sync-actions a:hover{color:var(--brand);text-decoration:none}.lc-sync-actions .primary{border-color:var(--brand);color:#fff;background:var(--brand)}
 .notice{margin:0 0 18px;padding:12px 14px;border:1px solid color-mix(in srgb,var(--warning) 35%,var(--line));border-radius:12px;background:color-mix(in srgb,var(--warning) 7%,var(--panel));color:var(--text)}
 .notice code{padding:.12em .34em;border-radius:4px;background:var(--panel-soft);color:var(--brand)}
+.guest-mode{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin:0 0 20px;padding:16px 18px;border:1px solid color-mix(in srgb,var(--brand) 28%,var(--line));border-radius:14px;background:linear-gradient(135deg,var(--brand-soft),var(--panel));box-shadow:var(--shadow)}
+.guest-mode[hidden]{display:none}.guest-mode strong{display:block;font-size:17px}.guest-mode p{margin:3px 0 0;color:var(--muted);font-size:13px}.guest-mode-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.guest-mode-actions a,.guest-mode-actions button{padding:8px 13px;border:1px solid var(--line);border-radius:9px;color:var(--text);background:var(--panel);font:inherit;font-weight:650;cursor:pointer}.guest-mode-actions .primary{border-color:var(--brand);color:#fff;background:var(--brand)}
+body.auth-checking .auth-private,body.is-guest .auth-private,body.auth-error .auth-private{display:none!important}
+.guest-read-note{display:inline-flex;align-items:center;padding:2px 7px;border-radius:999px;color:var(--muted);background:var(--panel-soft);font-size:12px}
 .progress-section{margin:0 0 22px}
 .progress-head{display:flex;justify-content:space-between;gap:12px;margin-bottom:7px;color:var(--muted);font-size:13px}.progress-head strong{color:var(--text)}
 .bar{height:9px;overflow:hidden;border-radius:999px;background:var(--line)}.bar>div{width:0;height:100%;background:linear-gradient(90deg,var(--brand),var(--success));transition:width .22s ease}
@@ -234,12 +239,12 @@ html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--panel-so
   @media(prefers-reduced-motion:reduce){.skeleton::after{animation:none}}
 </style>
 </head>
-<body>
+<body class="auth-checking">
 <a class="skip-link" href="#problemGrid">跳到题目列表</a>
 <main class="shell">
   <header class="hero">
-    <div><h1>Interview Forge</h1><div class="sub">__PROBLEM_COUNT__ 道高频算法题，覆盖 __TOPIC_COUNT__ 个专题；每一次打开与每一轮完成，都会留下可回看的学习轨迹</div><div id="connection" class="connection">正在连接学习服务</div><a class="hero-cta" href="#problemGrid">开始今天学习 <span aria-hidden="true">→</span></a></div>
-    <div class="stats">
+    <div><h1>Interview Forge</h1><div class="sub" id="heroSub">__PROBLEM_COUNT__ 道高频算法题，覆盖 __TOPIC_COUNT__ 个专题；游客可直接阅读完整题解与方法。</div><div id="connection" class="connection">正在确认账号状态</div><a class="hero-cta" href="#problemGrid">开始今天学习 <span aria-hidden="true">→</span></a></div>
+    <div class="stats auth-private">
       <div class="stat"><span>今日学习</span><strong id="goalText">0 / 3</strong><span class="metric-note"><b id="todayRounds">0</b> 轮完成 · 看题 <b id="todayViewed">0</b> · AC/提交 <b id="acTodayText">0 / 0</b></span><div class="goal-line"><span class="goal-hint">每日目标</span><input id="goalInput" data-online-action type="number" min="1" max="50" value="3" aria-label="每日目标轮次"></div></div>
       <div class="stat" title="至少 AC 一次的 Hot 100 题目进度"><span>首轮完成</span><strong><span id="completedCount">0</span> 题</strong><section class="progress-section metric-progress" aria-labelledby="progressLabel"><div class="progress-head"><span id="progressLabel">Hot 100 首轮进度</span><strong id="progressText">0 / __PROBLEM_COUNT__</strong></div><div id="progressBar" class="bar" role="progressbar" aria-label="至少完成一轮的题目" aria-valuemin="0" aria-valuemax="__PROBLEM_COUNT__" aria-valuenow="0"><div id="progress"></div></div></section><span class="metric-note">累计 AC/已解决 <b id="acTotalText">0 / 0</b> · 完整轮次 <b id="totalRounds">0</b></span></div>
       <div class="stat"><span>连续学习</span><strong><span id="streakCount">0</span> 天</strong><span class="metric-note" id="streakMessage">今天完成一轮，继续保持</span></div>
@@ -247,7 +252,7 @@ html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--panel-so
       <div class="stat"><span>预计完成</span><strong id="estimatedFinish">计算中</strong><span class="metric-note">按近 28 天首解速度估算</span></div>
     </div>
   </header>
-  <nav class="dashboard-nav" aria-label="学习入口"><a href="cockpit.html">中控台</a><a href="library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a><a href="books/hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a><a href="books/hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a><a href="books/hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a><a href="books/hot100/04-模板/01-Hot100算法模板.html" target="_blank" rel="noopener noreferrer">算法模板</a><a href="pages/history.html" target="_blank" rel="noopener noreferrer">学习记录</a><a href="pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a><button class="lc-button" id="leetcodeSyncBtn" type="button">一键同步</button></nav>
+  <nav class="dashboard-nav" aria-label="学习入口"><a href="cockpit.html">中控台</a><a href="library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a><a href="books/hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a><a href="books/hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a><a href="books/hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a><a href="books/hot100/04-模板/01-Hot100算法模板.html" target="_blank" rel="noopener noreferrer">算法模板</a><a href="pages/history.html" target="_blank" rel="noopener noreferrer">学习记录</a><a href="pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a><button class="lc-button" id="leetcodeSyncBtn" data-online-action type="button">一键同步</button></nav>
   <div class="lc-sync-mask" id="leetcodeSyncModal" hidden>
     <section class="lc-sync-dialog" id="leetcodeSyncDialog" role="dialog" aria-modal="true" aria-labelledby="leetcodeSyncTitle" aria-describedby="leetcodeSyncMessage" tabindex="-1">
       <div class="lc-sync-head"><h2 class="lc-sync-title" id="leetcodeSyncTitle">力扣同步</h2><button class="lc-sync-close" id="leetcodeSyncClose" type="button" aria-label="关闭同步提示">×</button></div>
@@ -256,7 +261,8 @@ html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--panel-so
     </section>
   </div>
   <div id="serverNotice" class="notice" hidden>学习服务暂时不可用，请检查网络后重试；若持续失败请联系管理员。<button id="serverRetry" class="round-button" type="button">重试</button></div>
-  <div class="quick-cards">
+  <section class="guest-mode" id="guestMode" hidden aria-live="polite"><div><strong id="guestModeTitle">游客模式</strong><p id="guestModeCopy">题解、Hot 100、书架和搜索均可公开访问；登录后可保存进度、运行代码、提交练习、同步力扣并使用 AI。</p></div><div class="guest-mode-actions"><a id="guestLoginLink" href="pages/login.html">登录</a><a class="primary" id="guestRegisterLink" href="pages/register.html">注册</a></div></section>
+  <div class="quick-cards auth-private">
   <section class="review-section" aria-labelledby="reviewTitle" id="review">
     <div class="review-head"><h2 id="reviewTitle">今日待复习</h2><span id="reviewSummary" class="review-summary">正在读取…</span><a id="shelfDueLink" class="shelf-due-link" href="library/index.html" data-navigation-policy="same-tab" title="去书架查看各模块待复习章节">书架待复习 0 项 →</a><button id="remindButton" class="round-button" type="button">开启复习提醒</button></div>
     <div id="reviewForecast" class="review-forecast" role="img" aria-label="未来七天复习负荷"></div>
@@ -272,12 +278,12 @@ html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--panel-so
     <section class="controls" aria-label="筛选题目">
       <div class="field"><label for="search">搜索</label><input id="search" type="search" placeholder="题号、题名或核心方法" autocomplete="off"></div>
       <div class="field"><label for="category">专题</label><select id="category"><option value="">全部专题</option></select></div>
-      <div class="field"><label for="status">学习轮次</label><select id="status"><option value="">全部轮次</option><option value="due">待复习</option><option value="weak">薄弱</option><option value="new">尚未完成</option><option value="once">完成 1 轮</option><option value="repeat">完成 2 轮以上</option></select></div>
+      <div class="field" id="statusField"><label for="status">学习轮次</label><select id="status" disabled><option value="">全部轮次</option><option value="due">待复习</option><option value="weak">薄弱</option><option value="new">尚未完成</option><option value="once">完成 1 轮</option><option value="repeat">完成 2 轮以上</option></select></div>
     </section>
     <section id="problemGrid" aria-label="Hot 100 题目"><div id="grid" class="grid"></div><div id="empty" class="empty" hidden>没有匹配的题目，请调整搜索词或筛选条件。</div></section>
   </section>
   </div>
-  <div class="more-section">
+  <div class="more-section auth-private">
   <section class="review-section" aria-labelledby="weakTitle">
     <div class="review-head"><h2 id="weakTitle">薄弱清单</h2><a class="review-summary" href="books/hot100/00-总览/05-错题本.html" target="_blank" rel="noopener noreferrer">错题本页 →</a>
       <div class="export-buttons">
@@ -325,6 +331,9 @@ html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--panel-so
 <script src="assets/uplot.min.js?v=__ASSET_VERSION__"></script>
 <script>
 const problems=__HOT100_PROBLEMS__;
+const guestAuth=window.InterviewForgeGuestAuth;
+let authStatus='checking';
+let currentUser=null;
 const state={online:false,data:{summary:{today_viewed:0,today_rounds:0,completed_problems:0,total_rounds:0,active_days:0},problems:{},days:[],recent:[]},daily:{summary:{due:0,overdue:0,problems:0,overdue_problems:0,contents:0,overdue_contents:0,upcoming_review:{total:0,days:[]}},problems:[],contents:[]},settings:{},pinnedTomorrow:{}};
 const grid=document.getElementById('grid');
 const empty=document.getElementById('empty');
@@ -351,16 +360,56 @@ function fetchWithTimeout(input,options,timeout=12000){
   const controller=new AbortController();
   const request=Object.assign({},options||{},{signal:controller.signal});
   const timer=setTimeout(()=>controller.abort(),timeout);
-  return fetch(input,request).then(response=>{
-    if(response.status===401){
-      location.replace('/pages/login.html?next='+encodeURIComponent(location.pathname+location.search));
-    }
-    return response;
-  }).finally(()=>clearTimeout(timer));
+  return fetch(input,request).finally(()=>clearTimeout(timer));
+}
+function authenticatedFetch(input,options,feature){
+  return guestAuth.request(input,options,feature).catch(error=>{
+    if(error&&error.category==='unauthorized')paintAuthState(guestAuth.getState());
+    throw error;
+  });
+}
+async function requireAuthenticated(feature){
+  try{await guestAuth.requireUser(feature);return true}
+  catch(error){
+    if(error&&error.code==='AUTH_REQUIRED')return false;
+    showToast(error&&error.message||'暂时无法确认登录状态，请稍后重试','error');
+    return false;
+  }
+}
+function paintAuthState(session){
+  authStatus=session&&session.status||'error';
+  currentUser=session&&session.user||null;
+  document.body.classList.remove('auth-checking','is-authenticated','is-guest','auth-error');
+  document.body.classList.add(authStatus==='authenticated'?'is-authenticated':authStatus==='guest'?'is-guest':'auth-error');
+  const guestMode=document.getElementById('guestMode');
+  guestMode.hidden=authStatus==='authenticated';
+  document.getElementById('statusField').classList.toggle('auth-private',authStatus!=='authenticated');
+  document.getElementById('status').disabled=authStatus!=='authenticated';
+  const current=location.pathname+location.search+location.hash;
+  document.getElementById('guestLoginLink').href=guestAuth.authHref('/pages/login.html',current);
+  document.getElementById('guestRegisterLink').href=guestAuth.authHref('/pages/register.html',current);
+  document.getElementById('guestModeTitle').textContent=authStatus==='error'?'登录状态暂未确认':'游客模式';
+  document.getElementById('guestModeCopy').textContent=authStatus==='error'
+    ?'阅读和搜索不受影响。当前网络无法确认账号状态，可稍后重试，或先登录/注册；登录后会回到本题解页。'
+    :'题解、Hot 100、书架和搜索均可公开访问；登录后可保存进度、运行代码、提交练习、同步力扣并使用 AI。';
+  document.getElementById('heroSub').textContent=authStatus==='authenticated'
+    ?`${problems.length} 道高频算法题，覆盖 ${new Set(problems.map(problem=>problem.category)).size} 个专题；登录进度与复习安排已同步到本题解页。`
+    :`${problems.length} 道高频算法题，覆盖 ${new Set(problems.map(problem=>problem.category)).size} 个专题；游客可直接阅读完整题解与方法。`;
+  if(authStatus==='authenticated'){
+    if(!state.online)document.getElementById('connection').textContent='账号已登录，正在连接学习服务';
+  }else{
+    state.online=false;
+    document.getElementById('connection').classList.remove('online');
+    document.getElementById('connection').textContent=authStatus==='error'?'账号状态未确认 · 阅读不受影响':'游客模式 · 阅读不受影响';
+    document.getElementById('lcStatus').textContent='力扣：登录后可同步';
+  }
+  renderCards();
+  updateOnlineControls();
 }
 function updateOnlineControls(){
-  document.querySelectorAll('[data-online-action]').forEach(control=>{control.disabled=!state.online});
-  document.querySelectorAll('[data-mark]').forEach(control=>{control.disabled=!state.online});
+  const enabled=authStatus==='authenticated'&&state.online;
+  document.querySelectorAll('[data-online-action]').forEach(control=>{control.disabled=!enabled});
+  document.querySelectorAll('[data-mark]').forEach(control=>{control.disabled=!enabled});
 }
 function setLeetcodeSyncBusy(busy){
   leetcodeSyncInFlight=busy;
@@ -386,7 +435,7 @@ function closeLeetcodeSyncModal(){
   if(target&&typeof target.focus==='function')target.focus();
 }
 async function leetcodeSyncRequest(path,options){
-  const response=await fetchWithTimeout(path,options||{});
+  const response=await authenticatedFetch(path,options||{},'同步力扣');
   const data=await response.json().catch(()=>({}));
   if(!response.ok){
     const error=new Error(data.error||'请求未完成');
@@ -451,6 +500,7 @@ function showLeetcodeSyncError(error){
 }
 async function runLeetcodeIncrementalSync(){
   if(leetcodeSyncInFlight)return;
+  if(!await requireAuthenticated('同步力扣'))return;
   const full=false;
   setLeetcodeSyncBusy(true);
   try{
@@ -606,9 +656,13 @@ function renderReviewForecast(forecast){
   container.innerHTML=`<span class="review-forecast-title">未来 7 天 · ${total} 项</span><div class="review-forecast-days">${days.map(day=>{const count=Math.max(0,Number(day.count)||0);const height=count?Math.max(8,Math.round(count/maximum*28)):4;return `<span class="review-forecast-day" title="${esc(day.date)}：${count} 项"><i class="review-forecast-bar" style="--bar-height:${height}px"></i><strong>${count}</strong><span>${esc(String(day.date||'').slice(5))}</span></span>`}).join('')}</div>`;
 }
 async function loadPick(randomize){
+  if(authStatus!=='authenticated'){
+    pickCard.innerHTML='<div class="review-empty">登录后查看个性化今日计划。</div>';
+    return;
+  }
   const requestSerial=++pickRequestSerial;
   try{
-    const response=await fetchWithTimeout(`/api/plan${randomize?'?count=3&random=1':''}`,{cache:'no-store'});
+    const response=await authenticatedFetch(`/api/plan${randomize?'?count=3&random=1':''}`,{cache:'no-store'},'查看今日计划');
     if(!response.ok)throw new Error('pick failed');
     const plan=await response.json();
     if(requestSerial!==pickRequestSerial)return;
@@ -717,6 +771,7 @@ function renderTrend(){
 }
 function renderCards(){
   const query=search.value.trim().toLowerCase();
+  const personal=authStatus==='authenticated'&&state.online;
   const dueIds=new Set(state.daily.problems.map(item=>String(item.id)));
   const dueOverdue=new Set(state.daily.problems.filter(item=>item.due_date<state.daily.today).map(item=>String(item.id)));
   const marks=state.data.marks||{};
@@ -738,20 +793,27 @@ function renderCards(){
     const autoWeakFlag=!!autoWeak[String(problem.id)];
     const mark=manualMark||(autoWeakFlag?'weak':'');
     const everAc=((state.data.submissions||{}).ever_ac||{})[String(problem.id)];
-    const badge=isDue?`<span class="due-pill ${overdue?'overdue':''}">待复习</span>`:'';
-    const acBadge=everAc?`<span class="ac-pill">已 AC</span>`:'';
-    const markBadge=mark?`<span class="mark-pill ${mark}">${markLabels[mark]}</span>`:'';
-    const submissionLine=info.submits?`提交：AC ${info.ac_submits||0} / ${info.submits}（${Math.round((info.pass_rate||0)*100)}%） · 最近：${localTime(info.last_submitted_at)}`:`最近：${localTime(last)}`;
-    const nextDue=info.next_due?` · 下次 ${String(info.next_due).slice(5)}`:'';
+    const badge=personal&&isDue?`<span class="due-pill ${overdue?'overdue':''}">待复习</span>`:'';
+    const acBadge=personal&&everAc?`<span class="ac-pill">已 AC</span>`:'';
+    const markBadge=personal&&mark?`<span class="mark-pill ${mark}">${markLabels[mark]}</span>`:'';
+    const submissionLine=personal
+      ?(info.submits?`提交：AC ${info.ac_submits||0} / ${info.submits}（${Math.round((info.pass_rate||0)*100)}%） · 最近：${localTime(info.last_submitted_at)}`:`最近：${localTime(last)}`)
+      :'游客可阅读题解；登录后记录轮次、进度与提交表现。';
+    const nextDue=personal&&info.next_due?` · 下次 ${String(info.next_due).slice(5)}`:'';
     const placeholder=manualMark?'':'selected';
     const pinnedTomorrow=!!state.pinnedTomorrow[String(problem.id)];
-    return `<article class="card ${rounds?'studied':''} ${isDue?'due':''} ${overdue?'overdue':''}"><div class="card-head"><h2><a href="${esc(problem.note)}" target="_blank" rel="noopener noreferrer">${problem.id}. ${esc(problem.title)}</a></h2><span class="round-count">${rounds} 轮</span>${acBadge}${badge}${markBadge}</div><div class="meta"><span class="pill">${esc(problem.category)}</span><span class="difficulty-${problem.difficulty}">${problem.difficulty}</span></div><div class="method">${esc(problem.method)}</div><div class="card-actions"><span class="last-study">${submissionLine}${nextDue}</span><div class="card-buttons"><select class="mark-select" data-mark="${problem.id}" aria-label="设置题目状态" ${state.online?'':'disabled'}><option value="__choose__" disabled ${placeholder}>标记…</option><option value="mastered" ${manualMark==='mastered'?'selected':''}>已掌握</option><option value="reviewing" ${manualMark==='reviewing'?'selected':''}>复习中</option><option value="weak" ${manualMark==='weak'?'selected':''}>薄弱</option><option value="clear">清除标记</option></select><button class="mark-action" type="button" data-pin-plan="${problem.id}" ${state.online&&!pinnedTomorrow?'':'disabled'}>${pinnedTomorrow?'已排入明天':'排入明天'}</button></div></div></article>`;
+    const personalStatus=personal?`<span class="round-count">${rounds} 轮</span>${acBadge}${badge}${markBadge}`:'<span class="guest-read-note">公开题解</span>';
+    const actions=personal
+      ?`<div class="card-buttons"><select class="mark-select" data-mark="${problem.id}" aria-label="设置题目状态" ${state.online?'':'disabled'}><option value="__choose__" disabled ${placeholder}>标记…</option><option value="mastered" ${manualMark==='mastered'?'selected':''}>已掌握</option><option value="reviewing" ${manualMark==='reviewing'?'selected':''}>复习中</option><option value="weak" ${manualMark==='weak'?'selected':''}>薄弱</option><option value="clear">清除标记</option></select><button class="mark-action" type="button" data-pin-plan="${problem.id}" ${state.online&&!pinnedTomorrow?'':'disabled'}>${pinnedTomorrow?'已排入明天':'排入明天'}</button></div>`
+      :`<div class="card-buttons"><a class="round-button" href="${guestAuth.authHref('/pages/login.html')}">登录后记录</a></div>`;
+    return `<article class="card ${personal&&rounds?'studied':''} ${personal&&isDue?'due':''} ${personal&&overdue?'overdue':''}"><div class="card-head"><h2><a href="${esc(problem.note)}" target="_blank" rel="noopener noreferrer">${problem.id}. ${esc(problem.title)}</a></h2>${personalStatus}</div><div class="meta"><span class="pill">${esc(problem.category)}</span><span class="difficulty-${problem.difficulty}">${problem.difficulty}</span></div><div class="method">${esc(problem.method)}</div><div class="card-actions"><span class="last-study">${submissionLine}${nextDue}</span>${actions}</div></article>`;
   }).join('');
   empty.hidden=list.length!==0;
   grid.querySelectorAll('[data-mark]').forEach(select=>select.addEventListener('change',()=>{if(select.value==='__choose__')return;setMark(Number(select.dataset.mark),select.value==='clear'?'':select.value)}));
   grid.querySelectorAll('[data-pin-plan]').forEach(button=>button.addEventListener('click',()=>pinPlan(Number(button.dataset.pinPlan))));
 }
 async function pinPlan(problemId){
+  if(!await requireAuthenticated('安排今日计划'))return;
   const key=String(problemId);
   if(state.pinnedTomorrow[key])return;
   const button=grid.querySelector(`[data-pin-plan="${problemId}"]`);
@@ -761,7 +823,7 @@ async function pinPlan(problemId){
   state.pinnedTomorrow[key]=true;
   if(button){button.textContent='已排入明天';button.disabled=true;button.setAttribute('aria-busy','true')}
   try{
-    const response=await fetchWithTimeout('/api/plan/pin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({problem_id:problemId})});
+    const response=await authenticatedFetch('/api/plan/pin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({problem_id:problemId})},'安排今日计划');
     const result=await response.json();if(!response.ok)throw new Error(result.error||'排期失败');
     if(button&&button.isConnected){button.removeAttribute('aria-busy')}
     showToast(`已纳入明天计划（${result.for_date}），明天见`,'success');
@@ -773,6 +835,7 @@ async function pinPlan(problemId){
   }
 }
 async function setMark(problemId,mark){
+  if(!await requireAuthenticated('设置学习状态'))return;
   // 乐观更新：先改本地状态立即渲染，失败再回滚（弱网下不再“点→等→变”）
   const key=String(problemId);
   if(!state.data.marks)state.data.marks={};
@@ -781,7 +844,7 @@ async function setMark(problemId,mark){
   if(mark)state.data.marks[key]=mark;else delete state.data.marks[key];
   renderCards();renderWeak();
   try{
-    const response=await fetchWithTimeout('/api/mark',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({target_type:'problem',target_id:key,mark})});
+    const response=await authenticatedFetch('/api/mark',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({target_type:'problem',target_id:key,mark})},'设置学习状态');
     const result=await response.json();if(!response.ok)throw new Error(result.error||'标记失败');
     await refresh();
   }catch(error){
@@ -798,8 +861,9 @@ function downloadText(filename,text,mime){
   URL.revokeObjectURL(url);
 }
 async function exportData(kind){
+  if(!await requireAuthenticated('导出学习数据'))return;
   try{
-    const response=await fetchWithTimeout(`/api/export?kind=${kind}`,{cache:'no-store'});
+    const response=await authenticatedFetch(`/api/export?kind=${kind}`,{cache:'no-store'},'导出学习数据');
     if(!response.ok)throw new Error('导出失败');
     const disposition=response.headers.get('Content-Disposition')||'';
     const star=disposition.match(/filename\*=UTF-8''([^;]+)/i);
@@ -816,13 +880,14 @@ async function exportData(kind){
   }catch(error){showToast(`导出失败：${error.message}`,'error')}
 }
 async function saveGoal(){
+  if(!await requireAuthenticated('保存每日目标'))return;
   const value=String(Math.max(1,Math.min(50,Number(document.getElementById('goalInput').value)||3)));
   const summary=state.data.summary;
   const prevGoal=summary.daily_goal;
   summary.daily_goal=Number(value);
   updateSummary();
   try{
-    const response=await fetchWithTimeout('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:'daily_goal_rounds',value})});
+    const response=await authenticatedFetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:'daily_goal_rounds',value})},'保存每日目标');
     if(!response.ok)throw new Error('保存失败');
     await refresh();
     showToast(`每日目标已设为 ${value} 轮`,'success');
@@ -872,6 +937,7 @@ function mockTick(){
 }
 async function mockStart(){
   if(mockInFlight)return;
+  if(!await requireAuthenticated('使用限时模拟'))return;
   // 进行中的模拟不能被静默丢弃：先确认，再开新的一卷
   if(mockState&&!mockState.finished&&!window.confirm('当前有一次进行中的模拟，开始新模拟将放弃本次进度。继续吗？'))return;
   mockInFlight=true;
@@ -886,7 +952,7 @@ async function mockStart(){
   const [scope,days]=scopeMap[scopeRaw]||['all',3];
   document.getElementById('mockStatus').textContent='组卷中…';
   try{
-    const response=await fetchWithTimeout(`/api/mock?count=${count}&category=${encodeURIComponent(category)}&difficulty=${encodeURIComponent(difficulty)}&scope=${scope}&days=${days}`,{cache:'no-store'});
+    const response=await authenticatedFetch(`/api/mock?count=${count}&category=${encodeURIComponent(category)}&difficulty=${encodeURIComponent(difficulty)}&scope=${scope}&days=${days}`,{cache:'no-store'},'使用限时模拟');
     const data=await response.json();
     if(!response.ok)throw new Error(data.error||'组卷失败');
     mockState={problems:data.problems,index:0,done:[],skip:[],startedAt:Date.now(),deadline:Date.now()+minutes*60000,finished:false};
@@ -950,7 +1016,6 @@ document.getElementById('mockStart').addEventListener('click',mockStart);
 document.getElementById('mockAbandon').addEventListener('click',()=>mockAbandon());
 window.addEventListener('beforeunload',event=>{if(mockState&&!mockState.finished){event.preventDefault();event.returnValue='模拟面试仍在进行，离开将中断当前页面。'}});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&mockState)mockTick()});
-restoreMockSession();
 document.getElementById('serverRetry').addEventListener('click',()=>refresh());
 [...new Set(problems.map(problem=>problem.category))].forEach(name=>{const option=document.createElement('option');option.value=name;option.textContent=name;document.getElementById('mockCategory').appendChild(option)});
 window.addEventListener('resize',()=>{
@@ -962,8 +1027,12 @@ window.addEventListener('resize',()=>{
 async function updateLcStatus(){
   const el=document.getElementById('lcStatus');
   if(!el)return;
+  if(authStatus!=='authenticated'){
+    el.textContent='力扣：登录后可同步';
+    return;
+  }
   try{
-    const response=await fetchWithTimeout('/api/leetcode/status',{cache:'no-store'});
+    const response=await authenticatedFetch('/api/leetcode/status',{cache:'no-store'},'查看力扣连接');
     const data=await response.json();
     if(!response.ok)throw new Error();
       if(data.credentials_saved){
@@ -973,7 +1042,7 @@ async function updateLcStatus(){
       el.innerHTML='力扣：<a href="pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">未连接</a>';
     }
   }catch(error){
-    el.textContent='力扣：检测失败';
+    el.textContent=error&&error.category==='unauthorized'?'力扣：登录后可同步':'力扣：检测失败';
   }
 }
 // 离线错误态：断网时不能把故障渲染成“正常空态”（假空卡会让用户以为无事可做）。
@@ -999,9 +1068,13 @@ function renderOfflineErrors(){
 }
 let refreshSerial=0;
 async function refresh(){
+  if(authStatus!=='authenticated'){
+    paintAuthState(guestAuth.getState());
+    return;
+  }
   const serial=++refreshSerial;
   try{
-    const bootstrapResponse=await fetchWithTimeout('/api/bootstrap',{cache:'no-store'});
+    const bootstrapResponse=await authenticatedFetch('/api/bootstrap',{cache:'no-store'},'查看学习进度');
     if(!bootstrapResponse.ok)throw new Error('database unavailable');
     const boot=await bootstrapResponse.json();
     if(serial!==refreshSerial)return;
@@ -1014,6 +1087,10 @@ async function refresh(){
     document.getElementById('serverNotice').hidden=true;
   }catch(error){
     if(serial!==refreshSerial)return;
+    if(error&&error.category==='unauthorized'){
+      paintAuthState(guestAuth.getState());
+      return;
+    }
     state.online=false;
     document.getElementById('connection').classList.remove('online');
     document.getElementById('connection').textContent='暂时无法连接学习服务';
@@ -1082,8 +1159,31 @@ search.addEventListener('input',()=>{
   searchRenderTimer=setTimeout(renderCards,150);
 });
 [category,status].forEach(control=>control.addEventListener('change',renderCards));
-refresh();
-loadPick(false);
+let dashboardSessionKey='';
+function activateAuthSession(session){
+  if(!session||session.status==='checking')return;
+  paintAuthState(session);
+  if(session.status!=='authenticated'){
+    dashboardSessionKey='';
+    if(mockTimerId)clearInterval(mockTimerId);
+    mockTimerId=null;mockState=null;
+    return;
+  }
+  const key=String(session.user&&(session.user.id||session.user.username)||'authenticated');
+  if(dashboardSessionKey===key)return;
+  dashboardSessionKey=key;
+  restoreMockSession();
+  refresh();
+  loadPick(false);
+}
+document.addEventListener('interviewforge:auth-change',event=>{
+  if(event&&event.detail&&event.detail.status!=='checking')activateAuthSession(event.detail);
+});
+renderCards();
+guestAuth.ready().then(activateAuthSession).catch(error=>{
+  paintAuthState({status:'error',reason:error&&error.message||'session_check_failed'});
+  renderCards();
+});
 </script>
 </body>
 </html>
