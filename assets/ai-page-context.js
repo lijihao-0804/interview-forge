@@ -30,7 +30,8 @@
     var selection = global.getSelection ? global.getSelection() : null;
     var value = selection ? String(selection.toString() || "") : "";
     value = value.replace(/\s+/g, " ").trim();
-    return value ? value.slice(0, 2000) : null;
+    if (!value) return null;
+    return value.length <= 2000 ? value : value.slice(0, 990) + " […] " + value.slice(-990);
   }
 
   function problemId(path) {

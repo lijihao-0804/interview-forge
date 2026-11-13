@@ -8,12 +8,14 @@ import time
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from tools import ai_coach
 from tools import study_server as server
+from interview_forge.ai.token_counting import StructuredRequestBudget
 
 
 def context_for(seed: str = "a") -> dict:
@@ -389,6 +391,83 @@ class AICoachModelTests(unittest.TestCase):
                 with self.assertRaises((ValueError, ai_coach._InvalidAIOutput)):
                     ai_coach.validate_insight_payload(payload, context)
 
+    def test_initial_repair_and_stream_only_cite_whole_admitted_cases(self):
+        context = context_for()
+        context["user_request"] = "请解释 metric: 的含义，这次只看错题；最后不要推荐新题。"
+        context["profile"] = {"available_minutes": 0}
+        digest = context["diagnostic_digest"]
+        digest["coverage"]["source_data_missing"]["tables"] = ["submissions"]
+        for index in range(2, 6):
+            ref = f"p{index}"
+            title = "大段观测描述" * 85
+            digest["representative_cases"].append({
+                "ref": ref, "title": title, "case_type": "repeat_wa", "severity": "medium",
+            })
+            context["trace_map"][ref] = {
+                "label": title, "signal_ids": ["signal:test"], "evidence_ids": [f"evidence:test:{index}"],
+                "semantic_fact": {"problem_id": index, "wa_count": {"30d": index}, "title": title},
+            }
+        digest["anomalies"] = [{"type": "stale", "count": 2, "example_refs": ["p1", "p5"]}]
+        original = json.dumps(context, sort_keys=True)
+        for native in (True, False):
+            with self.subTest(native=native):
+                schema = ai_coach._pydantic_schema().model_json_schema() if native else None
+                budget = StructuredRequestBudget(context_window=6_000, reserved_output_tokens=1_200)
+                snapshots = []
+                costs = []
+                def respond(messages):
+                    costs.append(budget.estimate(messages, schema))
+                    human = messages[-1][1]
+                    text = human.split("<llm-context-v2>", 1)[1].split("</llm-context-v2>", 1)[0]
+                    snapshot = json.loads(text)
+                    snapshots.append(snapshot)
+                    refs = {i["ref"] for i in snapshot["compact_facts"]}
+                    self.assertEqual(refs, {i["ref"] for i in snapshot["diagnostic_digest"]["representative_cases"]})
+                    omitted = set(context["trace_map"]) - refs
+                    self.assertTrue(omitted)
+                    guessed = next(iter(omitted)) if len(snapshots) == 1 else "p1"
+                    output = valid_result(context)
+                    output["weaknesses"][0]["support_refs"] = [guessed]
+                    output["actions"][0]["support_refs"] = [guessed]
+                    return output
+                class Model:
+                    def with_structured_output(self, _schema):
+                        return self
+                    def invoke(self, messages):
+                        return respond(messages)
+                    def stream(self, messages):
+                        yield StreamChunk(json.dumps(respond(messages), ensure_ascii=False))
+                url = "https://example.invalid/v1" if native else "https://api.deepseek.com"
+                with patch.dict(os.environ, {"AI_BASE_URL": url}), patch.object(
+                    ai_coach, "_dependencies_available", return_value=True
+                ), patch.object(ai_coach, "_make_chat_model", return_value=Model()):
+                    result = ai_coach.generate_ai_insight(context, context_window=budget.context_window)
+                self.assertEqual(len(snapshots), 2)
+                self.assertEqual(snapshots[0], snapshots[1])
+                self.assertTrue(all(budget.fits(cost) for cost in costs))
+                actual = snapshots[0]
+                self.assertTrue(actual["coverage"]["source_missing"])
+                self.assertTrue(actual["coverage"]["details_sampled"])
+                self.assertEqual(actual["user_request"], context["user_request"])
+                self.assertEqual(actual["profile"]["available_minutes"], 0)
+                refs = {item["ref"] for item in actual["compact_facts"]}
+                for anomaly in actual.get("anomalies", []):
+                    self.assertLessEqual(set(anomaly.get("example_refs", [])), refs)
+                self.assertEqual(set(result["_support_trace"]), {"p1"})
+                self.assertEqual(json.dumps(context, sort_keys=True), original)
+
+    def test_incomplete_legacy_request_does_not_reach_model_or_consume_quota(self):
+        context = context_for()
+        context["user_request"] = "仅分析错题，除非"
+        context["omitted"]["user_request"] = {"truncated_chars": 24}
+        with patch.object(ai_coach, "_dependencies_available", return_value=True), patch.object(
+            ai_coach, "_make_chat_model"
+        ) as factory, self.assertRaises(ai_coach.AIServiceError) as raised:
+            ai_coach.generate_ai_insight(context, before_model_request=lambda: self.fail("no provider call"))
+        factory.assert_not_called()
+        self.assertEqual(raised.exception.category, "context_budget_exceeded")
+        self.assertEqual(raised.exception.fallback["source"], "rules-v2")
+
     def test_xss_strings_remain_plain_validated_text(self):
         context = context_for()
         payload = valid_result(context)
@@ -737,6 +816,19 @@ class AICoachPersistenceTests(unittest.TestCase):
             self.assertEqual(self.wait_for(first["task_id"], {"succeeded", "failed"})["status"], "succeeded")
             self.assertEqual(self.wait_for(second["task_id"], {"succeeded", "failed"})["status"], "succeeded")
         self.assertEqual(fake.maximum, 1)
+
+    def test_analysis_worker_honors_managed_window_before_charging_user(self):
+        runtime = SimpleNamespace(config=ai_coach.load_ai_config(), capabilities={"context_window": 500})
+        with patch("interview_forge.ai.tasks.resolve_ai_runtime", return_value=runtime), patch.object(
+            ai_coach, "_dependencies_available", return_value=True
+        ), patch.object(ai_coach, "_make_chat_model") as factory:
+            task = ai_coach.create_ai_task(self.db, context_for(), "alice", "user")
+            finished = self.wait_for(task["task_id"], {"succeeded", "failed"})
+        self.assertEqual(finished["status"], "failed")
+        self.assertEqual(finished["error_category"], "context_budget_exceeded")
+        self.assertEqual(finished["fallback"]["source"], "rules-v2")
+        factory.assert_not_called()
+        self.assertEqual(ai_coach.get_ai_quota(self.db)["used"], 0)
 
     def test_daily_quota_and_cross_user_isolation(self):
         context = context_for()

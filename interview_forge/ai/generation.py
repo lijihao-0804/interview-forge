@@ -34,7 +34,8 @@ from interview_forge.ai.validation import (
     _InvalidAIOutput, _bounded_string_list, _bounded_text, _plain_model_value,
     _pydantic_schema, build_rule_fallback, validate_insight_payload,
 )
-from interview_forge.ai.context_projection import _context_json, _model_projection_debug
+from interview_forge.ai.context_projection import _model_projection_debug, prepare_diagnosis_request
+from interview_forge.ai.token_counting import StructuredRequestBudget
 
 
 
@@ -278,6 +279,7 @@ def generate_ai_insight(
     *,
     debug_id: str = "",
     before_model_request: Any = None,
+    context_window: int | None = None,
 ) -> dict[str, Any]:
     """Call one LangChain ChatModel, then at most one controlled repair call."""
     config = config or load_ai_config()
@@ -288,8 +290,19 @@ def generate_ai_insight(
         raise AIServiceError("not_configured", "AI 分析尚未完成配置。", fallback=fallback)
     try:
         model_started = time.perf_counter()
+        native_structured = _uses_native_structured_output(config)
+        # ENV-only and older profiles have no verified context window. Apply
+        # a local allowance in that case, without guessing the model family.
+        budget = StructuredRequestBudget.for_model(
+            context_window=context_window, config=config, default_window=16_384, output_tokens=1_200,
+        )
+        schema = None
+        if native_structured:
+            schema_type = _pydantic_schema()
+            schema = schema_type.model_json_schema() if hasattr(schema_type, "model_json_schema") else schema_type.schema()
+        request = prepare_diagnosis_request(context, budget, schema)
         model = _make_chat_model(config)
-        context_json = _context_json(context)
+        context_json = request.context_json
         projection_debug = _model_projection_debug(context, context_json, config)
         debug_ai_event(
             "model_prepared",
@@ -297,14 +310,18 @@ def generate_ai_insight(
             elapsed_ms=round((time.perf_counter() - model_started) * 1000, 2),
             context_chars=len(context_json),
             final_context_chars=projection_debug["final_context_chars"],
-            estimated_tokens=projection_debug["estimated_tokens"],
+            estimated_tokens=request.prompt_tokens,
+            context_window=budget.context_window,
+            window_source="model" if context_window else "local_default",
+            reserved_output_tokens=budget.reserved_output_tokens,
+            visible_support_count=len(request.visible_refs),
             included_sections=projection_debug["included_sections"],
             prompt_hash=projection_debug["prompt_hash"],
             context_hash=projection_debug["context_hash"],
             model_key=projection_debug["model_key"],
             llm_context_version=projection_debug["llm_context_version"],
             sections_not_sent=projection_debug["sections_not_sent"],
-            native_structured_output=_uses_native_structured_output(config),
+            native_structured_output=native_structured,
         )
         calls = 0
         request_id = debug_id or uuid.uuid4().hex
@@ -316,7 +333,7 @@ def generate_ai_insight(
             try:
                 call_started = time.perf_counter()
                 attempt = calls
-                native_structured = _uses_native_structured_output(config)
+                messages = request.repair_messages if repair else request.messages
                 request_config, request_config_hash = _request_config_summary(
                     config, native_structured=native_structured
                 )
@@ -326,9 +343,11 @@ def generate_ai_insight(
                     "model_request_started", task_id=debug_id, request_id=request_id,
                     attempt=attempt, repair=repair, streaming=not native_structured,
                     request_config=request_config, request_config_hash=request_config_hash,
+                    estimated_tokens=request.repair_tokens if repair else request.prompt_tokens,
+                    reserved_output_tokens=budget.reserved_output_tokens,
                 )
                 if native_structured:
-                    raw = _invoke_once(model, _messages(context_json, repair=repair), native_structured_output=True)
+                    raw = _invoke_once(model, messages, native_structured_output=True)
                     elapsed = round((time.perf_counter() - call_started) * 1000, 2)
                     usage = _usage_from(raw)
                     timing = {
@@ -342,7 +361,7 @@ def generate_ai_insight(
                         "usage_status": "available" if usage else "unavailable", **usage,
                     }
                 else:
-                    raw, timing = _stream_deepseek_once(model, _messages(context_json, repair=repair))
+                    raw, timing = _stream_deepseek_once(model, messages)
                 debug_ai_event(
                     "model_stream_first_chunk", task_id=debug_id, request_id=request_id,
                     attempt=attempt, repair=repair,
@@ -413,7 +432,7 @@ def generate_ai_insight(
                 )
                 parse_started = time.perf_counter()
                 payload = _extract_json_payload(raw)
-                if not _uses_native_structured_output(config):
+                if not native_structured:
                     payload = _normalize_unstructured_payload(payload)
                 debug_ai_event(
                     "model_response_parsed", task_id=debug_id, request_id=request_id,
@@ -421,7 +440,7 @@ def generate_ai_insight(
                     elapsed_ms=round((time.perf_counter() - parse_started) * 1000, 2),
                 )
                 validation_started = time.perf_counter()
-                result = validate_insight_payload(payload, context)
+                result = validate_insight_payload(payload, context, visible_refs=request.visible_refs)
                 result_metadata = _debug_content_metadata(result)
                 debug_ai_event(
                     "validation_succeeded",

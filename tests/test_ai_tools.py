@@ -228,7 +228,7 @@ class ToolInfrastructureTests(unittest.TestCase):
         self.assertEqual({spec.name for spec in registry.list_specs()}, {
             "get_problem", "get_learning_context", "get_problem_progress", "get_review_queue",
             "get_weather", "sync_leetcode", "mark_problem", "pin_problem_for_tomorrow",
-            "set_daily_goal", "search_library",
+            "set_daily_goal", "search_library", "recall_chat_history",
         })
         ctx = _context(self.db)
         problem = get_problem(ctx, GetProblemArgs(problem_id=146))

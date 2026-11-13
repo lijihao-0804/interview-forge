@@ -103,6 +103,9 @@ class AiFrontendIntegrationTests(unittest.TestCase):
         rendered = _inject_html("/library/agent-cli/chapter-01.html", body).decode()
         self.assertEqual(rendered.count("ai-launcher.js"), 1)
         self.assertEqual(rendered.count("ai-page-context.js"), 1)
+        self.assertIn("ai-page-context.js?v=2", rendered)
+        collector = Path("assets") / "ai-page-context.js"
+        self.assertEqual((ROOT / "library" / collector).read_bytes(), (ROOT / collector).read_bytes())
 
     def test_generated_page_markup_uses_shared_launcher_contract(self):
         from scripts.build import build_html_site, build_library

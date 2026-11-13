@@ -148,7 +148,9 @@ def _resolve_support_trace(
     return resolved
 
 
-def validate_insight_payload(payload: Any, context: Mapping[str, Any]) -> dict[str, Any]:
+def validate_insight_payload(
+    payload: Any, context: Mapping[str, Any], *, visible_refs: frozenset[str] | None = None,
+) -> dict[str, Any]:
     """Validate schema, bounds and compact-reference closure before persistence."""
     plain = _plain_model_value(payload)
     if not isinstance(plain, Mapping):
@@ -177,6 +179,15 @@ def validate_insight_payload(payload: Any, context: Mapping[str, Any]) -> dict[s
     if not isinstance(trace_map, Mapping):
         trace_map = {}
     available_refs = {str(ref) for ref in trace_map if SUPPORT_REF_RE.fullmatch(str(ref))}
+    if visible_refs is None and context.get("context_schema_version"):
+        # Compatibility callers validating a full diagnostic snapshot still
+        # use the model-facing projection's reference set.
+        from interview_forge.ai.context_projection import _build_llm_context
+
+        projection = _build_llm_context(context)
+        visible_refs = frozenset(fact["ref"] for fact in projection.get("compact_facts", []))
+    if visible_refs is not None:
+        available_refs.intersection_update(visible_refs)
     weaknesses = validated.get("weaknesses")
     if not isinstance(weaknesses, list) or len(weaknesses) > MAX_WEAKNESSES:
         raise _InvalidAIOutput("weakness bounds")

@@ -26,6 +26,7 @@ class MemoryContextBuilder:
             priority=80,
             max_tokens=800,
             trusted=False,
+            alternatives=tuple("\n".join(lines[:end]) for end in range(len(lines) - 1, 1, -1)),
         )
 
 

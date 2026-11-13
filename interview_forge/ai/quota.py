@@ -138,7 +138,17 @@ def consume_chat_quota(
             )
         connection.commit()
         used = int(row["used"] if row is not None else 0)
-    return {"limit": limit, "used": used, "remaining": max(0, limit - used), "reset_at": reset_at}
+    return {"limit": limit, "used": used, "remaining": max(0, limit - used), "reset_at": reset_at, "day_key": day_key}
+
+
+def refund_unstarted_chat(db_path: Path, day_key: str) -> None:
+    """Undo one successful admission on its original business day."""
+    with closing(_open_ai_db(db_path)) as connection:
+        connection.execute(
+            "UPDATE ai_chat_daily_quota SET used = used - 1, updated_at = ? WHERE day_key = ? AND used > 0",
+            (_now_iso(), day_key),
+        )
+        connection.commit()
 
 
 def _reserve_ai_quota(

@@ -10,6 +10,7 @@ from interview_forge.ai.chat.request_budget import (
     REASON_HISTORY_OMITTED,
     REASON_MANDATORY_OVERFLOW,
     REASON_RESERVED_OUTPUT,
+    REASON_TOOL_RESULTS_REDUCED,
     admit_request,
     estimate_json_tokens,
 )
@@ -26,6 +27,14 @@ class CharacterEstimator:
 
     def estimate_text(self, text: str) -> int:
         return len(text)
+
+
+def read_batch(tool: str, call_id: str, text: str) -> list[dict]:
+    return [
+        {"role": "assistant", "content": "", "tool_calls": [{"id": call_id, "name": tool, "args": {"q": call_id}}]},
+        {"role": "tool", "tool_call_id": call_id,
+         "content": json.dumps({"ok": True, "tool": tool, "data": {"text": text}}, ensure_ascii=False)},
+    ]
 
 
 class RequestBudgetTests(unittest.TestCase):
@@ -288,6 +297,11 @@ class RequestBudgetTests(unittest.TestCase):
         self.assertFalse(impossible_output.fits)
         self.assertEqual(impossible_output.reason, REASON_RESERVED_OUTPUT)
         self.assertFalse(unknown_too_large.fits)
+        unknown_with_thinking = admit_request(
+            messages, reserved_output_tokens=DEFAULT_CHAT_TOKEN_BUDGET.max_request_tokens - required + 1,
+            estimator=self.estimator,
+        )
+        self.assertFalse(unknown_with_thinking.fits)
 
     def test_langchain_messages_are_normalized_without_losing_tool_data(self):
         current = "当前 LangChain 任务：保留末尾否定条件"
@@ -342,6 +356,94 @@ class RequestBudgetTests(unittest.TestCase):
                 ],
                 estimator=self.estimator,
             )
+
+    def test_pressure_masks_before_eviction_preserving_newest_parallel_results(self):
+        first = read_batch("lookup", "old", "第一份资料" * 100)
+        latest = read_batch("lookup", "next", "第二份资料")
+        parallel = read_batch("lookup", "parallel", "第三份资料")
+        latest[0]["tool_calls"].extend(parallel[0]["tool_calls"])
+        latest.append(parallel[1])
+        messages = [
+            {"role": "system", "content": "系统规则"},
+            {"role": "user", "content": "早先相关的问题"}, {"role": "assistant", "content": "要用队列。"},
+            {"role": "user", "content": "请比较两份资料，末尾保留队列的适用条件。"},
+            *first, *latest,
+        ]
+        tools = [{"name": "lookup", "parameters": {"type": "object"}}]
+        options = {"tool_schemas": tools, "read_tools": {"lookup"}, "reserved_output_tokens": 37, "estimator": self.estimator}
+        original = self._cost(messages, tools=tools)
+        full = admit_request(messages, context_window=original * 2, **options)
+        self.assertEqual(full.messages, messages)
+        self.assertEqual((full.masked_tool_result_count, full.tool_result_tokens_saved), (0, 0))
+        for prompt_limit in (original - 10, original + 10):
+            with self.subTest(prompt_limit=prompt_limit):
+                admission = admit_request(messages, context_window=prompt_limit + 37, **options)
+                self.assertTrue(admission.fits)
+                self.assertEqual(admission.reason, REASON_TOOL_RESULTS_REDUCED)
+                self.assertEqual(admission.omitted_exchange_count, 0)
+                self.assertEqual(admission.messages[:5], messages[:5])
+                self.assertEqual(admission.messages[6:], latest)
+                self.assertEqual(admission.messages[5]["tool_call_id"], "old")
+                self.assertEqual(json.loads(admission.messages[5]["content"]), {"omitted": "earlier_read_result"})
+                self.assertEqual(admission.original_prompt_tokens, original)
+                self.assertEqual(admission.original_prompt_tokens - admission.estimated_prompt_tokens,
+                                 admission.tool_result_tokens_saved)
+                self.assertEqual(admission.masked_tool_result_count, 1)
+                self.assertEqual(admission.budget_rejected_tool_result_count, 0)
+                self.assertEqual(admission.visible_tool_message_indices, {7, 8})
+                self.assertNotEqual(admission.request_fingerprint, full.request_fingerprint)
+        self.assertEqual(admit_request(messages, context_window=original * 2, **options).messages, full.messages)
+
+    def test_mixed_failed_and_unrecognized_batches_and_last_success_stay_intact(self):
+        good = read_batch("lookup", "old", "很旧的只读资料" * 100)
+        wrong_tool = read_batch("action", "action-1", "这个工具类型不是只读")
+        mixed = read_batch("lookup", "mixed-read", "同批次包含待确认操作" * 20)
+        confirm = read_batch("save", "pending", "")
+        confirm[1]["content"] = '{"ok":false,"tool":"save","error":{"code":"confirmation_required"},"action_id":"keep-me"}'
+        mixed[0]["tool_calls"].extend(confirm[0]["tool_calls"])
+        mixed.append(confirm[1])
+        failure = read_batch("lookup", "error", "")
+        failure[1]["content"] = '{"ok":false,"tool":"lookup","error":{"code":"timeout"}}'
+        unrecognized = read_batch("lookup", "unknown", "")
+        unrecognized[1]["content"] = '{"ok":true,"tool":"other","data":{"text":"different called name"}}'
+        latest = read_batch("lookup", "latest", "最后一次实际读到的证据。")
+        messages = [{"role": "user", "content": "查询资料"}, *good, *wrong_tool, *mixed, *unrecognized, *latest, *failure]
+        limit = self._cost(messages) - 10
+        admission = admit_request(messages, context_window=limit, reserved_output_tokens=0,
+                                  read_tools={"lookup"}, estimator=self.estimator)
+        self.assertTrue(admission.fits)
+        self.assertEqual(admission.masked_tool_result_count, 1)
+        self.assertNotEqual(admission.messages[2], messages[2])
+        self.assertEqual(admission.messages[3:], messages[3:])
+        without_allowlist = admit_request(messages, context_window=limit, reserved_output_tokens=0, estimator=self.estimator)
+        self.assertFalse(without_allowlist.fits)
+        self.assertEqual(without_allowlist.messages, messages)
+
+    def test_clears_only_as_many_older_parallel_reads_as_needed(self):
+        early = read_batch("lookup", "a", "过期的清单" * 100)
+        second = read_batch("lookup", "b", "更短的可用线索")
+        early[0]["tool_calls"].extend(second[0]["tool_calls"])
+        early.append(second[1])
+        latest = read_batch("lookup", "c", "新线索")
+        messages = [{"role": "user", "content": "整合查询"}, *early, *latest]
+        limit = self._cost(messages) - 40
+        admission = admit_request(messages, context_window=limit, reserved_output_tokens=0,
+                                  read_tools={"lookup"}, estimator=self.estimator)
+        self.assertTrue(admission.fits)
+        self.assertEqual(admission.masked_tool_result_count, 1)
+        self.assertEqual(admission.messages[3:], messages[3:])
+
+    def test_protected_current_task_and_latest_read_can_still_exceed_window(self):
+        current = "完整的问题" * 35 + "只用给出的材料。"
+        messages = [{"role": "developer", "content": "规则"}, {"role": "user", "content": current},
+                    *read_batch("read", "previous", "首份资料" * 80), *read_batch("read", "latest", "当前资料" * 80)]
+        admission = admit_request(messages, context_window=200, reserved_output_tokens=40,
+                                  read_tools={"read"}, estimator=self.estimator)
+        self.assertFalse(admission.fits)
+        self.assertEqual(admission.reason, REASON_MANDATORY_OVERFLOW)
+        self.assertEqual(admission.masked_tool_result_count, 1)
+        self.assertEqual(admission.messages[:3], messages[:3])
+        self.assertEqual(admission.messages[-2:], messages[-2:])
 
 
 if __name__ == "__main__":

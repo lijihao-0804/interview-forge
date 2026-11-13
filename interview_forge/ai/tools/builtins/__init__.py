@@ -5,18 +5,42 @@ from interview_forge.ai.tools.registry import ToolRegistry
 
 
 def register_builtin_tools(registry: ToolRegistry) -> ToolRegistry:
-    from interview_forge.ai.tools.builtins.learning import GetLearningContextArgs, get_learning_context
-    from interview_forge.ai.tools.builtins.library import SearchLibraryArgs, search_library
-    from interview_forge.ai.tools.builtins.problem import GetProblemArgs, get_problem
-    from interview_forge.ai.tools.builtins.progress import GetProblemProgressArgs, get_problem_progress
-    from interview_forge.ai.tools.builtins.review import GetReviewQueueArgs, get_review_queue
-    from interview_forge.ai.tools.builtins.weather import GetWeatherArgs, get_weather
     from interview_forge.ai.tools.builtins.actions import (
-        MarkProblemArgs, PinProblemForTomorrowArgs, SetDailyGoalArgs, SyncLeetCodeArgs,
-        mark_problem, mark_problem_confirmation, pin_problem_for_tomorrow,
-        pin_problem_for_tomorrow_confirmation, set_daily_goal, set_daily_goal_confirmation,
-        sync_leetcode, sync_leetcode_confirmation,
+        MarkProblemArgs,
+        PinProblemForTomorrowArgs,
+        SetDailyGoalArgs,
+        SyncLeetCodeArgs,
+        mark_problem,
+        mark_problem_confirmation,
+        pin_problem_for_tomorrow,
+        pin_problem_for_tomorrow_confirmation,
+        set_daily_goal,
+        set_daily_goal_confirmation,
+        sync_leetcode,
+        sync_leetcode_confirmation,
     )
+    from interview_forge.ai.tools.builtins.history import (
+        RecallChatHistoryArgs,
+        recall_chat_history,
+    )
+    from interview_forge.ai.tools.builtins.learning import (
+        GetLearningContextArgs,
+        get_learning_context,
+    )
+    from interview_forge.ai.tools.builtins.library import (
+        SearchLibraryArgs,
+        search_library,
+    )
+    from interview_forge.ai.tools.builtins.problem import GetProblemArgs, get_problem
+    from interview_forge.ai.tools.builtins.progress import (
+        GetProblemProgressArgs,
+        get_problem_progress,
+    )
+    from interview_forge.ai.tools.builtins.review import (
+        GetReviewQueueArgs,
+        get_review_queue,
+    )
+    from interview_forge.ai.tools.builtins.weather import GetWeatherArgs, get_weather
     from interview_forge.ai.tools.contracts import ToolKind, ToolSpec
 
     registry.register(ToolSpec(
@@ -36,6 +60,15 @@ def register_builtin_tools(registry: ToolRegistry) -> ToolRegistry:
         handler=search_library,
         timeout_seconds=4.0,
         max_result_tokens=2400,
+    ))
+    registry.register(ToolSpec(
+        name="recall_chat_history",
+        display_name="会话历史",
+        description="回读本会话历史原文。有来源消息 ID 时直接读，或按连续关键词检索。默认查最近，追问最初约定时可从最早查起。",
+        args_model=RecallChatHistoryArgs,
+        handler=recall_chat_history,
+        timeout_seconds=4.0,
+        max_result_tokens=2100,
     ))
     registry.register(ToolSpec(
         name="get_learning_context",

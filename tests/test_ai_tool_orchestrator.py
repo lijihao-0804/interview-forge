@@ -238,8 +238,8 @@ class ToolOrchestratorTests(unittest.TestCase):
         self.assertIn("tool.error", [item["event"] for item in events])
         self.assertEqual(events[-1]["data"]["delta"], "我无法获取该信息。")
         self.assertEqual(model.calls, 3)
-        final_roles = [item["role"] for item in model.seen[2][1:]]
-        self.assertEqual(final_roles, ["assistant", "tool", "assistant", "tool", "system"])
+        final_roles = [item["role"] for item in model.seen[2]]
+        self.assertEqual(final_roles, ["system", "user", "assistant", "tool", "assistant", "tool"])
         final_tool_ids = {
             item["tool_call_id"] for item in model.seen[2] if item.get("role") == "tool"
         }
@@ -269,8 +269,8 @@ class ToolOrchestratorTests(unittest.TestCase):
         self.assertEqual([item["data"]["code"] for item in blocked], ["tool_limit_reached"] * 2)
         final_history = model.seen[1]
         self.assertEqual(
-            [item["role"] for item in final_history[1:]],
-            ["assistant", "tool", "tool", "system"],
+            [item["role"] for item in final_history],
+            ["system", "user", "assistant", "tool", "tool"],
         )
         tool_messages = [item for item in final_history if item.get("role") == "tool"]
         self.assertEqual({item["tool_call_id"] for item in tool_messages}, {"call-a", "call-b"})
@@ -340,8 +340,8 @@ class ToolOrchestratorTests(unittest.TestCase):
         self.assertEqual(model.calls, 4)
         final_history = model.seen[3]
         self.assertEqual(
-            [item["role"] for item in final_history[1:]],
-            ["assistant", "tool", "assistant", "tool", "assistant", "tool", "system"],
+            [item["role"] for item in final_history],
+            ["system", "user", "assistant", "tool", "assistant", "tool", "assistant", "tool"],
         )
         blocked_message = [
             item for item in final_history

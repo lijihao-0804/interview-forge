@@ -3,6 +3,7 @@ import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
@@ -132,6 +133,8 @@ class MemoryDomainTests(unittest.TestCase):
         self.assertEqual({item.canonical_key for item in active}, {
             "preference.explanation_order", "preference.programming_language"
         })
+        customary = self.candidate("通常我喜欢用 Python，但是刷题用 Java")
+        self.assertEqual(customary.display_text, "通常我喜欢用 Python，但是刷题用 Java")
 
     def test_complex_worthy_message_uses_structured_extractor_and_normal_chat_skips_it(self):
         model = StructuredExtractorModel()
@@ -155,6 +158,75 @@ class MemoryDomainTests(unittest.TestCase):
         secret = _deterministic_candidate("记住我的 LEETCODE_SESSION 是 abc")
         self.assertIsNone(secret)
         self.assertFalse(MemoryExtractor().extract("记住我的 token 是 abc"))
+
+    def test_full_source_limits_secret_and_tail_opt_out_before_extraction(self):
+        model = StructuredExtractorModel()
+        extractor = MemoryExtractor()
+        for message in [
+            "记住我喜欢用 Python。" + "额外背景。" * 80 + "但这次不要保存到长期记忆。",
+            "这次我偏好 Java，只在本次对话使用。",
+            "请记住我喜欢先讲思路。" + "额外背景。" * 70 + "密码是占位文本。",
+            "以后用 Python 回答：" + "项目范围。" * 70 + "唯一例外是线上讲解不用 Python。",
+        ]:
+            with self.subTest(message=message[-35:]):
+                self.assertEqual(extractor.extract(message, model=model), [])
+        self.assertEqual(model.calls, 0)
+
+    def test_structured_extractor_preserves_qualified_wording_and_enforces_delete_intent(self):
+        class ParaphrasingModel(StructuredExtractorModel):
+            def invoke(self, messages):
+                self.source = messages[-1][1]
+                value = super().invoke(messages)
+                value["candidates"][0].update(
+                    display_text="优先讲项目风险", value={"text": "优先讲项目风险"},
+                    canonical_key="preference.project_context",
+                )
+                return value
+
+        model = ParaphrasingModel()
+        message = "以后我希望优先讲项目风险，不过讲架构设计时不要这样做。"
+        saved = MemoryExtractor().extract(message, model=model)
+        self.assertEqual(model.source, message)
+        self.assertEqual(saved[0].display_text, message)
+        self.assertEqual(saved[0].value, {"text": message})
+        self.assertFalse(saved[0].explicit)
+        # The model calls this an upsert even though the actual request was to forget.
+        self.assertEqual(MemoryExtractor().extract("请忘记我讨论项目背景的偏好", model=model), [])
+
+    def test_memory_business_window_governs_explicit_and_background_calls(self):
+        from dataclasses import replace
+
+        chat = AIConfig(
+            enabled=True, provider="openai-compatible", model="chat", base_url="https://example.invalid",
+            api_key="test-key", wire_api="chat_completions", actor_authorization="", reasoning_effort="",
+            thinking_enabled=False, request_timeout_seconds=10, max_concurrent_requests=2,
+            daily_limit_per_user=3, beta_users="*",
+        )
+        configs = {
+            "chat": SimpleNamespace(config=chat, capabilities={"context_window": 16_384}),
+            "memory_extraction": SimpleNamespace(
+                config=replace(chat, model="memory"), capabilities={"context_window": 580},
+            ),
+        }
+        extractor_model = StructuredExtractorModel()
+        service = ChatService(
+            runtime_loader=configs.__getitem__,
+            model_factory=lambda c: extractor_model if c.model == "memory" else FakeModel(),
+        )
+        session = service.create_session(user_db=self.db)
+        async def chat_and_wait():
+            explicit = await _collect_async(service.stream_reply(
+                user_db=self.db, session_id=session["id"],
+                message="请记住我希望日后从正在做的项目出发解释业务风险。",
+            ))
+            self.assertIn("没有成功保存", explicit[1]["data"]["delta"])
+            await _collect_async(service.stream_reply(
+                user_db=self.db, session_id=session["id"], message="以后我希望从正在做的项目解释业务风险。",
+            ))
+            await asyncio.gather(*service._background_memory_tasks)
+        asyncio.run(chat_and_wait())
+        self.assertEqual(extractor_model.calls, 0)
+        self.assertEqual(MemoryStore().list_active(user_db=self.db), [])
 
     def test_gate_ignores_short_lived_status_and_retrieval_is_relevant_and_bounded(self):
         self.assertFalse(memory_worthy("今天有点困"))

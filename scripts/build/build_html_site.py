@@ -2743,7 +2743,7 @@ def render_markdown(source: Path) -> None:
     js_href = web_rel(output, ROOT / "assets" / "site.js") + f"?v={SITE_JS_VERSION}"
     ai_asset_base = web_rel(output, ROOT / "assets")
     ai_css_href = ai_asset_base + "/ai-launcher.css?v=5"
-    ai_context_href = ai_asset_base + "/ai-page-context.js?v=1"
+    ai_context_href = ai_asset_base + "/ai-page-context.js?v=2"
     ai_launcher_href = ai_asset_base + "/ai-launcher.js?v=4"
     policy_href = ai_asset_base + "/navigation-policy.js?v=2"
     ui_href = web_rel(output, ROOT / "assets" / "ui.js") + f"?v={ASSET_VERSION}"

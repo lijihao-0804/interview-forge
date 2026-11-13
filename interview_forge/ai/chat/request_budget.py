@@ -1,15 +1,15 @@
 """Per-request context admission before any chat model invocation.
 
 This is a deliberately small project-local adaptation of AgentHub's context
-budget guarantees: system instructions, the current user task, tool definitions,
-and complete tool exchanges are atomic; older complete user turns are the only
-conversation history eligible for eviction.
+budget guarantees. System instructions, the current user task, tool definitions
+and tool call/result pairs stay intact. Under pressure the request view can hide
+stale read observations and omit older complete turns. Source history stays intact.
 """
 from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -21,8 +21,12 @@ from interview_forge.ai.token_counting import (
 
 REASON_FITS = "fits"
 REASON_HISTORY_OMITTED = "history_omitted"
+REASON_TOOL_RESULTS_REDUCED = "tool_results_reduced"
 REASON_MANDATORY_OVERFLOW = "mandatory_context_exceeds_budget"
 REASON_RESERVED_OUTPUT = "reserved_output_exceeds_context_window"
+TOOL_RESULT_BUDGET_ERROR_CODE = "tool_result_budget_exceeded"
+TOOL_RESULT_BUDGET_ERROR_MESSAGE = "该工具结果因本轮上下文预算限制未完整提供"
+_MASKED_READ_CONTENT = '{"omitted":"earlier_read_result"}'
 
 _SYSTEM_ROLES = frozenset({"system", "developer"})
 _ROLE_ALIASES = {
@@ -45,6 +49,12 @@ class RequestAdmission:
     fits: bool
     reason: str
     request_fingerprint: str
+    original_prompt_tokens: int
+    masked_tool_result_count: int
+    budget_rejected_tool_result_count: int
+    tool_result_tokens_saved: int
+    # Positions in the original input distinguish repeated provider call IDs.
+    visible_tool_message_indices: frozenset[int]
 
 
 def _role_name(value: Any) -> str:
@@ -166,26 +176,32 @@ def _call_id(call: Mapping[str, Any]) -> str:
     return str(value)
 
 
-def _validate_tool_exchanges(messages: Sequence[Mapping[str, Any]]) -> None:
-    """Reject orphan or incomplete tool exchanges before any eviction."""
-    pending: set[str] = set()
-    for message in messages:
+def _tool_exchanges(messages: Sequence[Mapping[str, Any]]) -> list[dict[int, str]]:
+    """Validate pairs and associate each result position with its called tool."""
+    exchanges: list[dict[int, str]] = []
+    pending: dict[str, str] = {}
+    for index, message in enumerate(messages):
         role = str(message["role"])
         if role == "tool":
             call_id = str(message["tool_call_id"])
             if call_id not in pending:
                 raise ValueError(f"orphan tool message: {call_id}")
-            pending.remove(call_id)
+            exchanges[-1][index] = pending.pop(call_id)
             continue
         if pending:
             raise ValueError("incomplete assistant/tool exchange")
         if role == "assistant" and message.get("tool_calls"):
-            call_ids = [_call_id(call) for call in message["tool_calls"]]
-            if len(call_ids) != len(set(call_ids)):
-                raise ValueError("assistant tool call ids must be unique")
-            pending.update(call_ids)
+            exchanges.append({})
+            for call in message["tool_calls"]:
+                call_id = _call_id(call)
+                if call_id in pending:
+                    raise ValueError("assistant tool call ids must be unique")
+                function = call.get("function")
+                name = call.get("name") or (function.get("name") if isinstance(function, Mapping) else None)
+                pending[call_id] = name if isinstance(name, str) else ""
     if pending:
         raise ValueError("incomplete assistant/tool exchange")
+    return exchanges
 
 
 def _request_payload(
@@ -204,6 +220,97 @@ def _estimate_request(
         _request_payload(messages, tool_schemas),
         estimator=estimator,
     )
+
+
+def _read_result_costs(
+    messages: Sequence[Mapping[str, Any]],
+    exchange: Mapping[int, str],
+    read_tools: Collection[str],
+    estimator: Any,
+) -> dict[int, int]:
+    """Only the runtime's successful READ envelope is eligible for reduction."""
+    costs = {}
+    for index, name in exchange.items():
+        content = messages[index]["content"]
+        if name not in read_tools or not isinstance(content, str):
+            continue
+        try:
+            payload = json.loads(content)
+        except ValueError:
+            continue
+        if (
+            isinstance(payload, dict) and payload.keys() == {"ok", "tool", "data"}
+            and payload["ok"] is True and payload["tool"] == name and isinstance(payload["data"], dict)
+        ):
+            costs[index] = estimate_json_tokens(payload, estimator)
+    return costs
+
+
+def _reduce_tool_results(
+    messages: list[dict[str, Any]],
+    exchanges: list[dict[int, str]],
+    *,
+    current_start: int | None,
+    read_tools: Collection[str],
+    schemas: Sequence[Any],
+    estimator: Any,
+    original_tokens: int,
+    available_prompt_tokens: int,
+    max_tool_result_tokens: int | None,
+) -> tuple[set[int], set[int]]:
+    """Edit the provider view before evicting any turns. Keep the newest batch whole
+    for prompt pressure and enforce the separate hard cap on this turn's raw results.
+    """
+    masked: set[int] = set()
+    rejected: set[int] = set()
+    if not exchanges or not read_tools or current_start is None:
+        return masked, rejected
+    batches = [_read_result_costs(messages, exchange, read_tools, estimator) for exchange in exchanges]
+    result_tokens = sum(cost for batch in batches for index, cost in batch.items() if index > current_start)
+    prompt_tokens = original_tokens
+    # Leave some headroom for the next call. There is no proactive eviction of
+    # turns or of the last parallel batch if earlier reads cannot free this much.
+    pressure_threshold = available_prompt_tokens * 9 // 10
+    # The last successful read batch stays visible even when the next batch is
+    # entirely blocked, awaiting confirmation, unknown, or failed.
+    last_read_batch = max((number for number, batch in enumerate(batches) if batch), default=-1)
+    for number in range(last_read_batch):
+        exchange, batch = exchanges[number], batches[number]
+        if len(batch) != len(exchange):
+            continue
+        for index, cost in batch.items():
+            needs_quota = (
+                index > current_start and max_tool_result_tokens is not None
+                and result_tokens > max_tool_result_tokens
+            )
+            if prompt_tokens <= pressure_threshold and not needs_quota:
+                continue
+            message = messages[index]
+            smaller = {**message, "content": _MASKED_READ_CONTENT}
+            # Don't replace a short observation by a more expensive marker.
+            if estimate_json_tokens(smaller, estimator) >= estimate_json_tokens(message, estimator):
+                continue
+            messages[index] = smaller
+            masked.add(index)
+            if index > current_start:
+                result_tokens -= cost
+            prompt_tokens = _estimate_request(messages, schemas, estimator)
+
+    # Preserve the previous within-batch ordering when one fresh batch by
+    # itself exceeds the tool result cap. Older mixed/error batches stay intact.
+    if max_tool_result_tokens is not None and result_tokens > max_tool_result_tokens:
+        latest = {i: cost for i, cost in batches[-1].items() if i > current_start}
+        used = result_tokens - sum(latest.values())
+        for index, cost in latest.items():
+            if used + cost <= max_tool_result_tokens:
+                used += cost
+                continue
+            messages[index] = {**messages[index], "content": canonical_json({
+                "ok": False, "tool": exchanges[-1][index],
+                "error": {"code": TOOL_RESULT_BUDGET_ERROR_CODE, "message": TOOL_RESULT_BUDGET_ERROR_MESSAGE},
+            })}
+            rejected.add(index)
+    return masked, rejected
 
 
 def _ordered_selection(
@@ -237,18 +344,28 @@ def admit_request(
     context_window: Any = None,
     reserved_output_tokens: int = 1200,
     estimator: Any = None,
+    read_tools: Collection[str] = (),
+    max_tool_result_tokens: int | None = None,
 ) -> RequestAdmission:
-    """Admit one model request without mutating or partially truncating it."""
+    """Build one provider request without modifying the caller's source history."""
     if (
         isinstance(reserved_output_tokens, bool)
         or not isinstance(reserved_output_tokens, int)
         or reserved_output_tokens < 0
     ):
         raise ValueError("reserved_output_tokens must be a non-negative integer")
+    if max_tool_result_tokens is not None and (
+        isinstance(max_tool_result_tokens, bool)
+        or not isinstance(max_tool_result_tokens, int)
+        or max_tool_result_tokens < 0
+    ):
+        raise ValueError("max_tool_result_tokens must be a non-negative integer")
 
     normalized = _normalize_messages(messages)
     schemas = _normalize_tool_schemas(tool_schemas)
-    _validate_tool_exchanges(normalized)
+    exchanges = _tool_exchanges(normalized)
+    original_tokens = _estimate_request(normalized, schemas, estimator)
+    view = normalized.copy()
 
     try:
         window = int(context_window) if context_window is not None else 0
@@ -258,7 +375,10 @@ def admit_request(
     if known_window:
         available_prompt_tokens = max(0, window - reserved_output_tokens)
     else:
-        available_prompt_tokens = DEFAULT_CHAT_TOKEN_BUDGET.max_prompt_tokens
+        available_prompt_tokens = min(
+            DEFAULT_CHAT_TOKEN_BUDGET.max_prompt_tokens,
+            max(0, DEFAULT_CHAT_TOKEN_BUDGET.max_request_tokens - reserved_output_tokens),
+        )
 
     user_indices = [
         index for index, message in enumerate(normalized)
@@ -273,49 +393,73 @@ def admit_request(
     else:
         # Without a user anchor there is no safe history boundary. Preserve the
         # complete input and let the budget decision be explicit.
+        current_start = None
         mandatory_indices = set(range(len(normalized)))
 
+    masked, rejected = _reduce_tool_results(
+        view, exchanges, current_start=current_start, read_tools=read_tools, schemas=schemas,
+        estimator=estimator, original_tokens=original_tokens, available_prompt_tokens=available_prompt_tokens,
+        max_tool_result_tokens=max_tool_result_tokens,
+    )
     evictable_indices = [
         index for index in range(len(normalized))
         if index not in mandatory_indices
     ]
     groups = _history_exchange_groups(normalized, evictable_indices)
-    mandatory_messages = _ordered_selection(normalized, mandatory_indices)
-    mandatory_tokens = _estimate_request(mandatory_messages, schemas, estimator)
-
-    reason = REASON_FITS
+    view_tokens = _estimate_request(view, schemas, estimator) if masked or rejected else original_tokens
+    if view_tokens <= available_prompt_tokens:
+        mandatory_indices = set(range(len(view)))
+        mandatory_tokens = view_tokens
+    else:
+        mandatory_tokens = _estimate_request(_ordered_selection(view, mandatory_indices), schemas, estimator)
     fits = mandatory_tokens <= available_prompt_tokens
-    if fits:
+    if fits and view_tokens > available_prompt_tokens:
         for group in reversed(groups):
             candidate_indices = mandatory_indices | set(group)
-            candidate_messages = _ordered_selection(normalized, candidate_indices)
+            candidate_messages = _ordered_selection(view, candidate_indices)
             candidate_tokens = _estimate_request(candidate_messages, schemas, estimator)
             if candidate_tokens > available_prompt_tokens:
                 break
             mandatory_indices = candidate_indices
             mandatory_tokens = candidate_tokens
-    else:
+
+    admitted = _ordered_selection(view, mandatory_indices)
+    omitted = sum(1 for group in groups if not set(group).issubset(mandatory_indices))
+    visible_masked = masked & mandatory_indices
+    visible_rejected = rejected & mandatory_indices
+    if not fits:
         reason = (
             REASON_RESERVED_OUTPUT
             if known_window and reserved_output_tokens >= window
             else REASON_MANDATORY_OVERFLOW
         )
-
-    admitted = _ordered_selection(normalized, mandatory_indices)
-    omitted = sum(1 for group in groups if not set(group).issubset(mandatory_indices))
-    if fits and omitted:
+    elif omitted:
         reason = REASON_HISTORY_OMITTED
+    elif visible_masked or visible_rejected:
+        reason = REASON_TOOL_RESULTS_REDUCED
+    else:
+        reason = REASON_FITS
 
     payload = _request_payload(admitted, schemas)
-    estimated_prompt_tokens = estimate_json_tokens(payload, estimator=estimator)
     fingerprint = hashlib.sha256(canonical_json(payload).encode("utf-8")).hexdigest()
+    original_selected_tokens = mandatory_tokens
+    if visible_masked or visible_rejected:
+        original_selected_tokens = _estimate_request(_ordered_selection(normalized, mandatory_indices), schemas, estimator)
     return RequestAdmission(
         messages=admitted,
-        estimated_prompt_tokens=estimated_prompt_tokens,
+        estimated_prompt_tokens=mandatory_tokens,
         omitted_exchange_count=omitted,
         fits=fits,
         reason=reason,
         request_fingerprint=fingerprint,
+        original_prompt_tokens=original_tokens,
+        masked_tool_result_count=len(visible_masked),
+        budget_rejected_tool_result_count=len(visible_rejected),
+        tool_result_tokens_saved=max(0, original_selected_tokens - mandatory_tokens),
+        visible_tool_message_indices=frozenset(
+            i for exchange in exchanges for i in exchange
+            if i in mandatory_indices and i not in masked and i not in rejected
+        ),
     )
 
 
@@ -324,6 +468,7 @@ __all__ = [
     "REASON_HISTORY_OMITTED",
     "REASON_MANDATORY_OVERFLOW",
     "REASON_RESERVED_OUTPUT",
+    "REASON_TOOL_RESULTS_REDUCED",
     "RequestAdmission",
     "admit_request",
     "estimate_json_tokens",

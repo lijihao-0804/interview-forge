@@ -4,6 +4,7 @@ import json
 import re
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -588,8 +589,10 @@ class ChatServiceIdentityIntegrationTests(_RuntimeDBTestCase):
     def test_real_orchestrator_receives_window_budget_and_untrimmed_current_task(self) -> None:
         db = self.root / "service-user" / "hot100-study.db"
         db.parent.mkdir(parents=True, exist_ok=True)
-        config = _config()
+        config = replace(_config(), reasoning_mode="budget", reasoning_budget=1536, reasoning_effort="")
         runtime = _runtime(config)
+        runtime.reasoning_policy = SimpleNamespace(mode="budget", effort=None, budget_tokens=1536)
+        runtime.capabilities.update(reasoning_modes=["auto", "budget"], reasoning_budget=True)
         provider = _ToolCallingProvider()
         seen_artifacts = {}
 
@@ -632,7 +635,7 @@ class ChatServiceIdentityIntegrationTests(_RuntimeDBTestCase):
         self.assertEqual(seen_artifacts["model_context_window"], 32768)
         self.assertEqual(
             seen_artifacts["reserved_output_tokens"],
-            budget_for_context_window(32768).output_tokens,
+            DEFAULT_CHAT_TOKEN_BUDGET.output_tokens + 1536,
         )
 
         connection = server_runtime.connect(db)
@@ -653,7 +656,7 @@ class ChatServiceIdentityIntegrationTests(_RuntimeDBTestCase):
         self.assertEqual(metadata["context_window"], 32768)
         self.assertEqual(
             metadata["reserved_output_tokens"],
-            budget_for_context_window(32768).output_tokens,
+            DEFAULT_CHAT_TOKEN_BUDGET.output_tokens + 1536,
         )
         self.assertEqual(
             metadata["prepared_context_hash"],

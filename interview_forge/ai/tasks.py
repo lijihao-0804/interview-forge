@@ -388,7 +388,8 @@ def _run_persisted_task(db_path: Path, task_id: str) -> None:
                     "AI 分析配置已变化，请重新发起分析。",
                 )
             result = generate_ai_insight(
-                context, config=runtime.config, debug_id=task_id, before_model_request=consume_quota
+                context, config=runtime.config, debug_id=task_id, before_model_request=consume_quota,
+                context_window=(getattr(runtime, "capabilities", {}) or {}).get("context_window"),
             )
     except AIServiceError as exc:
         debug_ai_event(

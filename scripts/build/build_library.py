@@ -1211,7 +1211,7 @@ def document(
         # /面包屑/上一章下一章才不会被历史 target=_blank 全部新开标签。
         f'<script src="{time_asset_base}/navigation-policy.js?v=2" defer></script>'
         f'<link rel="stylesheet" data-interviewforge-ai href="{asset_base}/ai-launcher.css?v=5">'
-        f'<script src="{asset_base}/ai-page-context.js?v=1" defer data-interviewforge-ai></script>'
+        f'<script src="{asset_base}/ai-page-context.js?v=2" defer data-interviewforge-ai></script>'
         f'<script src="{asset_base}/ai-launcher.js?v=4" defer data-interviewforge-ai></script>'
     )
     page = f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>{html.escape(title)}</title><link rel="stylesheet" href="{css_href}?v={css_version}">{extra_head}{ai_assets}</head><body class="auth-checking">{body}

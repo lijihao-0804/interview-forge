@@ -7,10 +7,13 @@ from __future__ import annotations
 
 from interview_forge.ai.runtime import facade
 from interview_forge.ai.config import AIConfig
+from interview_forge.ai.errors import AIServiceError
+from interview_forge.ai.token_counting import StructuredRequestBudget, estimate_text_tokens
 
 import hashlib
 import json
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
 
 from interview_forge.ai.prompts import (
@@ -97,12 +100,12 @@ def _build_llm_context(
         for case in cases
         if str(case.get("ref")) in trace_map and isinstance(trace_map[str(case.get("ref"))], Mapping)
     ]
+    fact_refs = {str(fact.get("ref")) for fact in compact_facts}
     clean_cases = [
         {key: item.get(key) for key in ("ref", "case_type", "severity", "title")}
         for item in cases
-        if str(item.get("ref")) in {str(fact.get("ref")) for fact in compact_facts}
+        if str(item.get("ref")) in fact_refs
     ]
-    fact_refs = {str(fact.get("ref")) for fact in compact_facts}
     anomalies: list[dict[str, Any]] = []
     for item in digest.get("anomalies", []) if isinstance(digest.get("anomalies"), list) else []:
         if not isinstance(item, Mapping):
@@ -393,14 +396,126 @@ def project_learning_context_for_chat(
     return _trim_chat_projection(_prune_empty(projection), max_chars)
 
 
-def _context_json(context: Mapping[str, Any]) -> str:
-    serialized = json.dumps(_build_llm_context(context), ensure_ascii=False, separators=(",", ":"))
+def _projection_json(projection: Mapping[str, Any]) -> str:
+    serialized = json.dumps(projection, ensure_ascii=False, separators=(",", ":"))
     forbidden = ("evidence:", "signal:", "metric:", '"trace_map"', '"selection_reasons"', '"rule_version"')
-    if any(token in serialized for token in forbidden):
+    # A quoted user request may legitimately ask what “metric:” means. It
+    # cannot expose a server trace. Continue checking all server-derived
+    # fields before any of them reach a model or compatibility caller.
+    server_data = (
+        json.dumps({k: v for k, v in projection.items() if k != "user_request"}, ensure_ascii=False)
+        if "user_request" in projection else serialized
+    )
+    if any(token in server_data for token in forbidden):
         raise ValueError("模型上下文包含内部追溯字段")
+    return serialized
+
+
+def _context_json(context: Mapping[str, Any]) -> str:
+    serialized = _projection_json(_build_llm_context(context))
     if len(serialized) > MAX_CONTEXT_PREVIEW_CHARS:
         raise ValueError("上下文超出允许范围")
     return serialized
+
+
+@dataclass(frozen=True)
+class DiagnosisRequest:
+    context_json: str
+    visible_refs: frozenset[str]
+    messages: list[tuple[str, str]]
+    repair_messages: list[tuple[str, str]]
+    prompt_tokens: int
+    repair_tokens: int
+
+
+def prepare_diagnosis_request(
+    context: Mapping[str, Any], budget: StructuredRequestBudget, schema: Mapping[str, Any] | None,
+) -> DiagnosisRequest:
+    """Keep the request, coverage and evidence closure intact in both model attempts."""
+    omitted = context.get("omitted") or {}
+    request_omission = omitted.get("user_request") or {}
+    if request_omission.get("truncated_chars"):
+        raise AIServiceError("context_budget_exceeded", "本次分析要求未能完整保留，请缩短后重试。")
+    profile_omission = omitted.get("profile") or {}
+    if profile_omission.get("truncated_chars") or profile_omission.get("budget_omitted_fields"):
+        raise AIServiceError("context_budget_exceeded", "本次学习目标或限制未能完整保留，请缩短后重试。")
+
+    projection = _build_llm_context(context)
+    summary = projection.setdefault("diagnostic_digest", {})
+    cases = summary.pop("representative_cases", [])
+    facts = projection.pop("compact_facts", [])
+    anomalies = projection.pop("anomalies", [])
+
+    def prepare(candidate: dict[str, Any]) -> DiagnosisRequest | None:
+        text = _projection_json(_prune_empty(candidate))
+        if len(text) > MAX_CONTEXT_PREVIEW_CHARS:
+            return None
+        repair_messages = _messages(text, repair=True)
+        repair_tokens = budget.estimate(repair_messages, schema)
+        if not budget.fits(repair_tokens):
+            return None
+        messages = _messages(text)
+        prompt_tokens = budget.estimate(messages, schema)
+        if not budget.fits(prompt_tokens):
+            return None
+        refs = frozenset(fact["ref"] for fact in candidate.get("compact_facts", []))
+        return DiagnosisRequest(text, refs, messages, repair_messages, prompt_tokens, repair_tokens)
+
+    complete = prepare({
+        **projection, "diagnostic_digest": {**summary, "representative_cases": cases},
+        "compact_facts": facts, "anomalies": anomalies,
+    })
+    if complete is not None:
+        return complete
+
+    # The overview, quality status, real source coverage, profile and complete
+    # user request have priority. The compiler already ranks representative
+    # cases by type and severity. Admit entire cases, never fragments of JSON.
+    aggregate_sections = {
+        key: summary.pop(key) for key in ("review_backlog", "overdue_distribution", "round_distribution")
+        if key in summary
+    }
+    projection["coverage"].update(details_sampled=True, context_budget_omitted=True)
+    admitted = prepare(projection)
+    if admitted is None:
+        raise AIServiceError("context_budget_exceeded", "当前模型窗口无法容纳完整的分析要求、资料范围及输出，请缩短要求或使用规则分析。")
+
+    selected_cases: list[dict[str, Any]] = []
+    selected_facts: list[dict[str, Any]] = []
+    # Some entities have several signal types with different observed values.
+    # Match cases to their own facts rather than treating a shared ref as a
+    # unique case or joining an omitted case's measurements to another type.
+    for case, fact in zip(cases, facts, strict=True):
+        summary["representative_cases"] = selected_cases + [case]
+        projection["compact_facts"] = selected_facts + [fact]
+        trial = prepare(projection)
+        if trial is not None:
+            selected_cases.append(case)
+            selected_facts.append(fact)
+            admitted = trial
+    summary["representative_cases"] = selected_cases
+    projection["compact_facts"] = selected_facts
+    if facts and not selected_facts:
+        raise AIServiceError("context_budget_exceeded", "当前模型窗口无法完整容纳分析要求与一组案例依据，已保留规则分析。")
+    for key, section in aggregate_sections.items():
+        summary[key] = section
+        trial = prepare(projection)
+        if trial is None:
+            del summary[key]
+        else:
+            admitted = trial
+    selected_anomalies = []
+    for item in anomalies:
+        refs = [ref for ref in item.get("example_refs", []) if ref in admitted.visible_refs]
+        if item.get("example_refs") and not refs:
+            continue
+        anomaly = {**item, "example_refs": refs}
+        projection["anomalies"] = selected_anomalies + [anomaly]
+        trial = prepare(projection)
+        if trial is not None:
+            selected_anomalies.append(anomaly)
+            admitted = trial
+    return admitted
 
 
 def _model_projection_debug(context: Mapping[str, Any], context_json: str, config: AIConfig) -> dict[str, Any]:
@@ -425,7 +540,7 @@ def _model_projection_debug(context: Mapping[str, Any], context_json: str, confi
     )
     return {
         "final_context_chars": len(context_json),
-        "estimated_tokens": max(1, (len(context_json) + 3) // 4),
+        "estimated_tokens": estimate_text_tokens(prompt_material),
         "included_sections": included,
         "prompt_hash": hashlib.sha256(prompt_material.encode("utf-8")).hexdigest(),
         "context_hash": model_context_hash,

@@ -957,6 +957,8 @@ def compile_learning_context(
     target_problem_id: Any = None,
     profile: Mapping[str, Any] | None = None,
     budget_tier: str | None = None,
+    *,
+    require_full_request: bool = False,
 ) -> dict[str, Any]:
     """Compile a bounded ``context-v1`` object from one analytics snapshot.
 
@@ -972,6 +974,8 @@ def compile_learning_context(
     normalized_task = _normalize_task(task)
     tier = _normalize_budget(normalized_task, budget_tier)
     request, request_omitted = _user_text(user_request)
+    if require_full_request and request_omitted:
+        raise ContextCompilerError(f"本次分析要求最多支持 {MAX_USER_REQUEST_CHARS} 个字符，请缩短后重试。")
     normalized_profile, profile_stats = _normalize_profile(profile)
     stats: dict[str, int] = {
         "analytics_text_truncated_chars": 0,
@@ -1386,7 +1390,10 @@ def compile_learning_context(
                     rank=rank,
                 )
 
-    return builder.finalize()
+    result = builder.finalize()
+    if require_full_request and result["omitted"]["user_request"]["truncated_chars"]:
+        raise ContextCompilerError("当前预算无法完整容纳本次要求，请缩短后重试。")
+    return result
 
 
 __all__ = [

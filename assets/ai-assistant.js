@@ -149,7 +149,11 @@
       throw authError();
     }
     var payload = await response.json().catch(function () { return {}; });
-    if (!response.ok) throw new Error(payload.error || "请求失败");
+    if (!response.ok) {
+      var failure = new Error(payload.error || "请求失败");
+      failure.status = response.status;
+      throw failure;
+    }
     return payload;
   }
 
@@ -431,6 +435,68 @@
     content.insertBefore(group, content.querySelector(".message-time"));
   }
 
+  function renderContextDetails(content, turnId) {
+    if (!turnId || !state.current || content.querySelector(".context-details")) return;
+    var sessionId = state.current;
+    var details = document.createElement("details");
+    details.className = "context-details";
+    var summary = document.createElement("summary");
+    summary.textContent = "上下文使用情况";
+    var body = document.createElement("div");
+    var labels = { learning: "学情", memory: "长期记忆", memory_persistence: "记忆保存状态",
+      recent_actions: "操作状态", current_page: "当前页面", legacy_context: "参考资料" };
+    details.append(summary, body);
+    content.appendChild(details);
+
+    function line(text) {
+      var item = document.createElement("p");
+      item.textContent = text;
+      body.appendChild(item);
+    }
+    var loading = false, loaded = false;
+    details.addEventListener("toggle", async function () {
+      if (!details.open || loading || loaded) return;
+      loading = true;
+      body.textContent = "正在读取…";
+      try {
+        var report = await api("/api/chat/sessions/" + encodeURIComponent(sessionId) +
+          "/turns/" + encodeURIComponent(turnId) + "/context");
+        body.textContent = "";
+        var prep = report.preparation || {};
+        if (typeof prep.history_message_count === "number")
+          line("准备上下文时，从 " + prep.history_message_count + " 条历史消息中选出 " + (prep.history_selected_count || 0) +
+            " 条相关消息" + (prep.summary_present ? "，含历史摘要。" : "。"));
+        if (prep.history_archived_count) line("较早的 " + prep.history_archived_count + " 条消息可按需回查。");
+        if (prep.context_blocks && prep.context_blocks.length)
+          line("准备阶段纳入：" + prep.context_blocks.map(function (key) { return labels[key]; }).join("、"));
+        if (prep.context_blocks_shortened && prep.context_blocks_shortened.length)
+          line("使用精简版：" + prep.context_blocks_shortened.map(function (key) { return labels[key]; }).join("、"));
+        if (prep.context_blocks_rejected && prep.context_blocks_rejected.length)
+          line("预算不足，未载入：" + prep.context_blocks_rejected.map(function (key) { return labels[key]; }).join("、"));
+        (report.rounds || []).forEach(function (round) {
+          var facts = [];
+          if (typeof round.admitted_prompt_tokens === "number")
+            facts.push((round.admitted === false ? "超过预算的输入估算 " : "输入估算 ") + round.admitted_prompt_tokens + " token");
+          if (typeof round.provider_input_tokens === "number") facts.push("供应商报告 " + round.provider_input_tokens + " token");
+          if (round.masked_tool_result_count) {
+            var saved = round.tool_result_tokens_saved ? "，共节省约 " + round.tool_result_tokens_saved + " token" : "";
+            facts.push("压缩 " + round.masked_tool_result_count + " 个旧工具结果" + saved);
+          }
+          if (round.budget_rejected_tool_result_count) facts.push(round.budget_rejected_tool_result_count + " 个工具结果超出预算");
+          if (round.omitted_exchange_count) facts.push("省略 " + round.omitted_exchange_count + " 组历史");
+          if (facts.length) line("第 " + round.round + " 次请求：" + facts.join("，"));
+        });
+        if (!body.childElementCount) line("这次回答没有详细的上下文指标。");
+        loaded = true;
+      } catch (err) {
+        body.textContent = err.status === 404 ? "这次回答没有可用的上下文记录。" : "暂时未能读取，收起后展开可重试。";
+        loaded = err.status === 404;
+      } finally {
+        loading = false;
+      }
+    });
+  }
+
   function renderMessage(item, target) {
     var node = document.createElement("div");
     node.className = "message " + (item.role === "user" ? "user" : "assistant");
@@ -445,7 +511,10 @@
     time.textContent = formatMessageTime(item.created_at);
     content.appendChild(bubble);
     content.appendChild(time);
-    if (item.role === "assistant" && item.metadata) renderLibrarySources(content, item.metadata.library_sources);
+    if (item.role === "assistant" && item.metadata) {
+      renderLibrarySources(content, item.metadata.library_sources);
+      renderContextDetails(content, item.metadata.stream_message_id);
+    }
     node.appendChild(content);
     (target || messages).appendChild(node);
     return node;
@@ -640,6 +709,7 @@
             finalizeAssistant(state.assistantNode.querySelector(".bubble"));
             setMessageTime(state.assistantNode, payload && payload.created_at);
             renderLibrarySources(state.assistantNode.querySelector(".message-content"), payload && payload.library_sources);
+            renderContextDetails(state.assistantNode.querySelector(".message-content"), payload && payload.message_id);
             scheduleScrollBottom();
           }
           status.textContent = "已连接";

@@ -33,6 +33,9 @@ def _bounded_text(value: Any, *, field: str, limit: int, required: bool = False)
     value = " ".join(value.split()).strip()
     if required and not value:
         raise ValueError(f"page_context.{field} 不能为空")
+    if field == "selected_text" and len(value) > limit:
+        edge = (limit - 5) // 2
+        return value[:edge] + " […] " + value[-(limit - 5 - edge):]
     return value[:limit] or ("" if required else None)
 
 
@@ -96,14 +99,23 @@ class PageContextProvider:
             lines.append(f"内容 ID：{normalized.content_id}")
         if normalized.heading:
             lines.append(f"当前章节：{normalized.heading}")
+        identity = "\n".join(lines)
+        variants: list[str] = []
         if normalized.selected_text:
-            lines.append(f"用户选中文本：{normalized.selected_text}")
+            quote = normalized.selected_text
+            lines.append(f"用户选中文本：{quote}")
+            for edge in (180, 56):
+                if len(quote) > edge * 2:
+                    variants.append(f"{identity}\n用户选中文本（节选）：{quote[:edge]} […] {quote[-edge:]}")
+            variants.append(identity)
+        variants.append(f"当前页面：{normalized.title}" + (f"（题号 {normalized.problem_id}）" if normalized.problem_id else ""))
         return ContextBlock(
             key="current_page",
             content="\n".join(lines),
             priority=85,
             max_tokens=900,
             trusted=False,
+            alternatives=tuple(variants),
         )
 
 

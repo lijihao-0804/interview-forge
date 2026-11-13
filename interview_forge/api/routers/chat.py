@@ -2,18 +2,37 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncGenerator
+from contextlib import suppress
+from pathlib import Path
+from typing import Any
 
+from anyio import CancelScope
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 
 from interview_forge.ai.actions.service import ActionService
-from interview_forge.ai.chat.service import ChatService, MAX_CHAT_BODY_BYTES, normalize_message
-from interview_forge.ai.chat.page_context import PageContext
 from interview_forge.ai.actions.store import ActionRequestStore
-from interview_forge.api.support import async_require_user, error_response, json_response, read_json, require_user, service_error, user_db
-from interview_forge.ai.quota import consume_chat_quota
+from interview_forge.ai.chat.diagnostics import turn_context
+from interview_forge.ai.chat.page_context import PageContext
+from interview_forge.ai.chat.service import (
+    MAX_CHAT_BODY_BYTES,
+    ChatService,
+    claim_chat_session,
+    normalize_message,
+    release_chat_session,
+)
+from interview_forge.ai.quota import consume_chat_quota, refund_unstarted_chat
+from interview_forge.api.support import (
+    async_require_user,
+    error_response,
+    json_response,
+    read_json,
+    require_user,
+    service_error,
+    user_db,
+)
 from interview_forge.runtime.streaming import sse_events
-
 
 router = APIRouter()
 chat_service = ChatService()
@@ -60,6 +79,20 @@ def list_messages(request: Request, session_id: str):
         if session is None:
             return error_response("会话不存在", 404)
         return json_response({"session": session, "items": chat_service.list_messages(user_db=db_path, session_id=session_id)})
+    except BaseException as exc:
+        return _handled(exc)
+
+
+@router.get("/api/chat/sessions/{session_id}/turns/{turn_id}/context")
+def context_details(request: Request, session_id: str, turn_id: str):
+    user, denied = require_user(request)
+    if denied is not None:
+        return denied
+    try:
+        result = turn_context(user_db(user), session_id, turn_id)
+        if result is None:
+            return error_response("该轮暂无上下文记录", 404)
+        return json_response(result)
     except BaseException as exc:
         return _handled(exc)
 
@@ -136,6 +169,77 @@ async def cancel_action(request: Request, action_id: str):
         return _handled(exc, write=True)
 
 
+class _ChatAdmission:
+    """Own the session and its provisional charge until the source records the user turn."""
+
+    def __init__(self, db_path: Path, session_id: str):
+        self.db_path = db_path
+        self.session_id = session_id
+        self.day_to_refund: str | None = None
+        self.closed = False
+
+    def charge(self, role: str) -> None:
+        receipt = consume_chat_quota(self.db_path, role)
+        if receipt is not None:
+            self.day_to_refund = receipt["day_key"]
+
+    async def acquire_quota(self, role: str) -> None:
+        charge = asyncio.create_task(asyncio.to_thread(self.charge, role))
+        try:
+            await asyncio.shield(charge)
+        except asyncio.CancelledError:
+            # A cancelled await cannot interrupt SQLite. Finish settlement even
+            # under Starlette's cancel scope or a second direct task cancellation.
+            with CancelScope(shield=True):
+                while not charge.done():
+                    with suppress(asyncio.CancelledError, Exception):
+                        await asyncio.shield(charge)
+            if not charge.cancelled():
+                charge.exception()
+            raise
+
+    def close(self) -> None:
+        if self.closed:
+            return
+        self.closed = True
+        try:
+            if self.day_to_refund is not None:
+                refund_unstarted_chat(self.db_path, self.day_to_refund)
+        finally:
+            release_chat_session(self.db_path, self.session_id)
+
+    async def observe(self, source: AsyncGenerator[dict[str, Any], None]) -> AsyncGenerator[dict[str, Any], None]:
+        try:
+            async for item in source:
+                # ChatService yields this directly after inserting the user message,
+                # before its first await. HTTP headers and heartbeat frames do not count.
+                if item.get("event") == "message.start":
+                    self.day_to_refund = None
+                yield item
+        finally:
+            await source.aclose()
+
+
+class _SessionStreamResponse(StreamingResponse):
+    """The response owns the admission even if the connection closes before iteration."""
+
+    def __init__(self, source, request, admission: _ChatAdmission):
+        frames = sse_events(admission.observe(source), request=request)
+        super().__init__(frames, media_type="text/event-stream", headers={
+            "Cache-Control": "no-cache, no-transform", "Connection": "keep-alive", "X-Accel-Buffering": "no",
+        })
+        self.admission = admission
+
+    async def __call__(self, scope, receive, send):
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            try:
+                await self.body_iterator.aclose()
+            finally:
+                self.admission.close()
+
+
 @router.post("/api/chat/sessions/{session_id}/stream")
 async def stream_session(request: Request, session_id: str):
     user, denied = await async_require_user(request)
@@ -156,22 +260,23 @@ async def stream_session(request: Request, session_id: str):
         # Chat has its own atomic daily budget.  It intentionally does not
         # consume the one-click analysis quota; admins can tune the chat
         # budget with AI_CHAT_DAILY_LIMIT without changing analysis limits.
-        await asyncio.to_thread(consume_chat_quota, db_path, str(user["role"] if "role" in user.keys() else "user"))
-        source = chat_service.stream_reply(
-            user_db=db_path,
-            session_id=session_id,
-            message=message,
-            page_context=page_context,
-            request_id=str(getattr(request.state, "request_id", "")),
-        )
-        return StreamingResponse(
-            sse_events(source, request=request),
-            media_type="text/event-stream",
-            headers={
-                "Cache-Control": "no-cache, no-transform",
-                "Connection": "keep-alive",
-                "X-Accel-Buffering": "no",
-            },
-        )
+        # Acquire synchronously: cancelling an offloaded acquisition can lose
+        # ownership after the thread has obtained the OS lock.
+        if not claim_chat_session(db_path, session_id):
+            return error_response("该会话正在生成，请先停止当前生成。", 409, error_category="chat_in_progress")
+        admission = _ChatAdmission(db_path, session_id)
+        try:
+            role = str(dict(user).get("role", "user"))
+            await admission.acquire_quota(role)
+            source = chat_service.stream_reply(
+                user_db=db_path, session_id=session_id, message=message, page_context=page_context,
+                request_id=str(getattr(request.state, "request_id", "")), session_claimed_by_route=True,
+            )
+            return _SessionStreamResponse(source, request, admission)
+        except BaseException:
+            admission.close()
+            raise
+    except asyncio.CancelledError:
+        raise
     except BaseException as exc:
         return _handled(exc, write=True)

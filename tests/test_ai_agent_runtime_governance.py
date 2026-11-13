@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict
 from interview_forge.ai.chat import tool_orchestrator as orchestrator_module
 from interview_forge.ai.chat.tool_orchestrator import ToolOrchestrator
 from interview_forge.ai.errors import AIServiceError
+from interview_forge.ai.token_counting import estimate_json_tokens
 from interview_forge.ai.tools.contracts import (
     ToolExecutionContext,
     ToolKind,
@@ -24,7 +25,11 @@ from interview_forge.core.runtime import server_runtime
 ADMISSION_METADATA_KEYS = {
     "context_budget_policy_version",
     "request_fingerprint",
+    "original_prompt_tokens",
     "admitted_prompt_tokens",
+    "masked_tool_result_count",
+    "tool_result_tokens_saved",
+    "budget_rejected_tool_result_count",
     "omitted_exchange_count",
     "context_window",
     "reserved_output_tokens",
@@ -262,6 +267,77 @@ class AgentRuntimeGovernanceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(set(failed[0]["metadata"]), ADMISSION_METADATA_KEYS)
         self.assertNotIn("当前问题必须保留", json.dumps(failed, ensure_ascii=False))
 
+    def test_cumulative_result_limit_prefers_fresh_evidence_in_final_without_tools(self):
+        def reader(_context, args):
+            source = {"title": args.value, "module_title": "网络", "url": f"/library/{args.value}.html"}
+            return ToolResult({"items": [{**source, "snippet": args.value * 250}]}, library_sources=(source,))
+
+        registry = ToolRegistry([ToolSpec("lookup", "检索", "检索", ValueArgs, reader)])
+        # Some providers reuse call IDs in successive exchanges. Source
+        # attribution still follows the exact result position handed to the LLM.
+        model = ScriptedModel([
+            [FakeChunk("", [{"id": "same", "name": "lookup", "args": {"value": "A"}}])],
+            [FakeChunk("", [{"id": "same", "name": "lookup", "args": {"value": "B"}}])],
+            [FakeChunk("已根据最后一份资料作答")],
+        ])
+        context = _context(self.db)
+        one_read = reader(context, ValueArgs(value="A"))
+        result_limit = estimate_json_tokens({"ok": True, "tool": "lookup", "data": one_read.data})
+        trace = TraceSpy()
+        orchestrator = ToolOrchestrator(registry=registry, policy=ToolPolicy(max_total_result_tokens=result_limit),
+                                        trace_recorder=trace)
+        messages = [{"role": "system", "content": "服务端教学规则"}, {"role": "user", "content": context.current_query}]
+        events = asyncio.run(_collect(orchestrator, model, context, messages=messages))
+
+        self.assertEqual(model.calls, 3)
+        self.assertEqual(events[-1]["data"]["delta"], "已根据最后一份资料作答")
+        self.assertIn("A" * 250, model.seen[1][-1]["content"])
+        final = model.seen[-1]
+        self.assertEqual([index for index, item in enumerate(final) if item["role"] == "system"], [0])
+        self.assertIn(messages[0]["content"], final[0]["content"])
+        self.assertIn(orchestrator_module.TOOLS_DISABLED_NOTICE, final[0]["content"])
+        self.assertEqual(final[-1]["role"], "tool")
+        self.assertEqual(model.seen[0][0], messages[0])
+        observations = [json.loads(message["content"]) for message in final if message["role"] == "tool"]
+        self.assertEqual(observations[0], {"omitted": "earlier_read_result"})
+        self.assertEqual(observations[1]["data"]["items"][0]["snippet"], "B" * 250)
+        self.assertEqual([s["url"] for s in orchestrator.last_result.library_sources], ["/library/B.html"])
+        metadata = trace.records[-1]["metadata"]
+        self.assertEqual((metadata["masked_tool_result_count"], metadata["budget_rejected_tool_result_count"]), (1, 0))
+        self.assertEqual(metadata["original_prompt_tokens"] - metadata["admitted_prompt_tokens"],
+                         metadata["tool_result_tokens_saved"])
+
+    def test_rereading_masked_data_restores_the_cached_payload_and_source(self):
+        executions = []
+
+        def reader(_context, args):
+            executions.append(args.value)
+            source = {"url": f"/library/{args.value}.html", "title": args.value, "module_title": "网络"}
+            return ToolResult({"items": [{**source, "snippet": args.value * 800}]}, library_sources=(source,))
+
+        registry = ToolRegistry([ToolSpec("read", "读取", "查阅资料", ValueArgs, reader)])
+        model = ScriptedModel([
+            [FakeChunk("", [{"id": "first", "name": "read", "args": {"value": "A"}}])],
+            [FakeChunk("", [{"id": "second", "name": "read", "args": {"value": "B"}}])],
+            [FakeChunk("", [{"id": "again", "name": "read", "args": {"value": "A"}}])],
+            [FakeChunk("按照两次读取的结论回答。")],
+        ])
+        context = _context(self.db, artifacts={"model_context_window": 780, "reserved_output_tokens": 50})
+        trace = TraceSpy()
+        orchestrator = ToolOrchestrator(registry=registry, trace_recorder=trace)
+        asyncio.run(_collect(orchestrator, model, context))
+
+        self.assertEqual(executions, ["A", "B"])
+        self.assertEqual(model.calls, 4)
+        third = {item["tool_call_id"]: json.loads(item["content"]) for item in model.seen[2] if item["role"] == "tool"}
+        self.assertEqual(third["first"], {"omitted": "earlier_read_result"})
+        self.assertEqual(third["second"]["data"]["items"][0]["snippet"], "B" * 800)
+        final = {item["tool_call_id"]: json.loads(item["content"]) for item in model.seen[-1] if item["role"] == "tool"}
+        self.assertEqual(final["again"]["data"]["items"][0]["snippet"], "A" * 800)
+        visible_urls = [value["data"]["items"][0]["url"] for value in final.values() if "data" in value]
+        self.assertEqual([source["url"] for source in orchestrator.last_result.library_sources], visible_urls)
+        self.assertEqual([event["metadata"]["masked_tool_result_count"] for event in trace.records[:3]], [0, 0, 1])
+
     def test_tooling_fallback_admits_once_without_tool_schemas(self):
         def reader(_context, _args):
             return {"value": "unused"}
@@ -275,16 +351,21 @@ class AgentRuntimeGovernanceTests(unittest.IsolatedAsyncioTestCase):
             observed.append({"messages": list(messages), **kwargs})
             return real_admit(messages, **kwargs)
 
-        async def fallback(_model, _messages):
+        async def fallback(_model, fallback_messages):
             nonlocal fallback_called
             fallback_called = True
+            self.assertEqual([index for index, item in enumerate(fallback_messages) if item["role"] == "system"], [0])
+            self.assertIn(orchestrator_module.TOOLING_UNAVAILABLE_NOTICE, fallback_messages[0]["content"])
+            self.assertIn("服务端教学规则", fallback_messages[0]["content"])
             yield "普通回答", {}
 
         orchestrator = ToolOrchestrator(
             registry=ToolRegistry([ToolSpec("read", "读取", "读取", EmptyArgs, reader)])
         )
+        context = _context(self.db)
+        messages = [{"role": "system", "content": "服务端教学规则"}, {"role": "user", "content": context.current_query}]
         with patch.object(orchestrator_module, "admit_request", side_effect=observing_admit):
-            events = asyncio.run(_collect(orchestrator, model, _context(self.db), fallback=fallback))
+            events = asyncio.run(_collect(orchestrator, model, context, messages=messages, fallback=fallback))
 
         self.assertTrue(fallback_called)
         self.assertEqual(model.calls, 0)

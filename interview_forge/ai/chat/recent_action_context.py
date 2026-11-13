@@ -133,6 +133,11 @@ class RecentActionContextProvider:
             priority=70,
             max_tokens=350,
             trusted=True,
+            alternatives=tuple(
+                "\n".join(lines[:end]) + "\n以当前确认状态为准。已发起不等于已完成。"
+                for end in range(len(lines), 0, -1)
+                if not lines[end - 1].endswith("：")
+            ),
         )
 
 

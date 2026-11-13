@@ -1262,6 +1262,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
                     analytics_cached(db),
                     task=payload.get("task"),
                     user_request=payload.get("user_request", ""),
+                    require_full_request=True,
                     target_problem_id=payload.get("target_problem_id"),
                     profile=payload.get("profile"),
                     budget_tier=payload.get("budget_tier"),

@@ -253,6 +253,13 @@ class LearningAnalyticsAPITests(unittest.TestCase):
 
         status, body, _ = self.request(
             "/api/coach/context",
+            payload={"task": "learning_diagnosis", "user_request": "a" * 2000 + "只看错题"},
+        )
+        self.assertEqual(status, 400)
+        self.assertIn("2000", body["error"])
+
+        status, body, _ = self.request(
+            "/api/coach/context",
             payload={
                 "task": "problem_review",
                 "target_problem_id": 1,

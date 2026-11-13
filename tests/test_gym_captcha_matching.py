@@ -1,6 +1,8 @@
 """Regression checks for distinct matching and image-to-page click coordinates."""
 import base64
+import sys
 from io import BytesIO
+from types import ModuleType
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
@@ -8,6 +10,13 @@ from PIL import Image
 
 from interview_forge.services import gym_automation as gym
 from interview_forge.services import gym as gym_service
+
+
+def fake_ocr_constructors(constructors):
+    """The solver uses a lazy import; these cases exercise it with supplied model doubles."""
+    module = ModuleType("ddddocr")
+    module.DdddOcr = Mock(side_effect=constructors)
+    return patch.dict(sys.modules, {"ddddocr": module})
 
 
 class CandidateModel:
@@ -26,9 +35,19 @@ class CaptchaMatchingTests(TestCase):
         playwright.__enter__ = Mock(return_value=playwright)
         playwright.__exit__ = Mock(return_value=False)
         playwright.chromium.executable_path = __file__
-        with patch("playwright.sync_api.sync_playwright", return_value=playwright), \
-                patch.object(gym, "deepseek_key", return_value=None):
+        browser_package = ModuleType("playwright")
+        sync_api = ModuleType("playwright.sync_api")
+        sync_api.sync_playwright = Mock(return_value=playwright)
+        browser_package.sync_api = sync_api
+        available = {
+            "playwright": browser_package, "playwright.sync_api": sync_api, "ddddocr": ModuleType("ddddocr"),
+        }
+        with patch.dict(sys.modules, available), patch.object(gym, "deepseek_key", return_value=None):
             check = gym_service.environment_check()
+            with patch.dict(sys.modules, {"ddddocr": None}):
+                missing = gym_service.environment_check()
+        self.assertFalse(missing["ok"])
+        self.assertFalse(next(i["ok"] for i in missing["items"] if i["name"] == "ddddocr"))
         self.assertTrue(check["ok"])
         optional = next(i for i in check["items"] if i["name"] == "DeepSeek 认字凭据")
         self.assertFalse(optional["ok"])
@@ -140,7 +159,7 @@ class PaddleOcr3AdapterTests(TestCase):
         detector.detection.return_value = [[0, 0, 20, 20], [20, 0, 40, 20]]
         assignment = {"甲": {"box": [0, 0, 20, 20], "center": (10, 10)},
                       "乙": {"box": [20, 0, 40, 20], "center": (30, 10)}}
-        with patch("ddddocr.DdddOcr", side_effect=[detector, Mock(), Mock()]), \
+        with fake_ocr_constructors([detector, Mock(), Mock()]), \
                 patch.object(gym, "match_click_targets_probability", return_value=(assignment, {})), \
                 patch.object(gym, "deepseek_key", side_effect=AssertionError("remote key lookup")), \
                 patch.object(gym, "_get_paddle", side_effect=AssertionError("Paddle init")), \
@@ -219,7 +238,7 @@ class PaddleOcr3AdapterTests(TestCase):
         page = Page()
         detector = Mock()
         detector.detection.return_value = [[0, 0, 20, 20], [20, 0, 40, 20]]
-        with patch("ddddocr.DdddOcr", side_effect=[detector, Mock(), Mock()]), \
+        with fake_ocr_constructors([detector, Mock(), Mock()]), \
                 patch.object(gym, "match_click_targets_probability", return_value=(partial, {})), \
                 patch.object(gym, "_legacy_click_assignment", return_value=full) as legacy, \
                 patch.object(gym, "click_first_visible", return_value=False), \
@@ -266,7 +285,7 @@ class PaddleOcr3AdapterTests(TestCase):
                       "乙": {"box": [20, 0, 40, 20], "center": (30, 10)}}
         detector = Mock()
         detector.detection.return_value = [[0, 0, 20, 20], [20, 0, 40, 20]]
-        with patch("ddddocr.DdddOcr", side_effect=[detector, Mock(), Mock()]), \
+        with fake_ocr_constructors([detector, Mock(), Mock()]), \
                 patch.object(gym, "match_click_targets_probability", return_value=(assignment, {})), \
                 patch.object(gym, "click_first_visible", return_value=True) as clicked, \
                 patch.object(gym.time, "sleep"):
@@ -312,7 +331,7 @@ class PaddleOcr3AdapterTests(TestCase):
                       "乙": {"box": [20, 0, 40, 20], "center": (30, 10)}}
         detector = Mock()
         detector.detection.return_value = [[0, 0, 20, 20], [20, 0, 40, 20]]
-        with patch("ddddocr.DdddOcr", side_effect=[detector, Mock(), Mock()]), \
+        with fake_ocr_constructors([detector, Mock(), Mock()]), \
                 patch.object(gym, "match_click_targets_probability", return_value=(assignment, {})), \
                 patch.object(gym, "click_first_visible", return_value=False), \
                 patch.object(gym, "_wait_for_manual_captcha", return_value=None), \

@@ -51,7 +51,8 @@ class M7ToolPackTests(unittest.TestCase):
         registry = build_default_tool_registry()
         self.assertEqual(
             {spec.name for spec in registry.list_specs() if spec.kind.value == "read"},
-            {"get_problem", "get_learning_context", "get_weather", "get_problem_progress", "get_review_queue", "search_library"},
+            {"get_problem", "get_learning_context", "get_weather", "get_problem_progress",
+             "get_review_queue", "search_library", "recall_chat_history"},
         )
         self.assertEqual(
             {spec.name for spec in registry.list_specs() if spec.kind.value == "action"},

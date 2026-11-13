@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import math
 from collections.abc import Mapping, Sequence
-from dataclasses import is_dataclass
+from dataclasses import dataclass, is_dataclass
 from enum import Enum
 from typing import Any, Protocol
 
@@ -134,6 +134,47 @@ def estimate_json_tokens(value: Any, estimator: Any = None) -> int:
     return estimate_text_tokens(canonical_json(value), estimator=estimator)
 
 
+def generation_reserve(config: Any, output_tokens: int) -> int:
+    """Leave room for visible output and any explicitly configured thinking tokens."""
+    reasoning = getattr(config, "reasoning_budget", None)
+    if getattr(config, "reasoning_mode", None) == "budget" and type(reasoning) is int:
+        return output_tokens + max(0, reasoning)
+    return output_tokens
+
+
+@dataclass(frozen=True)
+class StructuredRequestBudget:
+    """Estimated input and reserved generation space for a single model call."""
+
+    context_window: int
+    reserved_output_tokens: int
+
+    @classmethod
+    def for_model(
+        cls, *, context_window: int | None, config: Any,
+        default_window: int, output_tokens: int,
+    ) -> StructuredRequestBudget:
+        window = context_window if type(context_window) is int and context_window > 0 else default_window
+        return cls(context_window=window, reserved_output_tokens=generation_reserve(config, output_tokens))
+
+    def estimate(self, messages: Sequence[tuple[str, str]], schema: Mapping[str, Any] | None) -> int:
+        # LangChain translates structured output for each adapter. Count its
+        # JSON contract and the complete message envelope together; measured
+        # provider usage remains authoritative for the actual wire format.
+        request: dict[str, Any] = {
+            "messages": [
+                {"role": "user" if role == "human" else role, "content": content}
+                for role, content in messages
+            ]
+        }
+        if schema is not None:
+            request["response_format"] = {"type": "json_schema", "json_schema": schema}
+        return estimate_json_tokens(request)
+
+    def fits(self, prompt_tokens: int) -> bool:
+        return prompt_tokens + self.reserved_output_tokens <= self.context_window
+
+
 def trim_text_to_tokens(text: str, max_tokens: int, estimator: Any = None) -> str:
     """Clip text by the configured estimator without scattering token math."""
     value = str(text or "")
@@ -179,9 +220,11 @@ def trim_text_to_tokens(text: str, max_tokens: int, estimator: Any = None) -> st
 __all__ = [
     "DEFAULT_TOKEN_ESTIMATOR",
     "ConservativeTokenEstimator",
+    "StructuredRequestBudget",
     "TokenEstimator",
     "canonical_json",
     "estimate_json_tokens",
     "estimate_text_tokens",
+    "generation_reserve",
     "trim_text_to_tokens",
 ]

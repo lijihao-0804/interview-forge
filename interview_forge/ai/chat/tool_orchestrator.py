@@ -10,7 +10,11 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from interview_forge.ai.chat.request_budget import admit_request, estimate_json_tokens
+from interview_forge.ai.chat.request_budget import (
+    RequestAdmission,
+    admit_request,
+    estimate_json_tokens,
+)
 from interview_forge.ai.errors import AIServiceError
 from interview_forge.ai.provider import _usage_from
 from interview_forge.ai.telemetry import debug_ai_event
@@ -43,11 +47,9 @@ TOOLS_DISABLED_NOTICE = (
 )
 TOOL_LIMIT_ERROR_CODE = "tool_limit_reached"
 TOOL_LIMIT_ERROR_MESSAGE = "本轮工具调用上限已达到"
-TOOL_RESULT_BUDGET_ERROR_CODE = "tool_result_budget_exceeded"
-TOOL_RESULT_BUDGET_ERROR_MESSAGE = "该工具结果因本轮上下文预算限制未完整提供"
 CONTEXT_BUDGET_ERROR_CODE = "context_budget_exceeded"
 CONTEXT_BUDGET_ERROR_MESSAGE = "当前对话上下文超出模型可处理范围，请缩短问题或开启新会话。"
-REQUEST_ADMISSION_POLICY_VERSION = "request_admission_v1"
+REQUEST_ADMISSION_POLICY_VERSION = "request_admission_v2"
 DEFAULT_RESERVED_OUTPUT_TOKENS = 1200
 
 
@@ -96,6 +98,14 @@ def _tool_call_message(text: str, calls: list[NormalizedToolCall]) -> dict[str, 
     return message
 
 
+def _with_tool_notice(messages: list[Any], notice: str) -> list[Any]:
+    """Put a server notice alongside the initial system instruction for all providers."""
+    first = messages[0] if messages else None
+    if isinstance(first, Mapping) and first.get("role") == "system" and isinstance(first.get("content"), str):
+        return [{**first, "content": first["content"] + "\n\n" + notice}, *messages[1:]]
+    return [{"role": "system", "content": notice}, *messages]
+
+
 class ToolOrchestrator:
     """Own all model/tool rounds while keeping ChatService provider-agnostic."""
 
@@ -114,6 +124,7 @@ class ToolOrchestrator:
         self._round_result = _RoundResult("", (), {})
         self._call_results: list[ToolExecutionResult] = []
         self._confirmation_action_ids: set[str] = set()
+        self._visible_tool_message_indices: frozenset[int] = frozenset()
 
     @staticmethod
     def _context_budget_inputs(context: ToolExecutionContext) -> tuple[int | None, int]:
@@ -136,7 +147,7 @@ class ToolOrchestrator:
 
     async def _record_request_admission(
         self,
-        admission: Any,
+        admission: RequestAdmission,
         *,
         context_window: int | None,
         reserved_output_tokens: int,
@@ -146,17 +157,17 @@ class ToolOrchestrator:
         if self.trace_recorder is None:
             return
         metadata = {
-            "context_budget_policy_version": getattr(
-                admission,
-                "context_budget_policy_version",
-                getattr(admission, "policy_version", REQUEST_ADMISSION_POLICY_VERSION),
-            ),
-            "request_fingerprint": getattr(admission, "request_fingerprint", None),
-            "admitted_prompt_tokens": getattr(admission, "estimated_prompt_tokens", None),
-            "omitted_exchange_count": getattr(admission, "omitted_exchange_count", None),
+            "context_budget_policy_version": REQUEST_ADMISSION_POLICY_VERSION,
+            "request_fingerprint": admission.request_fingerprint,
+            "original_prompt_tokens": admission.original_prompt_tokens,
+            "admitted_prompt_tokens": admission.estimated_prompt_tokens,
+            "omitted_exchange_count": admission.omitted_exchange_count,
+            "masked_tool_result_count": admission.masked_tool_result_count,
+            "tool_result_tokens_saved": admission.tool_result_tokens_saved,
+            "budget_rejected_tool_result_count": admission.budget_rejected_tool_result_count,
             "context_window": context_window,
             "reserved_output_tokens": reserved_output_tokens,
-            "stop_reason": getattr(admission, "reason", None),
+            "stop_reason": admission.reason,
         }
         try:
             await asyncio.to_thread(
@@ -190,6 +201,11 @@ class ToolOrchestrator:
             tool_schemas=tool_schemas,
             context_window=context_window,
             reserved_output_tokens=reserved_output_tokens,
+            read_tools={
+                spec.name for spec in self.registry.list_specs()
+                if spec.kind == ToolKind.READ and not spec.requires_confirmation
+            },
+            max_tool_result_tokens=self.policy.max_total_result_tokens,
         )
         await self._record_request_admission(
             admission,
@@ -200,6 +216,7 @@ class ToolOrchestrator:
         )
         if not admission.fits:
             raise AIServiceError(CONTEXT_BUDGET_ERROR_CODE, CONTEXT_BUDGET_ERROR_MESSAGE)
+        self._visible_tool_message_indices = admission.visible_tool_message_indices
         return list(admission.messages)
 
     async def _stream_round(
@@ -400,20 +417,12 @@ class ToolOrchestrator:
         calls: list[NormalizedToolCall],
         results: list[ToolExecutionResult],
         *,
-        library_sources: dict[str, LibrarySource],
-        total_result_tokens: int = 0,
-        max_total_result_tokens: int | None = None,
+        sources_by_position: dict[int, tuple[LibrarySource, ...]],
         blocked: bool = False,
-    ) -> tuple[int, bool]:
-        """Append one tool message for every call, before the next model call.
-
-        The total-result limit is an admission budget for successful result data,
-        matching the runtime's result-token estimate.  A result which does not
-        fit is replaced before it enters model history; its full payload remains
-        available only to the runtime/audit path.
-        """
+    ) -> int:
+        """Keep bounded runtime results in the turn. Admission controls each model's view."""
         by_call_id = {result.call_id: result for result in results}
-        budget_exceeded = False
+        result_tokens = 0
         for call in calls:
             result = by_call_id.get(call.call_id)
             if blocked:
@@ -434,29 +443,15 @@ class ToolOrchestrator:
             else:
                 payload = result.model_payload()
                 if payload.get("ok") is True and result.result is not None:
-                    result_tokens = estimate_json_tokens(payload)
-                    if max_total_result_tokens is not None and total_result_tokens + result_tokens > max_total_result_tokens:
-                        payload = {
-                            "ok": False,
-                            "tool": call.name,
-                            "error": {
-                                "code": TOOL_RESULT_BUDGET_ERROR_CODE,
-                                "message": TOOL_RESULT_BUDGET_ERROR_MESSAGE,
-                            },
-                        }
-                        budget_exceeded = True
-                    else:
-                        total_result_tokens += result_tokens
-                        # Only observations delivered to the model can supply
-                        # references. Completion order of parallel reads is irrelevant.
-                        for source in result.result.library_sources:
-                            library_sources.setdefault(source["url"], source)
+                    result_tokens += estimate_json_tokens(payload)
+                    if result.result.library_sources:
+                        sources_by_position[len(messages)] = result.result.library_sources
             messages.append({
                 "role": "tool",
                 "tool_call_id": call.call_id,
                 "content": json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
             })
-        return total_result_tokens, budget_exceeded
+        return result_tokens
 
     async def stream(
         self,
@@ -472,12 +467,21 @@ class ToolOrchestrator:
         tool_run_ids: list[str] = []
         call_count = 0
         total_result_tokens = 0
-        library_sources: dict[str, LibrarySource] = {}
+        sources_by_position: dict[int, tuple[LibrarySource, ...]] = {}
         identical_calls: Counter[str] = Counter()
         visible_text_parts: list[str] = []
         has_valid_tool_activity = False
         has_pending_confirmation = False
         history = list(messages)
+
+        def visible_library_sources(*, index_offset: int = 0) -> tuple[LibrarySource, ...]:
+            sources = {}
+            for position, items in sources_by_position.items():
+                if position + index_offset in self._visible_tool_message_indices:
+                    for item in items:
+                        sources.setdefault(item["url"], item)
+            return tuple(sources.values())
+
         try:
             tool_schemas = tuple(
                 tool_spec_schema(spec) for spec in self.registry.list_specs()
@@ -485,17 +489,7 @@ class ToolOrchestrator:
             bound_model = bind_tools(model, self.registry.list_specs())
         except (ToolingUnavailableError, ImportError, AttributeError, TypeError, ValueError):
             debug_ai_event("chat_tooling_unavailable", session_id=context.session_id)
-            if history and isinstance(history[0], dict) and history[0].get("role") == "system":
-                fallback_messages = [
-                    history[0],
-                    {"role": "system", "content": TOOLING_UNAVAILABLE_NOTICE},
-                    *history[1:],
-                ]
-            else:
-                fallback_messages = [
-                    {"role": "system", "content": TOOLING_UNAVAILABLE_NOTICE},
-                    *history,
-                ]
+            fallback_messages = _with_tool_notice(history, TOOLING_UNAVAILABLE_NOTICE)
             admitted_fallback_messages = await self._admit_model_request(
                 fallback_messages,
                 tool_schemas=(),
@@ -546,7 +540,7 @@ class ToolOrchestrator:
                     visible_text_chars=len("".join(visible_text_parts).strip()),
                     has_valid_tool_activity=has_valid_tool_activity,
                     has_pending_confirmation=has_pending_confirmation,
-                    library_sources=tuple(library_sources.values()),
+                    library_sources=visible_library_sources(),
                 )
                 return
 
@@ -572,11 +566,11 @@ class ToolOrchestrator:
                             "message": TOOL_LIMIT_ERROR_MESSAGE,
                         },
                     )
-                self._append_tool_messages(history, calls, [], library_sources=library_sources, blocked=True)
-                history.append({"role": "system", "content": TOOLS_DISABLED_NOTICE})
+                self._append_tool_messages(history, calls, [], sources_by_position=sources_by_position, blocked=True)
+                final_messages = _with_tool_notice(history, TOOLS_DISABLED_NOTICE)
                 async for item in self._stream_round(
                     model,
-                    history,
+                    final_messages,
                     context=context,
                     tool_schemas=(),
                     round_index=round_index + 2,
@@ -594,7 +588,7 @@ class ToolOrchestrator:
                     visible_text_chars=len("".join(visible_text_parts).strip()),
                     has_valid_tool_activity=has_valid_tool_activity,
                     has_pending_confirmation=has_pending_confirmation,
-                    library_sources=tuple(library_sources.values()),
+                    library_sources=visible_library_sources(index_offset=len(final_messages) - len(history)),
                 )
                 return
 
@@ -611,22 +605,17 @@ class ToolOrchestrator:
                 for result in results
             ):
                 has_pending_confirmation = True
-            total_result_tokens, budget_exceeded = self._append_tool_messages(
-                history,
-                calls,
-                results,
-                library_sources=library_sources,
-                total_result_tokens=total_result_tokens,
-                max_total_result_tokens=self.policy.max_total_result_tokens,
+            total_result_tokens += self._append_tool_messages(
+                history, calls, results, sources_by_position=sources_by_position,
             )
             for result in results:
                 if result.run_id:
                     tool_run_ids.append(result.run_id)
-            if round_index + 1 >= self.policy.max_rounds or budget_exceeded:
-                history.append({"role": "system", "content": TOOLS_DISABLED_NOTICE})
+            if round_index + 1 >= self.policy.max_rounds or total_result_tokens > self.policy.max_total_result_tokens:
+                final_messages = _with_tool_notice(history, TOOLS_DISABLED_NOTICE)
                 async for item in self._stream_round(
                     model,
-                    history,
+                    final_messages,
                     context=context,
                     tool_schemas=(),
                     round_index=round_index + 2,
@@ -644,7 +633,7 @@ class ToolOrchestrator:
                     visible_text_chars=len("".join(visible_text_parts).strip()),
                     has_valid_tool_activity=has_valid_tool_activity,
                     has_pending_confirmation=has_pending_confirmation,
-                    library_sources=tuple(library_sources.values()),
+                    library_sources=visible_library_sources(index_offset=len(final_messages) - len(history)),
                 )
                 return
 

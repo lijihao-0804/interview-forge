@@ -1,11 +1,13 @@
 """Deterministic Learning Context selection for the conversational assistant."""
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 from collections.abc import Mapping
 from typing import Any
 
+from interview_forge.ai.chat.context_blocks import ContextBlock
 from interview_forge.ai.context_projection import project_learning_context_for_chat
 from interview_forge.ai.telemetry import debug_ai_event
 from interview_forge.analytics.cache import analytics_cached
@@ -65,6 +67,23 @@ def select_learning_task(query: str) -> dict[str, Any] | None:
                 "budget_tier": CHAT_TASK_POLICIES["learning_route"],
             }
     return None
+
+
+def learning_projection_block(projection: Any) -> ContextBlock:
+    data = dict(projection) if isinstance(projection, Mapping) else {}
+    def render(value: dict) -> str:
+        return "学情资料仅供参考，数据不足时须说明。Learning Context: " + json.dumps(
+            value, ensure_ascii=False, separators=(",", ":"),
+        )
+
+    essentials = {key: data[key] for key in ("task", "as_of", "data_quality") if key in data}
+    # Facts and their qualifiers are indivisible. Avoid duplicating the same
+    # problem in selected_facts and related_problem_facts in the smaller view.
+    compact = {**essentials, "coverage": "仅列出部分资料"}
+    facts = data.get("selected_facts") or data.get("related_problem_facts") or []
+    views = [render({**compact, "selected_facts": facts[:1]})] if facts else []
+    views.append(render(compact))
+    return ContextBlock("learning", render(data), 90, 1_800, alternatives=tuple(views))
 
 
 def _quality_from_analytics(analytics: Any) -> dict[str, Any]:

@@ -34,7 +34,7 @@ _WIDGET_SCRIPTS = (
     "/assets/auth-widget.js?v=6",
     "/assets/feedback-widget.js?v=4",
     "/assets/theme-toggle.js?v=2",
-    "/assets/ai-page-context.js?v=1",
+    "/assets/ai-page-context.js?v=2",
     "/assets/ai-launcher.js?v=4",
 )
 _AUTH_WIDGET_SKIP = {"/pages/login.html", "/pages/register.html", "/pages/admin.html", "/pages/ai-assistant.html"}
@@ -120,6 +120,9 @@ def _security_headers(path: str) -> dict[str, str]:
 
 
 def _inject_html(path: str, body: bytes, *, embedded: bool = False) -> bytes:
+    # Previously generated chapters embed v1. Nginx caches versioned JS as
+    # immutable, so serve the current collector even before a chapter rebuild.
+    body = body.replace(b'/ai-page-context.js?v=1"', b'/ai-page-context.js?v=2"')
     navigation_only = path.startswith("/books/hot100/05-可视化/")
     embedded_assistant = path == "/pages/ai-assistant.html" and embedded
     # ?embedded=1：页面被本站 iframe 内嵌（如“重要通知”壳页的子页）。此时只保留导航策略，

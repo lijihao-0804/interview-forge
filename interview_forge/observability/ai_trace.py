@@ -36,7 +36,9 @@ SAFE_TRACE_METADATA_KEYS = frozenset({
     "context_budget_policy_version", "request_fingerprint",
     "prepared_context_hash", "config_fingerprint", "prompt_estimator",
     "admitted_prompt_tokens", "omitted_exchange_count", "context_window",
-    "reserved_output_tokens", "stop_reason",
+    "reserved_output_tokens", "stop_reason", "original_prompt_tokens",
+    "masked_tool_result_count", "tool_result_tokens_saved", "budget_rejected_tool_result_count", "history_archived_count",
+    "recent_message_count", "context_blocks_shortened",
 })
 
 

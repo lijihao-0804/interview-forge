@@ -158,6 +158,7 @@ let compareBuilds = 0;
 context.window.DemoKit.mount({
   no: "3",
   title: "增强层冒烟",
+  showCode: true,
   code: ["int left = 0;", "for (int r = 0; r < n; r++) {", "  left = max(left, last[c] + 1);", "}"],
   invariants: [
     { label: "窗口内无重复", test: (view) => view.ok === true },
