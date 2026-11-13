@@ -14,9 +14,41 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 
-POLICY_VERSION = "chat-relevance-v1"
+POLICY_VERSION = "chat-relevance-v2"
 _RESET = re.compile(r"^(?:换个(?:话题|问题)|另一个问题|新的问题|不谈(?:这个|之前)|先不聊|重新开始|new topic\b|unrelated question\b)", re.I)
 _RECALL = re.compile(r"之前|先前|前面|刚才|上次|前文|earlier|previous|before", re.I)
+_EARLIEST_RECORD = re.compile(
+    r"(?:最早|最初|最先)的?(?:(?:那|第)?一[条句则段]|那[条句则段]|约定|消息|原话|留言)|"
+    r"(?:第一[条句则段]|一开始)(?:的)?(?:[^。！？\n]{0,12})(?:记录|消息|约定|原话|留言)|"
+    r"\b(?:first|earliest|oldest|original|initial)\s+(?:(?:matching|recorded|chat)\s+)?"
+    r"(?:message|record|agreement|note|statement|entry|quote)\b", re.I,
+)
+_ONLY_EARLIEST = re.compile(
+    r"(?:只(?:要|看|查|读|找|引用|给)|仅(?:需|要|查|引用)?)[^。！？]{0,10}(?:最早|最初|最先)的?"
+    r"(?:那?[一1]?[条句则段]|(?=$|[\s，。！？、；：,.;:!?]))|"
+    r"\bonly\s+(?:the\s+)?(?:oldest|earliest|first)\s+(?:one|entry|match)\b", re.I,
+)
+_OMIT_LATER = re.compile(r"(?:较晚|后期|后来|最新|后续)[^。！？]{0,12}(?:略过|跳过|省略|忽略|不用|不必)|"
+                         r"(?:略过|跳过|省略|忽略|不要|不用|不必)[^。！？]{0,12}(?:较晚|后期|后来|最新|后续)")
+_LATER_COMPARISON = re.compile(
+    r"也(?:请|要|想)?(?:查|看|列|给|说|比较|对照|引用|讲).{0,9}(?:后来|后期|较晚|最新|最近|后续)|"
+    r"(?:与|和|及|以及|到|对比|比较|对照|再(?:看看?|查|说说?)|分别).{0,8}(?:后来|后期|较晚|最新|最近|后续|第二)|"
+    r"\b(?:and|to|with)\s+(?:the\s+)?(?:newest|latest|later|second)\b", re.I,
+)
+_HISTORY_SUBJECT = re.compile(
+    r"之前|聊天|对话|会话|历史|回顾|回查|留言|曾经|学习要求|约定|原话|"
+    r"我(?:们|的|当时|说|提|写|发|最初|最早)|你(?:当时|说|写|发)|"
+    r"\b(?:my|our|we|chat|history|conversation)\b", re.I,
+)
+
+
+def requests_first_history_match(query: str) -> bool:
+    """Only a request for one historical source makes a later version out of scope."""
+    single = (_EARLIEST_RECORD.search(query) or _ONLY_EARLIEST.search(query)
+              or (_OMIT_LATER.search(query) and any(word in query for word in ("最早", "最初", "最先"))))
+    return bool(single and _HISTORY_SUBJECT.search(query) and not _LATER_COMPARISON.search(query))
+
+
 _REFERENCE = re.compile(
     r"这个|那个|这些|那些|这样|那样|这题|本题|这章|本章|这段|上述|上面|下面|它|他们|它们|你说|你提到|你的(?:回答|建议)|"
     r"第[一二三四五六七八九十0-9]+(?:个|种|步)|继续|接着|再(?:说|讲|解释|举|详细)|"
@@ -129,6 +161,10 @@ def select_history(
         return HistorySelection((), "independent", "explicit_topic_reset")
     if _stale_acknowledgement(rows, query):
         return HistorySelection((), "independent", "stale_acknowledgement")
+    if requests_first_history_match(query):
+        # A recent suffix (including its rolling summary) cannot establish the first
+        # occurrence. Let the scoped history tool find the matching original instead.
+        return HistorySelection((), "recall", "first_history_match")
     # Explicit cross-episode references may need more than the latest topic.
     if _RECALL.search(query):
         return HistorySelection(tuple(rows), "recall", "explicit_history_reference")

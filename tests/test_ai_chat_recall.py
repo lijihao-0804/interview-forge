@@ -8,6 +8,9 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
+from interview_forge.ai.chat.context_blocks import ContextBlock
+from interview_forge.ai.chat.context_builder import ContextBuilder
+from interview_forge.ai.chat.relevance import requests_first_history_match
 from interview_forge.ai.chat.tool_orchestrator import ToolOrchestrator
 from interview_forge.ai.tools.builtins.history import (
     RecallChatHistoryArgs,
@@ -134,6 +137,64 @@ class ChatRecallTests(unittest.TestCase):
                 else:
                     self.fail("page cursor did not reach the end of visible history")
                 self.assertEqual(found, ids if oldest_first else list(reversed(ids)))
+
+    def test_single_source_uses_scoped_original_instead_of_recent_rows_checkpoint_or_memory(self):
+        query = "回顾之前最初一条标有“练习约定”的安排。请逐字引用，较晚的练习安排请略过。"
+        original = "练习约定：先让我画两个状态转移，再看提示。"
+        late = "练习约定：晚期改为练排序。"
+        self.seed(self.db, [
+            (1, "active", "user", original), (2, "active", "assistant", "同意。"),
+            (3, "active", "user", late), (4, "active", "assistant", "安排已改。"),
+        ])
+        builder = ContextBuilder(context_blocks=[ContextBlock("memory", "长期资料里也有晚期安排", 80, 100)])
+        builder._save_summary(user_db=self.db, session_id="active", summary="#3 目标/问题：" + late, through_message_id=3)
+        prepared = builder.build(user_db=self.db, session_id="active", current_message=query, current_message_id=5)
+        self.assertNotIn("练排序", str(prepared))
+        self.assertNotIn("长期资料里也有", str(prepared))
+        self.assertFalse(builder.last_build["summary_present"])
+        self.assertEqual(builder.last_build["recent_message_count"], 0)
+        self.assertEqual(builder.last_build["history_mode"], "recall")
+        ctx = ToolExecutionContext(self.db, "active", "turn", 5, query)
+        for args in [RecallChatHistoryArgs(query="练习约定"), RecallChatHistoryArgs(query="练习约定", oldest_first=True)]:
+            with self.subTest(args=args):
+                result = recall_chat_history(ctx, args).data
+                self.assertEqual(result, {"items":[{"message_id":1, "role":"user", "offset":0, "excerpt":original}]})
+        for ordinary in ["回顾之前标有练习约定的几条安排", "比较最初一条练习约定和最新一条约定"]:
+            with self.subTest(ordinary=ordinary):
+                ctx.current_query = ordinary
+                result = recall_chat_history(ctx, RecallChatHistoryArgs(query="练习约定", oldest_first=True))
+                self.assertEqual([row["message_id"] for row in result.data["items"]], [1, 3])
+                self.assertIn("练排序", str(builder.build(user_db=self.db, session_id="active", current_message=ordinary)))
+
+    def test_first_match_can_cross_an_empty_page_and_resume_only_the_found_source(self):
+        query = "我最初的约定是什么？请忽略后续的记录，只引用原话。"
+        long_source = "练习约定：先默写，" + "逐句核对。" * 110
+        self.seed(self.db, [(n, "active", "assistant", "普通内容") for n in range(1, 257)] + [
+            (257, "other", "user", "练习约定：其他会话"), (258, "active", "user", long_source),
+            (259, "active", "user", "练习约定：较晚内容"), (260, "active", "user", "练习约定：本次请求"),
+        ])
+        ctx = ToolExecutionContext(self.db, "active", "turn", 260, query)
+        page = recall_chat_history(ctx, RecallChatHistoryArgs(query="练习约定")).data
+        self.assertEqual(page, {"items":[], "next_after_message_id":256})
+        page = recall_chat_history(ctx, RecallChatHistoryArgs(query="练习约定", oldest_first=True,
+                                                              after_message_id=page["next_after_message_id"])).data
+        self.assertNotIn("next_after_message_id", page)
+        item, = page["items"]
+        self.assertEqual(item["message_id"], 258)
+        tail, = recall_chat_history(ctx, RecallChatHistoryArgs(message_id=258, offset=item["next_offset"])).data["items"]
+        self.assertEqual(item["excerpt"] + tail["excerpt"], long_source)
+
+    def test_earliest_instruction_does_not_narrow_generic_chronology_or_technical_content(self):
+        for query in ["请回查我最早的那条消息", "我想看最初的学习要求，后来的改动请忽略。",
+                      "What was our earliest agreement?", "Only the first entry in our chat, please."]:
+            with self.subTest(query=query):
+                self.assertTrue(requests_first_history_match(query))
+        for query in ["从最早到最近回顾我们的历史", "只要我们最早的三条约定", "比较最初的约定和后来的方案",
+                      "回顾我之前的全部记录", "请解释 TCP 第一条消息为什么是 SYN",
+                      "Compare our earliest agreement with the latest agreement.",
+                      "List only the first three messages in our chat."]:
+            with self.subTest(query=query):
+                self.assertFalse(requests_first_history_match(query))
 
     def test_selector_validation_excludes_other_storage_and_unbounded_parameters(self):
         invalid = [

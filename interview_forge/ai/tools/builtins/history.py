@@ -7,6 +7,7 @@ from contextlib import closing
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from interview_forge.ai.chat.relevance import requests_first_history_match
 from interview_forge.ai.tools.contracts import ToolExecutionContext, ToolResult
 
 _EXCERPT_CHARS = 320
@@ -55,7 +56,11 @@ class RecallChatHistoryArgs(BaseModel):
 
 
 def recall_chat_history(context: ToolExecutionContext, args: RecallChatHistoryArgs) -> ToolResult:
-    cutoff = min(args.before_message_id or context.user_message_id, context.user_message_id)
+    first_only = requests_first_history_match(context.current_query)
+    oldest_first = args.oldest_first or (first_only and args.message_id is None)
+    cutoff = context.user_message_id
+    if args.before_message_id is not None and not oldest_first:
+        cutoff = min(cutoff, args.before_message_id)
     sql = """SELECT id, role, content FROM chat_messages
              WHERE session_id = ? AND id < ? AND role IN ('user', 'assistant')"""
     parameters: list[str | int] = [context.session_id, cutoff]
@@ -65,7 +70,7 @@ def recall_chat_history(context: ToolExecutionContext, args: RecallChatHistoryAr
     if args.after_message_id is not None:
         sql += " AND id > ?"
         parameters.append(args.after_message_id)
-    if args.oldest_first:
+    if oldest_first:
         sql += " ORDER BY id ASC LIMIT ?"
         next_cursor = "next_after_message_id"
     else:
@@ -99,5 +104,9 @@ def recall_chat_history(context: ToolExecutionContext, args: RecallChatHistoryAr
             if end < len(content):
                 item["next_offset"] = end
             items.append(item)
+            if first_only:
+                # A hit completes the single-source search. Empty bounded pages
+                # still provide their forward cursor; long hits retain next_offset.
+                break
 
     return ToolResult(data, "已找到本会话历史片段" if items else "本次未找到匹配的历史片段")

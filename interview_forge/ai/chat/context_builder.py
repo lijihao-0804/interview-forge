@@ -337,12 +337,14 @@ class ContextBuilder:
                         through_message_id=covered_id,
                     )
 
+        first_match = selection.reason == "first_history_match"
         relevant_blocks = [
             block for block in self.context_blocks
-            if block.key != "recent_actions" or action_context_is_relevant(
+            if (not first_match or block.key == "memory_persistence")
+            and (block.key != "recent_actions" or action_context_is_relevant(
                 current_message, selection,
                 pending="存在仍在等待用户确认的操作" in block.content,
-            )
+            ))
         ]
         irrelevant_blocks = [block.key for block in self.context_blocks if block not in relevant_blocks]
         system_content, untrusted_context, admitted_context_blocks, rejected_context_blocks = self._contextual_content(relevant_blocks)
@@ -359,7 +361,12 @@ class ContextBuilder:
             # Summarized user/assistant prose is reference data, never a new
             # system instruction (including legacy cached summaries).
             result.append({"role": "user", "content": bounded_summary})
-        if (archived_count or (history and not recent)) and selection.mode != "independent":
+        if first_match:
+            result.append({"role": "user", "content": (
+                "本次只回查最早的匹配消息。请使用 recall_chat_history 从会话开头按原文关键词查找，"
+                "只引用命中的那条原文。"
+            )})
+        elif (archived_count or (history and not recent)) and selection.mode != "independent":
             result.append({"role": "user", "content": (
                 (f"会话中还有 {archived_count} 条更早的消息未载入。" if archived_count else "")
                 + "如需核对历史摘要中的原话，可使用 recall_chat_history。"
