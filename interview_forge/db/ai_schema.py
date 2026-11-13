@@ -66,6 +66,26 @@ CREATE INDEX IF NOT EXISTS ix_chat_sessions_updated
     ON chat_sessions(updated_at DESC, id DESC);
 CREATE INDEX IF NOT EXISTS ix_chat_messages_session_id
     ON chat_messages(session_id, id ASC);
+CREATE TABLE IF NOT EXISTS chat_request_ledger (
+    session_id TEXT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    client_request_id TEXT NOT NULL,
+    payload_hash TEXT NOT NULL,
+    turn_id TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('reserved','started','completed','retryable','interrupted')),
+    quota_day TEXT,
+    quota_state TEXT NOT NULL CHECK (quota_state IN ('charged','refunded','exempt')),
+    user_message_id INTEGER,
+    assistant_message_id INTEGER,
+    has_memory_effect INTEGER NOT NULL DEFAULT 0,
+    has_action_effect INTEGER NOT NULL DEFAULT 0,
+    result_json TEXT,
+    attempt_count INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (session_id, client_request_id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_chat_request_open_session
+    ON chat_request_ledger(session_id) WHERE status IN ('reserved','started');
 CREATE TABLE IF NOT EXISTS chat_session_summaries (
     session_id TEXT PRIMARY KEY REFERENCES chat_sessions(id) ON DELETE CASCADE,
     summary TEXT NOT NULL,

@@ -3,6 +3,7 @@ import os
 import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 from unittest.mock import patch
 
@@ -255,7 +256,7 @@ class AIChatContractTests(unittest.TestCase):
         )
         service = ChatService(config_loader=lambda: disabled)
         with patch.object(chat_router, "chat_service", service), \
-             patch.object(chat_router, "consume_chat_quota") as consume:
+             patch.object(chat_router.RequestAttempt, "reserve") as consume:
             response = self.client.post(
                 f"/api/chat/sessions/{session['id']}/stream",
                 json={"message": "这次不应扣额度"},
@@ -273,6 +274,71 @@ class AIChatContractTests(unittest.TestCase):
         with self.assertRaises(AIServiceError) as raised:
             service.preflight()
         self.assertEqual(raised.exception.category, "not_configured")
+
+    def test_idempotent_retry_preserves_normalized_identity_and_exact_wire_reply(self):
+        session = self.client.post("/api/chat/sessions", json={}).json()
+        base = f"/api/chat/sessions/{session['id']}"
+        body = {"message": " 继续 ", "page_context": {"path": "/a", "title": " 当前   页面 "},
+                "client_request_id": "retry.1"}
+        for key in (None, 1, "", "has space", "a" * 129, "~private"):
+            self.assertEqual(self.client.post(base + "/stream", json={**body, "client_request_id": key}).status_code, 400)
+        db = self.users_dir / "ChatAlice" / "hot100-study.db"
+        self.service.model_factory = lambda _config: FakeAsyncModel(error=RuntimeError("offline"))
+        failed = parse_sse(self.client.post(base + "/stream", json=body).text)
+        self.assertEqual(failed[-1][0], "error")
+        self.assertEqual(self.client.get(base + "/requests/retry.1").json()["status"], "retryable")
+        self.assertEqual(self.client.get(base + "/messages").json()["items"], [])
+        with closing(sqlite3.connect(db)) as conn:
+            self.assertEqual(conn.execute("SELECT SUM(used) FROM ai_chat_daily_quota").fetchone()[0], 0)
+        self.model.chunks = [FakeChunk(" \n答"), FakeChunk("案\t")]
+        self.service.model_factory = lambda _config: self.model
+        body["message"] = "继续"
+        body["page_context"]["title"] = "当前 页面"
+        events = parse_sse(self.client.post(base + "/stream", json=body).text)
+        self.assertEqual(events[-1][0], "message.done")
+        self.assertNotEqual(events[0][1]["message_id"], failed[0][1]["message_id"])
+        for changed in ({"message": "改动"}, {"page_context": {"path": "/other", "title": "当前 页面"}}):
+            response = self.client.post(base + "/stream", json={**body, **changed})
+            self.assertEqual((response.status_code, response.json()["error_category"]), (409, "idempotency_conflict"))
+        replay = parse_sse(self.client.post(base + "/stream", json=body).text)
+        self.assertEqual(replay, [events[0], ("message.delta", {"delta": " \n答案\t"}), events[-1]])
+        self.assertEqual(self.client.get(base + "/requests/retry.1").json(),
+                         {"status": "completed", "message_id": events[0][1]["message_id"]})
+        with closing(sqlite3.connect(db)) as conn:
+            self.assertEqual(conn.execute("SELECT SUM(used) FROM ai_chat_daily_quota").fetchone()[0], 1)
+            self.assertEqual(conn.execute("SELECT status, quota_state, attempt_count FROM chat_request_ledger").fetchall(),
+                             [("completed", "charged", 2)])
+            self.assertEqual(conn.execute("SELECT role,content FROM chat_messages ORDER BY id").fetchall(),
+                             [("user", "继续"), ("assistant", "答案")])
+
+    def test_completed_action_only_replays_original_confirmation_and_no_empty_assistant(self):
+        class ActionOnlyModel(FakeAsyncModel):
+            calls = 0
+
+            def bind_tools(self, _schemas):
+                return self
+
+            async def astream(self, _messages):
+                self.calls += 1
+                if self.calls == 1:
+                    yield FakeChunk(tool_calls=[{"id": "action", "name": "sync_leetcode", "args": {"full": False}}])
+                else:
+                    yield FakeChunk("")
+
+        model = ActionOnlyModel()
+        self.service.model_factory = lambda _config: model
+        session = self.client.post("/api/chat/sessions", json={}).json()
+        base = f"/api/chat/sessions/{session['id']}"
+        body = {"message": "同步 LeetCode", "client_request_id": "ask-action"}
+        events = parse_sse(self.client.post(base + "/stream", json=body).text)
+        confirmation = next(item for item in events if item[0] == "tool.confirmation_required")
+        self.assertEqual(events[-1][0], "message.done")
+        replay = parse_sse(self.client.post(base + "/stream", json=body).text)
+        self.assertEqual(replay, [events[0], confirmation, events[-1]])
+        self.assertEqual(model.calls, 2)
+        self.assertEqual([item["role"] for item in self.client.get(base + "/messages").json()["items"]], ["user"])
+        self.assertEqual([item["action_id"] for item in self.client.get(base + "/actions").json()["items"]],
+                         [confirmation[1]["action_id"]])
 
     def test_provider_failure_emits_error_and_never_persists_partial_assistant(self):
         failing = FakeAsyncModel(error=RuntimeError("provider secret detail"))
@@ -364,7 +430,8 @@ class AIChatContractTests(unittest.TestCase):
         self.service.model_factory = lambda _config: model
         session = self.client.post("/api/chat/sessions", json={}).json()
         base = f"/api/chat/sessions/{session['id']}"
-        events = parse_sse(self.client.post(base + "/stream", json={"message": "哪章讲 TCP 和线程池？"}).text)
+        request_body = {"message": "哪章讲 TCP 和线程池？", "client_request_id": "library-replay"}
+        events = parse_sse(self.client.post(base + "/stream", json=request_body).text)
         self.assertIn("search_library", [s["function"]["name"] for s in model.schemas])
         self.assertEqual(events[-1][0], "message.done")
         self.assertEqual([e for e, _ in events].count("tool.done"), 3)
@@ -379,6 +446,13 @@ class AIChatContractTests(unittest.TestCase):
         self.assertEqual(items[1]["metadata"]["library_sources"], sources)
         self.assertNotIn("library_sources", items[0]["metadata"])
         self.assertNotIn(observed[0]["snippet"], json.dumps(items, ensure_ascii=False))
+        with patch.object(self.service, "preflight", side_effect=AssertionError("replay called provider")), \
+             patch.object(chat_router.RequestAttempt, "reserve", side_effect=AssertionError("replay charged")):
+            replayed = parse_sse(self.client.post(base + "/stream", json=request_body).text)
+            self.assertEqual(replayed[0], events[0])
+            self.assertEqual(replayed[-1], events[-1])
+            self.assertEqual(replayed[1], ("message.delta", {"delta": items[1]["content"]}))
+            self.assertEqual(self.client.get(base + "/messages").json()["items"], items)
 
         self.service.model_factory = lambda _config: self.model  # Next turn has no tool binding.
         events = parse_sse(self.client.post(base + "/stream", json={"message": "书架有哪章讲事务？"}).text)
@@ -391,6 +465,8 @@ class AIChatContractTests(unittest.TestCase):
         other = create_user("BookReader", "password-2")
         self.client.cookies.set("forge_session", create_session(int(other["id"])))
         self.assertEqual(self.client.get(base + "/messages").status_code, 404)
+        self.assertEqual(self.client.get(base + "/requests/library-replay").status_code, 404)
+        self.assertEqual(self.client.post(base + "/stream", json=request_body).status_code, 404)
 
     def test_library_budget_omission_cannot_publish_a_source(self):
         model = LibrarySearchModel("TCP")
@@ -439,11 +515,13 @@ class AIChatContractTests(unittest.TestCase):
         self.assertEqual(history, [])
 
     def test_pending_action_keeps_source_turn_when_later_model_round_fails(self):
-        self.service.model_factory = lambda _config: ActionThenFailModel()
+        model = ActionThenFailModel()
+        self.service.model_factory = lambda _config: model
         created = self.client.post("/api/chat/sessions", json={}).json()
+        base = f"/api/chat/sessions/{created['id']}"
+        body = {"message": "帮我同步 LeetCode", "client_request_id": "action-once"}
         response = self.client.post(
-            f"/api/chat/sessions/{created['id']}/stream",
-            json={"message": "帮我同步 LeetCode"},
+            base + "/stream", json=body,
         )
         events = parse_sse(response.text)
         self.assertEqual(events[-1][0], "error")
@@ -454,6 +532,14 @@ class AIChatContractTests(unittest.TestCase):
         ).json()["items"]
         self.assertEqual(len(pending), 1)
         self.assertEqual(pending[0]["user_message_id"], history[0]["id"])
+        state = self.client.get(base + "/requests/action-once").json()
+        self.assertEqual((state["status"], state["action_recorded"], state["message_id"]),
+                         ("interrupted", True, events[0][1]["message_id"]))
+        duplicate = self.client.post(base + "/stream", json=body)
+        self.assertEqual(duplicate.status_code, 409)
+        self.assertEqual(duplicate.json()["error_category"], "chat_request_interrupted")
+        self.assertEqual(model.calls, 2)
+        self.assertEqual(self.client.get(base + "/actions").json()["items"], pending)
 
     def test_cross_user_session_isolation_and_input_bounds(self):
         created = self.client.post("/api/chat/sessions", json={}).json()

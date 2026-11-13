@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 import asyncio
 import os
 import time
+import threading
 import uuid
 from urllib.parse import urlsplit
 
@@ -35,6 +36,8 @@ from interview_forge.api.routers.admin_ai_config import router as admin_ai_confi
 from interview_forge.api.routers.gym import router as gym_router
 from interview_forge.api.routers.practice import router as practice_router
 from interview_forge.core.async_http import AsyncHttpClient
+from interview_forge.ai.chat.recovery import run_recovery
+from interview_forge.core.runtime import server_runtime
 from interview_forge.runtime.task_manager import task_manager
 
 # Import only the lightweight task facades so their existing backends register
@@ -56,9 +59,13 @@ async def lifespan(app: FastAPI):
     _gym_service.start_gym_scheduler()
     app.state.http_client = client
     app.state.task_manager = task_manager
+    recovery_stop = threading.Event()
+    recovery = asyncio.create_task(run_recovery(server_runtime.USERS_DIR, recovery_stop))
     try:
         yield
     finally:
+        recovery_stop.set()
+        await recovery
         _gym_service.stop_gym_scheduler()
         stop_metrics_writer()
         await client.close()

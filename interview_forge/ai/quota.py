@@ -108,36 +108,40 @@ def consume_chat_quota(
     """Atomically count one chat request without sharing analysis quota rows."""
     if role == "admin":
         return None
-    limit = AI_CHAT_DAILY_LIMIT if daily_limit is None else _validated_daily_limit(daily_limit)
-    day_key, reset_at = _quota_window(now)
     with closing(_open_ai_db(db_path)) as connection:
         connection.execute("BEGIN IMMEDIATE")
-        connection.execute(
-            "INSERT OR IGNORE INTO ai_chat_daily_quota(day_key, used, updated_at) VALUES (?, 0, ?)",
-            (day_key, _now_iso()),
-        )
-        cursor = connection.execute(
-            "UPDATE ai_chat_daily_quota SET used = used + 1, updated_at = ? "
-            "WHERE day_key = ? AND used < ?",
-            (_now_iso(), day_key, limit),
-        )
-        row = connection.execute(
-            "SELECT used FROM ai_chat_daily_quota WHERE day_key = ?", (day_key,)
-        ).fetchone()
-        if cursor.rowcount != 1:
-            connection.rollback()
-            quota = {
-                "limit": limit,
-                "used": int(row["used"] if row is not None else 0),
-                "remaining": 0,
-                "reset_at": reset_at,
-            }
-            raise AIServiceError(
-                "chat_quota", "今日 AI 对话次数已用完，请明天再试。",
-                status=HTTPStatus.TOO_MANY_REQUESTS, details={"quota": quota},
-            )
+        receipt = charge_chat_quota(connection, role, daily_limit=daily_limit, now=now)
         connection.commit()
-        used = int(row["used"] if row is not None else 0)
+        return receipt
+
+
+def charge_chat_quota(
+    connection: sqlite3.Connection, role: str, *, daily_limit: int | None = None,
+    now: datetime | None = None,
+) -> dict[str, Any] | None:
+    """Charge within the caller's transaction, including its request reservation."""
+    if role == "admin":
+        return None
+    limit = AI_CHAT_DAILY_LIMIT if daily_limit is None else _validated_daily_limit(daily_limit)
+    day_key, reset_at = _quota_window(now)
+    timestamp = _now_iso()
+    connection.execute(
+        "INSERT OR IGNORE INTO ai_chat_daily_quota(day_key, used, updated_at) VALUES (?, 0, ?)",
+        (day_key, timestamp),
+    )
+    cursor = connection.execute(
+        "UPDATE ai_chat_daily_quota SET used = used + 1, updated_at = ? WHERE day_key = ? AND used < ?",
+        (timestamp, day_key, limit),
+    )
+    used = int(connection.execute(
+        "SELECT used FROM ai_chat_daily_quota WHERE day_key = ?", (day_key,)
+    ).fetchone()[0])
+    if cursor.rowcount != 1:
+        raise AIServiceError(
+            "chat_quota", "今日 AI 对话次数已用完，请明天再试。",
+            status=HTTPStatus.TOO_MANY_REQUESTS,
+            details={"quota": {"limit": limit, "used": used, "remaining": 0, "reset_at": reset_at}},
+        )
     return {"limit": limit, "used": used, "remaining": max(0, limit - used), "reset_at": reset_at, "day_key": day_key}
 
 

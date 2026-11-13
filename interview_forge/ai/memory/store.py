@@ -5,11 +5,14 @@ import json
 import uuid
 from contextlib import closing
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from interview_forge.core.runtime import server_runtime
 
 from .contracts import MemoryCandidate, MemoryItem
+
+if TYPE_CHECKING:
+    from interview_forge.ai.chat.request_ledger import RequestAttempt
 
 
 def _now() -> str:
@@ -42,16 +45,24 @@ class MemoryStore:
         candidate: MemoryCandidate,
         source_session_id: str,
         source_message_id: int,
+        attempt: RequestAttempt | None = None,
     ) -> MemoryItem | None:
         now = _now()
         with closing(server_runtime.connect(Path(user_db))) as connection:
             if candidate.operation == "forget":
-                connection.execute(
+                deleted = connection.execute(
                     "DELETE FROM user_memories WHERE kind = ? AND canonical_key = ?",
                     (candidate.kind, candidate.canonical_key),
                 )
+                if attempt is not None and deleted.rowcount:
+                    # A stale extraction rolls back its deletion; an empty
+                    # delete has no side effect to protect during recovery.
+                    attempt.record_memory(connection)
                 connection.commit()
                 return None
+            if attempt is not None:
+                # The fence, supersession and new memory share one commit.
+                attempt.record_memory(connection)
             old = connection.execute(
                 "SELECT id FROM user_memories WHERE kind = ? AND canonical_key = ? AND status = 'active'",
                 (candidate.kind, candidate.canonical_key),

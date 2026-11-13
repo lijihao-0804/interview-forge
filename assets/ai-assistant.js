@@ -5,7 +5,8 @@
   document.body.classList.toggle("embedded", embedded);
   var state = {
     sessions: [], current: null, controller: null, assistantNode: null,
-    cancelRequested: false, streamFailed: false, streamCompleted: false, pageContext: null,
+    account: "", phase: "loading", pending: null, pendingBySession: Object.create(null),
+    recoveryTimer: null, pageContext: null,
     pageContextWaiters: Object.create(null), contextRequestSerial: 0, sessionLoadSerial: 0,
     autoFollow: true, scrollFrame: null,
     streamDiagnostics: { delta_count: 0, render_count: 0, max_render_ms: 0 }
@@ -22,6 +23,8 @@
   var input = document.getElementById("messageInput");
   var send = document.getElementById("send");
   var stop = document.getElementById("stop");
+  var retryTurn = document.getElementById("retryTurn");
+  var editTurn = document.getElementById("editTurn");
   var memoryButton = document.getElementById("memoryButton");
   var memoryDialog = document.getElementById("memoryDialog");
   var memoryList = document.getElementById("memoryList");
@@ -130,7 +133,10 @@
         .then(function (response) {
           if (response.status === 401) return false;
           if (!response.ok) throw new Error("暂时无法确认登录状态，请稍后重试");
-          return response.json().then(function (user) { return !!user; });
+          return response.json().then(function (user) {
+            state.account = user && user.username || "";
+            return !!state.account;
+          });
         })
         .catch(function () { return false; });
     }
@@ -152,13 +158,29 @@
     if (!response.ok) {
       var failure = new Error(payload.error || "请求失败");
       failure.status = response.status;
+      failure.category = payload.error_category;
       throw failure;
     }
     return payload;
   }
 
   function setError(value) { error.textContent = value || ""; }
-  function setBusy(value) { input.disabled = !state.current || value; send.disabled = !state.current || value; stop.hidden = !value; status.textContent = value ? "生成中…" : (state.current ? "已连接" : "未连接"); }
+  function setPhase(phase) {
+    state.phase = phase;
+    var ready = phase === "ready" && !!state.current;
+    input.disabled = !ready;
+    send.disabled = !ready;
+    send.hidden = phase === "retry" || phase === "check";
+    stop.hidden = phase !== "preparing" && phase !== "stream";
+    stop.disabled = !!(state.pending && state.pending.cancelRequested);
+    retryTurn.hidden = phase !== "retry" && phase !== "check";
+    retryTurn.textContent = phase === "retry" ? "重试原消息" : "检查状态";
+    editTurn.hidden = phase !== "retry";
+    var labels = { loading: "读取会话中…", ready: "已连接", preparing: "正在发送…",
+      stream: "生成中…", checking: "正在核对原请求…", active: "原请求仍在处理…",
+      retry: "等待重试", check: "等待核对" };
+    status.textContent = labels[phase];
+  }
   function resetStreamDiagnostics() {
     if (!STREAM_DIAGNOSTICS_ENABLED) return;
     state.streamDiagnostics.delta_count = 0;
@@ -376,7 +398,14 @@
       var updated = window.InterviewForgeTime ? InterviewForgeTime.formatDateTime(item.updated_at) : String(item.updated_at || "");
       return '<button class="session-item ' + (item.id === state.current ? "active" : "") + '" type="button" data-session="' + esc(item.id) + '"><span class="session-title">' + esc(item.title) + '</span><span class="session-time">' + esc(updated) + '</span></button>';
     }).join("");
-    list.querySelectorAll("[data-session]").forEach(function (node) { node.addEventListener("click", function () { selectSession(node.getAttribute("data-session")); }); });
+    list.querySelectorAll("[data-session]").forEach(function (node) {
+      node.addEventListener("click", function () {
+        var id = node.getAttribute("data-session");
+        if (id !== state.current || state.phase === "loading") {
+          selectSession(id).catch(function (err) { if (id === state.current) setError(err.message); });
+        }
+      });
+    });
   }
 
   function formatMessageTime(value) {
@@ -563,27 +592,86 @@
     }
   }
 
-  async function selectSession(id) {
-    var loadSerial = ++state.sessionLoadSerial;
-    if (state.controller) state.controller.abort();
-    if (state.assistantNode) cancelStreamRender(state.assistantNode.querySelector(".bubble"));
-    state.current = id;
-    state.assistantNode = null;
-    setError("");
-    renderSessions();
-    var payload = await api("/api/chat/sessions/" + encodeURIComponent(id) + "/messages");
-    if (loadSerial !== state.sessionLoadSerial || state.current !== id) return;
+  function sessionPath(id) { return "/api/chat/sessions/" + encodeURIComponent(id); }
+
+  function storageKey(sessionId) {
+    var prefix = "forge-ai:" + encodeURIComponent(state.account);
+    return sessionId ? prefix + ":pending:" + encodeURIComponent(sessionId) : prefix + ":selected";
+  }
+
+  function readPending(id) {
+    if (state.pendingBySession[id]) return state.pendingBySession[id];
+    try {
+      var turn = JSON.parse(sessionStorage.getItem(storageKey(id)));
+      if (turn && turn.sessionId === id && typeof turn.body === "string") {
+        var body = JSON.parse(turn.body);
+        if (typeof turn.key === "string" && body.client_request_id === turn.key && typeof body.message === "string" &&
+            /^[A-Za-z0-9._:-]{1,128}$/.test(turn.key)) {
+          state.pendingBySession[id] = turn;
+          return turn;
+        }
+      }
+    } catch (_) { /* Tab storage may be unavailable. */ }
+    return null;
+  }
+
+  function rememberTurn(turn) {
+    state.pendingBySession[turn.sessionId] = turn;
+    state.pending = turn;
+    try { sessionStorage.setItem(storageKey(turn.sessionId), JSON.stringify(turn)); } catch (_) { }
+  }
+
+  function forgetTurn(turn) {
+    if (state.pending !== turn) return;
+    state.pending = null;
+    delete state.pendingBySession[turn.sessionId];
+    try { sessionStorage.removeItem(storageKey(turn.sessionId)); } catch (_) { }
+  }
+
+  function isSelected(id, serial) { return state.current === id && state.sessionLoadSerial === serial; }
+
+  async function reloadCurrentSession() {
+    var id = state.current, serial = state.sessionLoadSerial;
+    if (!id || state.controller) return;
+    var path = sessionPath(id);
+    var results = await Promise.all([api(path + "/messages"), api(path + "/actions?status=pending")]);
+    if (!isSelected(id, serial) || state.controller) return;
+    var payload = results[0];
     title.textContent = payload.session.title;
+    var selected = state.sessions.find(function (item) { return item.id === id; });
+    if (selected) { selected.title = payload.session.title; renderSessions(); }
     var fragment = document.createDocumentFragment();
     (payload.items || []).forEach(function (item) { renderMessage(item, fragment); });
+    if (state.assistantNode) cancelStreamRender(state.assistantNode.querySelector(".bubble"));
+    state.assistantNode = null;
     messages.replaceChildren(fragment);
-    var actions = await api("/api/chat/sessions/" + encodeURIComponent(id) + "/actions?status=pending");
-    if (loadSerial !== state.sessionLoadSerial || state.current !== id) return;
-    renderPendingActions(actions.items || []);
-    input.disabled = false; send.disabled = false; status.textContent = "已连接";
-    try { localStorage.setItem("forge-ai-session", id); } catch (_) { }
-    state.autoFollow = true;
+    renderPendingActions(results[1].items || []);
     scheduleScrollBottom();
+  }
+
+  async function selectSession(id) {
+    var serial = ++state.sessionLoadSerial;
+    window.clearTimeout(state.recoveryTimer);
+    if (state.controller) state.controller.abort();
+    state.controller = null;
+    if (state.assistantNode) cancelStreamRender(state.assistantNode.querySelector(".bubble"));
+    state.assistantNode = null;
+    state.current = id;
+    state.pending = readPending(id);
+    state.autoFollow = true;
+    input.value = "";
+    messages.replaceChildren();
+    setError("");
+    setPhase("loading");
+    renderSessions();
+    try { sessionStorage.setItem(storageKey(), id); } catch (_) { }
+    try { localStorage.setItem(storageKey(), id); } catch (_) { }
+    if (state.pending) {
+      await recoverTurn(state.pending, serial);
+    } else {
+      await reloadCurrentSession();
+      if (isSelected(id, serial)) setPhase("ready");
+    }
   }
 
   async function refreshSessionList() {
@@ -597,7 +685,9 @@
   async function loadSessions() {
     await refreshSessionList();
     if (!state.sessions.length) return;
-    var saved = null; try { saved = localStorage.getItem("forge-ai-session"); } catch (_) { }
+    var saved = null;
+    try { saved = sessionStorage.getItem(storageKey()); } catch (_) { }
+    try { saved = saved || localStorage.getItem(storageKey()) || localStorage.getItem("forge-ai-session"); } catch (_) { }
     await selectSession(state.sessions.some(function (item) { return item.id === saved; }) ? saved : state.sessions[0].id);
   }
 
@@ -634,53 +724,166 @@
     });
   }
 
-  async function reloadCurrentSession() {
-    var id = state.current;
-    if (!id) return;
-    if (state.assistantNode) cancelStreamRender(state.assistantNode.querySelector(".bubble"));
-    state.controller = null;
-    try { await selectSession(id); } catch (err) { setError(err.message || "读取会话失败"); }
-  }
-
   async function newSession() {
     setError("");
     var item = await api("/api/chat/sessions", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
-    state.sessions.unshift(item); state.current = item.id; renderSessions(); await selectSession(item.id); input.focus();
+    state.sessions.unshift(item);
+    await selectSession(item.id);
+    input.focus();
   }
 
-  function parseSse(buffer, onEvent) {
-    var frames = buffer.split("\n\n");
-    var rest = frames.pop();
-    frames.forEach(function (frame) {
-      var name = "message", data = "";
-      frame.split("\n").forEach(function (line) { if (line.indexOf("event:") === 0) name = line.slice(6).trim(); if (line.indexOf("data:") === 0) data += line.slice(5).trim(); });
-      if (data) { try { onEvent(name, JSON.parse(data)); } catch (_) { } }
-    });
-    return rest;
+  async function readEvents(body, signal, onEvent) {
+    var reader = body.getReader(), decoder = new TextDecoder();
+    var buffer = "", name = "message", data = [], terminal = false;
+    function consume(chunk, atEnd) {
+      buffer += chunk;
+      var start = 0, breaks = /\r\n|\r|\n/g, match;
+      while ((match = breaks.exec(buffer))) {
+        if (!atEnd && match[0] === "\r" && breaks.lastIndex === buffer.length) break;
+        var line = buffer.slice(start, match.index);
+        start = breaks.lastIndex;
+        if (!line) {
+          if (data.length) {
+            onEvent(name, JSON.parse(data.join("\n")));
+            if (name === "message.done" || name === "error") { terminal = true; break; }
+          }
+          name = "message";
+          data = [];
+        } else if (line.indexOf("event:") === 0) {
+          name = line.slice(6).trim();
+        } else if (line.indexOf("data:") === 0) {
+          data.push(line.slice(5).replace(/^ /, ""));
+        }
+      }
+      buffer = buffer.slice(start);
+    }
+    function cancel() { reader.cancel().catch(function () {}); }
+    signal.addEventListener("abort", cancel, { once: true });
+    try {
+      while (!signal.aborted && !terminal) {
+        var part = await reader.read();
+        if (part.done) { consume(decoder.decode(), true); break; }
+        consume(decoder.decode(part.value, { stream: true }), false);
+      }
+    } finally {
+      signal.removeEventListener("abort", cancel);
+      cancel();
+      reader.releaseLock();
+    }
+  }
+
+  async function recoverTurn(turn, serial, attempt, reason) {
+    function current() { return state.pending === turn && isSelected(turn.sessionId, serial); }
+    if (!current()) return;
+    window.clearTimeout(state.recoveryTimer);
+    setPhase("checking");
+    try {
+      var result;
+      try {
+        result = await api(sessionPath(turn.sessionId) + "/requests/" + encodeURIComponent(turn.key));
+      } catch (err) {
+        if (err.status !== 404 || err.category !== "chat_request_not_found") throw err;
+        result = { status: "retryable" };
+      }
+      if (!current()) return;
+      if (result.status === "in_progress") {
+        if (!attempt) await reloadCurrentSession();
+        if (!current()) return;
+        setPhase("active");
+        setError(turn.cancelRequested ? "已请求停止，正在等服务器确认结果。" : "连接已中断，正在等待原请求的结果。");
+        var next = (attempt || 0) + 1;
+        state.recoveryTimer = window.setTimeout(function () {
+          recoverTurn(turn, serial, next, reason);
+        }, Math.min(1000 * Math.pow(2, Math.min(next - 1, 3)), 8000));
+        return;
+      }
+      if (["completed", "retryable", "interrupted"].indexOf(result.status) < 0) throw new Error();
+      // A terminal status is only useful once both committed messages and pending actions are visible.
+      await reloadCurrentSession();
+      if (!current()) return;
+      if (result.status === "retryable" && !turn.cancelRequested) {
+        input.value = JSON.parse(turn.body).message;
+        setError((reason ? reason.replace(/[。.!]+$/, "") + "。" : "") + "可重试原消息，或编辑后作为新消息发送。");
+        setPhase("retry");
+        return;
+      }
+      input.value = "";
+      forgetTurn(turn);
+      setPhase("ready");
+      if (result.status === "interrupted") {
+        var details = [];
+        if (result.action_recorded) details.push("此轮已记录操作，待确认的操作会显示在会话中。");
+        if (result.memory_saved) details.push("已保存的记忆可在“记忆”中查看。");
+        setError("本轮回答已中断。" + (details.join("") || "此轮已保存操作或记忆。"));
+      }
+      else if (turn.cancelRequested && result.status === "retryable") setError("已停止生成。");
+      else setError("");
+    } catch (err) {
+      if (!current() || err.code === "AUTH_REQUIRED") return;
+      setPhase("check");
+      setError("暂时无法核对原请求，恢复连接后可检查状态。");
+    }
   }
 
   async function sendMessage(event) {
     event.preventDefault();
-    if (!state.current || state.controller) return;
+    if (!state.current || state.phase !== "ready" || state.pending) return;
     var text = input.value.trim(); if (!text) return;
+    var id = state.current, serial = state.sessionLoadSerial;
+    var controller = new AbortController();
+    state.controller = controller;
+    setPhase("preparing");
     setError("");
     resetStreamDiagnostics();
-    state.autoFollow = messages.scrollHeight - messages.scrollTop - messages.clientHeight <= AUTO_FOLLOW_THRESHOLD;
-    input.value = ""; var userNode = renderMessage({ role: "user", content: text });
-    state.streamFailed = false; state.streamCompleted = false;
-    state.controller = new AbortController(); setBusy(true); scheduleScrollBottom();
     try {
-      // The drawer receives context asynchronously. Ask for a fresh snapshot
-      // immediately before sending so scroll/selection changes are current.
       var pageContext = await requestFreshPageContext();
-      var requestBody = { message: text };
+      if (!isSelected(id, serial) || controller.signal.aborted) return;
+      var key = Array.from(window.crypto.getRandomValues(new Uint8Array(16)), function (byte) {
+        return byte.toString(16).padStart(2, "0");
+      }).join("");
+      var requestBody = { client_request_id: key, message: text };
       if (pageContext) requestBody.page_context = pageContext;
-      if (!(await ensureAuthenticated())) throw authError();
-      var response = await fetch("/api/chat/sessions/" + encodeURIComponent(state.current) + "/stream", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(requestBody), signal: state.controller.signal });
+      var turn = { sessionId: id, key: key, body: JSON.stringify(requestBody), cancelRequested: false };
+      rememberTurn(turn);
+      await streamTurn(turn);
+    } catch (err) {
+      if (isSelected(id, serial)) setError(err.message || "发送失败");
+    } finally {
+      if (state.controller === controller) {
+        state.controller = null;
+        setPhase("ready");
+      }
+    }
+  }
+
+  async function streamTurn(turn) {
+    var serial = state.sessionLoadSerial, controller = new AbortController();
+    state.controller = controller;
+    state.autoFollow = messages.scrollHeight - messages.scrollTop - messages.clientHeight <= AUTO_FOLLOW_THRESHOLD;
+    input.value = "";
+    var userNode = renderMessage({ role: "user", content: JSON.parse(turn.body).message });
+    var completed = false, streamError = "";
+    setPhase("stream");
+    setError("");
+    scheduleScrollBottom();
+    try {
+      var response = await fetch(sessionPath(turn.sessionId) + "/stream", {
+        method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+        body: turn.body, signal: controller.signal
+      });
+      if (state.controller !== controller) return;
       if (response.status === 401) { authPromise = Promise.resolve(false); showAuthGate(); throw authError(); }
-      if (!response.ok) { var failed = await response.json().catch(function () { return {}; }); throw new Error(failed.error || "发送失败"); }
-      var reader = response.body.getReader(), decoder = new TextDecoder(), buffer = "";
+      if (!response.ok) {
+        var failed = await response.json().catch(function () { return {}; });
+        var failure = new Error(failed.error || "发送失败");
+        failure.category = failed.error_category;
+        throw failure;
+      }
+      if (!response.body || !(response.headers.get("Content-Type") || "").includes("text/event-stream")) {
+        throw new Error("服务器未返回对话流");
+      }
       function onEvent(name, payload) {
+        if (state.controller !== controller || controller.signal.aborted || completed || streamError) return;
         if (name === "message.start") {
           setMessageTime(userNode, payload && payload.created_at);
           state.assistantNode = renderAssistantTurn();
@@ -704,7 +907,7 @@
           scheduleScrollBottom();
         }
         else if (name === "message.done") {
-          state.streamCompleted = true;
+          completed = true;
           if (state.assistantNode) {
             finalizeAssistant(state.assistantNode.querySelector(".bubble"));
             setMessageTime(state.assistantNode, payload && payload.created_at);
@@ -712,30 +915,36 @@
             renderContextDetails(state.assistantNode.querySelector(".message-content"), payload && payload.message_id);
             scheduleScrollBottom();
           }
-          status.textContent = "已连接";
         }
-        else if (name === "error") { state.streamFailed = true; setError(payload.message || "AI 暂时不可用"); }
+        else if (name === "error") { streamError = payload.message || "AI 暂时不可用"; }
       }
-      while (true) { var part = await reader.read(); if (part.done) break; buffer += decoder.decode(part.value, { stream: true }); buffer = parseSse(buffer, onEvent); }
-      parseSse(buffer + "\n\n", onEvent);
-      if (state.streamFailed || !state.streamCompleted) {
-        var streamError = error.textContent;
-        await reloadCurrentSession();
-        setError(streamError || "AI 响应不完整，请重试");
-      } else {
-        await refreshSessionList();
-      }
+      await readEvents(response.body, controller.signal, onEvent);
     } catch (err) {
-      if (err.name === "AbortError" && state.cancelRequested) {
-        state.cancelRequested = false;
-        await reloadCurrentSession();
-      } else if (err.name !== "AbortError") {
-        var networkError = err.message || "发送失败";
-        await reloadCurrentSession();
-        setError(networkError);
+      if (state.controller !== controller) return;
+      if (err.code === "AUTH_REQUIRED") { state.controller = null; return; }
+      if (err.category === "idempotency_conflict") {
+        state.controller = null;
+        forgetTurn(turn);
+        try { await reloadCurrentSession(); } catch (_) { }
+        if (isSelected(turn.sessionId, serial)) {
+          setPhase("ready");
+          input.value = JSON.parse(turn.body).message;
+          setError("该请求标识已用于其他内容。请核对会话后再发送。");
+        }
+        return;
       }
+      if (err.name !== "AbortError") streamError = err.name === "TypeError" ? "连接中断" : (err.message || "连接中断");
     }
-    finally { state.controller = null; setBusy(false); state.assistantNode = null; }
+    if (state.controller !== controller) return;
+    state.controller = null;
+    if (completed && state.assistantNode) {
+      state.assistantNode = null;
+      forgetTurn(turn);
+      setPhase("ready");
+      try { await refreshSessionList(); } catch (_) { /* The committed reply is already displayed. */ }
+    } else {
+      await recoverTurn(turn, serial, 0, streamError);
+    }
   }
 
   document.getElementById("newSession").addEventListener("click", function () { newSession().catch(function (err) { setError(err.message); }); });
@@ -750,7 +959,28 @@
     }
   });
   stop.addEventListener("click", function () {
-    if (state.controller) { state.cancelRequested = true; state.controller.abort(); }
+    if (!state.controller) return;
+    if (state.pending) {
+      state.pending.cancelRequested = true;
+      rememberTurn(state.pending);
+    }
+    stop.disabled = true;
+    state.controller.abort();
+  });
+  retryTurn.addEventListener("click", function () {
+    if (!state.pending) return;
+    if (state.phase === "check") recoverTurn(state.pending, state.sessionLoadSerial);
+    else if (state.phase === "retry") streamTurn(state.pending);
+  });
+  editTurn.addEventListener("click", function () {
+    if (state.phase !== "retry" || !state.pending) return;
+    forgetTurn(state.pending);
+    setError("");
+    setPhase("ready");
+    input.focus();
+  });
+  window.addEventListener("online", function () {
+    if (state.pending && state.phase === "check") recoverTurn(state.pending, state.sessionLoadSerial);
   });
   messages.addEventListener("scroll", updateAutoFollow, { passive: true });
   window.addEventListener("message", function (event) {

@@ -33,7 +33,7 @@
 
 生产采用单主机多 worker。启用 `IF_SHARED_RUNTIME=1` 时，相同账号数据库和会话 ID 竞争同一个操作系统文件锁。取得锁后才扣额度，因此不同账号和同一账号的不同会话可以同时生成。扣额线程运行中收到取消时，路由等待数据库给出确定结果，再按回执中的上海业务日退款和释放锁。
 
-服务端以用户消息写入 SQLite 后产生的 `message.start` 作为计费分界。仅发出 HTTP 响应头时断开，可以退回本次扣量。持久化后断开，保留已发生的消费。已结束的业务请求再次提交会产生新一轮；跨主机互斥、进程强杀后的业务补偿以及客户端幂等键属于不同保证。可对照唯一任务和幂等响应的具体语义。[Chat 路由](../../interview_forge/api/routers/chat.py) · [River UniqueOpts](https://github.com/riverqueue/river/blob/master/insert_opts.go) · [Stripe 幂等请求](https://docs.stripe.com/api/idempotent_requests)
+在本次上下文工程的验收版本中，服务端以用户消息写入 SQLite 后产生的 `message.start` 作为计费分界。仅发出 HTTP 响应头时断开，会退回本次扣量。后续发布引入了客户端请求标识。当前网页重试已完成的消息可取回原答案；无已提交结果或副作用的中断可按原业务日退额，再用同一标识重试。两版的验收记录应按各自发布版本解读。[当前聊天请求恢复机制](../AI-CHAT-REQUEST-RECOVERY.md) · [Chat 路由](../../interview_forge/api/routers/chat.py) · [Stripe 幂等请求](https://docs.stripe.com/api/idempotent_requests)
 
 ### 如何检查一次真实回答
 

@@ -6,9 +6,12 @@ import uuid
 from contextlib import closing
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Mapping
+from typing import TYPE_CHECKING, Any, Mapping
 
 from interview_forge.core.runtime import server_runtime
+
+if TYPE_CHECKING:
+    from interview_forge.ai.chat.request_ledger import RequestAttempt
 
 
 class ActionRequestError(Exception):
@@ -122,6 +125,7 @@ class ActionRequestStore:
         arguments: Mapping[str, Any],
         confirmation_text: str,
         ttl_seconds: int = 600,
+        attempt: RequestAttempt | None = None,
     ) -> dict[str, Any]:
         created = _now()
         expires = (_parse_time(created) + timedelta(seconds=max(60, ttl_seconds))).isoformat(timespec="seconds")
@@ -131,6 +135,8 @@ class ActionRequestStore:
         )
         with closing(server_runtime.connect(Path(user_db))) as connection:
             connection.execute("BEGIN IMMEDIATE")
+            if attempt is not None:
+                attempt.record_action(connection)
             existing = connection.execute(
                 """SELECT * FROM chat_action_requests
                    WHERE session_id = ? AND turn_id = ? AND tool_name = ?

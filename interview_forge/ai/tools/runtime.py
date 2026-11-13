@@ -192,6 +192,7 @@ class ToolRuntime:
             tool_name=spec.name,
             arguments=arguments,
             confirmation_text=confirmation_text,
+            attempt=context.artifacts.get("chat_request_attempt"),
         )
         duration_ms = round((time.perf_counter() - started) * 1000)
         self._audit(

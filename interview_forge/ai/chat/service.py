@@ -31,6 +31,15 @@ from interview_forge.ai.chat.context_blocks import ContextBlock
 from interview_forge.ai.chat.learning_context import LearningContextProvider, learning_projection_block
 from interview_forge.ai.chat.page_context import PageContext, PageContextProvider
 from interview_forge.ai.chat.recent_action_context import RecentActionContextProvider
+from interview_forge.ai.chat.request_ledger import (
+    DEFAULT_SESSION_TITLE,
+    RequestAttempt,
+    _ACTIVE_SESSIONS as _ACTIVE_SESSIONS,
+    _ACTIVE_SESSIONS_LOCK as _ACTIVE_SESSIONS_LOCK,
+    claim_chat_session,
+    delete_failed_user,
+    release_chat_session,
+)
 from interview_forge.ai.chat.relevance import POLICY_VERSION, page_is_relevant
 from interview_forge.ai.chat.tool_orchestrator import ToolOrchestrator
 from interview_forge.ai.chat.token_budget import DEFAULT_CHAT_TOKEN_BUDGET, budget_for_context_window
@@ -46,7 +55,6 @@ from interview_forge.ai.memory.extractor import extraction_budget
 from interview_forge.ai.token_counting import StructuredRequestBudget, canonical_json, generation_reserve
 from interview_forge.ai.tasks import _release_model_slot, _try_claim_model_slot
 from interview_forge.core.runtime import server_runtime
-from interview_forge.runtime import shared
 from interview_forge.ai.tools.policy import ToolPolicy
 from interview_forge.ai.tools.registry import ToolRegistry, build_default_tool_registry
 from interview_forge.ai.tools.contracts import LibrarySource, ToolExecutionContext
@@ -57,7 +65,6 @@ MAX_CHAT_MESSAGE_CHARS = 12_000
 MAX_CHAT_BODY_BYTES = 20_000
 MAX_CHAT_TITLE_CHARS = 64
 MAX_SESSION_ID_CHARS = 128
-DEFAULT_SESSION_TITLE = "新会话"
 CHAT_PROMPT_POLICY_VERSION = "chat-prompt-policy-v2"
 CONFIG_FINGERPRINT_SCHEMA_VERSION = 2
 
@@ -72,8 +79,6 @@ _FINGERPRINT_CAPABILITY_KEYS = (
     "context_window",
 )
 
-_ACTIVE_SESSIONS: dict[tuple[str, str], shared.FileLock | None] = {}
-_ACTIVE_SESSIONS_LOCK = threading.Lock()
 _ACTIVE_MODEL_CALLS = 0
 _ACTIVE_MODEL_CALLS_LOCK = threading.Lock()
 
@@ -163,28 +168,6 @@ def _usage_payload(usage: Mapping[str, Any], *, estimated_input_tokens: int | No
         payload["estimated_input_tokens"] = int(estimated_input_tokens)
         payload["estimated"] = True
     return payload
-
-
-def claim_chat_session(db_path: Path, session_id: str) -> bool:
-    key = (str(db_path.resolve()), session_id)
-    with _ACTIVE_SESSIONS_LOCK:
-        if key in _ACTIVE_SESSIONS:
-            return False
-        lease = None
-        if shared.enabled():
-            lease = shared.FileLock("chat-session", canonical_json(key))
-            if not lease.acquire():
-                return False
-        _ACTIVE_SESSIONS[key] = lease
-    return True
-
-
-def release_chat_session(db_path: Path, session_id: str) -> None:
-    key = (str(db_path.resolve()), session_id)
-    with _ACTIVE_SESSIONS_LOCK:
-        lease = _ACTIVE_SESSIONS.pop(key, None)
-        if lease is not None:
-            lease.release()
 
 
 def _try_claim_model(config: AIConfig) -> bool:
@@ -492,6 +475,7 @@ class ChatService:
         message: str,
         model: Any = None,
         budget: StructuredRequestBudget | None = None,
+        attempt: RequestAttempt | None = None,
     ) -> MemoryPersistenceResult | None:
         """Persist an explicit request before the model is allowed to answer."""
         if not is_explicit_memory_request(message):
@@ -515,6 +499,7 @@ class ChatService:
                     candidate=candidate,
                     source_session_id=session_id,
                     source_message_id=message_id,
+                    attempt=attempt,
                 )
                 if candidate.operation == "upsert" and stored is None:
                     return MemoryPersistenceResult(
@@ -568,7 +553,8 @@ class ChatService:
 
     @staticmethod
     def _save_user_message(
-        *, user_db: Path, session_id: str, content: str, page_context: PageContext | None = None
+        *, user_db: Path, session_id: str, content: str, page_context: PageContext | None = None,
+        attempt: RequestAttempt | None = None,
     ) -> dict[str, Any]:
         timestamp = _now()
         metadata = json.dumps(
@@ -595,60 +581,38 @@ class ChatService:
                 "UPDATE chat_sessions SET title = ?, updated_at = ? WHERE id = ?",
                 (title, timestamp, session_id),
             )
+            if attempt is not None:
+                attempt.record_start(connection, int(cursor.lastrowid))
             connection.commit()
             return {"id": int(cursor.lastrowid), "created_at": timestamp}
-
-    @staticmethod
-    def _delete_failed_user_message(*, user_db: Path, session_id: str, message_id: int) -> None:
-        """Remove a turn that never produced an assistant result."""
-        with closing(server_runtime.connect(user_db)) as connection:
-            session = connection.execute(
-                "SELECT created_at FROM chat_sessions WHERE id = ?", (session_id,)
-            ).fetchone()
-            cursor = connection.execute(
-                "DELETE FROM chat_messages WHERE id = ? AND session_id = ? AND role = 'user'",
-                (message_id, session_id),
-            )
-            if cursor.rowcount:
-                remaining = connection.execute(
-                    "SELECT created_at FROM chat_messages WHERE session_id = ? ORDER BY id DESC LIMIT 1",
-                    (session_id,),
-                ).fetchone()
-                if remaining is None and session is not None:
-                    connection.execute(
-                        "UPDATE chat_sessions SET title = ?, updated_at = ? WHERE id = ?",
-                        (DEFAULT_SESSION_TITLE, str(session["created_at"]), session_id),
-                    )
-                elif remaining is not None:
-                    connection.execute(
-                        "UPDATE chat_sessions SET updated_at = ? WHERE id = ?",
-                        (str(remaining["created_at"]), session_id),
-                    )
-            connection.commit()
 
     @staticmethod
     def _save_assistant_message(
         *, user_db: Path, session_id: str, content: str, stream_message_id: str, usage: Mapping[str, Any],
-        library_sources: tuple[LibrarySource, ...] = (),
+        library_sources: tuple[LibrarySource, ...] = (), attempt: RequestAttempt | None = None,
+        confirmations: list[dict] | None = None,
     ) -> dict[str, Any]:
-        if not content.strip():
-            raise ValueError("assistant message must contain visible text")
-        timestamp = _now()
+        """Commit the reply and its replay receipt before emitting message.done."""
+        done = {"message_id": stream_message_id, "usage": dict(usage)}
         metadata = {"stream_message_id": stream_message_id, "usage": dict(usage)}
-        if library_sources:
-            metadata["library_sources"] = list(library_sources)
+        assistant_id = None
         with closing(server_runtime.connect(user_db)) as connection:
-            cursor = connection.execute(
-                "INSERT INTO chat_messages(session_id, role, content, metadata_json, created_at) "
-                "VALUES (?, 'assistant', ?, ?, ?)",
-                (session_id, content, json.dumps(metadata, ensure_ascii=False, separators=(",", ":")), timestamp),
-            )
-            connection.execute(
-                "UPDATE chat_sessions SET updated_at = ? WHERE id = ?",
-                (timestamp, session_id),
-            )
+            if content.strip():
+                timestamp = _now()
+                done["created_at"] = timestamp
+                if library_sources:
+                    done["library_sources"] = metadata["library_sources"] = list(library_sources)
+                cursor = connection.execute(
+                    "INSERT INTO chat_messages(session_id, role, content, metadata_json, created_at) "
+                    "VALUES (?, 'assistant', ?, ?, ?)",
+                    (session_id, content.strip(), json.dumps(metadata, ensure_ascii=False, separators=(",", ":")), timestamp),
+                )
+                assistant_id = int(cursor.lastrowid)
+                connection.execute("UPDATE chat_sessions SET updated_at=? WHERE id=?", (timestamp, session_id))
+            if attempt is not None:
+                attempt.complete(connection, assistant_id, done, confirmations or [], content)
             connection.commit()
-            return {"id": int(cursor.lastrowid), "created_at": timestamp}
+        return done
 
     async def stream_reply(
         self,
@@ -659,6 +623,7 @@ class ChatService:
         page_context: PageContext | Mapping[str, Any] | None = None,
         request_id: str = "",
         session_claimed_by_route: bool = False,
+        attempt: RequestAttempt | None = None,
     ) -> AsyncIterator[dict[str, Any]]:
         """Persist the user turn, stream the provider, then persist success only."""
         try:
@@ -680,10 +645,10 @@ class ChatService:
         current_message_id: int | None = None
         user_created_at: str | None = None
         assistant_saved = False
-        assistant_created_at: str | None = None
         durable_turn_state = False
-        stream_message_id = uuid.uuid4().hex
+        stream_message_id = attempt.turn_id if attempt is not None else uuid.uuid4().hex
         answer_parts: list[str] = []
+        confirmations: list[dict] = []
         usage: dict[str, int] = {}
         ttft_ms: float | None = None
         trace_recorder: TraceRecorder | None = None
@@ -730,6 +695,7 @@ class ChatService:
                     session_id=session_id,
                     content=clean_message,
                     page_context=normalized_page_context,
+                    attempt=attempt,
                 )
                 current_message_id = int(saved_user["id"])
                 user_created_at = str(saved_user["created_at"])
@@ -773,6 +739,7 @@ class ChatService:
                     message_id=current_message_id,
                     message=clean_message,
                     model=None,
+                    attempt=attempt,
                 )
                 if explicit_result is not None and explicit_result.error_code == "structured_extraction_required":
                     try:
@@ -789,6 +756,7 @@ class ChatService:
                             message=clean_message,
                             model=extraction_model,
                             budget=extraction_budget(runtime=extraction_runtime, config=extraction_config),
+                            attempt=attempt,
                         )
                     except Exception:
                         explicit_result = MemoryPersistenceResult(
@@ -928,23 +896,20 @@ class ChatService:
                         "tool_run_ids": [],
                         "tooling_unavailable": False,
                     })
-                    saved_assistant = self._save_assistant_message(
+                    done_payload = self._save_assistant_message(
                         user_db=path,
                         session_id=session_id,
                         content=answer,
                         stream_message_id=stream_message_id,
                         usage=usage_payload,
+                        attempt=attempt,
                     )
-                    assistant_created_at = str(saved_assistant["created_at"])
                     assistant_saved = True
                     await record_chat_trace(
                         status="failed", usage=usage_payload,
                         error_code=explicit_result.error_code,
                     )
                     release_claims()
-                    done_payload = {"message_id": stream_message_id, "usage": usage_payload}
-                    if assistant_created_at:
-                        done_payload["created_at"] = assistant_created_at
                     yield _event("message.done", done_payload)
                     return
                 tool_context = ToolExecutionContext(
@@ -958,6 +923,7 @@ class ChatService:
                         "username": path.parent.name,
                         "model_context_window": model_context_window,
                         "reserved_output_tokens": context_budget.output_tokens,
+                        "chat_request_attempt": attempt,
                     },
                 )
                 orchestrator = ToolOrchestrator(
@@ -981,6 +947,7 @@ class ChatService:
                         # A pending ACTION references this user turn.  Keep
                         # the source message if a later model round fails.
                         durable_turn_state = True
+                        confirmations.append(item)
                     yield item
                 turn_result = orchestrator.last_result
                 usage.update(turn_result.usage)
@@ -991,8 +958,8 @@ class ChatService:
                     "tool_run_ids": list(turn_result.tool_run_ids),
                     "tooling_unavailable": turn_result.tooling_unavailable,
                 })
-                answer = "".join(answer_parts).strip()
-                if not answer and not turn_result.has_pending_confirmation:
+                answer = "".join(answer_parts)
+                if not answer.strip() and not turn_result.has_pending_confirmation:
                     await record_chat_trace(
                         status="failed", usage=usage_payload,
                         error_code="empty_response",
@@ -1005,22 +972,12 @@ class ChatService:
                         },
                     )
                     return
-                if answer:
-                    saved_assistant = self._save_assistant_message(
-                        user_db=path,
-                        session_id=session_id,
-                        content=answer,
-                        stream_message_id=stream_message_id,
-                        usage=usage_payload,
-                        library_sources=turn_result.library_sources,
-                    )
-                    assistant_created_at = str(saved_assistant["created_at"])
-                    assistant_saved = True
-                else:
-                    # A pending confirmation is itself a user-visible turn.
-                    # Keep the source turn and action audit, but never create
-                    # an empty assistant row.
-                    durable_turn_state = True
+                done_payload = self._save_assistant_message(
+                    user_db=path, session_id=session_id, content=answer, stream_message_id=stream_message_id,
+                    usage=usage_payload, library_sources=turn_result.library_sources,
+                    attempt=attempt, confirmations=confirmations,
+                )
+                assistant_saved = bool(answer.strip())
                 debug_ai_event(
                     "chat_stream_completed",
                     session_id=session_id,
@@ -1041,11 +998,6 @@ class ChatService:
                         trace_recorder=trace_recorder,
                         fallback_budget=extraction_budget(runtime=runtime, config=config),
                     )
-                done_payload = {"message_id": stream_message_id, "usage": usage_payload}
-                if assistant_saved and turn_result.library_sources:
-                    done_payload["library_sources"] = list(turn_result.library_sources)
-                if assistant_created_at:
-                    done_payload["created_at"] = assistant_created_at
                 yield _event("message.done", done_payload)
             except asyncio.CancelledError:
                 debug_ai_event("chat_stream_cancelled", session_id=session_id, message_id=stream_message_id)
@@ -1059,13 +1011,11 @@ class ChatService:
                     await record_chat_trace(status="failed", usage=usage, error_code=code)
                 yield _event("error", {"code": code, "message": safe_message})
         finally:
-            if current_message_id is not None and not assistant_saved and not durable_turn_state:
+            if attempt is None and current_message_id is not None and not assistant_saved and not durable_turn_state:
                 try:
-                    self._delete_failed_user_message(
-                        user_db=path,
-                        session_id=session_id,
-                        message_id=current_message_id,
-                    )
+                    with closing(server_runtime.connect(path)) as conn:
+                        delete_failed_user(conn, session_id, current_message_id)
+                        conn.commit()
                 except Exception as exc:
                     debug_ai_event(
                         "chat_failed_user_cleanup_error",

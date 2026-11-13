@@ -137,7 +137,7 @@ def test_active_session_conflict_precedes_daily_charge(tmp_path, monkeypatch):
     monkeypatch.setattr(chat, "user_db", lambda user: db)
     monkeypatch.setattr(chat.chat_service, "preflight", lambda: None)
     charge = Mock()
-    monkeypatch.setattr(chat, "consume_chat_quota", charge)
+    monkeypatch.setattr(chat.RequestAttempt, "reserve", charge)
     assert claim_chat_session(db, "thread")
     try:
         with closing(TestClient(app)) as client:

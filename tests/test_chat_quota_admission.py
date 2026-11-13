@@ -1,4 +1,5 @@
 import asyncio
+import json
 import threading
 from builtins import ExceptionGroup
 from contextlib import closing
@@ -8,7 +9,8 @@ from types import SimpleNamespace
 import pytest
 
 from interview_forge.ai.chat.service import claim_chat_session, release_chat_session
-from interview_forge.ai.quota import AI_QUOTA_TIMEZONE, consume_chat_quota
+from interview_forge.ai.chat import request_ledger
+from interview_forge.ai.quota import AI_QUOTA_TIMEZONE, charge_chat_quota, consume_chat_quota
 from interview_forge.api.routers import chat
 from interview_forge.core.runtime import server_runtime
 
@@ -64,12 +66,12 @@ def test_cancelled_charge_keeps_lease_until_worker_refunds_original_day(route, m
         consume_chat_quota(db, now=instant)
     arrived, resume = threading.Event(), threading.Event()
 
-    def paused_charge(path, role):
+    def paused_charge(connection, role):
         arrived.set()
         assert resume.wait(3)
-        return consume_chat_quota(path, role, now=before_midnight)
+        return charge_chat_quota(connection, role, now=before_midnight)
 
-    monkeypatch.setattr(chat, "consume_chat_quota", paused_charge)
+    monkeypatch.setattr(request_ledger, "charge_chat_quota", paused_charge)
 
     async def exercise():
         task = asyncio.create_task(chat.stream_session(request, "session"))
@@ -114,18 +116,47 @@ def test_disconnect_before_source_starts_refunds_and_allows_retry(route, monkeyp
     asyncio.run(exercise())
 
 
+def test_keyed_active_status_never_settles_live_turn_and_refunds_after_stop(route, monkeypatch):
+    db, request = route
+    body = {"message": "这轮继续", "client_request_id": "one"}
+
+    async def payload(_request, **_limits):
+        return dict(body)
+
+    monkeypatch.setattr(chat, "read_json", payload)
+    monkeypatch.setattr(chat, "require_user", lambda _req: ({"username": "owner", "role": "user"}, None))
+
+    async def exercise():
+        response = await chat.stream_session(request, "session")
+        assert response.status_code == 200
+        state = chat.request_status(request, "session", "one")
+        assert json.loads(state.body) == {"status": "in_progress", "message_id": None}
+        assert json.loads((await chat.stream_session(request, "session")).body)["error_category"] == "chat_in_progress"
+        body["message"] = "不相同"
+        assert json.loads((await chat.stream_session(request, "session")).body)["error_category"] == "idempotency_conflict"
+        assert sum(counters(db).values()) == 1
+        with pytest.raises((OSError, ExceptionGroup)):
+            await drive_response(response, fail_first_frame=True)
+        assert json.loads(chat.request_status(request, "session", "one").body)["status"] == "retryable"
+        assert sum(counters(db).values()) == 0
+        assert chat.chat_service.list_messages(user_db=db, session_id="session") == []
+
+    asyncio.run(exercise())
+
+
 def test_prestart_service_error_refunds_but_persisted_turn_counts(route, monkeypatch):
     db, request = route
 
     async def missing(**_args):
         yield {"event": "error", "data": {"code": "session_not_found"}}
 
-    async def persisted(**_args):
-        with closing(server_runtime.connect(db)) as conn:
-            conn.execute("INSERT INTO chat_messages(session_id,role,content,created_at) VALUES('session','user','这轮继续','now')")
-            conn.commit()
-        yield {"event": "message.start", "data": {"message_id": "turn"}}
-        yield {"event": "message.done", "data": {}}
+    async def persisted(**args):
+        attempt = args["attempt"]
+        chat.chat_service._save_user_message(user_db=db, session_id="session", content="这轮继续", attempt=attempt)
+        yield {"event": "message.start", "data": {"message_id": attempt.turn_id}}
+        done = chat.chat_service._save_assistant_message(user_db=db, session_id="session", content="好",
+                                                         stream_message_id=attempt.turn_id, usage={}, attempt=attempt)
+        yield {"event": "message.done", "data": done}
 
     async def exercise():
         monkeypatch.setattr(chat.chat_service, "stream_reply", missing)

@@ -28,7 +28,7 @@ class AiAssistantFrontendTests(unittest.TestCase):
 
     def test_history_messages_do_not_replay_tool_status_and_heartbeat_is_ignored(self):
         self.assertIn("(payload.items || []).forEach(function (item) { renderMessage(item, fragment); });", self.source)
-        self.assertIn("if (data)", self.source)
+        self.assertIn("if (data.length)", self.source)
         self.assertNotIn("JSON.stringify(payload)", self.source)
         self.assertNotIn("payload.call_id", self.source.split("row.textContent", 1)[-1])
 
@@ -133,7 +133,7 @@ class AiAssistantFrontendTests(unittest.TestCase):
     def test_streaming_cache_title_and_diagnostics_contract(self):
         page = (ROOT / "pages" / "ai-assistant.html").read_text(encoding="utf-8")
         self.assertIn("ai-assistant.css?v=7", page)
-        self.assertIn("ai-assistant.js?v=12", page)
+        self.assertIn("ai-assistant.js?v=13", page)
         self.assertIn("function resetStreamDiagnostics", self.source)
         send_block = self.source.split("async function sendMessage", 1)[1].split("try {", 1)[0]
         self.assertIn("resetStreamDiagnostics();", send_block)
