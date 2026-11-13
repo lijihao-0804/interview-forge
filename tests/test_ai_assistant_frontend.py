@@ -132,8 +132,8 @@ class AiAssistantFrontendTests(unittest.TestCase):
 
     def test_streaming_cache_title_and_diagnostics_contract(self):
         page = (ROOT / "pages" / "ai-assistant.html").read_text(encoding="utf-8")
-        self.assertIn("ai-assistant.css?v=5", page)
-        self.assertIn("ai-assistant.js?v=10", page)
+        self.assertIn("ai-assistant.css?v=6", page)
+        self.assertIn("ai-assistant.js?v=11", page)
         self.assertIn("function resetStreamDiagnostics", self.source)
         send_block = self.source.split("async function sendMessage", 1)[1].split("try {", 1)[0]
         self.assertIn("resetStreamDiagnostics();", send_block)

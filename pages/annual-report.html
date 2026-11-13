@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>年度学习卷宗 · InterviewForge</title>
-<link rel="stylesheet" href="../assets/annual-report.css?v=20261031h">
+<link rel="stylesheet" href="../assets/annual-report.css?v=20261113a">
 <script src="../assets/guest-auth.js?v=2"></script>
 <link rel="icon" href="../assets/icons/icon-192.png" type="image/png">
 </head>
 <body>
-<main id="app" class="loading" aria-live="polite">正在整理这一年的记录…</main>
+<main id="app" class="report-state"><p role="status">正在整理这一年的记录…</p></main>
 
 <script>
 (function () {
@@ -17,6 +17,11 @@
 
   var CN_NUM = ["", "壹", "贰", "叁", "肆", "伍", "陆", "柒", "捌", "玖", "拾"];
   var app = document.getElementById("app");
+  var numberFormat = new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 });
+
+  function fmt(value) {
+    return numberFormat.format(Number(value) || 0);
+  }
 
   function esc(text) {
     return String(text == null ? "" : text).replace(/[&<>"']/g, function (c) {
@@ -27,60 +32,76 @@
   function fmtDate(iso) {
     if (!iso) return "";
     var m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})[T ]?(\d{2}:\d{2})?/);
-    if (!m) return esc(iso);
+    if (!m) return String(iso);
     var out = Number(m[2]) + "月" + Number(m[3]) + "日";
     return m[4] ? out + " " + m[4] : out;
   }
 
-  function fmtClock(iso) {
-    var m = String(iso || "").match(/T(\d{2}):(\d{2})/);
-    return m ? m[1] + ":" + m[2] : "";
-  }
-
   function chapter(no, title, lede, body) {
-    return '<section class="chapter">' +
-      '<div class="chapter-head">' +
-        '<span class="chapter-no">' + CN_NUM[no] + '</span>' +
-        '<div><h2 class="chapter-title">' + esc(title) + '</h2>' +
+    return '<section class="chapter report-page" id="chapter-' + no + '" aria-labelledby="title-' + no + '">' +
+      '<div class="chapter-inner"><header class="chapter-head">' +
+        '<span class="chapter-no" aria-hidden="true"></span>' +
+        '<h2 class="chapter-title" id="title-' + no + '">' + esc(title) + '</h2>' +
         (lede ? '<p class="chapter-lede">' + lede + '</p>' : '') +
-        '</div></div>' + body + '</section>';
+        '</header><div class="chapter-body">' + body + '</div></div></section>';
   }
 
   function figures(list) {
-    // 会做滚动动画时先渲染 0，避免「先看到最终值、再跳回 0 重播」的闪烁
     var animated = !reduceMotion();
-    return '<div class="figures">' + list.map(function (f) {
-      var shown = animated ? 0 : f.value;
-      return '<div><div class="figure-value" data-value="' + f.value + '">' + shown +
+    var needsRows = list.some(function (f) { return fmt(f.value).length > 8; });
+    return '<dl class="figures' + (needsRows ? ' figures-long' : '') + '">' + list.map(function (f) {
+      var value = fmt(f.value);
+      return '<div class="metric" style="--digits:' + value.length +
+        '"><dt>' + esc(f.label) + '</dt><dd class="figure-value">' +
+        '<span class="figure-number" aria-hidden="true" data-value="' + Number(f.value) + '">' +
+        (animated ? '0' : value) + '</span><span class="figure-exact">' + value + '</span>' +
         (f.unit ? '<small>' + esc(f.unit) + '</small>' : '') +
-        '</div><p class="figure-label">' + esc(f.label) + '</p></div>';
-    }).join("") + "</div>";
+        '</dd></div>';
+    }).join("") + "</dl>";
   }
 
   // 一句话总结：用真实数据拼，避免空泛
   function claim(d) {
     var parts = [];
-    if (d.active_days > 0) parts.push("你在 <em>" + d.active_days + "</em> 天里回到过这里");
-    if (d.total_contents > 0) parts.push("翻过 <em>" + d.total_contents + "</em> 章内容");
-    if (d.total_problems > 0) parts.push("碰过 <em>" + d.total_problems + "</em> 道题");
-    if (parts.length === 0) return "这一年还没有留下太多记录，明年从这里开始。";
+    if (d.active_days > 0) parts.push("你在 <b>" + fmt(d.active_days) + "</b> 天里回到这里");
+    if (d.total_contents > 0) parts.push("读过 <b>" + fmt(d.total_contents) + "</b> 章内容");
+    if (d.total_problems > 0) parts.push("练过 <b>" + fmt(d.total_problems) + "</b> 道题");
+    if (!parts.length) return "今年还没有学习记录。你可以从书架选一章开始。";
     return parts.join("，") + "。";
   }
 
+  function renderMonths(d) {
+    var months = Array(12).fill(0);
+    var cal = d.daily_calendar || {};
+    Object.keys(cal).forEach(function (day) {
+      var month = Number(day.slice(5, 7)) - 1;
+      if (day.slice(0, 4) === String(d.year) && month >= 0 && month < 12 && cal[day] > 0) months[month]++;
+    });
+    var peak = Math.max.apply(null, months);
+    if (!peak) return '<div class="month-empty"><h2>每月学习天数</h2><p>完成第一次学习后，可以在这里看到活跃月份。</p></div>';
+    return '<figure class="month-chart"><figcaption>每月学习天数</figcaption>' +
+      '<ol class="month-columns">' + months.map(function (days, index) {
+        return '<li' + (days === peak ? ' class="peak-month"' : '') +
+          '><span class="sr-only">' + (index + 1) + ' 月，学习 ' + days + ' 天</span>' +
+          '<div class="month-column" aria-hidden="true"><div class="month-bar" style="height:' +
+          (days / 31 * 100) + '%"><b>' + days + '</b></div></div>' +
+          '<span class="month-label" aria-hidden="true">' + (index + 1) + '</span></li>';
+      }).join("") + '</ol><div class="month-axis" aria-hidden="true">月份</div></figure>';
+  }
+
   function renderCover(d) {
-    return '<header class="cover">' +
-      '<div class="cover-mark">' +
-        '<p class="cover-year">' + esc(d.year) + '</p>' +
-        '<div class="cover-side"><span class="cover-title">年度学习卷宗</span></div>' +
-      '</div>' +
-      '<p class="cover-claim">' + claim(d) + '</p>' +
-      '<ul class="cover-meta">' +
-        '<li>累计 <b>' + (d.total_hours || 0) + '</b> 小时</li>' +
-        '<li>最长连续 <b>' + (d.longest_streak || 0) + '</b> 天</li>' +
-        '<li>提交 <b>' + (d.total_submissions || 0) + '</b> 次</li>' +
-        '<li>复习 <b>' + (d.total_reviews || 0) + '</b> 次</li>' +
-      '</ul>' +
-    '</header>';
+    var stats = [
+      ["累计学习", d.total_hours, "小时"], ["最长连续", d.longest_streak, "天"],
+      ["题目提交", d.total_submissions, "次"], ["复习", d.total_reviews, "次"]
+    ];
+    return '<header class="cover report-page" id="cover"><div class="cover-sheet">' +
+      '<div class="cover-intro"><p class="cover-year">' + esc(d.year) + '</p>' +
+      '<h1>年度学习卷宗</h1><p class="cover-claim">' + claim(d) + '</p>' +
+      '<a class="start-reading" href="#chapter-1">开始阅读<span aria-hidden="true">↓</span></a></div>' +
+      renderMonths(d) +
+      '<dl class="cover-meta">' + stats.map(function (s) {
+        return '<div><dt>' + s[0] + '</dt><dd><b>' + fmt(s[1]) + '</b><small>' + s[2] + '</small></dd></div>';
+      }).join("") + '</dl></div></header>';
   }
 
   function renderCalendar(d) {
@@ -88,41 +109,28 @@
     var days = Object.keys(cal);
     if (!days.length) return "";
     var year = Number(d.year);
-    var start = new Date(year, 0, 1);
-    var end = new Date(year, 11, 31);
-
-    var values = days.map(function (k) { return cal[k]; });
-    var max = Math.max.apply(null, values.concat([1]));
-
-    // GitHub 风格：从当年第一个周日开始，每列一周、从上到下七天
-    var first = new Date(start.getTime());
-    first.setDate(first.getDate() - first.getDay());
-    var totalDays = Math.round((end - first) / 86400000) + 1;
-    var weeks = Math.ceil(totalDays / 7);
-
+    var dayMs = 86400000;
+    var start = Date.UTC(year, 0, 1);
+    var first = start - new Date(start).getUTCDay() * dayMs;
+    var weeks = Math.ceil((1 + (Date.UTC(year, 11, 31) - first) / dayMs) / 7);
+    var max = Math.max.apply(null, days.map(function (k) { return cal[k]; }).concat([1]));
     var cells = [];
     var monthMarks = [];
-    var lastMonth = -1;
     for (var w = 0; w < weeks; w++) {
       for (var day = 0; day < 7; day++) {
-        var dt = new Date(first.getTime() + (w * 7 + day) * 86400000);
-        if (dt.getFullYear() !== year) {
-          cells.push("<i></i>");
+        var dt = new Date(first + (w * 7 + day) * dayMs);
+        if (dt.getUTCFullYear() !== year) {
+          cells.push('<i class="off-year"></i>');
           continue;
         }
-        var key = dt.getFullYear() + "-" +
-          String(dt.getMonth() + 1).padStart(2, "0") + "-" +
-          String(dt.getDate()).padStart(2, "0");
-        var v = cal[key] || 0;
+        if (dt.getUTCDate() === 1) {
+          monthMarks.push('<span style="grid-column:' + (w + 1) + '">' + (dt.getUTCMonth() + 1) + '月</span>');
+        }
+        var key = dt.toISOString().slice(0, 10);
+        var v = Number(cal[key]) || 0;
         var level = v === 0 ? 0 : Math.min(4, Math.ceil((v / max) * 4));
         cells.push('<i data-level="' + level + '" style="--w:' + w +
-          '" title="' + key + "：" + v + ' 次"></i>');
-      }
-      var weekStart = new Date(first.getTime() + w * 7 * 86400000);
-      if (weekStart.getFullYear() === year && weekStart.getMonth() !== lastMonth) {
-        monthMarks.push('<span style="grid-column:' + (w + 1) + '">' +
-          (weekStart.getMonth() + 1) + "月</span>");
-        lastMonth = weekStart.getMonth();
+          '" title="' + key + '，' + (v ? fmt(v) + ' 类学习记录' : '无学习记录') + '"></i>');
       }
     }
 
@@ -130,10 +138,10 @@
       return "<span>" + label + "</span>";
     }).join("");
 
-    return chapter(2, "出勤", "每一列是一周，颜色越深，那天打开得越多。",
-      '<div class="calendar">' +
+    return chapter(2, "出勤", "每列是一周。颜色越深，当天留下记录的学习活动种类越多。",
+      '<div class="calendar" style="--weeks:' + weeks + '">' +
         '<div class="calendar-weekdays" aria-hidden="true">' + weekdays + '</div>' +
-        '<div class="calendar-scroll">' +
+        '<div class="calendar-scroll" tabindex="0" role="region" aria-label="全年学习日历，可左右滚动">' +
           '<div class="calendar-months" aria-hidden="true">' + monthMarks.join("") + '</div>' +
           '<div class="calendar-grid" role="img" aria-label="' + esc(year) + ' 年学习热力图">' +
             cells.join("") +
@@ -141,8 +149,9 @@
         '</div>' +
       '</div>' +
       '<p class="calendar-note">' +
-        '<span>有记录 <b>' + d.active_days + '</b> 天</span>' +
-        '<span>最长连续 <b>' + (d.longest_streak || 0) + '</b> 天</span>' +
+        '<span class="calendar-hint" hidden>左右滑动查看全年</span>' +
+        '<span>有记录 <b>' + fmt(d.active_days) + '</b> 天</span>' +
+        '<span>最长连续 <b>' + fmt(d.longest_streak) + '</b> 天</span>' +
         '<span class="calendar-legend">少' +
           '<i data-level="0"></i><i data-level="1"></i><i data-level="2"></i>' +
           '<i data-level="3"></i><i data-level="4"></i>多</span>' +
@@ -153,19 +162,19 @@
     var mods = d.module_distribution || {};
     var keys = Object.keys(mods);
     if (!keys.length) return "";
-    var max = Math.max.apply(null, keys.map(function (k) { return mods[k]; }));
+    keys.sort(function (a, b) { return mods[b] - mods[a]; });
+    var max = Math.max(1, mods[keys[0]]);
     var rows = keys.slice(0, 8).map(function (k) {
-      var pct = Math.round((mods[k] / max) * 100);
+      var pct = (mods[k] / max) * 100;
       var name = (d.module_titles && d.module_titles[k]) || k;
-      return '<div class="bar-row">' +
-        '<span class="bar-name" title="' + esc(name) + '">' + esc(name) + '</span>' +
+      return '<li class="bar-row">' +
+        '<span class="bar-name">' + esc(name) + '</span>' +
         '<span class="bar-track"><span class="bar-fill" style="--w:' + pct + '%"></span></span>' +
-        '<span class="bar-count">' + mods[k] + '</span>' +
-      '</div>';
+        '<span class="bar-count">' + fmt(mods[k]) + ' 次</span>' +
+      '</li>';
     }).join("");
-    var top = (d.module_titles && d.module_titles[keys[0]]) || keys[0];
-    return chapter(3, "方向", "力气主要花在了「" + esc(top) + "」上。",
-      '<div class="bars">' + rows + '</div>');
+    return chapter(3, "方向", "按章节学习记录排序，最多展示八个方向。",
+      '<ol class="bars">' + rows + '</ol>');
   }
 
   function renderClock(d) {
@@ -183,33 +192,34 @@
       var height = v ? Math.max(9, Math.round(Math.sqrt(v / max) * 100)) : 2;
       bars.push('<i style="--h:' + h + ';height:' + height + '%" class="' +
         (String(h) === String(peakHour) ? "is-peak" : "") +
-        '" title="' + h + ' 点：' + v + ' 次"></i>');
+        '" title="' + h + ' 点，' + fmt(v) + ' 次"></i>');
       axis.push("<span>" + h + "</span>");
     }
-    return chapter(4, "作息", "最集中的时段是 <b>" + peakHour + " 点</b>。",
-      '<div class="clock">' + bars.join("") + '</div>' +
-      '<div class="clock-axis">' + axis.join("") + '</div>');
+    return chapter(4, "作息", "题目学习记录最集中在 <b>" + esc(peakHour) + " 点</b>。",
+      '<div class="clock" role="img" aria-label="24 小时学习分布，最高为 ' + esc(peakHour) +
+      ' 点的 ' + fmt(hours[peakHour]) + ' 次">' + bars.join("") + '</div>' +
+      '<div class="clock-axis" aria-hidden="true">' + axis.join("") + '</div>');
   }
 
   function renderRecords(d) {
     var s = d.submission_stats || {};
     var ring = s.ac_rate != null
-      ? '<div class="ring" style="--p:' + s.ac_rate + '">' +
-          '<div class="ring-text"><b>' + s.ac_rate + '%</b><span>通过率</span></div></div>'
+      ? '<div class="ring" style="--p:' + Math.min(100, Math.max(0, Number(s.ac_rate))) + '">' +
+          '<div class="ring-text"><b>' + fmt(s.ac_rate) + '%</b><span>通过率</span></div></div>'
       : "";
     var facts = '<dl class="ring-facts">' +
-      '<div><dt>提交次数</dt><dd>' + (s.total || 0) + '</dd></div>' +
-      '<div><dt>通过</dt><dd>' + (s.ac || 0) + '</dd></div>' +
+      '<div><dt>提交次数</dt><dd>' + fmt(s.total) + '</dd></div>' +
+      '<div><dt>通过</dt><dd>' + fmt(s.ac) + '</dd></div>' +
       (s.fastest_ms != null
-        ? '<div><dt>最快用时</dt><dd>' + s.fastest_ms + ' ms</dd></div>' : '') +
-      '<div><dt>模拟考试</dt><dd>' + (d.mock_exams || 0) + '</dd></div>' +
+        ? '<div><dt>最快用时</dt><dd>' + fmt(s.fastest_ms) + ' ms</dd></div>' : '') +
+      '<div><dt>模拟考试</dt><dd>' + fmt(d.mock_exams) + '</dd></div>' +
       '</dl>';
     var langs = (s.languages || []).length
-      ? '<ul class="lang-list">' + s.languages.map(function (l) {
-          return '<li>' + esc(l.name) + ' <b>' + l.count + '</b></li>';
+      ? '<ul class="lang-list" aria-label="各语言提交次数">' + s.languages.map(function (l) {
+          return '<li><span>' + esc(l.name) + '</span><b>' + fmt(l.count) + '</b></li>';
         }).join("") + '</ul>'
       : "";
-    return chapter(5, "战绩", "每一道通过的题，都留下了一次提交。",
+    return chapter(5, "提交战绩", s.total ? "这一年的提交、通过与模拟考试记录。" : "今年还没有提交记录。",
       '<div class="ring-row">' + ring + facts + '</div>' + langs);
   }
 
@@ -222,12 +232,12 @@
           '<div class="memory-scale-track"><span class="memory-scale-fill"></span></div>' +
           '<div class="memory-scale-legend">' +
             '<span>0</span>' +
-            '<span>平均记忆强度 ' + m.avg_stability + '</span>' +
+            '<span>平均记忆强度 ' + fmt(m.avg_stability) + '</span>' +
             '<span>' + maxS + '</span>' +
           '</div>' +
         '</div>'
       : "";
-    return chapter(6, "记忆", "复习是把学过的东西真正留下来的那一步。",
+    return chapter(6, "复习记忆", "今年的复习次数，以及积累的复习卡与收藏。",
       figures([
         { value: d.total_reviews || 0, label: "复习次数" },
         { value: m.cards || 0, label: "复习卡" },
@@ -238,7 +248,7 @@
   function renderPersona(d) {
     var tags = d.persona || [];
     if (!tags.length) return "";
-    return chapter(7, "你这个人", "根据这一年留下的痕迹推断。",
+    return chapter(7, "学习习惯", "这些习惯来自你这一年的学习记录。",
       '<ul class="persona">' + tags.map(function (t) {
         return '<li><b>' + esc(t.label) + '</b><span>' + esc(t.detail) + '</span></li>';
       }).join("") + '</ul>');
@@ -253,7 +263,8 @@
     if (f.first_review) rows.push({ date: f.first_review, what: "第一次复习" });
     if (f.first_gym) rows.push({ date: f.first_gym, what: "第一次约到南大体育馆" });
     if (!rows.length) return "";
-    return chapter(8, "第一次", "几个起点，拼成了这一年的开头。",
+    rows.sort(function (a, b) { return a.date.localeCompare(b.date); });
+    return chapter(8, "第一次", "这一年，各项学习和活动的起点。",
       '<ul class="timeline">' + rows.map(function (r) {
         return '<li' + (r.accent ? ' class="is-accent"' : '') + '>' +
           '<span class="tl-date">' + esc(fmtDate(r.date)) + '</span>' +
@@ -266,8 +277,8 @@
     var la = d.latest_activity;
     if (!la) return "";
     var clock = String(la.clock || "").slice(0, 5);
-    return chapter(9, "最晚的一次", "那天的最后一件事。",
-      '<div class="big-clock"><strong>' + esc(clock) + '</strong><span>夜里</span></div>' +
+    return chapter(9, "最晚的一次", "",
+      '<div class="big-clock"><strong>' + esc(clock) + '</strong></div>' +
       '<p class="late-note">' + esc(fmtDate(la.date)) +
         '，你还在看「<b>' + esc(la.title || "某页内容") + '</b>」。</p>');
   }
@@ -281,222 +292,151 @@
     }
     if (g.venue) {
       facts += '<div><dt>常去的场馆</dt><dd>' +
-        (String(g.venue) === "129" ? "一层" : "负一层") + '</dd></div>';
+        (String(g.venue) === "129" ? "一层" : String(g.venue) === "162" ? "负一层" : esc(g.venue)) + '</dd></div>';
     }
     if (g.success_rate != null) {
-      facts += '<div><dt>预约成功率</dt><dd>' + g.success_rate + '%</dd></div>';
+      facts += '<div><dt>预约成功率</dt><dd>' + fmt(g.success_rate) + '%</dd></div>';
     }
-    return chapter(10, "体育馆", "学习和锻炼，这一年都没落下。",
-      '<div class="gym-figure"><strong>' + g.total + '</strong><span>次预约</span></div>' +
+    return chapter(10, "体育馆", "今年成功预约南大体育馆的记录。",
+      '<div class="gym-figure" style="--digits:' + fmt(g.total).length + '"><strong>' + fmt(g.total) + '</strong><span>次预约</span></div>' +
       '<dl class="gym-facts">' + facts + '</dl>');
   }
 
-  function renderOutro(d) {
-    return '<section class="outro">' +
-      '<p class="outro-line">卷宗到这里就结束了。<br>明年这一页，还是你自己写。</p>' +
-      '<div class="outro-actions">' +
-        '<a class="btn btn-primary" href="../library/index.html">去书架</a>' +
-        '<a class="btn" href="../cockpit.html">回中控台</a>' +
-        '<button class="btn" type="button" id="printBtn">打印 / 存为 PDF</button>' +
-      '</div></section>';
+  function renderOutro() {
+    return '<section class="outro report-page" id="end" aria-labelledby="end-title"><div class="outro-inner">' +
+      '<h2 id="end-title">把这一年存下来</h2><p>打印这份卷宗，或回到书架继续学习。</p>' +
+      '<div class="outro-actions"><button class="btn btn-primary" type="button" id="printBtn">打印 / 存为 PDF</button>' +
+        '<a class="btn" href="../library/index.html" data-navigation-policy="same-tab">去书架</a>' +
+        '<a class="btn" href="../cockpit.html" data-navigation-policy="same-tab">回中控台</a>' +
+      '</div></div></section>';
   }
 
   function reduceMotion() {
     return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   }
 
-  // 数字滚动：从 0 涨到目标值，保留小数位
   function countUp(el) {
-    var target = Number(el.getAttribute("data-value") || 0);
-    if (!target || reduceMotion()) return;
-    var decimals = String(target).indexOf(".") >= 0 ? 1 : 0;
-    var node = el.firstChild;
-    if (!node || node.nodeType !== 3) return;
+    var target = Number(el.dataset.value);
+    if (!target || reduceMotion()) {
+      el.textContent = fmt(target);
+      return;
+    }
     var start = performance.now();
-    var duration = 900;
+    var precision = Number.isInteger(target) ? 0 : 1;
     function tick(now) {
-      var p = Math.min(1, (now - start) / duration);
-      var eased = 1 - Math.pow(1 - p, 3);
-      var value = (target * eased).toFixed(decimals);
-      node.nodeValue = decimals ? value : String(Math.round(Number(value)));
-      if (p < 1) requestAnimationFrame(tick);
+      var t = Math.min(1, (now - start) / 700);
+      el.textContent = fmt(t === 1 ? target : (target * (1 - Math.pow(1 - t, 3))).toFixed(precision));
+      if (t < 1) requestAnimationFrame(tick);
     }
     requestAnimationFrame(tick);
   }
 
-  // 进入视口才播放：数字滚动、模块条形生长、章节编号浮现
-  function initMotion() {
-    var chapters = document.querySelectorAll(".chapter");
-    var seen = new WeakSet();
-
-    function trigger(el) {
-      if (seen.has(el)) return;
-      seen.add(el);
-      el.classList.add("is-in");
-      el.querySelectorAll(".figure-value").forEach(countUp);
-      var bars = el.querySelector(".bars");
-      if (bars) bars.classList.add("is-in");
-      el.querySelectorAll(".memory-scale").forEach(function (ms) { ms.classList.add("is-in"); });
-    }
-
-    if (reduceMotion() || !("IntersectionObserver" in window)) {
-      chapters.forEach(trigger);
-      document.querySelectorAll(".calendar, .clock").forEach(function (el) {
-        el.classList.add("is-in");
-      });
-      return;
-    }
-
-    var io = new IntersectionObserver(function (entries) {
-      entries.forEach(function (entry) {
-        if (!entry.isIntersecting) return;
-        // 翻页是平滑滚动，途中会「经过」中间页并触发它们的 IO。
-        // 延迟后必须确认这一页仍停在视口中央，才算真正翻到它，
-        // 否则用户翻回去时会看到数字早已变成最终值（泄露）。
-        setTimeout(function () {
-          var rect = entry.target.getBoundingClientRect();
-          var middle = window.innerHeight / 2;
-          if (rect.top < middle && rect.bottom > middle) {
-            trigger(entry.target);
-            io.unobserve(entry.target);   // 只有真正播过才停止观察
-          }
-          // 否则保持观察：用户稍后翻到这一页时还会再次触发
-        }, 480);
-      });
-    }, { threshold: 0.15 });
-    chapters.forEach(function (c) { io.observe(c); });
-
-    // 热力图与时段图：同样等停稳再播
-    var mediaIo = new IntersectionObserver(function (entries) {
-      entries.forEach(function (entry) {
-        if (!entry.isIntersecting) return;
-        setTimeout(function () {
-          var rect = entry.target.getBoundingClientRect();
-          var middle = window.innerHeight / 2;
-          if (rect.top < middle && rect.bottom > middle) {
-            entry.target.classList.add("is-in");
-            mediaIo.unobserve(entry.target);
-          }
-        }, 480);
-      });
-    }, { threshold: 0.15 });
-    document.querySelectorAll(".calendar, .clock").forEach(function (el) {
-      mediaIo.observe(el);
-    });
-
-    // 兜底：只补「当前视口内但没触发」的页（主要给自动化截图用）。
-    // 绝不能无条件把每一页都设成最终值——那样用户翻到哪页都已经是结果了。
-    setTimeout(function () {
-      chapters.forEach(function (c) {
-        if (seen.has(c)) return;
-        var rect = c.getBoundingClientRect();
-        if (rect.top < window.innerHeight && rect.bottom > 0) trigger(c);
-      });
-      document.querySelectorAll(".calendar, .clock").forEach(function (el) {
-        var rect = el.getBoundingClientRect();
-        if (rect.top < window.innerHeight && rect.bottom > 0) el.classList.add("is-in");
-      });
-    }, 3000);
+  function reveal(page) {
+    if (page.classList.contains("is-in")) return;
+    page.classList.add("is-in");
+    page.querySelectorAll(".figure-number").forEach(countUp);
   }
 
-  // 翻页导航：右侧小点 + 键盘上下翻页
+  function renderToolbar() {
+    return '<nav class="report-toolbar" aria-label="报告页面导航"><div class="toolbar-inner">' +
+      '<a class="back-link" href="../cockpit.html" data-navigation-policy="same-tab">' +
+      '<span aria-hidden="true">‹</span> 中控台</a><div class="page-controls">' +
+      '<button type="button" class="page-step" id="pagePrev" aria-label="上一章">‹</button>' +
+      '<label class="chapter-picker"><span class="sr-only">章节目录</span><select id="pageSelect"></select></label>' +
+      '<button type="button" class="page-step" id="pageNext" aria-label="下一章">›</button>' +
+      '</div></div></nav>';
+  }
+
   function initPaging() {
-    var pages = Array.prototype.slice.call(
-      document.querySelectorAll(".cover, .chapter, .outro"));
-    if (pages.length < 2) return;
-
-    var nav = document.createElement("nav");
-    nav.className = "page-nav";
-    nav.setAttribute("aria-label", "报告页面导航");
-    var dots = pages.map(function (page, index) {
-      var dot = document.createElement("button");
-      dot.type = "button";
-      dot.setAttribute("aria-label", "第 " + (index + 1) + " 页");
-      dot.addEventListener("click", function () {
-        page.scrollIntoView({ behavior: reduceMotion() ? "auto" : "smooth", block: "start" });
-      });
-      nav.appendChild(dot);
-      return dot;
+    var pages = Array.from(app.querySelectorAll(".report-page"));
+    var toolbar = app.querySelector(".report-toolbar");
+    var select = document.getElementById("pageSelect");
+    var prev = document.getElementById("pagePrev");
+    var next = document.getElementById("pageNext");
+    pages.forEach(function (page, index) {
+      var heading = page.querySelector(".chapter-title");
+      if (heading) page.querySelector(".chapter-no").textContent = CN_NUM[index];
+      var label = heading ? heading.textContent : (index === 0 ? "封面" : "卷末");
+      select.add(new Option((index + 1) + " / " + pages.length + "　" + label, index));
     });
-    document.body.appendChild(nav);
+    var current = -1;
+    var pending = null;
+    var frame = 0;
+    var revealTimer;
 
-    var current = 0;
-    function setActive(index) {
+    function setCurrent(index) {
       if (index === current) return;
-      dots[current].classList.remove("active");
-      dots[index].classList.add("active");
       current = index;
-    }
-    dots[0].classList.add("active");
-
-    if ("IntersectionObserver" in window) {
-      var io = new IntersectionObserver(function (entries) {
-        entries.forEach(function (entry) {
-          if (entry.isIntersecting) {
-            setActive(pages.indexOf(entry.target));
-          }
-        });
-      }, { threshold: 0.55 });
-      pages.forEach(function (page) { io.observe(page); });
+      select.selectedIndex = index;
+      prev.disabled = index === 0;
+      next.disabled = index === pages.length - 1;
+      toolbar.style.setProperty("--progress", ((index + 1) / pages.length * 100) + "%");
+      clearTimeout(revealTimer);
+      if (reduceMotion()) reveal(pages[index]);
+      else revealTimer = setTimeout(function () { reveal(pages[index]); }, 480);
     }
 
-    function go(delta) {
-      var next = Math.max(0, Math.min(pages.length - 1, current + delta));
-      if (next === current) return;
-      pages[next].scrollIntoView({
-        behavior: reduceMotion() ? "auto" : "smooth",
-        block: "start"
-      });
+    // 以阅读位置所在章节为准。高于视口两倍的长章节也能被选中。
+    function sync() {
+      frame = 0;
+      var marker = toolbar.offsetHeight + (window.innerHeight - toolbar.offsetHeight) * 0.36;
+      var index = pages.length - 1;
+      while (index > 0 && pages[index].getBoundingClientRect().top > marker) index--;
+      setCurrent(index);
+      if (current === pending) pending = null;
     }
+    function scheduleSync() {
+      if (!frame) frame = requestAnimationFrame(sync);
+    }
+    function go(index) {
+      index = Math.max(0, Math.min(pages.length - 1, index));
+      pending = index;
+      pages[index].scrollIntoView({ behavior: reduceMotion() ? "instant" : "smooth", block: "start" });
+      scheduleSync();
+    }
+    function step(delta) { go((pending == null ? current : pending) + delta); }
+    select.addEventListener("change", function () { go(select.selectedIndex); });
+    prev.addEventListener("click", function () { step(-1); });
+    next.addEventListener("click", function () { step(1); });
+    window.addEventListener("scroll", scheduleSync, { passive: true });
+    window.addEventListener("resize", scheduleSync);
+    function cancelTarget() { pending = null; }
+    window.addEventListener("wheel", cancelTarget, { passive: true });
+    window.addEventListener("touchstart", cancelTarget, { passive: true });
+    window.addEventListener("scrollend", cancelTarget);
 
     window.addEventListener("keydown", function (event) {
-      var tag = (event.target && event.target.tagName) || "";
-      if (tag === "INPUT" || tag === "TEXTAREA" || event.target.isContentEditable) return;
-      if (event.key === "ArrowDown" || event.key === "PageDown" || event.key === " ") {
+      if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return;
+      var target = event.target;
+      if (target.isContentEditable || target.closest('a, button, select, input, textarea, [tabindex], [role="dialog"]')) return;
+      var key = event.key;
+      if (key === "Home" || key === "End") {
         event.preventDefault();
-        go(1);
-      } else if (event.key === "ArrowUp" || event.key === "PageUp") {
-        event.preventDefault();
-        go(-1);
-      } else if (event.key === "Home") {
-        event.preventDefault();
-        go(-current);
-      } else if (event.key === "End") {
-        event.preventDefault();
-        go(pages.length - 1 - current);
+        go(key === "Home" ? 0 : pages.length - 1);
+        return;
       }
-    }, { passive: false });
-  }
-
-  // 顶部阅读进度
-  function initProgress() {
-    if (reduceMotion()) return;
-    var bar = document.createElement("div");
-    bar.className = "read-progress";
-    document.body.appendChild(bar);
-    var ticking = false;
-    function update() {
-      var max = document.documentElement.scrollHeight - window.innerHeight;
-      var ratio = max > 0 ? Math.min(1, window.scrollY / max) : 0;
-      bar.style.transform = "scaleX(" + ratio + ")";
-      ticking = false;
-    }
-    window.addEventListener("scroll", function () {
-      if (ticking) return;
-      ticking = true;
-      requestAnimationFrame(update);
-    }, { passive: true });
-    update();
+      var delta = key === "PageDown" || key === "ArrowDown" || (key === " " && !event.shiftKey) ? 1 :
+        key === "PageUp" || key === "ArrowUp" || (key === " " && event.shiftKey) ? -1 : 0;
+      if (!delta) return;
+      // 长章节先让浏览器滚动正文，到达边缘再翻章。
+      var rect = pages[current].getBoundingClientRect();
+      if (pending == null && (delta > 0 ? rect.bottom > window.innerHeight + 2 : rect.top < toolbar.offsetHeight - 2)) return;
+      event.preventDefault();
+      step(delta);
+    });
+    var anchor = pages.find(function (page) { return "#" + page.id === location.hash; });
+    if (anchor) anchor.scrollIntoView({ behavior: "instant", block: "start" });
+    sync();
   }
 
   function render(d) {
-    app.className = "";
-    app.innerHTML =
+    app.className = "report";
+    app.innerHTML = renderToolbar() +
       renderCover(d) +
-      chapter(1, "总览", "把这一年压缩成四个数字。", figures([
+      chapter(1, "学习总览", "从四项记录，看这一年的学习投入。", figures([
         { value: d.active_days || 0, unit: "天", label: "有学习记录" },
-        { value: d.total_hours || 0, unit: "小时", label: "累计投入" },
-        { value: d.total_problems || 0, unit: "道", label: "碰过的题目" },
+        { value: d.total_hours || 0, unit: "小时", label: "累计学习" },
+        { value: d.total_problems || 0, unit: "道", label: "练过的题目" },
         { value: d.total_contents || 0, unit: "章", label: "读过的章节" }
       ])) +
       renderCalendar(d) +
@@ -508,29 +448,47 @@
       renderFirsts(d) +
       renderLatest(d) +
       renderGym(d) +
-      renderOutro(d);
-    initMotion();
-    initProgress();
+      renderOutro();
     initPaging();
-    var printBtn = document.getElementById("printBtn");
-    if (printBtn) printBtn.addEventListener("click", function () { window.print(); });
+    var calendar = app.querySelector(".calendar-scroll");
+    if (calendar) {
+      function fitCalendar() {
+        var scrollable = calendar.scrollWidth > calendar.clientWidth + 1;
+        app.querySelector(".calendar-hint").hidden = !scrollable;
+        calendar.tabIndex = scrollable ? 0 : -1;
+      }
+      fitCalendar();
+      window.addEventListener("resize", fitCalendar);
+    }
+    document.getElementById("printBtn").addEventListener("click", function () { window.print(); });
+  }
+
+  function showState(title, message, actions) {
+    app.className = "report-state";
+    app.innerHTML = '<div class="state-sheet"><p class="state-name">年度学习卷宗</p>' +
+      '<h1>' + esc(title) + '</h1><p role="status">' + esc(message) + '</p>' +
+      '<div class="outro-actions">' + actions +
+      '<a class="btn" href="../library/index.html" data-navigation-policy="same-tab">去书架</a></div></div>';
+    var retry = document.getElementById("reportRetry");
+    if (retry) retry.addEventListener("click", function () { location.reload(); });
   }
 
   function fail(message) {
-    app.className = "error";
-    app.innerHTML = esc(message) +
-      '<button type="button" onclick="location.reload()">重试</button>';
+    showState("年度数据暂时无法读取", message, '<button class="btn btn-primary" type="button" id="reportRetry">重试</button>');
   }
 
   function showGuestState(session) {
-    app.className = "error guest";
     var page = location.pathname + location.search + location.hash;
-    var login = window.InterviewForgeGuestAuth.authHref("/pages/login.html", page);
-    var register = window.InterviewForgeGuestAuth.authHref("/pages/register.html", page);
-    app.innerHTML = '<strong>' + (session && session.status === "error" ? "登录状态暂未确认" : "年度学习报告需要登录后查看") + '</strong>' +
-      '<p style="margin:10px 0;color:var(--muted)">题解、书架和搜索仍可直接访问；登录后会回到本页。</p>' +
-      '<a href="' + login + '" style="display:inline-block;margin:6px;padding:8px 14px;border-radius:8px;background:var(--brand);color:#fff;text-decoration:none">登录</a>' +
-      '<a href="' + register + '" style="display:inline-block;margin:6px;padding:8px 14px;border:1px solid var(--line);border-radius:8px;color:var(--text);text-decoration:none">注册</a>';
+    var login = guestAuth.authHref("/pages/login.html", page);
+    var register = guestAuth.authHref("/pages/register.html", page);
+    var actions = '<a class="btn btn-primary" href="' + esc(login) + '">登录</a>' +
+      '<a class="btn" href="' + esc(register) + '">注册</a>';
+    if (session && session.status === "error") {
+      showState("登录状态暂未确认", "重新检查网络连接后再试一次。", '<button class="btn btn-primary" type="button" id="reportRetry">重试</button>' +
+        '<a class="btn" href="' + esc(login) + '">登录</a>');
+    } else {
+      showState("登录后查看你的年度报告", "登录或注册后会回到本页。你也可以先去书架阅读。", actions);
+    }
   }
 
   var guestAuth = window.InterviewForgeGuestAuth;

@@ -7,8 +7,13 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
+from interview_forge.ai.chat.request_budget import estimate_json_tokens
 from interview_forge.ai.chat.tool_orchestrator import ToolOrchestrator
-from interview_forge.ai.tools.contracts import ToolExecutionContext, ToolResult, ToolSpec
+from interview_forge.ai.tools.contracts import (
+    ToolExecutionContext,
+    ToolResult,
+    ToolSpec,
+)
 from interview_forge.ai.tools.langchain_adapter import NormalizedToolCall
 from interview_forge.ai.tools.policy import ToolPolicy
 from interview_forge.ai.tools.registry import ToolRegistry, build_default_tool_registry
@@ -345,21 +350,79 @@ class ToolOrchestratorTests(unittest.TestCase):
         self.assertEqual(len(blocked_message), 1)
         self.assertEqual(blocked_message[0]["tool_call_id"], "same")
 
+    def test_duplicate_identity_uses_validated_defaults_not_provider_call_id(self):
+        class DefaultArgs(BaseModel):
+            model_config = ConfigDict(extra="forbid")
+            value: str
+            limit: int = 3
+
+        executed = []
+
+        def reader(_context, args):
+            executed.append((args.value, args.limit))
+            return {"value": args.value, "limit": args.limit}
+
+        registry = ToolRegistry([ToolSpec("read", "读", "读", DefaultArgs, reader)])
+        model = ScriptedModel([
+            [FakeChunk("", [{"id": "provider-a", "name": "read", "args": {"value": "x"}}])],
+            [FakeChunk("", [{
+                "id": "provider-b",
+                "name": "read",
+                "args": {"limit": 3, "value": "x"},
+            }])],
+            [FakeChunk("", [{
+                "id": "provider-c",
+                "name": "read",
+                "args": {"value": "x", "limit": 3},
+            }])],
+            [FakeChunk("重复调用已停止")],
+        ])
+        orchestrator = ToolOrchestrator(
+            registry=registry,
+            policy=ToolPolicy(max_identical_calls=2),
+        )
+        events = asyncio.run(_collect(orchestrator, model, _context(self.db)))
+
+        self.assertEqual(executed, [("x", 3)])
+        self.assertEqual(len([item for item in events if item["event"] == "tool.done"]), 2)
+        blocked = [
+            item for item in events
+            if item["event"] == "tool.error"
+            and item["data"]["code"] == "tool_limit_reached"
+        ]
+        self.assertEqual(len(blocked), 1)
+        self.assertEqual(blocked[0]["data"]["call_id"], "provider-c")
+        final_history = model.seen[-1]
+        tool_ids = [
+            item["tool_call_id"] for item in final_history if item.get("role") == "tool"
+        ]
+        self.assertEqual(tool_ids, ["provider-a", "provider-b", "provider-c"])
+
     def test_result_budget_admits_ordered_results_before_history_append(self):
         def reader(_context, args):
-            return {"marker": args.value * 30}
+            return {"marker": args.value}
 
         registry = ToolRegistry([ToolSpec("read", "读", "读", ValueArgs, reader)])
+        first_data = {"marker": "a" * 4}
+        second_data = {"marker": "中文结果" * 12}
+        first_envelope = {"ok": True, "tool": "read", "data": first_data}
+        second_envelope = {"ok": True, "tool": "read", "data": second_data}
+        first_tokens = estimate_json_tokens(first_envelope)
+        second_data_tokens = estimate_json_tokens(second_data)
+        second_envelope_tokens = estimate_json_tokens(second_envelope)
+        self.assertGreater(second_envelope_tokens, second_data_tokens)
+        result_budget = first_tokens + second_data_tokens + 1
+        self.assertGreater(first_tokens + second_envelope_tokens, result_budget)
         model = ScriptedModel([
             [FakeChunk("查询两项", [
-                {"id": "budget-a", "name": "read", "args": {"value": "a"}},
-                {"id": "budget-b", "name": "read", "args": {"value": "b"}},
+                {"id": "budget-a", "name": "read", "args": {"value": "a" * 4}},
+                {"id": "budget-b", "name": "read", "args": {"value": "中文结果" * 12}},
             ])],
             [FakeChunk("预算不足时继续回答")],
         ])
         orchestrator = ToolOrchestrator(
             registry=registry,
-            policy=ToolPolicy(max_total_result_tokens=15),
+            policy=ToolPolicy(max_total_result_tokens=result_budget),
         )
         events = asyncio.run(_collect(orchestrator, model, _context(self.db)))
         final_history = model.seen[1]
@@ -367,13 +430,14 @@ class ToolOrchestratorTests(unittest.TestCase):
         self.assertEqual(len(tool_messages), 2)
         first_payload = json.loads(tool_messages[0]["content"])
         second_payload = json.loads(tool_messages[1]["content"])
+        self.assertEqual(first_payload, first_envelope)
         self.assertTrue(first_payload["ok"])
         self.assertEqual(second_payload["error"]["code"], "tool_result_budget_exceeded")
         self.assertEqual(
             second_payload["error"]["message"],
             "该工具结果因本轮上下文预算限制未完整提供",
         )
-        self.assertNotIn("bbbb", tool_messages[1]["content"])
+        self.assertNotIn("中文结果", tool_messages[1]["content"])
         self.assertEqual(events[-1]["data"]["delta"], "预算不足时继续回答")
 
     def test_runtime_cancellation_is_audited_without_an_assistant_result(self):

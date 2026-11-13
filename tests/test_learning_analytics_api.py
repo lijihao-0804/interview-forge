@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import sqlite3
 import tempfile
 import threading
@@ -981,13 +982,19 @@ class RealAuthenticationIsolationTests(unittest.TestCase):
         self.assertEqual(server._AUTH_READY, self._auth_ready_before)
         self.temp_dir.cleanup()
 
-    def add_invite(self, code: str) -> None:
-        with server.closing(server.connect_auth()) as connection:
-            connection.execute(
-                "INSERT INTO invite_codes(code, status, note, created_at, expires_at) "
-                "VALUES (?, 'unused', '', ?, NULL)",
-                (code, server.now_iso()),
+    def registration_code_for(self, email: str) -> str:
+        sent: list[str] = []
+        with patch(
+            "interview_forge.services.gym.send_email",
+            side_effect=lambda _recipient, _subject, body: sent.append(body),
+        ):
+            status, body, _headers = self.request(
+                "/api/register/send-code", payload={"email": email}
             )
+        self.assertEqual(status, 200, body)
+        match = re.search(r"验证码：([0-9]{6})", sent[-1])
+        self.assertIsNotNone(match)
+        return match.group(1)
 
     def request(self, path: str, token: str | None = None, payload: dict | None = None):
         body = None
@@ -1025,37 +1032,53 @@ class RealAuthenticationIsolationTests(unittest.TestCase):
         return cookie.split(";", 1)[0].split("=", 1)[1]
 
     def test_register_rejects_case_collision_atomically_and_keeps_normal_users_working(self):
-        self.add_invite("CODE-ALICE")
+        alice_code = self.registration_code_for("alice@example.com")
         status, body, headers = self.request(
             "/api/register",
-            payload={"username": "Alice", "password": "alice-pass-1", "code": "CODE-ALICE"},
+            payload={
+                "email": "alice@example.com",
+                "username": "Alice",
+                "password": "alice-pass-1",
+                "code": alice_code,
+            },
         )
         self.assertEqual(status, 201)
         alice_token = self.cookie_token(headers)
         self.assertEqual(body["username"], "Alice")
 
-        self.add_invite("CODE-ALICE-2")
+        bob_code = self.registration_code_for("bob@example.com")
         status, body, _headers = self.request(
             "/api/register",
-            payload={"username": "alice", "password": "alice-pass-2", "code": "CODE-ALICE-2"},
+            payload={
+                "email": "bob@example.com",
+                "username": "alice",
+                "password": "alice-pass-2",
+                "code": bob_code,
+            },
         )
-        self.assertEqual(status, 400)
-        self.assertEqual(body, {"error": "用户名已被占用"})
+        self.assertEqual(status, 409)
+        self.assertEqual(body.get("error_category"), "already_registered")
+        self.assertEqual(body.get("error"), "该邮箱或用户名已被占用")
         self.assertNotIn("Alice", json.dumps(body, ensure_ascii=False))
 
         with server.closing(server.connect_auth()) as connection:
             users = connection.execute("SELECT username FROM users ORDER BY id").fetchall()
-            invite = connection.execute(
-                "SELECT status FROM invite_codes WHERE code = 'CODE-ALICE-2'"
+            code = connection.execute(
+                "SELECT status FROM registration_email_codes "
+                "WHERE email = 'bob@example.com' ORDER BY id DESC LIMIT 1"
             ).fetchone()
         self.assertEqual([row["username"] for row in users], ["Alice"])
-        self.assertEqual(invite["status"], "unused")
+        self.assertEqual(code["status"], "active")
         self.assertTrue(server.user_db_path("Alice").exists())
 
-        self.add_invite("CODE-BOB")
         status, bob_body, bob_headers = self.request(
             "/api/register",
-            payload={"username": "Bob", "password": "bob-pass-1", "code": "CODE-BOB"},
+            payload={
+                "email": "bob@example.com",
+                "username": "Bob",
+                "password": "bob-pass-1",
+                "code": bob_code,
+            },
         )
         self.assertEqual(status, 201)
         self.assertEqual(bob_body["username"], "Bob")
@@ -1065,6 +1088,34 @@ class RealAuthenticationIsolationTests(unittest.TestCase):
         self.assertEqual(me["username"], "Bob")
         self.assertNotEqual(alice_token, bob_token)
         self.assertFalse(self.default_db.exists())
+
+    def test_register_verification_rate_limit_returns_retry_after(self):
+        with patch.dict(os.environ, {
+            "IF_REGISTER_VERIFY_IP_HOURLY_LIMIT": "1",
+            "IF_REGISTER_VERIFY_IP_DAILY_LIMIT": "10",
+            "IF_REGISTER_VERIFY_GLOBAL_HOURLY_LIMIT": "100",
+            "IF_REGISTER_VERIFY_GLOBAL_DAILY_LIMIT": "1000",
+        }, clear=False):
+            code = self.registration_code_for("rate@example.com")
+            wrong = "000000" if code != "000000" else "999999"
+            payload = {
+                "email": "rate@example.com",
+                "username": "RateUser",
+                "password": "password-1",
+                "code": wrong,
+            }
+            first_status, _first_body, _first_headers = self.request(
+                "/api/register", payload=payload
+            )
+            second_status, second_body, second_headers = self.request(
+                "/api/register", payload=payload
+            )
+        self.assertEqual(first_status, 400)
+        self.assertEqual(second_status, 429)
+        retry_after = int(second_headers["Retry-After"])
+        self.assertGreaterEqual(retry_after, 1)
+        self.assertEqual(second_body["retry_after"], retry_after)
+        self.assertEqual(second_body["error_category"], "rate_limited")
 
     def test_legacy_case_conflict_fails_closed_for_login_and_session_but_not_bob(self):
         alice = server.create_user("Alice", "alice-pass-1")

@@ -6,7 +6,13 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
-from interview_forge.ai.tools.contracts import ToolExecutionContext, ToolKind, ToolResult, ToolSpec
+from interview_forge.ai.token_counting import estimate_json_tokens
+from interview_forge.ai.tools.contracts import (
+    ToolExecutionContext,
+    ToolKind,
+    ToolResult,
+    ToolSpec,
+)
 from interview_forge.ai.tools.langchain_adapter import (
     NormalizedToolCall,
     ToolCallAccumulator,
@@ -117,6 +123,49 @@ class ToolInfrastructureTests(unittest.TestCase):
         self.assertNotIn("password", json.dumps(error.model_payload(), ensure_ascii=False))
         self.assertEqual(large.error_code, "result_too_large")
 
+    def test_result_budget_and_audit_use_same_full_multilingual_envelope(self):
+        data = {"value": "中文结果" * 12}
+        envelope = {"ok": True, "tool": "read", "data": data}
+        exact_tokens = estimate_json_tokens(envelope)
+
+        def read(_context, _args):
+            return data
+
+        admitted = ToolSpec("read", "读", "读", Args, read, max_result_tokens=exact_tokens)
+        rejected = ToolSpec("read", "读", "读", Args, read, max_result_tokens=exact_tokens - 1)
+
+        async def exercise():
+            success = await ToolRuntime(ToolRegistry([admitted])).execute(
+                call=NormalizedToolCall("success", "read", {"value": "x"}),
+                context=_context(self.db),
+            )
+            failure = await ToolRuntime(ToolRegistry([rejected])).execute(
+                call=NormalizedToolCall("failure", "read", {"value": "x"}),
+                context=_context(self.db),
+            )
+            return success, failure
+
+        success, failure = asyncio.run(exercise())
+        self.assertEqual(success.status, "ok")
+        self.assertEqual(failure.error_code, "result_too_large")
+
+        connection = server_runtime.connect(self.db)
+        try:
+            rows = {
+                row[0]: json.loads(row[1])
+                for row in connection.execute(
+                    "SELECT status, result_meta_json FROM chat_tool_runs"
+                ).fetchall()
+            }
+        finally:
+            connection.close()
+        self.assertEqual(rows["success"]["result_tokens_estimated"], exact_tokens)
+        self.assertEqual(rows["error"]["result_tokens_estimated"], exact_tokens)
+        self.assertEqual(
+            rows["success"]["result_chars"],
+            len(json.dumps(envelope, ensure_ascii=False, sort_keys=True, separators=(",", ":"))),
+        )
+
     def test_read_cache_and_action_confirmation_audit(self):
         calls = []
 
@@ -161,16 +210,25 @@ class ToolInfrastructureTests(unittest.TestCase):
     def test_default_read_tools_problem_learning_weather_and_no_cross_user_db(self):
         from unittest.mock import patch
 
-        from interview_forge.ai.tools.builtins.learning import GetLearningContextArgs, get_learning_context
-        from interview_forge.ai.tools.builtins.problem import GetProblemArgs, get_problem
-        from interview_forge.ai.tools.builtins.weather import GetWeatherArgs, get_weather
+        from interview_forge.ai.tools.builtins.learning import (
+            GetLearningContextArgs,
+            get_learning_context,
+        )
+        from interview_forge.ai.tools.builtins.problem import (
+            GetProblemArgs,
+            get_problem,
+        )
+        from interview_forge.ai.tools.builtins.weather import (
+            GetWeatherArgs,
+            get_weather,
+        )
         from interview_forge.ai.tools.registry import build_default_tool_registry
 
         registry = build_default_tool_registry()
         self.assertEqual({spec.name for spec in registry.list_specs()}, {
             "get_problem", "get_learning_context", "get_problem_progress", "get_review_queue",
             "get_weather", "sync_leetcode", "mark_problem", "pin_problem_for_tomorrow",
-            "set_daily_goal",
+            "set_daily_goal", "search_library",
         })
         ctx = _context(self.db)
         problem = get_problem(ctx, GetProblemArgs(problem_id=146))

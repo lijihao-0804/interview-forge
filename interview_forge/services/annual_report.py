@@ -2,7 +2,7 @@
 
 设计原则：
 - 只读，不写库；所有统计都基于现有表实时聚合
-- 跨用户库汇总（全站视角），体育馆数据来自独立的 gym.db
+- 个人报告读取指定学习库和该账号的体育馆预约；内部全站汇总可遍历全部学习库
 - 缺失数据返回 0 / 空数组，前端不必做大量兜底
 """
 from __future__ import annotations
@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from collections import Counter, defaultdict
+from contextlib import closing
 from datetime import date as date_cls
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -81,7 +82,12 @@ def _persona(stats: dict) -> list[dict]:
     return tags
 
 
-def build_annual_report(year: str | None = None, db_paths: list[Path] | None = None) -> dict:
+def build_annual_report(
+    year: str | None = None,
+    db_paths: list[Path] | None = None,
+    *,
+    gym_username: str | None = None,
+) -> dict:
     """组装年度报告所需的全部数据。"""
     year = str(year or datetime.now().year)
     prefix = f"{year}-%"
@@ -121,8 +127,8 @@ def build_annual_report(year: str | None = None, db_paths: list[Path] | None = N
             # 力扣 AC 也计入热力图（站内学习之外的真实刷题活动）
             try:
                 for row in conn.execute(
-                        "SELECT DISTINCT substr(submitted_at, 1, 10) AS d FROM submissions "
-                        "WHERE status = 'ac' AND submitted_at LIKE ?", (prefix,)):
+                        "SELECT DISTINCT date(submitted_at, '+8 hours') AS d FROM submissions "
+                        "WHERE status = 'ac' AND date(submitted_at, '+8 hours') LIKE ?", (prefix,)):
                     if row[0]:
                         daily[str(row[0])] += 1
             except sqlite3.Error:
@@ -166,8 +172,6 @@ def build_annual_report(year: str | None = None, db_paths: list[Path] | None = N
             totals["seconds"] += _sum("SELECT COALESCE(SUM(seconds),0) FROM study_duration WHERE study_date LIKE ?")
             totals["problems"] += _sum("SELECT COUNT(DISTINCT problem_id) FROM study_events WHERE study_date LIKE ?")
             totals["contents"] += _sum("SELECT COUNT(DISTINCT content_id) FROM content_events WHERE study_date LIKE ?")
-            totals["submissions"] += _sum(
-                "SELECT COUNT(*) FROM submissions WHERE date(submitted_at,'+8 hours') LIKE ?")
             totals["reviews"] += _sum(
                 "SELECT COUNT(*) FROM review_logs WHERE date(reviewed_at,'+8 hours') LIKE ?")
             totals["favorites"] += _sum("SELECT COUNT(*) FROM favorites WHERE created_at LIKE ?")
@@ -179,8 +183,9 @@ def build_annual_report(year: str | None = None, db_paths: list[Path] | None = N
                     "SELECT COUNT(*) AS total, "
                     "SUM(CASE WHEN status='ac' THEN 1 ELSE 0 END) AS ac, "
                     "MIN(CASE WHEN status='ac' THEN runtime_ms END) AS fastest "
-                    "FROM submissions WHERE submitted_at LIKE ?", (prefix,)).fetchone()
+                    "FROM submissions WHERE date(submitted_at, '+8 hours') LIKE ?", (prefix,)).fetchone()
                 if row:
+                    totals["submissions"] += int(row["total"])
                     subs_ac += int(row["ac"] or 0)
                     if row["fastest"] is not None:
                         fastest = int(row["fastest"])
@@ -188,7 +193,7 @@ def build_annual_report(year: str | None = None, db_paths: list[Path] | None = N
                             subs_fastest = fastest
                 for r in conn.execute(
                         "SELECT lang, COUNT(*) AS n FROM submissions "
-                        "WHERE submitted_at LIKE ? AND lang != '' GROUP BY lang", (prefix,)):
+                        "WHERE date(submitted_at, '+8 hours') LIKE ? AND lang != '' GROUP BY lang", (prefix,)):
                     # 规范化语言名：Java / java 视为同一个
                     raw = str(r[0]).strip()
                     if raw:
@@ -210,7 +215,9 @@ def build_annual_report(year: str | None = None, db_paths: list[Path] | None = N
             # 第一次
             for key, sql in (
                 ("first_view", "SELECT MIN(studied_at) FROM study_events WHERE studied_at LIKE ?"),
-                ("first_ac", "SELECT MIN(submitted_at) FROM submissions WHERE status='ac' AND submitted_at LIKE ?"),
+                ("first_ac",
+                 "SELECT MIN(strftime('%Y-%m-%dT%H:%M:%S+08:00', submitted_at, '+8 hours')) "
+                 "FROM submissions WHERE status='ac' AND date(submitted_at, '+8 hours') LIKE ?"),
                 ("first_favorite", "SELECT MIN(created_at) FROM favorites WHERE created_at LIKE ?"),
                 ("first_review", "SELECT MIN(reviewed_at) FROM review_logs WHERE reviewed_at LIKE ?"),
             ):
@@ -237,13 +244,17 @@ def build_annual_report(year: str | None = None, db_paths: list[Path] | None = N
     # 体育馆（独立库）
     gym = {"total": 0, "favorite_slot": None, "venue": None, "success_rate": None}
     gym_db = DB_PATH.parent / "gym.db"
-    if gym_db.exists():
+    # An explicit study scope cannot imply ownership of shared gym rows.
+    if gym_db.exists() and (gym_username is not None or db_paths is None):
         try:
-            gconn = sqlite3.connect(gym_db)
-            gconn.row_factory = sqlite3.Row
-            rows = gconn.execute(
-                "SELECT status, venue, result, created_at FROM gym_jobs WHERE created_at LIKE ?",
-                (prefix,)).fetchall()
+            query = "SELECT status, venue, result, created_at FROM gym_jobs WHERE created_at LIKE ?"
+            args = [prefix]
+            if gym_username is not None:
+                query += " AND created_by = ?"
+                args.append(gym_username)
+            with closing(sqlite3.connect(gym_db)) as gconn:
+                gconn.row_factory = sqlite3.Row
+                rows = gconn.execute(query, args).fetchall()
             succeeded = [r for r in rows if r["status"] == "succeeded"]
             gym["total"] = len(succeeded)
             if rows:
@@ -265,7 +276,6 @@ def build_annual_report(year: str | None = None, db_paths: list[Path] | None = N
                 gym["venue"] = venues.most_common(1)[0][0]
             if succeeded:
                 firsts["first_gym"] = str(min(str(r["created_at"]) for r in succeeded))
-            gconn.close()
         except sqlite3.Error:
             pass
 

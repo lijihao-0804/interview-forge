@@ -595,8 +595,8 @@ def build_index(entries: list[dict]) -> None:
     total_cases = sum(len(item["samples"]) for item in runnable)
     suite_note = (
         f'<p class="exam-suite-note">{len(runnable)} 道题可运行，共 {total_cases} 组公开用例。'
-        '进入题目后点击代码旁的「运行代码」，再选择「运行全部用例」。'
-        '用例包含题面样例和站内补充；通过不代表通过原平台完整评测，多解题按页面提示核对。</p>'
+        '进入题目后点击代码旁的「运行代码」即可测试。'
+        '<a href="acm-playground.html">练习 ACM 输入输出模板</a></p>'
     )
     def case_label(entry: dict) -> str:
         practice = entry.get("practice", {})

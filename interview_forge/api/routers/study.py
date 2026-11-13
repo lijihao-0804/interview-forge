@@ -315,7 +315,8 @@ async def complete(request: Request):
     return await _write_json(
         request,
         lambda p, db: complete_round(
-            int(p["problem_id"]), db, p.get("rating", 3), get_fsrs_desired_retention()
+            int(p["problem_id"]), db, p.get("rating", 3), get_fsrs_desired_retention(),
+            lang=p.get("lang") or "",
         ),
     )
 
@@ -393,7 +394,7 @@ async def settings_set(request: Request):
 @router.post("/api/submit")
 async def submit(request: Request):
     def operation(p, db):
-        return record_submission(problem_id=int(p["problem_id"]), status=str(p["status"]), lang=str(p.get("lang", "")),
+        return record_submission(problem_id=int(p["problem_id"]), status=str(p["status"]), lang=p.get("lang") or "",
                                  runtime_ms=p.get("runtime_ms"), memory_kb=p.get("memory_kb"),
                                  source=str(p.get("source", "manual")), db_path=db)
     return await _write_json(request, operation)
@@ -429,7 +430,10 @@ def report_annual(request: Request, year: str | None = None):
     if denied is not None:
         return denied
     try:
-        return json_response(build_annual_report(year=year, db_paths=[user_db(user)]))
+        report = build_annual_report(
+            year=year, db_paths=[user_db(user)], gym_username=str(user["username"]),
+        )
+        return json_response(report)
     except BaseException as exc:
         return _handled(exc)
 

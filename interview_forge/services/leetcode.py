@@ -30,6 +30,7 @@ from interview_forge.core.runtime import server_runtime
 from interview_forge.observability.logging import log_event
 from interview_forge.ai.config_store import decrypt_secret, encrypt_secret
 from interview_forge.runtime import shared
+from interview_forge.services.submissions import submission_language_key
 
 
 LC_STATUS_TTL = 60.0
@@ -607,7 +608,7 @@ def leetcode_sync(
                 if timestamp.isdigit() else runtime.now_parts()[0]
             )
             collected.append({
-                "pid": pid, "status": status, "lang": str(item.get("lang") or "")[:40],
+                "pid": pid, "status": status, "lang": str(item.get("lang") or "").strip()[:40],
                 "runtime_ms": runtime._parse_ms(str(item.get("runtime") or "")),
                 "memory_kb": runtime._parse_kb(str(item.get("memory") or "")),
                 "submitted_at": submitted_at,
@@ -644,19 +645,26 @@ def leetcode_sync(
         # writer.  This also lets us repair an older synthetic AC row in the
         # same transaction when a real submission is found later.
         connection.execute("BEGIN IMMEDIATE")
-        existing_lc = {
-            int(row["lc_id"])
-            for row in connection.execute("SELECT lc_id FROM submissions WHERE lc_id IS NOT NULL").fetchall()
+        existing_rows = connection.execute("SELECT lc_id, lang FROM submissions WHERE lc_id IS NOT NULL").fetchall()
+        existing_lc = {int(row["lc_id"]) for row in existing_rows}
+        # Older imports sometimes kept the provider ID but omitted the language.
+        # The same ID is evidence for repairing that row without recording another attempt.
+        missing_languages = {
+            int(row["lc_id"]) for row in existing_rows if submission_language_key(row["lang"]) == "unknown"
         }
         synthetic_rows = {
             int(row["problem_id"]): row
             for row in connection.execute(
-                "SELECT id, problem_id, submitted_at FROM submissions "
-                "WHERE status = 'ac' AND source = 'sync' AND lc_id IS NULL"
+                "SELECT id, problem_id FROM submissions WHERE status = 'ac' AND source = 'sync' "
+                "AND lc_id IS NULL AND COALESCE(TRIM(lang), '') = ''"
             ).fetchall()
         }
+        pending_languages: list[tuple[str, int]] = []
         rows: list[tuple[object, ...]] = []
         for item in collected:
+            if item["lc_id"] in missing_languages and submission_language_key(item["lang"]) != "unknown":
+                pending_languages.append((str(item["lang"]), int(item["lc_id"])))
+                missing_languages.remove(item["lc_id"])
             synthetic = synthetic_rows.get(int(item["pid"])) if item["status"] == "ac" else None
             if synthetic is not None:
                 # synthetic 是 lc_id=None 的占位脏记录（提交时间=某次同步时刻，不可信）。
@@ -674,12 +682,16 @@ def leetcode_sync(
                     )
                     if candidate_lc is not None:
                         existing_lc.add(int(candidate_lc))
+                        if submission_language_key(item["lang"]) == "unknown":
+                            missing_languages.add(int(candidate_lc))
                 synthetic_rows.pop(int(item["pid"]), None)
                 continue
             if item["lc_id"] is not None and item["lc_id"] in existing_lc:
                 continue
             if item["lc_id"] is not None:
                 existing_lc.add(item["lc_id"])
+                if submission_language_key(item["lang"]) == "unknown":
+                    missing_languages.add(item["lc_id"])
             rows.append((item["pid"], item["status"], item["lang"], item["runtime_ms"], item["memory_kb"],
                          item["submitted_at"], "sync", item["lc_id"]))
         if rows:
@@ -687,6 +699,8 @@ def leetcode_sync(
                 """INSERT INTO submissions(problem_id, status, lang, runtime_ms, memory_kb, submitted_at, source, lc_id)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""", rows,
             )
+        if pending_languages:
+            connection.executemany("UPDATE submissions SET lang = ? WHERE lc_id = ?", pending_languages)
         results["submissions_added"] = len(rows)
         ac_problem_ids = {
             int(row["problem_id"])

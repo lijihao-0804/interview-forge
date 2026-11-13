@@ -4,7 +4,6 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
-import math
 import sqlite3
 import time
 import uuid
@@ -15,7 +14,9 @@ from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
+from interview_forge.ai.actions.store import ActionRequestStore
 from interview_forge.ai.telemetry import debug_ai_event
+from interview_forge.ai.token_counting import estimate_json_tokens
 from interview_forge.ai.tools.contracts import (
     ToolExecutionContext,
     ToolExecutionResult,
@@ -25,9 +26,7 @@ from interview_forge.ai.tools.contracts import (
 )
 from interview_forge.ai.tools.langchain_adapter import NormalizedToolCall
 from interview_forge.ai.tools.registry import ToolRegistry
-from interview_forge.ai.actions.store import ActionRequestStore
 from interview_forge.core.runtime import server_runtime
-
 
 _ERROR_MESSAGES = {
     "unknown_tool": "该工具不可用。",
@@ -46,12 +45,13 @@ def _now() -> str:
     return str(server_runtime.now_iso())
 
 
-def _estimate_tokens(value: str) -> int:
-    return max(1, math.ceil(len(value) / 3)) if value else 0
-
-
 def _safe_json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
+
+
+def _result_envelope(tool_name: str, result: ToolResult) -> dict[str, Any]:
+    """Return the complete model-visible success payload for accounting."""
+    return {"ok": True, "tool": tool_name, "data": result.data}
 
 
 class ToolRuntime:
@@ -141,6 +141,8 @@ class ToolRuntime:
         started: float,
         arguments: Mapping[str, Any] = (),
         error_message: str | None = None,
+        result_chars: int = 0,
+        result_tokens_estimated: int = 0,
     ) -> ToolExecutionResult:
         duration_ms = round((time.perf_counter() - started) * 1000)
         self._audit(
@@ -152,6 +154,8 @@ class ToolRuntime:
             status=status,
             duration_ms=duration_ms,
             error_code=code,
+            result_chars=result_chars,
+            result_tokens_estimated=result_tokens_estimated,
         )
         return ToolExecutionResult(
             tool_name=call.name,
@@ -229,13 +233,16 @@ class ToolRuntime:
         cache_key = f"{spec.name}:{canonical_args}"
         if spec.kind == ToolKind.READ and cache_key in context.cache:
             result = context.cache[cache_key]
+            payload = _result_envelope(spec.name, result)
+            serialized = _safe_json(payload)
+            result_tokens = estimate_json_tokens(payload)
             duration_ms = round((time.perf_counter() - started) * 1000)
             self._audit(
                 context=context, run_id=run_id, call=call, kind=spec.kind,
                 arguments=arguments, status="cache_hit", duration_ms=duration_ms,
                 cache_hit=True,
-                result_chars=len(_safe_json(result.data)),
-                result_tokens_estimated=_estimate_tokens(_safe_json(result.data)),
+                result_chars=len(serialized),
+                result_tokens_estimated=result_tokens,
             )
             return ToolExecutionResult(
                 tool_name=call.name, call_id=call.call_id, status="cache_hit",
@@ -261,13 +268,16 @@ class ToolRuntime:
                 self._invoke(spec, context, args_model), timeout=spec.timeout_seconds
             )
             result = raw_result if isinstance(raw_result, ToolResult) else ToolResult(dict(raw_result))
-            serialized = _safe_json(result.data)
-            result_tokens = _estimate_tokens(serialized)
+            payload = _result_envelope(spec.name, result)
+            serialized = _safe_json(payload)
+            result_tokens = estimate_json_tokens(payload)
             if result_tokens > spec.max_result_tokens:
                 return self._failure(
                     context=context, call=call, kind=spec.kind, run_id=run_id,
                     status="error", code="result_too_large", started=started,
                     arguments=arguments,
+                    result_chars=len(serialized),
+                    result_tokens_estimated=result_tokens,
                 )
         except asyncio.TimeoutError:
             return self._failure(
@@ -345,13 +355,16 @@ class ToolRuntime:
                 self._invoke(spec, context, args_model), timeout=spec.timeout_seconds
             )
             result = raw_result if isinstance(raw_result, ToolResult) else ToolResult(dict(raw_result))
-            serialized = _safe_json(result.data)
-            result_tokens = _estimate_tokens(serialized)
+            payload = _result_envelope(spec.name, result)
+            serialized = _safe_json(payload)
+            result_tokens = estimate_json_tokens(payload)
             if result_tokens > spec.max_result_tokens:
                 return self._failure(
                     context=context, call=call, kind=spec.kind, run_id=run_id,
                     status="error", code="result_too_large", started=started,
                     arguments=arguments,
+                    result_chars=len(serialized),
+                    result_tokens_estimated=result_tokens,
                 )
         except ToolHandlerError as exc:
             return self._failure(

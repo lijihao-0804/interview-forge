@@ -3,6 +3,7 @@ import unittest
 from pathlib import Path
 
 from scripts.build import build_library
+from scripts.build.asset_version import SITE_JS_VERSION
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -27,7 +28,7 @@ class LibraryReaderLayoutTests(unittest.TestCase):
             1,
         )
         self.assertIn("?v={SITE_JS_VERSION}", generator)
-        self.assertIn('site.js?v=20261014-code-block-visibility', problem_page)
+        self.assertIn(f'site.js?v={SITE_JS_VERSION}', problem_page)
         self.assertNotIn('<div class="codehilite" data-lang="text">', problem_page)
         for example in (
             "<p><strong>输入：</strong>nums = [5,7,7,8,8,10], target = 8<br/><strong>输出：</strong>[3,4]</p>",

@@ -395,6 +395,42 @@
     time.setAttribute("title", time.textContent);
   }
 
+  function librarySourceUrl(raw) {
+    if (typeof raw !== "string" || !/^\/(?:library|books)\//.test(raw)) return "";
+    try {
+      var path = decodeURIComponent(raw);
+      if (!path.endsWith(".html") || /[%?#\\:\u0000-\u001f\u007f]/.test(path)) return "";
+      if (path.split("/").slice(1).some(function (part) { return !part || part[0] === "."; })) return "";
+      return raw;
+    } catch (_) { return ""; }
+  }
+
+  function renderLibrarySources(content, sources) {
+    if (!Array.isArray(sources) || !sources.length || content.querySelector(".library-sources")) return;
+    var links = document.createElement("ul");
+    sources.forEach(function (source) {
+      var url = source && librarySourceUrl(source.url);
+      if (!url || typeof source.title !== "string" || !source.title) return;
+      var link = document.createElement("a");
+      link.href = url;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = (source.module_title ? source.module_title + " · " : "") + source.title;
+      var row = document.createElement("li");
+      row.appendChild(link);
+      links.appendChild(row);
+    });
+    if (!links.childElementCount) return;
+    var group = document.createElement("details");
+    group.className = "library-sources";
+    group.open = links.childElementCount <= 3;
+    var summary = document.createElement("summary");
+    summary.textContent = "本轮检索资料（" + links.childElementCount + "）";
+    group.appendChild(summary);
+    group.appendChild(links);
+    content.insertBefore(group, content.querySelector(".message-time"));
+  }
+
   function renderMessage(item, target) {
     var node = document.createElement("div");
     node.className = "message " + (item.role === "user" ? "user" : "assistant");
@@ -409,6 +445,7 @@
     time.textContent = formatMessageTime(item.created_at);
     content.appendChild(bubble);
     content.appendChild(time);
+    if (item.role === "assistant" && item.metadata) renderLibrarySources(content, item.metadata.library_sources);
     node.appendChild(content);
     (target || messages).appendChild(node);
     return node;
@@ -450,7 +487,7 @@
       row.textContent = "○ 正在查询" + label + "…";
     } else if (name === "tool.done") {
       row.className = "tool-status-item done";
-      row.textContent = "✓ 已获取" + label;
+      row.textContent = "✓ " + (payload.display || "已获取" + label);
     } else {
       row.className = "tool-status-item error";
       row.textContent = "× " + String(payload.message || "工具暂时不可用");
@@ -602,6 +639,8 @@
           if (state.assistantNode) {
             finalizeAssistant(state.assistantNode.querySelector(".bubble"));
             setMessageTime(state.assistantNode, payload && payload.created_at);
+            renderLibrarySources(state.assistantNode.querySelector(".message-content"), payload && payload.library_sources);
+            scheduleScrollBottom();
           }
           status.textContent = "已连接";
         }

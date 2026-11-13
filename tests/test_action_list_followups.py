@@ -20,10 +20,16 @@ class ActionListFollowupTests(unittest.TestCase):
         script = (ROOT / "assets" / "solution-progress.js").read_text(encoding="utf-8")
         self.assertIn('id="solutionProgressHistoryButton"', builder)
         self.assertIn('id="solutionProgressHistory"', builder)
-        self.assertIn('fetch("/api/submissions?problem_id="', script)
+        self.assertIn(
+            'protectedFetch("/api/submissions?problem_id=" + encodeURIComponent(problemId)',
+            script,
+        )
+        self.assertIn('historyButton.addEventListener("click", function () {', script)
+        self.assertIn('if (!expanded) loadSubmissionHistory();', script)
         self.assertIn('item.status === "ac"', script)
         self.assertIn("InterviewForgeTime.formatDateTime(item.submitted_at)", script)
-        self.assertIn("if (response.status === 401) { redirectToLogin(); return; }", script)
+        self.assertIn('auth.handleUnauthorized("记录本题学习进度")', script)
+        self.assertNotIn("redirectToLogin();", script)
         self.assertIn("class=\"solution-progress-help\"", builder)
         self.assertIn("FSRS 记忆模型根据本次评分动态计算", builder)
 

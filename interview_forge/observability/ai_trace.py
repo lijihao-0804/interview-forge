@@ -24,6 +24,22 @@ def _int(value: Any) -> int | None:
     return int(value) if isinstance(value, (int, float)) and value >= 0 else None
 
 
+SAFE_TRACE_METADATA_KEYS = frozenset({
+    "estimated", "tool_calls_count", "tool_names", "tooling_unavailable", "ttft_ms",
+    "requested_business", "fallback", "fallback_reason",
+    "fallback_provider", "fallback_model",
+    "relevance_policy", "history_mode", "history_reason",
+    "history_message_count", "history_selected_count", "history_omitted_count",
+    "summary_scoped", "summary_present", "estimated_prompt_tokens",
+    "context_blocks", "context_blocks_irrelevant", "context_blocks_rejected",
+    "page_context_omitted",
+    "context_budget_policy_version", "request_fingerprint",
+    "prepared_context_hash", "config_fingerprint", "prompt_estimator",
+    "admitted_prompt_tokens", "omitted_exchange_count", "context_window",
+    "reserved_output_tokens", "stop_reason",
+})
+
+
 class TraceRecorder:
     def __init__(
         self,
@@ -73,11 +89,7 @@ class TraceRecorder:
         try:
             safe_metadata = {
                 str(key): value for key, value in (metadata or {}).items()
-                if str(key) in {
-                    "estimated", "tool_calls_count", "tool_names", "tooling_unavailable", "ttft_ms",
-                    "requested_business", "fallback", "fallback_reason",
-                    "fallback_provider", "fallback_model",
-                }
+                if str(key) in SAFE_TRACE_METADATA_KEYS
             }
             safe_metadata.update({
                 "provider_id": self.provider_id or None,
@@ -148,4 +160,4 @@ class TraceRecorder:
         )
 
 
-__all__ = ["TraceRecorder", "utc_now_iso"]
+__all__ = ["SAFE_TRACE_METADATA_KEYS", "TraceRecorder", "utc_now_iso"]

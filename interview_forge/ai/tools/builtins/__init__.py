@@ -6,6 +6,7 @@ from interview_forge.ai.tools.registry import ToolRegistry
 
 def register_builtin_tools(registry: ToolRegistry) -> ToolRegistry:
     from interview_forge.ai.tools.builtins.learning import GetLearningContextArgs, get_learning_context
+    from interview_forge.ai.tools.builtins.library import SearchLibraryArgs, search_library
     from interview_forge.ai.tools.builtins.problem import GetProblemArgs, get_problem
     from interview_forge.ai.tools.builtins.progress import GetProblemProgressArgs, get_problem_progress
     from interview_forge.ai.tools.builtins.review import GetReviewQueueArgs, get_review_queue
@@ -26,6 +27,15 @@ def register_builtin_tools(registry: ToolRegistry) -> ToolRegistry:
         handler=get_problem,
         timeout_seconds=2.0,
         max_result_tokens=700,
+    ))
+    registry.register(ToolSpec(
+        name="search_library",
+        display_name="站内书架",
+        description="按关键词查询站内书架的章节与题页，返回匹配标题、站内链接及可用的索引片段。用户询问站内出处或希望找相关阅读时使用。",
+        args_model=SearchLibraryArgs,
+        handler=search_library,
+        timeout_seconds=4.0,
+        max_result_tokens=2400,
     ))
     registry.register(ToolSpec(
         name="get_learning_context",

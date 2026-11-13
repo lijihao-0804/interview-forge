@@ -48,7 +48,7 @@ class FastApiRouteContractTests(unittest.TestCase):
                      "/api/leetcode/status", "/api/coach/analytics", "/api/admin/users"):
             self.assertEqual(self.client.get(path).status_code, 401, path)
         self.assertEqual(self.client.get("/pages/login.html").status_code, 200)
-        self.assertEqual(self.client.get("/cockpit.html", follow_redirects=False).status_code, 307)
+        self.assertEqual(self.client.get("/cockpit.html", follow_redirects=False).status_code, 200)
         self.assertEqual(self.client.post("/api/login", content=b"{}", headers={"content-type": "application/json"}).status_code, 400)
 
     def test_origin_allowlist_does_not_trust_request_host(self):

@@ -82,7 +82,7 @@ CONTENT_DIRS = ["books/hot100/00-总览", "books/hot100/01-基础", "books/hot10
 SHARED_ASSET_VERSIONS = {
     "site.js": SITE_JS_VERSION,
     "ui.js": ASSET_VERSION,
-    "solution-progress.js": ASSET_VERSION,
+    "solution-progress.js": "20261113-language-rounds",
     "engagement-tracker.js": ASSET_VERSION,
     "term-tooltip.js": ASSET_VERSION,
     "ai-launcher.js": "4",
@@ -91,7 +91,7 @@ SHARED_ASSET_VERSIONS = {
     "feedback-widget.js": "4",
     "ai-assistant.js": "10",
     "register-flow.js": "4",
-    "practice-reference.js": "6",
+    "practice-reference.js": "7",
     "practice-checker.js": "1",
 }
 SHARED_ASSET_VERSION_ROOTS = (ROOT / "books", ROOT / "library")
@@ -2748,7 +2748,7 @@ def render_markdown(source: Path) -> None:
     policy_href = ai_asset_base + "/navigation-policy.js?v=2"
     ui_href = web_rel(output, ROOT / "assets" / "ui.js") + f"?v={ASSET_VERSION}"
     progress_css_href = web_rel(output, ROOT / "assets" / "solution-progress.css") + "?v=20261009-static"
-    progress_js_href = web_rel(output, ROOT / "assets" / "solution-progress.js") + f"?v={ASSET_VERSION}"
+    progress_js_href = web_rel(output, ROOT / "assets" / "solution-progress.js") + f"?v={SHARED_ASSET_VERSIONS['solution-progress.js']}"
     root_href = web_rel(output, ROOT / "index.html")
     cockpit_href = web_rel(output, ROOT / "cockpit.html")
     route_href = web_rel(output, ROOT / "books" / "hot100" / "00-总览" / "01-学习路线.html")
@@ -3045,9 +3045,7 @@ def polish_visual(path: Path) -> None:
 #      output_for_markdown 的映射一致，check 会顺带扫描断言；
 #   2. “打开 Markdown 总目录”入口替换为目标 guide.html 的“完整使用指南”
 #      （与 README.md 特判规则一致）；
-#   3. dashboard-nav 快捷导航条：缺失则连同配套 <style> 一起插入
-#      （</header> 后插 nav、</style> 前插样式）；已存在则整段替换——
-#      幂等，且导航链接始终跟随最新入口集；
+#   3. 以 dashboard.tpl 的导航为准，独立运行 HTML 构建时也可更新旧入口；
 #   4. 删除旧式“可视化中心”入口（演示改内嵌后，面板不再需要独立链接，
 #      check 也断言面板不再出现 05-可视化 链接）。
 # 设计意图：面板是动态应用（SQLite API / PWA / uPlot 等运行时代码），本函数
@@ -3057,18 +3055,15 @@ def update_dashboard() -> None:
     text = path.read_text(encoding="utf-8-sig")
     text = re.sub(r'("note"\s*:\s*"[^"]+)\.md"', r'\1.html"', text)
     text = text.replace('href="README.md">打开 Markdown 总目录</a>', 'href="guide.html">完整使用指南</a>')
-    quick = '<nav class="dashboard-nav" aria-label="学习入口"><a href="cockpit.html">中控台</a><a href="library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a><a href="books/hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a><a href="books/hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a><a href="books/hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a><a href="books/hot100/04-模板/01-Hot100算法模板.html" target="_blank" rel="noopener noreferrer">算法模板</a><a href="pages/history.html" target="_blank" rel="noopener noreferrer">学习记录</a><a href="pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a><button class="lc-button" id="leetcodeSyncBtn" data-online-action type="button">一键同步</button></nav>'
-    if 'class="dashboard-nav"' not in text:
-        text = text.replace('</header>\n<div class="bar"', '</header>\n' + quick + '\n<div class="bar"', 1)
-        text = text.replace('</style>', '.dashboard-nav{display:flex;gap:9px;flex-wrap:wrap;margin:18px 0 8px}.dashboard-nav a{padding:7px 11px;background:var(--panel);border:1px solid var(--line);border-radius:9px}.dashboard-nav a:hover{background:var(--soft);text-decoration:none}.dashboard-nav a.lc-button{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:650}.dashboard-nav a.lc-button:hover{background:var(--brand-strong);color:#fff}@media(max-width:680px){.dashboard-nav{gap:7px}.dashboard-nav a{padding:6px 9px}}\n</style>', 1)
+    template = (ROOT / "tools" / "templates" / "dashboard.tpl").read_text(encoding="utf-8")
+    nav_pattern = re.compile(r'<nav class="dashboard-nav"[^>]*>.*?</nav>', re.DOTALL)
+    nav = nav_pattern.search(template)
+    if nav is None:
+        raise ValueError("首页模板缺少学习入口导航")
+    if nav_pattern.search(text):
+        text = nav_pattern.sub(lambda _: nav.group(), text, count=1)
     else:
-        text = re.sub(r'<nav class="dashboard-nav"[^>]*>.*?</nav>', quick, text, count=1)
-        if '.dashboard-nav a.lc-button' not in text:
-            text = text.replace(
-                '.dashboard-nav a:hover{background:var(--soft);text-decoration:none}',
-                '.dashboard-nav a:hover{background:var(--soft);text-decoration:none}.dashboard-nav a.lc-button{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:650}.dashboard-nav a.lc-button:hover{background:var(--brand-strong);color:#fff}',
-                1,
-            )
+        text = text.replace('</header>', '</header>\n' + nav.group(), 1)
     text = text.replace(' · <a href="books/hot100/05-可视化/index.html">可视化中心</a>', '')
     text = mark_cross_page_links(text)
     path.write_text(text, encoding="utf-8")

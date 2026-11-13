@@ -109,3 +109,60 @@ class AnnualReportTests(TestCase):
             self.assertEqual(len(langs), 1)
             self.assertEqual(langs[0]["name"], "Java")
             self.assertEqual(langs[0]["count"], 3)
+
+    def test_personal_report_scopes_shared_gym_to_signed_in_user(self) -> None:
+        from contextlib import closing
+        from unittest.mock import patch
+
+        from fastapi.testclient import TestClient
+        from interview_forge.api.app import app
+        from interview_forge.services import annual_report
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            study_db = _make_db(root)
+            with closing(sqlite3.connect(root / "gym.db")) as conn:
+                conn.execute("CREATE TABLE gym_jobs(created_by, status, venue, result, created_at)")
+                conn.executemany("INSERT INTO gym_jobs VALUES (?, ?, ?, ?, ?)", [
+                    ("case_a", "succeeded", "129", '{"actual_slot":"08:00-09:00"}', "2026-05-02"),
+                    ("case_a", "failed", "129", "{}", "2026-05-03"),
+                    ("case_b", "succeeded", "162", '{"actual_slot":"18:00-19:00"}', "2026-05-01"),
+                ])
+                conn.commit()
+
+            with patch.object(annual_report, "DB_PATH", study_db), \
+                 patch("interview_forge.api.routers.study.user_db", return_value=study_db), \
+                 closing(TestClient(app)) as client:
+                for user, venue, rate, first in (
+                    ("case_a", "129", 50, "2026-05-02"), ("case_b", "162", 100, "2026-05-01")
+                ):
+                    with self.subTest(user=user), patch(
+                        "interview_forge.api.support.current_user", return_value={"username": user, "role": "user"}
+                    ):
+                        response = client.get("/api/report/annual?year=2026")
+                        self.assertEqual(response.status_code, 200)
+                        report = response.json()
+                        self.assertEqual(report["gym"]["total"], 1)
+                        self.assertEqual(report["gym"]["venue"], venue)
+                        self.assertEqual(report["gym"]["success_rate"], rate)
+                        self.assertEqual(report["firsts"]["first_gym"], first)
+                self.assertEqual(build_annual_report("2026", [study_db])["gym"]["total"], 0)
+                self.assertEqual(build_annual_report("2026")["gym"]["total"], 2)
+
+    def test_year_boundary_uses_shanghai_day_for_all_submission_stats(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            db = _make_db(Path(raw))
+            conn = sqlite3.connect(db)
+            conn.executemany(
+                "INSERT INTO submissions(problem_id, status, lang, submitted_at) VALUES (1, ?, ?, ?)",
+                [("ac", "Java", "2025-12-31T17:01:00Z"), ("wa", "Java", "2026-01-01T02:00:00+08:00"),
+                 ("ac", "Python", "2026-12-31T17:01:00Z")],
+            )
+            conn.commit()
+            conn.close()
+            report = build_annual_report("2026", [db])
+            stats = report["submission_stats"]
+            self.assertEqual((report["total_submissions"], stats["ac"], stats["ac_rate"]), (2, 1, 50))
+            self.assertEqual(stats["languages"], [{"name": "Java", "count": 2}])
+            self.assertEqual(report["daily_calendar"], {"2026-01-01": 1})
+            self.assertEqual(report["firsts"]["first_ac"], "2026-01-01T01:01:00+08:00")

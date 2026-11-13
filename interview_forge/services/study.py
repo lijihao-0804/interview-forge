@@ -27,6 +27,7 @@ from interview_forge.services.review import (
     FSRS_VERSION,
     fsrs_review,
 )
+from interview_forge.services.submissions import problem_language_progress, submission_summary_from_connection
 
 
 
@@ -114,7 +115,6 @@ PROBLEM_BY_ID = _RuntimeLookup("PROBLEM_BY_ID")
 LEETCODE_SLUGS = _RuntimeLookup("LEETCODE_SLUGS")
 problem_filename = _RuntimeLookup("problem_filename")
 ROUND_COMPLETE_THRESHOLD = _RuntimeLookup("ROUND_COMPLETE_THRESHOLD")
-BUSINESS_TZ = _RuntimeLookup("BUSINESS_TZ")
 _DASH_CACHE: dict[str, tuple[float, dict[str, object]]] = {}
 _DASH_CACHE_LOCK = threading.Lock()
 _DASH_CACHE_GENERATIONS: dict[str, int] = {}
@@ -523,6 +523,8 @@ def complete_round(
     db_path: Path = DB_PATH,
     rating: int = 3,
     desired_retention: float | None = None,
+    *,
+    lang: str = "",
 ) -> dict[str, object]:
     """兼容旧面板的手动完成接口，并写入 AC 语义的 submissions 读模型。
 
@@ -533,6 +535,8 @@ def complete_round(
     """
     if problem_id not in PROBLEM_BY_ID:
         raise ValueError("未知题号")
+    if not isinstance(lang, str):
+        raise TypeError("lang 必须是字符串")
     if desired_retention is None:
         desired_retention = server_runtime.get_fsrs_desired_retention()
     studied_at, study_date = server_runtime.now_parts()
@@ -546,21 +550,12 @@ def complete_round(
             "FROM study_events WHERE problem_id = ? AND action = 'complete'",
             (problem_id,),
         ).fetchall()
-        submission_rows = connection.execute(
-            "SELECT submitted_at FROM submissions WHERE problem_id = ? AND status = 'ac'",
+        submission_dates = connection.execute(
+            "SELECT DISTINCT date(submitted_at, '+8 hours') AS study_date "
+            "FROM submissions WHERE problem_id = ? AND status = 'ac'",
             (problem_id,),
         ).fetchall()
-        completed_dates = {str(row["study_date"]) for row in event_rows}
-        for row in submission_rows:
-            try:
-                completed_dates.add(
-                    datetime.fromisoformat(str(row["submitted_at"]))
-                    .astimezone(BUSINESS_TZ).date().isoformat()
-                )
-            except (TypeError, ValueError, OverflowError):
-                # Invalid historical timestamps are excluded by analytics and
-                # must not make the compatibility endpoint fail.
-                continue
+        completed_dates = {row["study_date"] for row in event_rows + submission_dates if row["study_date"]}
         existing_today = [
             int(row["round_no"]) for row in event_rows
             if str(row["study_date"]) == study_date and row["round_no"] is not None
@@ -587,8 +582,8 @@ def complete_round(
         connection.execute(
             """INSERT INTO submissions(
                    problem_id, status, lang, runtime_ms, memory_kb, submitted_at, source
-               ) VALUES (?, 'ac', '', NULL, NULL, ?, 'manual')""",
-            (problem_id, studied_at),
+               ) VALUES (?, 'ac', ?, NULL, NULL, ?, 'manual')""",
+            (problem_id, lang.strip()[:40], studied_at),
         )
         review_state = _apply_review_rating(
             connection, "problem", str(problem_id), rating, studied_at,
@@ -655,6 +650,15 @@ def _invalidate_dashboard_cache(db_path: Path) -> None:
         _DASH_CACHE_GENERATIONS[key] = _DASH_CACHE_GENERATIONS.get(key, 0) + 1
 
 
+def _curriculum_rounds(counts: list[int]) -> int:
+    """The first pass needs 90 solved problems, later passes a majority of those solved."""
+    solved = sorted((count for count in counts if count > 0), reverse=True)
+    if not solved or len(solved) < int(ROUND_COMPLETE_THRESHOLD):
+        return 0
+    # A strict majority reached each round up to this middle element (also for an even count).
+    return solved[len(solved) // 2]
+
+
 def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
     """聚合仪表盘全部数据：题目轮次按 AC 自然日推导，同日多次 AC 只计一轮。"""
     today = server_runtime.business_now().date().isoformat()
@@ -694,25 +698,15 @@ def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
                FROM submissions WHERE status = 'ac'""",
             (today,),
         ).fetchone()
-        # 累计轮次 = 完整刷题遍数：每题按"AC 过的不同天数"计轮，
-        # 轮次 k 达成 = 有 ≥ ROUND_COMPLETE_THRESHOLD 道题的轮数 ≥ k
-        per_problem_rounds = [int(r["rd"]) for r in connection.execute(
-            """SELECT problem_id, COUNT(DISTINCT date(submitted_at, '+8 hours')) AS rd
-               FROM submissions WHERE status = 'ac' GROUP BY problem_id"""
-        ).fetchall()]
-        total_rounds = 0
-        completed = len(per_problem_rounds)
-        k = 1
-        while True:
-            reached = sum(1 for rd in per_problem_rounds if rd >= k)
-            if k == 1:
-                ok = reached >= ROUND_COMPLETE_THRESHOLD          # 首轮：完成 90 题以上
-            else:
-                ok = completed > 0 and reached * 2 > completed    # 之后：大部分题完成即达成
-            if not ok:
-                break
-            total_rounds = k
-            k += 1
+        total_rounds = _curriculum_rounds([row["rounds"] for row in ac_rows])
+        language_progress = problem_language_progress(connection)
+        submissions_payload = submission_summary_from_connection(connection, today)
+        recent_submissions = [
+            dict(row) for row in connection.execute(
+                """SELECT problem_id, status, lang, submitted_at, source
+                   FROM submissions ORDER BY submitted_at DESC, id DESC LIMIT 10000"""
+            )
+        ]
         view_events = connection.execute(
             """SELECT problem_id, studied_at FROM study_events
                WHERE action = 'view' ORDER BY studied_at DESC, id DESC LIMIT 200"""
@@ -859,15 +853,6 @@ def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
         if rounds > 0 and last_completed:
             item["next_due"] = server_runtime.due_after(last_completed, rounds)
         problems_payload[str(pid)] = item
-    submissions_payload = server_runtime.submission_summary(db_path)
-    with closing(server_runtime.connect(db_path)) as connection:
-        recent_submissions = [
-            dict(row)
-            for row in connection.execute(
-                """SELECT problem_id, status, lang, submitted_at, source
-                   FROM submissions ORDER BY submitted_at DESC, id DESC LIMIT 10000"""
-            ).fetchall()
-        ]
     for pid_str, item in problems_payload.items():
         stat = submissions_payload["problems"].get(int(pid_str))
         if stat:
@@ -887,6 +872,7 @@ def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
             }
             problems_payload[str(pid)]["last_activity_at"] = stat.get("last_submitted_at") or ""
     for pid_str, item in problems_payload.items():
+        item["by_language"] = language_progress.get(int(pid_str), {})
         due_date = review_due.get(("problem", pid_str))
         if due_date:
             item["next_due"] = due_date
@@ -894,9 +880,20 @@ def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
     recent_items.sort(key=lambda item: str(item["studied_at"]), reverse=True)
     recent = recent_items[:20]
     recent_days = sorted(day_stats, reverse=True)[:14]
+    rounds_by_language: dict[str, list[int]] = {}
+    for languages in language_progress.values():
+        for language, stats in languages.items():
+            rounds_by_language.setdefault(language, []).append(stats["rounds"])
     return {
         "today": today,
         "summary": summary,
+        "language_summary": {
+            lang: {
+                "completed_problems": sum(count > 0 for count in counts),
+                "total_rounds": _curriculum_rounds(counts),
+            }
+            for lang, counts in rounds_by_language.items()
+        },
         "problems": problems_payload,
         "days": [
             {
@@ -1325,8 +1322,10 @@ def problem_progress(problem_id: int, db_path: Path = DB_PATH) -> dict[str, obje
                FROM submissions WHERE problem_id = ?""",
             (problem_id,),
         ).fetchone()
+        languages = problem_language_progress(connection, problem_id).get(problem_id, {})
         last_submission = connection.execute(
-            "SELECT status, submitted_at FROM submissions WHERE problem_id = ? ORDER BY id DESC LIMIT 1",
+            "SELECT status, submitted_at FROM submissions WHERE problem_id = ? "
+            "ORDER BY julianday(submitted_at) DESC, id DESC LIMIT 1",
             (problem_id,),
         ).fetchone()
         last_viewed = connection.execute(
@@ -1351,6 +1350,7 @@ def problem_progress(problem_id: int, db_path: Path = DB_PATH) -> dict[str, obje
     return {
         "problem_id": problem_id,
         "rounds": rounds,
+        "by_language": languages,
         "submits": int(submissions["submits"] or 0),
         "ac_submits": int(submissions["ac_submits"] or 0),
         "last_status": str(last_submission["status"] or "") if last_submission else "",

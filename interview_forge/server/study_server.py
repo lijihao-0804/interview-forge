@@ -883,7 +883,9 @@ class StudyHandler(SimpleHTTPRequestHandler):
             params = {key: values[0] for key, values in parse_qs(parsed.query).items()}
             from interview_forge.services.annual_report import build_annual_report
             try:
-                self.send_json(build_annual_report(year=params.get("year") or None))
+                self.send_json(build_annual_report(
+                    year=params.get("year") or None, db_paths=[db], gym_username=str(user["username"]),
+                ))
             except Exception as exc:  # noqa: BLE001
                 self.send_json({"error": f"年度报告数据生成失败：{exc}"}, HTTPStatus.INTERNAL_SERVER_ERROR)
             return
@@ -986,7 +988,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/weaklist":
             self.send_json(weaklist(db))
             return
-        # /api/submissions：单题提交记录 —— 按 id 倒序最近 limit 条；problem_id 缺失/非法 → 400。
+        # /api/submissions：单题提交记录，按提交时间返回最近 limit 条。
         if parsed.path == "/api/submissions":
             params = {key: values[0] for key, values in parse_qs(parsed.query).items()}
             try:
@@ -1480,7 +1482,8 @@ class StudyHandler(SimpleHTTPRequestHandler):
             elif path == "/api/complete":
                 result = complete_round(
                     int(payload["problem_id"]), db,
-                    desired_retention=get_fsrs_desired_retention(),
+                    rating=payload.get("rating", 3), desired_retention=get_fsrs_desired_retention(),
+                    lang=payload.get("lang") or "",
                 )
             # /api/content/complete：书架章节完成一轮（独立的事件表与轮次序列）。
             elif path == "/api/content/complete":
@@ -1529,7 +1532,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
                 result = record_submission(
                     problem_id=int(payload["problem_id"]),
                     status=str(payload["status"]),
-                    lang=str(payload.get("lang", "")),
+                    lang=payload.get("lang") or "",
                     runtime_ms=payload.get("runtime_ms"),
                     memory_kb=payload.get("memory_kb"),
                     source=str(payload.get("source", "manual")),

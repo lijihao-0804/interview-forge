@@ -13,6 +13,58 @@
   var toast = document.getElementById("solutionProgressToast");
   var ratingButtons = panel.querySelectorAll("[data-review-rating]");
   var currentMark = "";
+  var progress = null;
+  var progressRequest = 0;
+  var languageLabels = { java: "Java", python: "Python", cpp: "C++", go: "Go", c: "C", unknown: "未注明语言" };
+  var reviewPrompt = panel.querySelector(".solution-review-ratings > span");
+  var entryLanguage = new URLSearchParams(location.search).get("lang");
+  if (!Object.hasOwn(languageLabels, entryLanguage) || entryLanguage === "unknown") entryLanguage = "";
+
+  function applyEntryLanguage() {
+    if (entryLanguage) {
+      // A filtered link opens this solution in that language without editing the account preference.
+      document.dispatchEvent(new CustomEvent("forge-lang-change", { detail: { lang: entryLanguage } }));
+    }
+  }
+  applyEntryLanguage();
+  document.addEventListener("forge-lang-change", function (event) {
+    var next = event.detail && event.detail.lang;
+    if (!entryLanguage || !next || next === entryLanguage || !Object.hasOwn(languageLabels, next)) return;
+    entryLanguage = next;
+    var url = new URL(window.location.href);
+    url.searchParams.set("lang", next);
+    history.replaceState(history.state, "", url);
+  });
+
+  function activeLanguage() {
+    return document.documentElement.dataset.codeLanguage || "";
+  }
+
+  function languageName(key) {
+    return Object.prototype.hasOwnProperty.call(languageLabels, key) ? languageLabels[key] : key;
+  }
+
+  function sessionKey(session) {
+    return session && session.status === "authenticated" && session.user
+      ? String(session.user.id || session.user.username || "") : "";
+  }
+
+  function paintLanguage() {
+    var lang = activeLanguage();
+    var label = languageName(lang);
+    if (reviewPrompt) reviewPrompt.textContent = label ? "记录 " + label + " 复习" : "记录本次复习";
+    if (!progress) return;
+    var rounds = Number(progress.rounds || 0);
+    if (lang && progress.by_language) {
+      var stats = progress.by_language[lang] || {};
+      var state = stats.rounds ? stats.rounds + " 轮" : (stats.submits ? "0 轮（已尝试）" : "未做");
+      var counts = stats.submits ? " · AC " + stats.ac_submits + " / 提交 " + stats.submits : "";
+      summary.textContent = label + " " + state + counts + " · 全语言 " + rounds + " 轮";
+      summary.title = "同题按北京时间的 AC 日期计轮。全语言合并同日记录。";
+      return;
+    }
+    summary.textContent = "全语言 " + rounds + " 轮 · AC " + (progress.ac_submits || 0) + " / 提交 " + (progress.submits || 0);
+  }
 
   function notify(message, kind) {
     if (window.InterviewForgeUI) window.InterviewForgeUI.showToast(toast, message, kind);
@@ -53,16 +105,14 @@
   }
 
   function paintProgress(data) {
-    var rounds = Number(data.rounds || 0);
-    var submitText = Number(data.submits || 0)
-      ? " · AC " + Number(data.ac_submits || 0) + " / 提交 " + Number(data.submits || 0)
-      : " · 尚无提交记录";
-    summary.textContent = "已完成 " + rounds + " 轮" + submitText;
+    progress = data;
+    paintLanguage();
     due.textContent = data.next_due ? "下次复习：" + data.next_due : "下次复习：—";
     paintMark(data.mark || "");
   }
 
   function paintGuest(reason) {
+    progress = null;
     summary.textContent = reason === "error"
       ? "暂时无法确认登录状态；题解仍可阅读"
       : "游客可阅读题解；登录后可记录复习、薄弱题和收藏";
@@ -78,12 +128,15 @@
   }
 
   async function loadProgress() {
+    var request = ++progressRequest;
     summary.textContent = "正在确认登录状态…";
     due.textContent = "请稍候";
     setControlsEnabled(false);
     try {
       var auth = await getAuthClient();
-      var session = await auth.ready;
+      await auth.ready;
+      if (request !== progressRequest) return;
+      var session = auth.getState();
       if (session.status !== "authenticated") {
         paintGuest(session.status);
         return;
@@ -91,15 +144,20 @@
       var response = await fetch("/api/problem/" + problemId + "/progress", {
         credentials: "same-origin", cache: "no-store"
       });
+      if (request !== progressRequest) return;
       if (response.status === 401) {
         auth.handleUnauthorized("记录本题学习进度");
         paintGuest("guest");
         return;
       }
       if (!response.ok) throw new Error("暂时无法读取学习记录");
-      paintProgress(await response.json());
+      var data = await response.json();
+      if (request !== progressRequest) return;
+      paintProgress(data);
       paintAuthenticated();
     } catch (error) {
+      if (request !== progressRequest) return;
+      progress = null;
       summary.textContent = error.message || "暂时无法读取学习记录；可稍后刷新重试";
       due.textContent = "未同步";
       panel.classList.add("is-auth-required");
@@ -118,6 +176,7 @@
   }
 
   async function recordReview(rating, button) {
+    var language = activeLanguage();
     try { await requireUser("记录本题复习评分"); }
     catch (_) { return; }
     Array.prototype.forEach.call(ratingButtons, function (item) { item.disabled = true; });
@@ -126,11 +185,16 @@
       var response = await protectedFetch("/api/complete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ problem_id: problemId, rating: rating })
+        body: JSON.stringify({ problem_id: problemId, rating: rating, lang: language })
       }, "记录本题复习评分");
       var result = await response.json().catch(function () { return {}; });
       if (!response.ok) throw new Error(result.error || "复习记录失败");
+      try {
+        var owner = sessionKey(window.InterviewForgeAuth.getState());
+        localStorage.setItem("forge-hot100-progress-updated:" + owner, String(Date.now()));
+      } catch (_) {}
       await loadProgress();
+      if (historyPanel && !historyPanel.hidden) loadSubmissionHistory();
       var ratingLabel = { again: "忘了", hard: "有点困难", good: "记得", easy: "很轻松" }[result.rating_name]
         || button.textContent.trim();
       notify(result.already_reviewed_today
@@ -155,7 +219,7 @@
       var time = window.InterviewForgeTime
         ? window.InterviewForgeTime.formatDateTime(item.submitted_at)
         : String(item.submitted_at || "").replace("T", " ").slice(0, 16);
-      row.textContent = time + (item.lang ? " · " + item.lang : "") + (item.source ? " · " + item.source : "");
+      row.textContent = time + " · " + languageName(item.language_key || item.lang || "unknown") + (item.source ? " · " + item.source : "");
       list.appendChild(row);
     });
     historyPanel.appendChild(list);
@@ -165,15 +229,19 @@
   }
 
   async function loadSubmissionHistory() {
+    var request = progressRequest;
     historyPanel.textContent = "正在读取 AC 提交记录…";
     try {
       var response = await protectedFetch("/api/submissions?problem_id=" + encodeURIComponent(problemId), {
         cache: "no-store"
       }, "查看提交记录");
+      if (request !== progressRequest) return;
       if (!response.ok) throw new Error("暂时无法读取提交记录，请稍后重试");
       var payload = await response.json();
+      if (request !== progressRequest) return;
       renderSubmissionHistory(payload.items || []);
     } catch (error) {
+      if (request !== progressRequest) return;
       historyPanel.textContent = error.code === "AUTH_REQUIRED"
         ? "游客可阅读题解；登录后可查看自己的提交记录。"
         : (error.message || "暂时无法读取提交记录，请稍后重试");
@@ -274,5 +342,28 @@
     weakButton.click();
   });
 
+  // The reader can change the visible language from a chip, the account, or another tab.
+  // Observe the applied language so a fallback to an available solution is reflected here too.
+  new MutationObserver(paintLanguage).observe(document.documentElement, {
+    attributes: true, attributeFilter: ["data-code-language"]
+  });
+  paintLanguage();
+  getAuthClient().then(function (auth) { return auth.ready; }).then(applyEntryLanguage).catch(function () {});
+  document.addEventListener("interviewforge:auth-change", function (event) {
+    if (event.detail && event.detail.status !== "checking") {
+      progress = null;
+      if (historyPanel) { historyPanel.hidden = true; historyPanel.replaceChildren(); }
+      if (historyButton) historyButton.setAttribute("aria-expanded", "false");
+      loadProgress();
+    }
+  });
+  window.addEventListener("storage", function (event) {
+    var auth = window.InterviewForgeAuth;
+    var owner = auth && sessionKey(auth.getState());
+    if (owner && event.key === "forge-hot100-progress-updated:" + owner) {
+      loadProgress();
+      if (historyPanel && !historyPanel.hidden) loadSubmissionHistory();
+    }
+  });
   loadProgress();
 })();

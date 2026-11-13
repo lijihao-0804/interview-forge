@@ -284,13 +284,13 @@ class ChatContextBuilderTests(unittest.TestCase):
         self.assertIn("old-marker-0", summary)
         self.assertNotIn("recent-marker-11", summary)
         self.assertEqual(messages[0]["role"], "system")
-        self.assertEqual(messages[1]["role"], "system")
+        self.assertEqual(messages[1]["role"], "user")
         self.assertEqual(messages[-1], {"role": "user", "content": "当前问题"})
         self.assertEqual(sum(item["content"] == "当前问题" for item in messages), 1)
         self.assertLessEqual(builder.last_build["estimated_prompt_tokens"], DEFAULT_CHAT_TOKEN_BUDGET.max_prompt_tokens)
         self.assertLessEqual(DEFAULT_TOKEN_ESTIMATOR.estimate_text(summary), DEFAULT_CHAT_TOKEN_BUDGET.summary_tokens)
         self.assertLessEqual(
-            sum(DEFAULT_TOKEN_ESTIMATOR.estimate_messages([item]) for item in messages if item["role"] != "system" or item is not messages[1]),
+            sum(DEFAULT_TOKEN_ESTIMATOR.estimate_messages([item]) for item in messages if item["role"] != "system" and item is not messages[1]),
             DEFAULT_CHAT_TOKEN_BUDGET.recent_tokens + DEFAULT_CHAT_TOKEN_BUDGET.current_tokens + 8,
         )
 

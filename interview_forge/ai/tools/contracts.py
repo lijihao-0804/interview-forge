@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Mapping
+from typing import Any, Awaitable, Callable, Mapping, TypedDict
 
 from pydantic import BaseModel
 
@@ -27,10 +27,17 @@ class ToolExecutionContext:
     cache: dict[str, "ToolResult"] = field(default_factory=dict)
 
 
+class LibrarySource(TypedDict):
+    title: str
+    module_title: str
+    url: str
+
+
 @dataclass(frozen=True)
 class ToolResult:
     data: dict[str, Any]
     display_text: str | None = None
+    library_sources: tuple[LibrarySource, ...] = ()
 
 
 ToolHandler = Callable[

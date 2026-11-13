@@ -32,7 +32,7 @@ class SharedAssetVersionTests(unittest.TestCase):
             rewritten,
         )
         self.assertIn(
-            'src="/assets/solution-progress.js?v=' + build_html_site.ASSET_VERSION + '&keep=1#progress"',
+            'src="/assets/solution-progress.js?v=' + build_html_site.SHARED_ASSET_VERSIONS["solution-progress.js"] + '&keep=1#progress"',
             rewritten,
         )
         self.assertIn('<script src="https://cdn.example/assets/site.js?v=old&mode=read"></script>', rewritten)
@@ -71,7 +71,7 @@ class SharedAssetVersionTests(unittest.TestCase):
             build_html_site.SHARED_ASSET_VERSIONS["site.js"],
             build_html_site.SITE_JS_VERSION,
         )
-        for name in ("ui.js", "solution-progress.js", "engagement-tracker.js", "term-tooltip.js"):
+        for name in ("ui.js", "engagement-tracker.js", "term-tooltip.js"):
             self.assertEqual(
                 build_html_site.SHARED_ASSET_VERSIONS[name],
                 build_html_site.ASSET_VERSION,

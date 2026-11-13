@@ -6,17 +6,26 @@ import inspect
 import json
 import time
 from collections import Counter
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+from interview_forge.ai.chat.request_budget import admit_request, estimate_json_tokens
+from interview_forge.ai.errors import AIServiceError
 from interview_forge.ai.provider import _usage_from
 from interview_forge.ai.telemetry import debug_ai_event
-from interview_forge.ai.tools.contracts import ToolExecutionContext, ToolExecutionResult, ToolKind
+from interview_forge.ai.tools.contracts import (
+    LibrarySource,
+    ToolExecutionContext,
+    ToolExecutionResult,
+    ToolKind,
+)
 from interview_forge.ai.tools.langchain_adapter import (
     NormalizedToolCall,
     ToolCallAccumulator,
     ToolingUnavailableError,
     bind_tools,
+    tool_spec_schema,
     visible_text,
 )
 from interview_forge.ai.tools.policy import ToolPolicy
@@ -24,9 +33,8 @@ from interview_forge.ai.tools.registry import ToolRegistry, build_default_tool_r
 from interview_forge.ai.tools.runtime import ToolRuntime
 from interview_forge.observability.ai_trace import TraceRecorder, utc_now_iso
 
-
 TOOLING_UNAVAILABLE_NOTICE = (
-    "当前工具能力不可用。需要实时或用户特定数据时，请明确说明无法获取，"
+    "当前工具能力不可用。需要站内书架检索、实时或用户特定数据时，请明确说明无法获取，"
     "不得自行猜测，也不要伪造工具结果。"
 )
 TOOLS_DISABLED_NOTICE = (
@@ -37,6 +45,10 @@ TOOL_LIMIT_ERROR_CODE = "tool_limit_reached"
 TOOL_LIMIT_ERROR_MESSAGE = "本轮工具调用上限已达到"
 TOOL_RESULT_BUDGET_ERROR_CODE = "tool_result_budget_exceeded"
 TOOL_RESULT_BUDGET_ERROR_MESSAGE = "该工具结果因本轮上下文预算限制未完整提供"
+CONTEXT_BUDGET_ERROR_CODE = "context_budget_exceeded"
+CONTEXT_BUDGET_ERROR_MESSAGE = "当前对话上下文超出模型可处理范围，请缩短问题或开启新会话。"
+REQUEST_ADMISSION_POLICY_VERSION = "request_admission_v1"
+DEFAULT_RESERVED_OUTPUT_TOKENS = 1200
 
 
 @dataclass(frozen=True)
@@ -49,6 +61,7 @@ class ToolTurnResult:
     visible_text_chars: int = 0
     has_valid_tool_activity: bool = False
     has_pending_confirmation: bool = False
+    library_sources: tuple[LibrarySource, ...] = ()
 
     @property
     def is_valid_turn(self) -> bool:
@@ -93,7 +106,7 @@ class ToolOrchestrator:
         policy: ToolPolicy | None = None,
         trace_recorder: TraceRecorder | None = None,
     ) -> None:
-        self.registry = registry or build_default_tool_registry()
+        self.registry = registry if registry is not None else build_default_tool_registry()
         self.policy = policy or ToolPolicy()
         self.runtime = ToolRuntime(self.registry)
         self.trace_recorder = trace_recorder
@@ -102,7 +115,108 @@ class ToolOrchestrator:
         self._call_results: list[ToolExecutionResult] = []
         self._confirmation_action_ids: set[str] = set()
 
-    async def _stream_round(self, model: Any, messages: list[Any], *, round_index: int = 0):
+    @staticmethod
+    def _context_budget_inputs(context: ToolExecutionContext) -> tuple[int | None, int]:
+        artifacts = context.artifacts if isinstance(context.artifacts, Mapping) else {}
+        raw_window = artifacts.get("model_context_window")
+        context_window = (
+            raw_window
+            if isinstance(raw_window, int) and not isinstance(raw_window, bool) and raw_window > 0
+            else None
+        )
+        raw_reserved = artifacts.get("reserved_output_tokens")
+        reserved_output_tokens = (
+            raw_reserved
+            if isinstance(raw_reserved, int)
+            and not isinstance(raw_reserved, bool)
+            and raw_reserved >= 0
+            else DEFAULT_RESERVED_OUTPUT_TOKENS
+        )
+        return context_window, reserved_output_tokens
+
+    async def _record_request_admission(
+        self,
+        admission: Any,
+        *,
+        context_window: int | None,
+        reserved_output_tokens: int,
+        round_index: int,
+        fits: bool,
+    ) -> None:
+        if self.trace_recorder is None:
+            return
+        metadata = {
+            "context_budget_policy_version": getattr(
+                admission,
+                "context_budget_policy_version",
+                getattr(admission, "policy_version", REQUEST_ADMISSION_POLICY_VERSION),
+            ),
+            "request_fingerprint": getattr(admission, "request_fingerprint", None),
+            "admitted_prompt_tokens": getattr(admission, "estimated_prompt_tokens", None),
+            "omitted_exchange_count": getattr(admission, "omitted_exchange_count", None),
+            "context_window": context_window,
+            "reserved_output_tokens": reserved_output_tokens,
+            "stop_reason": getattr(admission, "reason", None),
+        }
+        try:
+            await asyncio.to_thread(
+                self.trace_recorder.record,
+                event_type="context",
+                name="request_admission",
+                status="success" if fits else "failed",
+                round_index=round_index,
+                error_code=None if fits else CONTEXT_BUDGET_ERROR_CODE,
+                metadata=metadata,
+            )
+        except Exception as exc:  # noqa: BLE001 - trace failures cannot block model calls
+            # Admission telemetry is observability only. It must not change
+            # whether a request reaches the provider.
+            debug_ai_event(
+                "request_admission_trace_failed",
+                error_type=type(exc).__name__,
+            )
+
+    async def _admit_model_request(
+        self,
+        messages: list[Any],
+        *,
+        tool_schemas: tuple[dict[str, object], ...],
+        context: ToolExecutionContext,
+        round_index: int,
+    ) -> list[Any]:
+        context_window, reserved_output_tokens = self._context_budget_inputs(context)
+        admission = admit_request(
+            messages,
+            tool_schemas=tool_schemas,
+            context_window=context_window,
+            reserved_output_tokens=reserved_output_tokens,
+        )
+        await self._record_request_admission(
+            admission,
+            context_window=context_window,
+            reserved_output_tokens=reserved_output_tokens,
+            round_index=round_index,
+            fits=bool(admission.fits),
+        )
+        if not admission.fits:
+            raise AIServiceError(CONTEXT_BUDGET_ERROR_CODE, CONTEXT_BUDGET_ERROR_MESSAGE)
+        return list(admission.messages)
+
+    async def _stream_round(
+        self,
+        model: Any,
+        messages: list[Any],
+        *,
+        context: ToolExecutionContext,
+        tool_schemas: tuple[dict[str, object], ...] = (),
+        round_index: int = 0,
+    ):
+        admitted_messages = await self._admit_model_request(
+            messages,
+            tool_schemas=tool_schemas,
+            context=context,
+            round_index=round_index,
+        )
         text_parts: list[str] = []
         accumulator = ToolCallAccumulator()
         round_usage: dict[str, int] = {}
@@ -114,7 +228,7 @@ class ToolOrchestrator:
         try:
             astream = getattr(model, "astream", None)
             if callable(astream):
-                iterator = astream(messages)
+                iterator = astream(admitted_messages)
                 if inspect.isawaitable(iterator):
                     iterator = await iterator
                 async for chunk in iterator:
@@ -128,7 +242,7 @@ class ToolOrchestrator:
                 stream = getattr(model, "stream", None)
                 if not callable(stream):
                     raise TypeError("chat model does not support streaming")
-                iterator = iter(stream(messages))
+                iterator = iter(stream(admitted_messages))
                 sentinel = object()
 
                 def next_chunk() -> Any:
@@ -225,7 +339,18 @@ class ToolOrchestrator:
                 asyncio.create_task(self.runtime.execute(call=call, context=context))
                 for call in batch
             ]
-            batch_results = await asyncio.gather(*tasks)
+            try:
+                batch_results = await asyncio.gather(*tasks)
+            except BaseException:
+                # A cancelled consumer, a closed stream, or one failing task
+                # must not leave sibling READ work running in the background.
+                # Cancellation stops async work; it cannot interrupt a Python
+                # thread that has already started a synchronous handler.
+                for task in tasks:
+                    if not task.done():
+                        task.cancel()
+                await asyncio.gather(*tasks, return_exceptions=True)
+                raise
             for offset, result in enumerate(batch_results):
                 results[start + offset] = result
                 result_spec = self.registry.get(result.tool_name)
@@ -275,6 +400,7 @@ class ToolOrchestrator:
         calls: list[NormalizedToolCall],
         results: list[ToolExecutionResult],
         *,
+        library_sources: dict[str, LibrarySource],
         total_result_tokens: int = 0,
         max_total_result_tokens: int | None = None,
         blocked: bool = False,
@@ -307,18 +433,9 @@ class ToolOrchestrator:
                 }
             else:
                 payload = result.model_payload()
-                if (
-                    max_total_result_tokens is not None
-                    and payload.get("ok") is True
-                    and result.result is not None
-                ):
-                    serialized = json.dumps(
-                        result.result.data,
-                        ensure_ascii=False,
-                        separators=(",", ":"),
-                    )
-                    result_tokens = max(1, (len(serialized) + 2) // 3)
-                    if total_result_tokens + result_tokens > max_total_result_tokens:
+                if payload.get("ok") is True and result.result is not None:
+                    result_tokens = estimate_json_tokens(payload)
+                    if max_total_result_tokens is not None and total_result_tokens + result_tokens > max_total_result_tokens:
                         payload = {
                             "ok": False,
                             "tool": call.name,
@@ -330,6 +447,10 @@ class ToolOrchestrator:
                         budget_exceeded = True
                     else:
                         total_result_tokens += result_tokens
+                        # Only observations delivered to the model can supply
+                        # references. Completion order of parallel reads is irrelevant.
+                        for source in result.result.library_sources:
+                            library_sources.setdefault(source["url"], source)
             messages.append({
                 "role": "tool",
                 "tool_call_id": call.call_id,
@@ -351,12 +472,16 @@ class ToolOrchestrator:
         tool_run_ids: list[str] = []
         call_count = 0
         total_result_tokens = 0
+        library_sources: dict[str, LibrarySource] = {}
         identical_calls: Counter[str] = Counter()
         visible_text_parts: list[str] = []
         has_valid_tool_activity = False
         has_pending_confirmation = False
         history = list(messages)
         try:
+            tool_schemas = tuple(
+                tool_spec_schema(spec) for spec in self.registry.list_specs()
+            )
             bound_model = bind_tools(model, self.registry.list_specs())
         except (ToolingUnavailableError, ImportError, AttributeError, TypeError, ValueError):
             debug_ai_event("chat_tooling_unavailable", session_id=context.session_id)
@@ -371,7 +496,13 @@ class ToolOrchestrator:
                     {"role": "system", "content": TOOLING_UNAVAILABLE_NOTICE},
                     *history,
                 ]
-            fallback = fallback_stream_factory(model, fallback_messages)
+            admitted_fallback_messages = await self._admit_model_request(
+                fallback_messages,
+                tool_schemas=(),
+                context=context,
+                round_index=1,
+            )
+            fallback = fallback_stream_factory(model, admitted_fallback_messages)
             if inspect.isawaitable(fallback):
                 fallback = await fallback
             try:
@@ -392,7 +523,13 @@ class ToolOrchestrator:
             return
 
         for round_index in range(self.policy.max_rounds):
-            async for item in self._stream_round(bound_model, history, round_index=round_index + 1):
+            async for item in self._stream_round(
+                bound_model,
+                history,
+                context=context,
+                tool_schemas=tool_schemas,
+                round_index=round_index + 1,
+            ):
                 yield item
             result = self._round_result
             visible_text_parts.append(result.text)
@@ -409,12 +546,13 @@ class ToolOrchestrator:
                     visible_text_chars=len("".join(visible_text_parts).strip()),
                     has_valid_tool_activity=has_valid_tool_activity,
                     has_pending_confirmation=has_pending_confirmation,
+                    library_sources=tuple(library_sources.values()),
                 )
                 return
 
             blocked = call_count + len(calls) > self.policy.max_calls_per_turn
             for call in calls:
-                signature = f"{call.name}:{json.dumps(call.arguments, ensure_ascii=False, sort_keys=True)}"
+                signature = self._canonical_call_signature(call)
                 identical_calls[signature] += 1
                 if identical_calls[signature] > self.policy.max_identical_calls:
                     blocked = True
@@ -434,9 +572,15 @@ class ToolOrchestrator:
                             "message": TOOL_LIMIT_ERROR_MESSAGE,
                         },
                     )
-                self._append_tool_messages(history, calls, [], blocked=True)
+                self._append_tool_messages(history, calls, [], library_sources=library_sources, blocked=True)
                 history.append({"role": "system", "content": TOOLS_DISABLED_NOTICE})
-                async for item in self._stream_round(model, history, round_index=round_index + 2):
+                async for item in self._stream_round(
+                    model,
+                    history,
+                    context=context,
+                    tool_schemas=(),
+                    round_index=round_index + 2,
+                ):
                     yield item
                 final_result = self._round_result
                 visible_text_parts.append(final_result.text)
@@ -450,6 +594,7 @@ class ToolOrchestrator:
                     visible_text_chars=len("".join(visible_text_parts).strip()),
                     has_valid_tool_activity=has_valid_tool_activity,
                     has_pending_confirmation=has_pending_confirmation,
+                    library_sources=tuple(library_sources.values()),
                 )
                 return
 
@@ -470,6 +615,7 @@ class ToolOrchestrator:
                 history,
                 calls,
                 results,
+                library_sources=library_sources,
                 total_result_tokens=total_result_tokens,
                 max_total_result_tokens=self.policy.max_total_result_tokens,
             )
@@ -478,7 +624,13 @@ class ToolOrchestrator:
                     tool_run_ids.append(result.run_id)
             if round_index + 1 >= self.policy.max_rounds or budget_exceeded:
                 history.append({"role": "system", "content": TOOLS_DISABLED_NOTICE})
-                async for item in self._stream_round(model, history, round_index=round_index + 2):
+                async for item in self._stream_round(
+                    model,
+                    history,
+                    context=context,
+                    tool_schemas=(),
+                    round_index=round_index + 2,
+                ):
                     yield item
                 final_result = self._round_result
                 visible_text_parts.append(final_result.text)
@@ -492,8 +644,34 @@ class ToolOrchestrator:
                     visible_text_chars=len("".join(visible_text_parts).strip()),
                     has_valid_tool_activity=has_valid_tool_activity,
                     has_pending_confirmation=has_pending_confirmation,
+                    library_sources=tuple(library_sources.values()),
                 )
                 return
+
+    def _canonical_call_signature(self, call: NormalizedToolCall) -> str:
+        """Build duplicate-call identity from server-normalized arguments."""
+        spec = self.registry.get(call.name)
+        if spec is not None:
+            try:
+                _, arguments = self.runtime._validated_args(spec, call.arguments)
+            except (AttributeError, TypeError, ValueError):
+                pass
+            else:
+                canonical = json.dumps(
+                    arguments,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+                return f"{call.name}:{canonical}"
+        raw = json.dumps(
+            call.arguments,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+        )
+        return f"{call.name}:unvalidated:{raw}"
 
 
 __all__ = ["TOOLING_UNAVAILABLE_NOTICE", "TOOLS_DISABLED_NOTICE", "ToolOrchestrator", "ToolTurnResult"]

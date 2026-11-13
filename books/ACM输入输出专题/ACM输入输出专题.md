@@ -58,7 +58,7 @@ public class Main {
 5
 ```
 
-Python 的同类完整入口见[第 7 章](../acm-io/chapter-07.html)，两种语言一起练见[第 10 章](../acm-io/chapter-10.html)。之后遇到输入错误时，先检查“文本是怎样组织的”，不要急着怀疑算法。
+Python 的同类完整入口见[第 7 章](../../library/acm-io/chapter-07.html)，两种语言一起练见[第 10 章](../../library/acm-io/chapter-10.html)。之后遇到输入错误时，先检查“文本是怎样组织的”，不要急着怀疑算法。
 
 ---
 
@@ -580,7 +580,7 @@ public class Main {
 
 ## 5. Java 大数据输入：快速输入模板
 
-第 4 章已经提供可独立运行的 [BufferedReader + StringTokenizer 统一 token 模板](../acm-io/chapter-04.html)，本章说明何时采用它，不再复制同一段 helper。
+第 4 章已经提供可独立运行的 [BufferedReader + StringTokenizer 统一 token 模板](../../library/acm-io/chapter-04.html)，本章说明何时采用它，不再复制同一段 helper。
 
 ### 5.1 何时用 Token 模板替换 Scanner
 
@@ -2053,16 +2053,16 @@ print(board[i][j], data[flat_index])
 
 | 现在的问题 | 去哪里看 | 先记住这一点 |
 |---|---|---|
-| 题目究竟是单组、T 组还是 EOF？ | [第 2 章：输入协议](../acm-io/chapter-02.html) | 结束条件和换行含义先于读取速度 |
-| Java `nextInt()` 后怎么读整行？ | [第 3 章：Scanner](../acm-io/chapter-03.html) | `nextLine()` 读当前行余部；是否丢弃它取决于协议 |
-| Java 数字可以跨行，或数据量很大？ | [第 4 章：连续 token](../acm-io/chapter-04.html)、[第 5 章：高效读入](../acm-io/chapter-05.html) | token 读取可以跨空白；整行文本不能这么读 |
-| Java 输出 long、小数或前导零？ | [第 6 章：输出格式](../acm-io/chapter-06.html) | 运算前提升类型，格式化时确认小数点与宽度 |
-| `list(map(int, input().split()))` 每层做什么？ | [第 7 章：语句拆解](../acm-io/chapter-07.html) | 字符串切开后仍是字符串；`map` 是待消费的迭代器 |
-| 二维数组怎么创建、追加、赋值和求和？ | [第 8 章：矩阵与读取方式](../acm-io/chapter-08.html) | 行要独立，平面位置是 `2 + i * cols + j`（含两个尺寸 token） |
-| 怎么输出元素，而不是 `[1, 2]`？ | [第 9 章：Python 输出](../acm-io/chapter-09.html) | `print(*nums)` 输出元素；`join` 需要字符串 |
-| 想连起来练一次？ | [第 10 章：8 个组合练习](../acm-io/chapter-10.html) | 每题先核对协议，再提交自己的完整程序 |
-| 空列表越界、矩阵求和或共享行出了错？ | [第 11 章：反例与修正](../acm-io/chapter-11.html) | 不报错也可能取错数据，要用具体小输入推演 |
+| 题目究竟是单组、T 组还是 EOF？ | [第 2 章：输入协议](../../library/acm-io/chapter-02.html) | 结束条件和换行含义先于读取速度 |
+| Java `nextInt()` 后怎么读整行？ | [第 3 章：Scanner](../../library/acm-io/chapter-03.html) | `nextLine()` 读当前行余部；是否丢弃它取决于协议 |
+| Java 数字可以跨行，或数据量很大？ | [第 4 章：连续 token](../../library/acm-io/chapter-04.html)、[第 5 章：高效读入](../../library/acm-io/chapter-05.html) | token 读取可以跨空白；整行文本不能这么读 |
+| Java 输出 long、小数或前导零？ | [第 6 章：输出格式](../../library/acm-io/chapter-06.html) | 运算前提升类型，格式化时确认小数点与宽度 |
+| `list(map(int, input().split()))` 每层做什么？ | [第 7 章：语句拆解](../../library/acm-io/chapter-07.html) | 字符串切开后仍是字符串；`map` 是待消费的迭代器 |
+| 二维数组怎么创建、追加、赋值和求和？ | [第 8 章：矩阵与读取方式](../../library/acm-io/chapter-08.html) | 行要独立，平面位置是 `2 + i * cols + j`（含两个尺寸 token） |
+| 怎么输出元素，而不是 `[1, 2]`？ | [第 9 章：Python 输出](../../library/acm-io/chapter-09.html) | `print(*nums)` 输出元素；`join` 需要字符串 |
+| 想连起来练一次？ | [第 10 章：8 个组合练习](../../library/acm-io/chapter-10.html) | 每题先核对协议，再提交自己的完整程序 |
+| 空列表越界、矩阵求和或共享行出了错？ | [第 11 章：反例与修正](../../library/acm-io/chapter-11.html) | 不报错也可能取错数据，要用具体小输入推演 |
 
-如果卡在 `self`、`nonlocal`、容器 API 或递归语法，去[Python 实用入门与 AI 开发](../python/index.html)查语言基础；这些内容不在本专题重复展开。
+如果卡在 `self`、`nonlocal`、容器 API 或递归语法，去[Python 实用入门与 AI 开发](../../library/python/index.html)查语言基础；这些内容不在本专题重复展开。
 
 回到笔试时，用题目允许的数据做四次小检查：一个最小合法输入、两组不同尺寸的数据、协议允许的空白或空记录、接近数值上界的输入。不能为了“测边界”给题目不允许的负数、空矩阵或残缺记录。

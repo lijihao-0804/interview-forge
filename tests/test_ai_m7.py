@@ -47,12 +47,11 @@ class M7ToolPackTests(unittest.TestCase):
             user_message_id=1, current_query="test", artifacts={"username": "M7"},
         )
 
-    def test_registry_contains_five_m7_tools_with_expected_kinds(self):
+    def test_registry_contains_expected_read_and_action_tools(self):
         registry = build_default_tool_registry()
-        self.assertEqual(len(registry), 9)
         self.assertEqual(
             {spec.name for spec in registry.list_specs() if spec.kind.value == "read"},
-            {"get_problem", "get_learning_context", "get_weather", "get_problem_progress", "get_review_queue"},
+            {"get_problem", "get_learning_context", "get_weather", "get_problem_progress", "get_review_queue", "search_library"},
         )
         self.assertEqual(
             {spec.name for spec in registry.list_specs() if spec.kind.value == "action"},

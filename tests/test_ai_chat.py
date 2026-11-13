@@ -14,6 +14,7 @@ from interview_forge.ai.chat.service import ChatService
 from interview_forge.ai.chat.prompts import CHAT_SYSTEM_PROMPT
 from interview_forge.ai.config import AIConfig
 from interview_forge.ai.errors import AIServiceError
+from interview_forge.ai.tools.policy import ToolPolicy
 from interview_forge.core import default_runtime
 from interview_forge.core.runtime import server_runtime
 from interview_forge.services.auth import create_session, create_user
@@ -93,6 +94,32 @@ class ToolCallingReadEmptyFinalModel(ToolCallingFakeModel):
             )
             return
         yield FakeChunk("")
+
+
+class LibrarySearchModel(FakeAsyncModel):
+    def __init__(self, *queries, fail_after_search=False):
+        super().__init__()
+        self.queries = queries
+        self.fail_after_search = fail_after_search
+        self.observations = []
+
+    def bind_tools(self, schemas):
+        self.schemas = schemas
+        return self
+
+    async def astream(self, messages):
+        self.observations = [
+            json.loads(item["content"]) for item in messages if item["role"] == "tool"
+        ]
+        if not self.observations:
+            yield FakeChunk(tool_calls=[
+                {"id": f"lookup-{i}", "name": "search_library", "args": {"query": query, "limit": 1}}
+                for i, query in enumerate(self.queries)
+            ])
+        elif self.fail_after_search:
+            raise RuntimeError("fixture failure after lookup")
+        else:
+            yield FakeChunk("我看过了本轮检索结果。")
 
 
 class ActionThenFailModel(FakeAsyncModel):
@@ -332,6 +359,73 @@ class AIChatContractTests(unittest.TestCase):
         self.assertEqual([item["role"] for item in history], ["user", "assistant"])
         self.assertEqual(history[-1]["content"], "146 是 LRU 缓存。")
 
+    def test_library_sources_from_parallel_tools_reach_model_sse_and_owner_history(self):
+        model = LibrarySearchModel("TCP", "线程池", "TCP 与 UDP")
+        self.service.model_factory = lambda _config: model
+        session = self.client.post("/api/chat/sessions", json={}).json()
+        base = f"/api/chat/sessions/{session['id']}"
+        events = parse_sse(self.client.post(base + "/stream", json={"message": "哪章讲 TCP 和线程池？"}).text)
+        self.assertIn("search_library", [s["function"]["name"] for s in model.schemas])
+        self.assertEqual(events[-1][0], "message.done")
+        self.assertEqual([e for e, _ in events].count("tool.done"), 3)
+        self.assertEqual(len(model.observations), 3)
+        observed = [obs["data"]["items"][0] for obs in model.observations]
+        self.assertTrue(observed[0]["snippet"])
+        self.assertEqual(observed[2]["url"], observed[0]["url"])
+        sources = events[-1][1]["library_sources"]
+        self.assertEqual(sources, [{k: hit[k] for k in ("url", "title", "module_title")} for hit in observed[:2]])
+        self.assertNotIn(observed[0]["snippet"], json.dumps(events, ensure_ascii=False))
+        items = self.client.get(base + "/messages").json()["items"]
+        self.assertEqual(items[1]["metadata"]["library_sources"], sources)
+        self.assertNotIn("library_sources", items[0]["metadata"])
+        self.assertNotIn(observed[0]["snippet"], json.dumps(items, ensure_ascii=False))
+
+        self.service.model_factory = lambda _config: self.model  # Next turn has no tool binding.
+        events = parse_sse(self.client.post(base + "/stream", json={"message": "书架有哪章讲事务？"}).text)
+        self.assertTrue(events[-1][1]["usage"]["tooling_unavailable"])
+        self.assertTrue(any(item["role"] == "system" and "当前工具能力不可用。需要站内书架检索" in item["content"]
+                            for item in self.model.messages))
+        self.assertNotIn("library_sources", events[-1][1])
+        self.assertNotIn("library_sources", self.client.get(base + "/messages").json()["items"][-1]["metadata"])
+
+        other = create_user("BookReader", "password-2")
+        self.client.cookies.set("forge_session", create_session(int(other["id"])))
+        self.assertEqual(self.client.get(base + "/messages").status_code, 404)
+
+    def test_library_budget_omission_cannot_publish_a_source(self):
+        model = LibrarySearchModel("TCP")
+        self.service.model_factory = lambda _config: model
+        self.service.tool_policy = ToolPolicy(max_total_result_tokens=1)
+        session = self.client.post("/api/chat/sessions", json={}).json()
+        base = f"/api/chat/sessions/{session['id']}"
+        events = parse_sse(self.client.post(base + "/stream", json={"message": "找站内 TCP 资料"}).text)
+        self.assertIn("tool.done", [e for e, _ in events])
+        self.assertEqual(model.observations[0]["error"]["code"], "tool_result_budget_exceeded")
+        self.assertEqual(events[-1][0], "message.done")
+        self.assertNotIn("library_sources", events[-1][1])
+        self.assertNotIn("library_sources", self.client.get(base + "/messages").json()["items"][-1]["metadata"])
+
+    def test_library_index_failure_is_recoverable_and_does_not_publish_sources(self):
+        model = LibrarySearchModel("TCP")
+        self.service.model_factory = lambda _config: model
+        session = self.client.post("/api/chat/sessions", json={}).json()
+        base = f"/api/chat/sessions/{session['id']}"
+        with patch("interview_forge.ai.tools.builtins.library.search_index_server",
+                   side_effect=OSError("private-index-path")):
+            events = parse_sse(self.client.post(base + "/stream", json={"message": "找 TCP 章节"}).text)
+        self.assertEqual(model.observations[0]["error"]["code"], "tool_error")
+        self.assertEqual([e for e, _ in events], ["message.start", "tool.start", "tool.error", "message.delta", "message.done"])
+        self.assertNotIn("library_sources", events[-1][1])
+        self.assertNotIn("private-index-path", str(events) + str(model.observations))
+
+        model = LibrarySearchModel("TCP", fail_after_search=True)
+        self.service.model_factory = lambda _config: model
+        events = parse_sse(self.client.post(base + "/stream", json={"message": "重查 TCP 章节"}).text)
+        self.assertIn("tool.done", [e for e, _ in events])
+        self.assertEqual(events[-1][0], "error")
+        self.assertNotIn("library_sources", str(events))
+        self.assertEqual(len(self.client.get(base + "/messages").json()["items"]), 2)
+
     def test_successful_read_with_empty_final_text_is_not_a_successful_turn(self):
         self.service.model_factory = lambda _config: ToolCallingReadEmptyFinalModel()
         created = self.client.post("/api/chat/sessions", json={}).json()
@@ -412,6 +506,46 @@ class AIChatContractTests(unittest.TestCase):
             json={"message": "你好", "page_context": {"path": "/", "title": "首页", "token": "x"}},
         )
         self.assertEqual(response.status_code, 400)
+
+    def test_new_question_omits_old_topic_and_stale_page_at_provider_boundary(self):
+        session = self.client.post("/api/chat/sessions", json={}).json()
+        url = f"/api/chat/sessions/{session['id']}/stream"
+        first = self.client.post(url, json={"message": "解释 Redis 的持久化机制"})
+        self.assertEqual(parse_sse(first.text)[-1][0], "message.done")
+        second = self.client.post(url, json={
+            "message": "TCP 的三次握手是什么",
+            "page_context": {"path": "/redis", "title": "Redis 持久化", "selected_text": "RDB 与 AOF"},
+        })
+        self.assertEqual(parse_sse(second.text)[-1][0], "message.done")
+        self.assertEqual(self.model.messages[-1]["content"], "TCP 的三次握手是什么")
+        self.assertNotIn("Redis", str(self.model.messages))
+        self.assertNotIn("ContextBlock:current_page", str(self.model.messages))
+        saved = self.client.get(f"/api/chat/sessions/{session['id']}/messages").json()["items"]
+        self.assertEqual(len(saved), 4)
+        self.assertEqual(saved[2]["metadata"]["page_context"]["title"], "Redis 持久化")
+
+    def test_short_followup_keeps_latest_topic_at_provider_boundary(self):
+        session = self.client.post("/api/chat/sessions", json={}).json()
+        url = f"/api/chat/sessions/{session['id']}/stream"
+        for query in ("解释 Redis 的持久化机制", "介绍二叉树的层序遍历", "它的复杂度呢？"):
+            response = self.client.post(url, json={"message": query})
+            self.assertEqual(parse_sse(response.text)[-1][0], "message.done")
+        self.assertIn("二叉树", str(self.model.messages))
+        self.assertNotIn("Redis", str(self.model.messages))
+        self.assertEqual(self.model.messages[-1]["content"], "它的复杂度呢？")
+
+    def test_implicit_reference_on_a_new_page_does_not_resume_old_topic(self):
+        session = self.client.post("/api/chat/sessions", json={}).json()
+        url = f"/api/chat/sessions/{session['id']}/stream"
+        first = self.client.post(url, json={"message": "解释 Redis 的持久化机制"})
+        self.assertEqual(parse_sse(first.text)[-1][0], "message.done")
+        response = self.client.post(url, json={
+            "message": "它呢？",
+            "page_context": {"path": "/lru", "title": "LRU 缓存", "page_type": "problem", "problem_id": 146},
+        })
+        self.assertEqual(parse_sse(response.text)[-1][0], "message.done")
+        self.assertNotIn("Redis", str(self.model.messages))
+        self.assertIn("LRU 缓存", str(self.model.messages))
 
 
 if __name__ == "__main__":

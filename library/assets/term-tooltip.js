@@ -22,7 +22,7 @@
                            "SCRIPT", "STYLE", "TEXTAREA", "INPUT", "BUTTON", "SVG"]);
 
   var state = { glossary: null, index: null, style: "underline", trigger: "hover", root: null,
-              scopeKey: "", density: "once" };   // density: once=一本书一次 | all=全部标注
+              scopeKey: "", density: "once", regex: null, annotateToken: 0 };   // density: once=一本书一次 | all=全部标注
   var pop = null;       // 单例浮层
   var activeEl = null;  // 当前打开的术语
 
@@ -96,16 +96,13 @@
     return out;
   }
 
-  function annotate() {
-    if (!state.root || !state.index) return 0;
-    var re = buildRegex(state.index);
-    if (!re) return 0;
-    var items = collectTextNodes(state.root);
+  // 处理一个文本节点切片；返回新增标注数量。
+  function annotateSlice(items, start, end, re, seenFirst) {
     var count = 0;
-    var seenFirst = {};   // 「小节序号 + 术语」→ 是否已标注，控制每节最多一次
-    items.forEach(function (item) {
+    for (var i = start; i < end; i += 1) {
+      var item = items[i];
       var node = item.node;
-      var secIdx = item.section;
+      if (!node || !node.parentNode) continue;
       var text = node.nodeValue;
       re.lastIndex = 0;
       var m, last = 0, frag = null;
@@ -142,8 +139,42 @@
         if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
         node.parentNode.replaceChild(frag, node);
       }
-    });
+    }
     return count;
+  }
+
+  // 首屏优先 + 分片：先同步处理前 120 个文本节点，其余在浏览器空闲时
+  // 按时间预算继续；这样超长章节不会在 DOMContentLoaded 阶段形成长任务。
+  function annotateProgressive() {
+    if (!state.root || !state.index) return 0;
+    var re = state.regex || (state.regex = buildRegex(state.index));
+    if (!re) return 0;
+    var token = ++state.annotateToken;
+    var items = collectTextNodes(state.root);
+    if (!items.length) return 0;
+    var seenFirst = {};
+    var firstEnd = Math.min(items.length, 120);
+    var count = annotateSlice(items, 0, firstEnd, re, seenFirst);
+    var index = firstEnd;
+    var schedule = window.requestIdleCallback || function (callback) {
+      return setTimeout(function () { callback({ timeRemaining: function () { return 8; } }); }, 1);
+    };
+    function run(deadline) {
+      if (token !== state.annotateToken) return;
+      var remaining = deadline && typeof deadline.timeRemaining === "function"
+        ? deadline.timeRemaining() : 8;
+      var chunkSize = remaining > 4 ? 120 : 40;
+      var end = Math.min(items.length, index + chunkSize);
+      count += annotateSlice(items, index, end, re, seenFirst);
+      index = end;
+      if (index < items.length) schedule(run, { timeout: 800 });
+    }
+    if (index < items.length) schedule(run, { timeout: 800 });
+    return count;
+  }
+
+  function annotate() {
+    return annotateProgressive();
   }
 
   function ensurePop() {
@@ -310,7 +341,7 @@
   function loadGlossary(url) {
     return fetch(url, { cache: "force-cache" })
       .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error("HTTP " + r.status)); })
-      .then(function (d) { state.glossary = d.entries || []; state.index = d.index || {}; return d; });
+      .then(function (d) { state.glossary = d.entries || []; state.index = d.index || {}; state.regex = null; return d; });
   }
 
   window.GlossaryEngine = {

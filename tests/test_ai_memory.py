@@ -1,22 +1,23 @@
 import asyncio
-import json
-import os
 import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
+import interview_forge.ai.chat.service as chat_service_module
 from interview_forge.ai.chat.context_builder import ContextBuilder
 from interview_forge.ai.chat.service import ChatService
-import interview_forge.ai.chat.service as chat_service_module
-from interview_forge.ai.memory import MemoryExtractor, MemoryPolicy, MemoryStore, memory_worthy
+from interview_forge.ai.config import AIConfig
+from interview_forge.ai.memory import (
+    MemoryExtractor,
+    MemoryPolicy,
+    MemoryStore,
+    memory_worthy,
+)
 from interview_forge.ai.memory.extractor import _deterministic_candidate
 from interview_forge.api.app import app
-from interview_forge.api.routers import chat as chat_router
-from interview_forge.ai.config import AIConfig
 from interview_forge.core import default_runtime
 from interview_forge.core.runtime import server_runtime
 from interview_forge.services.auth import create_session, create_user
@@ -170,6 +171,60 @@ class MemoryDomainTests(unittest.TestCase):
         )
         self.assertLessEqual(len(result), 6)
         self.assertLessEqual(sum(max(1, len(item.display_text) // 3) for item in result), 20)
+
+    def test_retrieval_skips_irrelevant_high_importance_memory_but_keeps_stable_preference(self):
+        from interview_forge.ai.memory.retriever import MemoryRetriever
+
+        store = MemoryStore()
+        store.save_candidate(
+            user_db=self.db, candidate=self.candidate("记住我的长期目标是算法工程"),
+            source_session_id="old-topic", source_message_id=1,
+        )
+        store.save_candidate(
+            user_db=self.db, candidate=self.candidate("记住我喜欢先讲思路"),
+            source_session_id="preference", source_message_id=2,
+        )
+
+        # A preference about explanation order applies to an explanation
+        # request, while an unrelated high-importance career goal does not.
+        result = MemoryRetriever(store).retrieve(
+            user_db=self.db, query="请解释 HTTP/2 的多路复用"
+        )
+        self.assertEqual(
+            {item.canonical_key for item in result}, {"preference.explanation_order"}
+        )
+
+        related = MemoryRetriever(store).retrieve(
+            user_db=self.db, query="算法工程岗位面试应该怎么准备"
+        )
+        self.assertIn("goal.target_role", {item.canonical_key for item in related})
+
+    def test_unrelated_high_importance_memory_does_not_create_context_block(self):
+        from interview_forge.ai.memory import MemoryContextBuilder, MemoryRetriever
+
+        store = MemoryStore()
+        store.save_candidate(
+            user_db=self.db, candidate=self.candidate("记住我的长期目标是算法工程"),
+            source_session_id="old-topic", source_message_id=1,
+        )
+        self.assertIsNone(
+            MemoryContextBuilder(retriever=MemoryRetriever(store)).build(
+                user_db=self.db, query="为什么 TCP 关闭需要四次挥手"
+            )
+        )
+
+    def test_personal_goal_and_time_limit_do_not_attach_to_generic_technical_words(self):
+        from interview_forge.ai.memory import MemoryRetriever
+
+        store = MemoryStore()
+        for text in ("记住我的长期目标是算法工程", "记住我每天只有30分钟学习时间"):
+            store.save_candidate(
+                user_db=self.db, candidate=self.candidate(text),
+                source_session_id="old-topic", source_message_id=1,
+            )
+        for query in ("算法复杂度是什么", "TCP 的 TIME_WAIT 持续多久", "解释向量的方向", "为什么缓存30分钟"):
+            with self.subTest(query=query):
+                self.assertEqual(MemoryRetriever(store).retrieve(user_db=self.db, query=query), [])
 
     def test_cross_session_context_and_learning_block_order(self):
         store = MemoryStore()

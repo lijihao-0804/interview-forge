@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import sqlite3
 import threading
@@ -9,6 +10,7 @@ import time
 import uuid
 from collections.abc import AsyncIterator, Callable, Mapping
 from contextlib import closing
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -21,11 +23,15 @@ from interview_forge.ai.generation import (
 )
 from interview_forge.ai.resolver import resolve_ai_runtime
 from interview_forge.ai.telemetry import debug_ai_event
-from interview_forge.ai.chat.context_builder import ContextBuilder
+from interview_forge.ai.chat.context_builder import (
+    CONTEXT_BUDGET_POLICY_VERSION,
+    ContextBuilder,
+)
 from interview_forge.ai.chat.context_blocks import ContextBlock
 from interview_forge.ai.chat.learning_context import LearningContextProvider
 from interview_forge.ai.chat.page_context import PageContext, PageContextProvider
 from interview_forge.ai.chat.recent_action_context import RecentActionContextProvider
+from interview_forge.ai.chat.relevance import POLICY_VERSION, page_is_relevant
 from interview_forge.ai.chat.tool_orchestrator import ToolOrchestrator
 from interview_forge.ai.memory import (
     MemoryContextBuilder,
@@ -36,11 +42,12 @@ from interview_forge.ai.memory import (
     memory_worthy,
 )
 from interview_forge.ai.provider import stream_chat_chunks
+from interview_forge.ai.token_counting import canonical_json
 from interview_forge.ai.tasks import _release_model_slot, _try_claim_model_slot
 from interview_forge.core.runtime import server_runtime
 from interview_forge.ai.tools.policy import ToolPolicy
 from interview_forge.ai.tools.registry import ToolRegistry, build_default_tool_registry
-from interview_forge.ai.tools.contracts import ToolExecutionContext
+from interview_forge.ai.tools.contracts import LibrarySource, ToolExecutionContext
 from interview_forge.observability.ai_trace import TraceRecorder, utc_now_iso
 
 
@@ -49,6 +56,19 @@ MAX_CHAT_BODY_BYTES = 20_000
 MAX_CHAT_TITLE_CHARS = 64
 MAX_SESSION_ID_CHARS = 128
 DEFAULT_SESSION_TITLE = "新会话"
+CHAT_PROMPT_POLICY_VERSION = "chat-prompt-policy-v2"
+CONFIG_FINGERPRINT_SCHEMA_VERSION = 2
+
+_FINGERPRINT_CAPABILITY_KEYS = (
+    "streaming",
+    "tools",
+    "structured_output",
+    "reasoning",
+    "reasoning_modes",
+    "reasoning_efforts",
+    "reasoning_budget",
+    "context_window",
+)
 
 _ACTIVE_SESSIONS: set[tuple[str, str]] = set()
 _ACTIVE_SESSIONS_LOCK = threading.Lock()
@@ -166,6 +186,124 @@ def _release_model() -> None:
     _release_model_slot()
 
 
+def _runtime_config_fingerprint(
+    config: AIConfig,
+    runtime: Any,
+    *,
+    context_budget: Any,
+    tool_policy: ToolPolicy,
+    tool_schemas: Any,
+    system_prompt: str,
+    prompt_estimator: Any,
+    tool_schema_status: str = "available",
+) -> str:
+    """Return identity for the versioned, non-sensitive runtime whitelist.
+
+    The payload deliberately has no endpoint URL, credentials, headers,
+    cookies, database identity, request text or prepared messages.  A managed
+    provider record is represented by its provider id, vendor and capability
+    versions.  ENV-only configuration explicitly records that endpoint
+    identity is not covered.
+    """
+    provider_id = getattr(runtime, "provider_id", None)
+    provider_id = str(provider_id) if provider_id else None
+    vendor = getattr(runtime, "vendor", None)
+    canonical_model = getattr(runtime, "canonical_model", None)
+    capability_catalog_version = getattr(
+        runtime, "capability_catalog_version", None
+    )
+    reasoning_policy = getattr(runtime, "reasoning_policy", None)
+    capabilities = getattr(runtime, "capabilities", {})
+    capabilities = capabilities if isinstance(capabilities, Mapping) else {}
+    selected_capabilities = {
+        key: capabilities.get(key) for key in _FINGERPRINT_CAPABILITY_KEYS
+    }
+    estimator_name = str(
+        getattr(prompt_estimator, "name", type(prompt_estimator).__name__)
+    )
+    estimator_identity = {
+        "name": estimator_name,
+        "type": (
+            f"{type(prompt_estimator).__module__}."
+            f"{type(prompt_estimator).__qualname__}"
+        ),
+        "version": getattr(prompt_estimator, "version", None),
+        "chars_per_token": getattr(prompt_estimator, "chars_per_token", None),
+    }
+    payload = {
+        "schema_version": CONFIG_FINGERPRINT_SCHEMA_VERSION,
+        "endpoint_identity": {
+            "included": False,
+            "binding_coverage": (
+                "managed_provider_record"
+                if provider_id
+                else "env_provider_id_unavailable"
+            ),
+        },
+        "provider_binding": {
+            "config_source": str(
+                getattr(runtime, "config_source", "env") or "env"
+            ),
+            "provider_id": provider_id,
+            "vendor": str(vendor) if vendor else None,
+            "provider_selector": str(config.provider or ""),
+            "model": str(config.model or ""),
+            "canonical_model": (
+                str(canonical_model) if canonical_model else None
+            ),
+            "wire_api": str(config.wire_api or ""),
+            "capability_source": (
+                str(getattr(runtime, "capability_source", "unknown"))
+            ),
+            "capability_profile": (
+                str(getattr(runtime, "capability_profile", ""))
+            ),
+            "capability_catalog_version": (
+                str(capability_catalog_version)
+                if capability_catalog_version else None
+            ),
+        },
+        "reasoning": {
+            "mode": str(
+                getattr(reasoning_policy, "mode", config.reasoning_mode) or ""
+            ),
+            "effort": getattr(
+                reasoning_policy, "effort", config.reasoning_effort or None
+            ),
+            "budget_tokens": getattr(
+                reasoning_policy, "budget_tokens", config.reasoning_budget
+            ),
+            "thinking_enabled": bool(config.thinking_enabled),
+            "configured_effort": str(config.reasoning_effort or ""),
+            "configured_mode": str(config.reasoning_mode or ""),
+            "configured_budget": config.reasoning_budget,
+        },
+        "model_capabilities": selected_capabilities,
+        "prompt_identity": {
+            "policy_version": CHAT_PROMPT_POLICY_VERSION,
+            "system_prompt_sha256": hashlib.sha256(
+                str(system_prompt).encode("utf-8")
+            ).hexdigest(),
+            "estimator": estimator_identity,
+        },
+        "policies": {
+            "relevance": POLICY_VERSION,
+            "context_budget": CONTEXT_BUDGET_POLICY_VERSION,
+        },
+        "context_budget": asdict(context_budget),
+        "tooling": {
+            "policy": asdict(tool_policy),
+            "schema_status": str(tool_schema_status),
+            "schema_sha256": hashlib.sha256(
+                canonical_json(tool_schemas).encode("utf-8")
+            ).hexdigest(),
+        },
+    }
+    return hashlib.sha256(
+        canonical_json(payload).encode("utf-8")
+    ).hexdigest()
+
+
 class ChatService:
     """Own chat persistence and provider streaming for one authenticated DB."""
 
@@ -184,7 +322,10 @@ class ChatService:
         self.runtime_loader = runtime_loader if runtime_loader is not None else (None if config_loader is not None else resolve_ai_runtime)
         self.model_factory = model_factory or make_chat_model
         self.stream_factory = stream_factory
-        self.tool_registry = tool_registry or build_default_tool_registry()
+        self.tool_registry = (
+            build_default_tool_registry()
+            if tool_registry is None else tool_registry
+        )
         self.tool_policy = tool_policy or ToolPolicy()
         self.memory_extractor = memory_extractor or MemoryExtractor()
         self._background_memory_tasks: set[asyncio.Task[Any]] = set()
@@ -459,21 +600,20 @@ class ChatService:
 
     @staticmethod
     def _save_assistant_message(
-        *, user_db: Path, session_id: str, content: str, stream_message_id: str, usage: Mapping[str, Any]
+        *, user_db: Path, session_id: str, content: str, stream_message_id: str, usage: Mapping[str, Any],
+        library_sources: tuple[LibrarySource, ...] = (),
     ) -> dict[str, Any]:
         if not content.strip():
             raise ValueError("assistant message must contain visible text")
         timestamp = _now()
-        metadata = json.dumps(
-            {"stream_message_id": stream_message_id, "usage": dict(usage)},
-            ensure_ascii=False,
-            separators=(",", ":"),
-        )
+        metadata = {"stream_message_id": stream_message_id, "usage": dict(usage)}
+        if library_sources:
+            metadata["library_sources"] = list(library_sources)
         with closing(server_runtime.connect(user_db)) as connection:
             cursor = connection.execute(
                 "INSERT INTO chat_messages(session_id, role, content, metadata_json, created_at) "
                 "VALUES (?, 'assistant', ?, ?, ?)",
-                (session_id, content, metadata, timestamp),
+                (session_id, content, json.dumps(metadata, ensure_ascii=False, separators=(",", ":")), timestamp),
             )
             connection.execute(
                 "UPDATE chat_sessions SET updated_at = ? WHERE id = ?",
@@ -653,7 +793,10 @@ class ChatService:
                 )
                 if recent_action_block is not None:
                     context_blocks.append(recent_action_block)
-                page_context_block = PageContextProvider().build(normalized_page_context)
+                page_context_block = (
+                    PageContextProvider().build(normalized_page_context)
+                    if page_is_relevant(clean_message, normalized_page_context) else None
+                )
                 if page_context_block is not None:
                     context_blocks.append(page_context_block)
                 learning_task = None
@@ -678,11 +821,37 @@ class ChatService:
                         trusted=False,
                     ))
                 from interview_forge.ai.chat.token_budget import budget_for_context_window
-                context_budget = budget_for_context_window(
+                model_context_window = (
                     (getattr(runtime, "capabilities", {}) or {}).get("context_window")
                     if runtime is not None else None
                 )
-                context_builder = ContextBuilder(budget=context_budget, context_blocks=context_blocks)
+                context_budget = budget_for_context_window(
+                    model_context_window
+                )
+                try:
+                    tool_schemas = self.tool_registry.model_schemas()
+                    tool_schema_status = "available"
+                except Exception:
+                    # Orchestration already owns the no-tools fallback. Identity
+                    # construction must not turn a schema issue into a new chat
+                    # failure before that boundary is reached.
+                    tool_schemas = []
+                    tool_schema_status = "unavailable"
+                context_builder = ContextBuilder(
+                    budget=context_budget, context_blocks=context_blocks,
+                    current_page_path=normalized_page_context.path
+                    if normalized_page_context is not None and page_context_block is not None else None,
+                )
+                config_fingerprint = _runtime_config_fingerprint(
+                    config,
+                    runtime,
+                    context_budget=context_budget,
+                    tool_policy=self.tool_policy,
+                    tool_schemas=tool_schemas,
+                    system_prompt=context_builder.system_prompt,
+                    prompt_estimator=context_builder.estimator,
+                    tool_schema_status=tool_schema_status,
+                )
                 messages = await asyncio.to_thread(
                     context_builder.build,
                     user_db=path,
@@ -698,7 +867,41 @@ class ChatService:
                     input_tokens_estimated=estimated_prompt_tokens,
                     summary_present=context_builder.last_build.get("summary_present", False),
                     learning_task=learning_task,
+                    relevance_policy=context_builder.last_build.get("relevance_policy"),
+                    history_mode=context_builder.last_build.get("history_mode"),
+                    history_reason=context_builder.last_build.get("history_reason"),
+                    history_selected_count=context_builder.last_build.get("history_selected_count"),
+                    history_omitted_count=context_builder.last_build.get("history_omitted_count"),
+                    context_blocks=context_builder.last_build.get("context_blocks"),
+                    context_blocks_irrelevant=context_builder.last_build.get("context_blocks_irrelevant"),
+                    prepared_context_hash=context_builder.last_build.get("prepared_context_hash"),
+                    config_fingerprint=config_fingerprint,
+                    context_budget_policy_version=context_builder.last_build.get(
+                        "context_budget_policy_version"
+                    ),
+                    context_window=model_context_window,
+                    reserved_output_tokens=context_budget.output_tokens,
+                    endpoint_identity_included=False,
+                    provider_binding_source=(
+                        "managed_provider_record"
+                        if getattr(runtime, "provider_id", None)
+                        else "env_provider_id_unavailable"
+                    ),
                 )
+                if trace_recorder is not None:
+                    # Only selection metadata passes the recorder allowlist;
+                    # no message, summary, memory or page text is persisted.
+                    await asyncio.to_thread(
+                        trace_recorder.record,
+                        event_type="context", name="context_selection", status="success",
+                        metadata={
+                            **context_builder.last_build,
+                            "config_fingerprint": config_fingerprint,
+                            "context_window": model_context_window,
+                            "reserved_output_tokens": context_budget.output_tokens,
+                            "page_context_omitted": normalized_page_context is not None and page_context_block is None,
+                        },
+                    )
                 if explicit_result is not None and not explicit_result.success:
                     answer = self._explicit_failure_message(explicit_result)
                     answer_parts.append(answer)
@@ -738,6 +941,8 @@ class ChatService:
                     artifacts={
                         "learning_context": learning_context,
                         "username": path.parent.name,
+                        "model_context_window": model_context_window,
+                        "reserved_output_tokens": context_budget.output_tokens,
                     },
                 )
                 orchestrator = ToolOrchestrator(
@@ -792,6 +997,7 @@ class ChatService:
                         content=answer,
                         stream_message_id=stream_message_id,
                         usage=usage_payload,
+                        library_sources=turn_result.library_sources,
                     )
                     assistant_created_at = str(saved_assistant["created_at"])
                     assistant_saved = True
@@ -820,6 +1026,8 @@ class ChatService:
                         trace_recorder=trace_recorder,
                     )
                 done_payload = {"message_id": stream_message_id, "usage": usage_payload}
+                if assistant_saved and turn_result.library_sources:
+                    done_payload["library_sources"] = list(turn_result.library_sources)
                 if assistant_created_at:
                     done_payload["created_at"] = assistant_created_at
                 yield _event("message.done", done_payload)

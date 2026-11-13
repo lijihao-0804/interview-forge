@@ -12,6 +12,7 @@ from pathlib import Path
 from urllib.parse import unquote
 
 PUBLIC_FILES = frozenset({
+    "/docs/面试准备/项目面试报告.html",
     "/",
     "/index.html",
     "/cockpit.html",
