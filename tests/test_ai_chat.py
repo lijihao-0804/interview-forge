@@ -425,6 +425,35 @@ class AIChatContractTests(unittest.TestCase):
         self.assertEqual([item["role"] for item in history], ["user", "assistant"])
         self.assertEqual(history[-1]["content"], "146 是 LRU 缓存。")
 
+    def test_forced_tool_only_reply_is_grounded_in_sse_storage_and_replay(self):
+        from tests.test_ai_tool_orchestrator import ScriptedModel
+
+        session = self.client.post("/api/chat/sessions", json={}).json()
+        base = f"/api/chat/sessions/{session['id']}"
+        self.client.post(base + "/stream", json={"message": "园艺笔记：窗台的盆需要换土。"})
+        call = {"id": "history", "name": "recall_chat_history", "args": {"query": "园艺笔记"}}
+        wire = '<｜｜DSML｜｜ calls><｜｜DSML｜｜ invoke name="recall_chat_history">ARG_PRIVATE #1</｜｜DSML｜｜ invoke></｜｜DSML｜｜ calls>'
+        model = ScriptedModel([[FakeChunk(tool_calls=[call])], [FakeChunk(ch) for ch in wire]])
+        self.service.model_factory = lambda _config: model
+        self.service.tool_policy = ToolPolicy(max_rounds=1)
+        request_body = {"message": "我之前说过火车几点出发吗？", "client_request_id": "recall-protocol-replay"}
+        first = parse_sse(self.client.post(base + "/stream", json=request_body).text)
+        retry = parse_sse(self.client.post(base + "/stream", json=request_body).text)
+        self.assertEqual(model.calls, 2)
+        self.assertEqual([e for e, _ in first].count("tool.done"), 1)
+        answer = "".join(data["delta"] for event, data in first if event == "message.delta")
+        self.assertIn("未能确认", answer)
+        self.assertNotIn("不存在", answer)
+        self.assertNotIn("#", answer)
+        self.assertEqual(first[-1][0], "message.done")
+        self.assertFalse(first[-1][1].get("history_sources"))
+        self.assertNotIn("DSML", str(first) + str(retry))
+        self.assertNotIn("ARG_PRIVATE", str(first) + str(retry))
+        self.assertNotIn("换土", answer)
+        saved = self.client.get(base + "/messages").json()["items"][-1]
+        self.assertEqual(saved["content"], answer)
+        self.assertFalse(saved["metadata"].get("history_sources"))
+
     def test_library_sources_from_parallel_tools_reach_model_sse_and_owner_history(self):
         model = LibrarySearchModel("TCP", "线程池", "TCP 与 UDP")
         self.service.model_factory = lambda _config: model

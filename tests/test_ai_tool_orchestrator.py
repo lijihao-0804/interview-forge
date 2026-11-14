@@ -7,6 +7,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
+from interview_forge.ai.chat.final_tool_reply import visible_final_reply
 from interview_forge.ai.chat.request_budget import estimate_json_tokens
 from interview_forge.ai.chat.tool_orchestrator import ToolOrchestrator
 from interview_forge.ai.tools.contracts import (
@@ -107,6 +108,54 @@ class ToolOrchestratorTests(unittest.TestCase):
         self.assertEqual(events[0]["data"]["delta"], "你好")
         self.assertEqual(orchestrator.last_result.tool_calls_count, 0)
         self.assertEqual(orchestrator.last_result.usage["output_tokens"], 2)
+
+    def test_forced_round_keeps_real_answer_and_excludes_call_ids_from_sources(self):
+        items = [
+            {"message_id": 7, "role": "user", "offset": 0, "excerpt": "周六再出发。"},
+            {"message_id": 9, "role": "user", "offset": 0, "excerpt": "无关记录。"},
+        ]
+        registry = ToolRegistry([ToolSpec("recall_chat_history", "历史", "回查", EmptyArgs, lambda *_: {"items": items})])
+        call = {"id": "r", "name": "recall_chat_history", "args": {}}
+        answer = "当时定在周六出发（#7）。"
+        protocol = '<｜｜DSML｜｜ calls><｜｜DSML｜｜ invoke name="read">#9</｜｜DSML｜｜ invoke></｜｜DSML｜｜ calls>'
+        model = ScriptedModel([[FakeChunk(tool_calls=[call])], [FakeChunk(ch) for ch in answer + protocol + "<｜｜end▁of▁sentence｜｜>"]])
+        engine = ToolOrchestrator(registry=registry, policy=ToolPolicy(max_rounds=1))
+        events = asyncio.run(_collect(engine, model, _context(self.db)))
+        self.assertEqual([e["data"]["delta"] for e in events if e["event"] == "message.delta"], [answer])
+        self.assertEqual([s["message_id"] for s in engine.last_result.history_sources], [7])
+        self.assertEqual(engine.last_result.visible_text_chars, len(answer))
+        self.assertEqual(model.calls, 2)
+        self.assertEqual(engine.last_result.tool_calls_count, 1)
+
+    def test_blocked_forced_structured_call_does_not_repeat_or_invent_recall(self):
+        def should_not_run(*_):
+            self.fail("blocked and tool-disabled calls must never execute")
+
+        registry = ToolRegistry([ToolSpec("recall_chat_history", "历史", "回查", EmptyArgs, should_not_run)])
+        calls = [{"id": str(i), "name": "recall_chat_history", "args": {}} for i in range(2)]
+        model = ScriptedModel([[FakeChunk(tool_calls=calls)], [FakeChunk(tool_calls=calls[:1], usage={"output_tokens": 8})]])
+        engine = ToolOrchestrator(registry=registry, policy=ToolPolicy(max_calls_per_turn=1))
+        events = asyncio.run(_collect(engine, model, _context(self.db)))
+        self.assertEqual(model.calls, 2)
+        self.assertEqual(engine.last_result.tool_calls_count, 0)
+        self.assertEqual(engine.last_result.history_sources, ())
+        self.assertEqual(engine.last_result.usage["output_tokens"], 8)
+        self.assertIn("未能确认", events[-1]["data"]["delta"])
+
+    def test_dsml_dialects_truncation_and_markdown_examples(self):
+        for tag in ("function_calls", "tool_calls", " calls"):
+            block = "<｜DSML｜" + tag + "><｜DSML｜invoke name='lookup'>hidden</｜DSML｜invoke></｜DSML｜" + tag + ">"
+            with self.subTest(tag=tag):
+                self.assertEqual(visible_final_reply("前文。" + block + "<｜end▁of▁sentence｜>"), ("前文。", True))
+                self.assertEqual(visible_final_reply(block + "后文。"), ("后文。", True))
+                self.assertEqual(visible_final_reply(block[:block.index("hidden") + 3]), ("", True))
+                sample = "用 `" + block + "` 表示，或者\n```xml\n" + block + "\n```\n"
+                self.assertEqual(visible_final_reply(sample + block), (sample, True))
+        normal = "x < y。HTML 可以这样写：\n```html\n<invoke name='test'>值</invoke>\n```"
+        self.assertEqual(visible_final_reply(normal), (normal, False))
+        self.assertEqual(visible_final_reply("<|DSML|functi"), ("", True))
+        doubled = "<｜｜DSML｜｜ calls><｜｜DSML｜｜ invoke name='read'>hidden</｜｜DSML｜｜ invoke></｜｜DSML｜｜ calls>"
+        self.assertEqual(visible_final_reply("先。" + doubled + "<｜｜end▁of▁sentence｜｜>后。"), ("先。后。", True))
 
     def test_empty_normal_round_is_explicitly_invalid(self):
         model = ScriptedModel([[FakeChunk("")]])

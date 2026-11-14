@@ -10,6 +10,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+from interview_forge.ai.chat.final_tool_reply import visible_final_reply
 from interview_forge.ai.chat.history_sources import HistorySource, cited_history_sources
 from interview_forge.ai.chat.request_budget import (
     RequestAdmission,
@@ -43,9 +44,11 @@ TOOLING_UNAVAILABLE_NOTICE = (
     "不得自行猜测，也不要伪造工具结果。"
 )
 TOOLS_DISABLED_NOTICE = (
-    "工具调用上限已达到。不要再请求工具；仅根据已有上下文与已经返回的工具结果回答，"
-    "明确说明无法确认的信息。"
+    "工具调用上限已达到。直接用自然语言回答，不要再生成工具调用。只用已有资料。历史候选与问题"
+    "说法不同但含义相符时也可作证，引用能支持答案的原文和消息编号。其余候选略过；依据不足就说明未能确认。"
 )
+_UNCONFIRMED_HISTORY = "本次查询未能确认你问的历史记录。"
+_UNCONFIRMED_RESULT = "现有信息不足以确认答案。"
 TOOL_LIMIT_ERROR_CODE = "tool_limit_reached"
 TOOL_LIMIT_ERROR_MESSAGE = "本轮工具调用上限已达到"
 CONTEXT_BUDGET_ERROR_CODE = "context_budget_exceeded"
@@ -318,6 +321,22 @@ class ToolOrchestrator:
                     # change the model/tool contract.
                     pass
 
+    async def _final_answer_round(self, model, messages, *, context, round_index, recalled, pending):
+        # Keep this bounded, tool-disabled round private until its answer text
+        # can be distinguished from a provider-native tool invocation.
+        async for _ in self._stream_round(model, messages, context=context, round_index=round_index):
+            pass
+        result = self._round_result
+        answer, suppressed = visible_final_reply(result.text)
+        if not answer.strip() and (suppressed or result.calls):
+            # Nearest passages alone cannot establish relevance, even when all
+            # were indexed. Never turn them into automatic quotes or citations.
+            if pending:
+                answer = "操作请求仍在等待你确认。"
+            else:
+                answer = _UNCONFIRMED_HISTORY if recalled else _UNCONFIRMED_RESULT
+        return _RoundResult(answer, (), result.usage)
+
     async def _execute_calls(
         self,
         *,
@@ -579,77 +598,47 @@ class ToolOrchestrator:
                         },
                     )
                 self._append_tool_messages(history, calls, [], sources_by_position=sources_by_position, blocked=True)
-                final_messages = _with_tool_notice(history, TOOLS_DISABLED_NOTICE)
-                async for item in self._stream_round(
-                    model,
-                    final_messages,
-                    context=context,
-                    tool_schemas=(),
-                    round_index=round_index + 2,
-                ):
+            else:
+                call_count += len(calls)
+                tool_names.extend(call.name for call in calls)
+                async for item in self._execute_calls(calls=calls, context=context):
                     yield item
-                final_result = self._round_result
-                visible_text_parts.append(final_result.text)
-                for key, value in final_result.usage.items():
-                    total_usage[key] = total_usage.get(key, 0) + value
-                self.last_result = ToolTurnResult(
-                    usage=total_usage,
-                    tool_calls_count=call_count,
-                    tool_names=tuple(dict.fromkeys(tool_names)),
-                    tool_run_ids=tuple(tool_run_ids),
-                    visible_text_chars=len("".join(visible_text_parts).strip()),
-                    has_valid_tool_activity=has_valid_tool_activity,
-                    has_pending_confirmation=has_pending_confirmation,
-                    library_sources=visible_library_sources(index_offset=len(final_messages) - len(history)),
-                    history_sources=visible_history_sources(final_result.text, len(final_messages) - len(history)),
+                results = list(self._call_results)
+                if any(result.status in {"ok", "cache_hit", "confirmation_required"} for result in results):
+                    has_valid_tool_activity = True
+                if any(result.status == "confirmation_required" and result.action_id for result in results):
+                    has_pending_confirmation = True
+                total_result_tokens += self._append_tool_messages(
+                    history, calls, results, sources_by_position=sources_by_position, recall_by_position=recall_by_position,
                 )
-                return
+                tool_run_ids.extend(result.run_id for result in results if result.run_id)
+                if round_index + 1 < self.policy.max_rounds and total_result_tokens <= self.policy.max_total_result_tokens:
+                    continue
 
-            call_count += len(calls)
-            for call in calls:
-                tool_names.append(call.name)
-            async for item in self._execute_calls(calls=calls, context=context):
-                yield item
-            results = list(self._call_results)
-            if any(result.status in {"ok", "cache_hit", "confirmation_required"} for result in results):
-                has_valid_tool_activity = True
-            if any(
-                result.status == "confirmation_required" and bool(result.action_id)
-                for result in results
-            ):
-                has_pending_confirmation = True
-            total_result_tokens += self._append_tool_messages(
-                history, calls, results, sources_by_position=sources_by_position, recall_by_position=recall_by_position,
+            final_messages = _with_tool_notice(history, TOOLS_DISABLED_NOTICE)
+            final_result = await self._final_answer_round(
+                model, final_messages, context=context, round_index=round_index + 2,
+                recalled="recall_chat_history" in tool_names or any(call.name == "recall_chat_history" for call in calls),
+                pending=has_pending_confirmation,
             )
-            for result in results:
-                if result.run_id:
-                    tool_run_ids.append(result.run_id)
-            if round_index + 1 >= self.policy.max_rounds or total_result_tokens > self.policy.max_total_result_tokens:
-                final_messages = _with_tool_notice(history, TOOLS_DISABLED_NOTICE)
-                async for item in self._stream_round(
-                    model,
-                    final_messages,
-                    context=context,
-                    tool_schemas=(),
-                    round_index=round_index + 2,
-                ):
-                    yield item
-                final_result = self._round_result
+            if final_result.text:
                 visible_text_parts.append(final_result.text)
-                for key, value in final_result.usage.items():
-                    total_usage[key] = total_usage.get(key, 0) + value
-                self.last_result = ToolTurnResult(
-                    usage=total_usage,
-                    tool_calls_count=call_count,
-                    tool_names=tuple(dict.fromkeys(tool_names)),
-                    tool_run_ids=tuple(tool_run_ids),
-                    visible_text_chars=len("".join(visible_text_parts).strip()),
-                    has_valid_tool_activity=has_valid_tool_activity,
-                    has_pending_confirmation=has_pending_confirmation,
-                    library_sources=visible_library_sources(index_offset=len(final_messages) - len(history)),
-                    history_sources=visible_history_sources(final_result.text, len(final_messages) - len(history)),
-                )
-                return
+                yield _event("message.delta", {"delta": final_result.text})
+            for key, value in final_result.usage.items():
+                total_usage[key] = total_usage.get(key, 0) + value
+            offset = len(final_messages) - len(history)
+            self.last_result = ToolTurnResult(
+                usage=total_usage,
+                tool_calls_count=call_count,
+                tool_names=tuple(dict.fromkeys(tool_names)),
+                tool_run_ids=tuple(tool_run_ids),
+                visible_text_chars=len("".join(visible_text_parts).strip()),
+                has_valid_tool_activity=has_valid_tool_activity,
+                has_pending_confirmation=has_pending_confirmation,
+                library_sources=visible_library_sources(index_offset=offset),
+                history_sources=visible_history_sources(final_result.text, offset),
+            )
+            return
 
     def _canonical_call_signature(self, call: NormalizedToolCall) -> str:
         """Build duplicate-call identity from server-normalized arguments."""
