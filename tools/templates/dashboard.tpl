@@ -220,9 +220,12 @@ body.auth-checking .auth-private,body.is-guest .auth-private,body.auth-error .au
 .track-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
 .track-head h2{margin:0;font-size:18px}
 .track-sub{color:var(--muted);font-size:13px}
-.heatmap{display:grid;grid-template-columns:repeat(53,minmax(9px,1fr));gap:3px;overflow-x:auto;padding-bottom:4px}
-.hm-cell{aspect-ratio:1;border-radius:2px;background:var(--panel-soft);border:1px solid var(--line)}
+.heatmap{display:grid;gap:3px;overflow-x:auto;padding-bottom:4px}
+.heatmap:empty{display:none}
+.hm-cell{border-radius:2px;background:var(--panel-soft);border:1px solid var(--line)}
+.heatmap>.hm-cell{height:clamp(14px,1.3vw,24px)}
 .hm-label{display:flex;align-items:center;justify-content:center;min-width:14px;font-size:10px;color:var(--muted);white-space:nowrap}
+.hm-month{justify-content:flex-start}
 .hm-cell.level-0{background:var(--panel-soft);border-color:var(--line)}
 .hm-cell.level-1{background:var(--hot-hm-1);border-color:transparent}
 .hm-cell.level-2{background:var(--hot-hm-2);border-color:transparent}
@@ -258,7 +261,6 @@ body.auth-checking .auth-private,body.is-guest .auth-private,body.auth-error .au
   .hero{grid-template-columns:minmax(0,1fr) minmax(245px,440px)}
   .controls{max-width:1240px}
   .grid{grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
-  .heatmap{--week-column-max:22px;justify-content:start}
 }
 footer{margin-top:25px;color:var(--muted);text-align:center;font-size:13px}
 @media(max-width:1050px){.stats{grid-template-columns:repeat(3,minmax(0,1fr))}}
@@ -835,7 +837,7 @@ function renderHeatmap(){
   const weeks=[];
   for(let i=0;i<cells.length;i+=7)weeks.push(cells.slice(i,i+7));
   while(weeks[weeks.length-1].length<7)weeks[weeks.length-1].push(null);
-  el.style.gridTemplateColumns=`auto repeat(${weeks.length},minmax(9px,var(--week-column-max,1fr)))`;
+  el.style.gridTemplateColumns=`max-content repeat(${weeks.length},minmax(9px,1fr))`;
   const monthRow=['<span class="hm-label"></span>'];
   let prevMonth='';
   for(const week of weeks){
