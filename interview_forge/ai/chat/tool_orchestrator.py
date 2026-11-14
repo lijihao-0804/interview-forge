@@ -341,7 +341,8 @@ class ToolOrchestrator:
                 answer = _UNCONFIRMED_HISTORY if recalled else _UNCONFIRMED_RESULT
         return _RoundResult(answer, (), result.usage)
 
-    async def _quote_answer_round(self, model, context, batches, round_index, *, partial):
+    async def _quote_answer_round(self, model, context, batches, round_index, *, partial, review=False,
+                                 direct_selection=False):
         window, reserve = self._context_budget_inputs(context)
         deepseek = context.artifacts.get("deepseek_chat_completions") is True
         if deepseek:
@@ -351,10 +352,11 @@ class ToolOrchestrator:
             input_tokens = max(0, window - reserve) if window else quote_selection.MAX_INPUT_TOKENS
         messages, items = await asyncio.to_thread(
             quote_selection.prepare, context, batches, input_tokens=input_tokens,
-            result_tokens=self.policy.max_total_result_tokens,
+            result_tokens=self.policy.max_total_result_tokens, review=review,
         )
         if not messages:
-            return _RoundResult(quote_selection.NO_QUOTE, (), {}), ()
+            return _RoundResult(quote_selection.no_quote(context.current_query), (), {}), ()
+        original_context, original_model = context, model
         binder = getattr(model, "bind", None)
         if callable(binder):
             output_limit = min(quote_selection.MAX_OUTPUT_TOKENS, max(1, reserve))
@@ -374,10 +376,14 @@ class ToolOrchestrator:
                     # Drop only the constructor default that ChatOpenAI rewrites.
                     # A shallow copy retains its configured clients and transport.
                     model = model.model_copy(update={"max_tokens": None})
+                if direct_selection:
+                    # The previous reply spent its entire cap on reasoning. Reserve
+                    # this one short retry for the source selections themselves.
+                    output_limit = min(output_limit, quote_selection.MAX_OUTPUT_TOKENS)
                 model = model.bind(extra_body={
                     **(getattr(model, "extra_body", None) or {}),
                     "max_tokens": output_limit,
-                    "thinking": {"type": "enabled"},
+                    "thinking": {"type": "disabled" if direct_selection else "enabled"},
                     "reasoning_effort": "low",
                 })
             else:
@@ -394,6 +400,24 @@ class ToolOrchestrator:
         result = self._round_result
         decision = "" if result.calls or size > quote_selection.MAX_OUTPUT_CHARS else result.text
         answer, refs = await asyncio.to_thread(quote_selection.render, context, decision, items, partial=partial)
+        # A capped stream can contain the start of a valid JSON object but
+        # stop before closing it. Retry incomplete wire output as well as an
+        # entirely empty selection, never a well-formed unsupported claim.
+        exhausted = (deepseek and callable(binder) and not result.calls and size <= quote_selection.MAX_OUTPUT_CHARS
+                     and result.usage.get("output_tokens", 0) >= output_limit
+                     and result.usage.get("reasoning_tokens", 0) > 0
+                     and not quote_selection.has_complete_decision(decision))
+        if (not review and not refs and round_index < self.policy.max_rounds and
+                (exhausted or quote_selection.review_after_rejection(context.current_query, decision, items, batches))):
+            # Recheck a supported paraphrase once. Each call is admitted, traced and
+            # counted, including the first decision if the model still abstains.
+            retry, refs = await self._quote_answer_round(
+                original_model, original_context, batches, round_index + 1, partial=partial,
+                review=True, direct_selection=exhausted,
+            )
+            usage = Counter(result.usage)
+            usage.update(retry.usage)
+            return _RoundResult(retry.text, (), dict(usage)), refs
         return _RoundResult(answer, (), result.usage), refs
 
     async def _execute_calls(
@@ -558,6 +582,8 @@ class ToolOrchestrator:
         has_pending_confirmation = False
         history = list(messages)
         quote_requested = quote_selection.requested(context.current_query)
+        unconfirmed_quote = quote_selection.no_quote(context.current_query)
+        conditional_identity = quote_selection.identity_required(context.current_query)
 
         def visible_library_sources(*, index_offset: int = 0) -> tuple[LibrarySource, ...]:
             sources = {}
@@ -581,8 +607,8 @@ class ToolOrchestrator:
             debug_ai_event("chat_tooling_unavailable", session_id=context.session_id)
             if quote_requested:
                 # Source IDs and quotations need the owner-scoped history read.
-                self.last_result = ToolTurnResult(tooling_unavailable=True, visible_text_chars=len(quote_selection.NO_QUOTE))
-                yield _event("message.delta", {"delta": quote_selection.NO_QUOTE})
+                self.last_result = ToolTurnResult(tooling_unavailable=True, visible_text_chars=len(unconfirmed_quote))
+                yield _event("message.delta", {"delta": unconfirmed_quote})
                 return
             fallback_messages = _with_tool_notice(history, TOOLING_UNAVAILABLE_NOTICE)
             admitted_fallback_messages = await self._admit_model_request(
@@ -634,8 +660,8 @@ class ToolOrchestrator:
                     calls = [NormalizedToolCall(f"recall-request-{round_index + 1}", recall_spec.name,
                                                 {"mode": "semantic", "query": context.current_query.strip()[:96]})]
                 else:
-                    result = _RoundResult(quote_selection.NO_QUOTE, (), result.usage)
-            if quote_requested and any(
+                    result = _RoundResult(unconfirmed_quote, (), result.usage)
+            if quote_requested and not conditional_identity and any(
                 not (spec := self.registry.get(call.name)) or spec.kind != ToolKind.READ or spec.requires_confirmation
                 for call in calls
             ):
@@ -729,20 +755,27 @@ class ToolOrchestrator:
                     final, refs = await self._quote_answer_round(model, context, batches, round_index + 2, partial=partial)
                     for key, value in final.usage.items():
                         total_usage[key] = total_usage.get(key, 0) + value
+                    if conditional_identity and has_pending_confirmation:
+                        final = _RoundResult(final.text + "\n\n操作请求仍在等待你确认。", (), final.usage)
                     yield _event("message.delta", {"delta": final.text})
                     self.last_result = ToolTurnResult(usage=total_usage, tool_calls_count=call_count,
                         tool_names=tuple(dict.fromkeys(tool_names)), tool_run_ids=tuple(tool_run_ids),
-                        visible_text_chars=len(final.text), has_valid_tool_activity=True, history_sources=refs)
+                        visible_text_chars=len(final.text), has_valid_tool_activity=True,
+                        has_pending_confirmation=has_pending_confirmation, history_sources=refs)
                     return
                 if round_index + 1 < self.policy.max_rounds and total_result_tokens <= self.policy.max_total_result_tokens:
                     continue
 
             if quote_requested:
                 # A blocked or failed read cannot be replaced by unverified model text.
+                answer = unconfirmed_quote
+                if conditional_identity and has_pending_confirmation:
+                    answer += "\n\n操作请求仍在等待你确认。"
                 self.last_result = ToolTurnResult(usage=total_usage, tool_calls_count=call_count,
                     tool_names=tuple(dict.fromkeys(tool_names)), tool_run_ids=tuple(tool_run_ids),
-                    visible_text_chars=len(quote_selection.NO_QUOTE), has_valid_tool_activity=has_valid_tool_activity)
-                yield _event("message.delta", {"delta": quote_selection.NO_QUOTE})
+                    visible_text_chars=len(answer), has_valid_tool_activity=has_valid_tool_activity,
+                    has_pending_confirmation=has_pending_confirmation)
+                yield _event("message.delta", {"delta": answer})
                 return
             final_messages = _with_tool_notice(history, TOOLS_DISABLED_NOTICE)
             final_result = await self._final_answer_round(

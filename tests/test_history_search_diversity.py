@@ -134,6 +134,85 @@ class HistorySearchDiversityTests(unittest.TestCase):
             quote = self.recall(topic, "我当时提到码头关闭后的碰头地点。请给我原句。")
             self.assertEqual([x["message_id"] for x in quote], [1, 2])
 
+    def test_quote_keeps_a_relevant_source_covering_a_new_query_term(self):
+        topic = "盆栽 遮阴"
+        first = "盆栽摆在台阶边。"
+        variants = [f"花盆登记到了第{i}页。" for i in range(9)]
+        second = "中午要遮阴，免得叶子晒蔫。"
+        messages = [first, *variants, second]
+        scores = {first: .94, second: .86, **dict.fromkeys(variants, .93)}
+        self.add_messages([("user", m) for m in messages])
+        with patch.object(history_search, "history_encoder", return_value=ScoredEncoder(scores)):
+            items = self.recall(topic, "有哪些可用的办法？请贴原句和消息编号。")
+        self.assertIn(len(messages), [x["message_id"] for x in items])
+        self.assertLessEqual(len(items), 8)
+
+    def test_focused_clause_can_retrieve_a_source_below_the_primary_quality_floor(self):
+        broad = "route planning after dark"
+        focus = "Where could we leave a spare torch"
+        request = f"During a night walk, {focus}? I forgot the trail. Please quote the earlier messages."
+        distractors = [f"The trail office recorded a booking in folder {i}." for i in range(9)]
+        south = "We kept an extra lamp in the picnic shelter."
+        north = "A backup flashlight sat under the bridge."
+        self.add_messages([("user", m) for m in [*distractors, south, north]])
+        # Even a focused lookup must ignore exact matches outside this turn's scope.
+        with closing(sqlite3.connect(self.db)) as db:
+            db.execute("INSERT INTO chat_sessions VALUES ('other','private','now','now')")
+            db.executemany(
+                "INSERT INTO chat_messages(id,session_id,role,content,created_at) VALUES (?,?,'user',?,'now')",
+                [(99, "other", focus), (101, "s", focus)],
+            )
+            db.commit()
+
+        class ByQueryEncoder(ScoredEncoder):
+            query_batches = []
+            documents = []
+
+            def encode(self, texts, *, query=False):
+                if query:
+                    self.query_batches.append(list(texts))
+                    return [s.encode() for s in texts]
+                self.documents.extend(texts)
+                return super().encode(texts)
+
+            def scores(self, query_vector, vectors):
+                primary = super().scores(query_vector, vectors)
+                if query_vector == focus.encode():
+                    return [.95 if n < .7 else (.94 if n > .935 else .70) for n in primary]
+                return primary
+
+        encoder = ByQueryEncoder({**dict.fromkeys(distractors, .92), south: .94, north: .60})
+        with patch.object(history_search, "history_encoder", return_value=encoder):
+            actual = self.recall(broad, request)
+            ordinary = self.recall(broad)
+        ids = {x["message_id"] for x in actual}
+        self.assertTrue({10, 11} <= ids)
+        self.assertNotIn(11, [x["message_id"] for x in ordinary])
+        self.assertEqual(encoder.query_batches, [[broad], [focus], [broad]])
+        self.assertCountEqual(encoder.documents, [*distractors, south, north])
+        self.assertTrue(ids.isdisjoint({99, 101}))
+        self.assertEqual(len(ids), len(actual))
+
+    def test_focused_dense_alternative_gets_a_slot_when_one_role_crowds_lexical_hits(self):
+        from hashlib import sha256
+
+        def candidate(mid, role, word, dense):
+            digest = sha256(str(mid).encode()).digest()
+            return history_search.Candidate(mid, role, 0, 20, digest, frozenset([word]) if word else frozenset(),
+                                            -1, dense)
+
+        subject = candidate(30, "user", "handle", .88)
+        variants = [candidate(i, "assistant", "", .92 - i * .001) for i in range(1, 9)]
+        paraphrase = candidate(31, "user", "", .91)
+        primary = [candidate(i, "user", "", .95) for i in range(50, 58)]
+        scored = [(1.0, .8, subject)] + [(v.dense, 0, v) for v in [*variants, paraphrase]]
+        focused = history_search._focused_candidates(scored, .86)
+        visible = history_search._merge_quote_candidates(primary, focused)
+        # With three searches the verifier may only admit the first five
+        # results from each. Keep both main hits and the focused alternatives.
+        self.assertEqual([c.message_id for c in visible[:5]], [50, 51, 30, 1, 31])
+        self.assertEqual({c.message_id for c in visible}, {50, 51, 52, 53, 54, 30, 1, 31})
+
     def test_quote_makes_room_for_requested_writer_and_retains_both_roles(self):
         assistant = ["关于库房的备注 " + str(i) for i in range(9)]
         user = ["我在清点货架时记录了一件事 " + str(i) for i in range(7)]

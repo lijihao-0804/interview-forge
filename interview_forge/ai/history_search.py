@@ -17,6 +17,7 @@ import time
 from collections import Counter, OrderedDict
 from contextlib import closing
 from dataclasses import dataclass
+from itertools import chain
 from pathlib import Path
 
 from interview_forge.ai.chat.relevance import topic_terms
@@ -34,6 +35,7 @@ _SOFT_SECONDS = 20.0
 _SCAN_SECONDS = 25.0
 _EXCERPT_CHARS = 320
 _QUOTE_CANDIDATES = 8
+_FOCUS_SLOTS = 3
 _VECTOR_SIZE = EMBEDDING_DIMENSION * 4
 _LOCKS = tuple(threading.Lock() for _ in range(64))
 _SCOPE = "m.session_id=? AND m.id<? AND m.role IN ('user','assistant')"
@@ -60,6 +62,28 @@ _WRITER = {
                             r"你的(?:原话|原句|说法|回答|建议|留言)|"
                             r"\b(?:you (?:said|wrote|advised|suggested|recommended)|your (?:original )?(?:words|quote|message|advice))\b", re.I),
 }
+_CLAUSE = re.compile(r"[，,。！？?!；;\n]+|(?<!\d)\.(?!\d)")
+_QUESTION_CLAUSE = re.compile(
+    r"怎么|怎样|如何|为何|为什么|什么|哪[个次样儿里种处项边些位]|何[时地处]|"
+    r"\b(?:what|which|where|how|when|why|who|whose)\b", re.I,
+)
+_RECALL_INSTRUCTIONS = re.compile(
+    r"消息(?:号|编号|ID)|原[话句文]|逐字|找不到|记不清|不记得|忘了|想不起|记混|"
+    r"\b(?:verbatim|quot(?:e|es|ation)|message (?:id|number)|can['’]t remember|don['’]t recall)\b", re.I,
+)
+
+
+def _focus_query(request, query):
+    """Keep one substantive question clause separate from its scene and recall instructions."""
+    clauses = _CLAUSE.split(request[:512])
+    if len(clauses) == 1:
+        return None
+    for clause in clauses:
+        phrase = clause.strip()[:96]
+        if (_QUESTION_CLAUSE.search(phrase) and not _RECALL_INSTRUCTIONS.search(phrase)
+                and len(topic_terms(phrase)) >= 3 and phrase.casefold() != query.strip().casefold()):
+            return phrase
+    return None
 
 
 def _windows(text: str):
@@ -241,6 +265,14 @@ def _quote_candidates(scored, dense_floor, diversify, writer):
                      key=lambda c: c.dense, default=None)
     if dense_best is not None:
         add(dense_best)
+    # A secondary answer can describe a different part of the query. Reserve
+    # one slot for a still-unrepresented word from a relevance-qualified source.
+    if diversify and len(selected) < _QUOTE_CANDIDATES:
+        covered = set().union(*(c.terms for c in selected))
+        for _, _, candidate in scored:
+            if (candidate.terms - covered and (candidate.dense is None or candidate.dense >= dense_floor)
+                    and add(candidate)):
+                break
     for _, _, candidate in scored:
         if len(selected) == _QUOTE_CANDIDATES:
             break
@@ -262,7 +294,62 @@ def _quote_candidates(scored, dense_floor, diversify, writer):
     return selected
 
 
-def _rank(candidates, query_terms, passage_count, oldest, limit, *, diversify=True, writer=None):
+def _focused_candidates(scored, dense_floor):
+    """Retain both semantic paraphrases and grounded alternatives to the question clause."""
+    dense = sorted((c for _, _, c in scored if c.dense is not None and c.dense >= dense_floor),
+                   key=lambda c: -c.dense)
+    per_role = {}
+    for c in dense:
+        per_role.setdefault(c.role, c)
+        if len(per_role) == 2:
+            break
+    covered = set(scored[0][2].terms)
+    complementary = []
+    for _, _, c in scored:
+        if c.terms - covered and (c.dense is None or c.dense >= dense_floor):
+            complementary.append(c)
+            covered.update(c.terms)
+            if len(complementary) == _FOCUS_SLOTS:
+                break
+    ordered = chain((scored[0][2],), per_role.values(), complementary, dense, (c for _, _, c in scored))
+    distinct = {}
+    for c in ordered:
+        distinct.setdefault((c.role, c.digest), c)
+        if len(distinct) == _QUOTE_CANDIDATES:
+            break
+    return list(distinct.values())
+
+
+def _merge_quote_candidates(primary, focused):
+    """Share eight source slots between the full topic and its focused question."""
+    if not primary or not focused:
+        return primary or focused
+    keep = _QUOTE_CANDIDATES - _FOCUS_SLOTS
+    selected = primary[:keep]
+    for candidate in chain(focused, primary[keep:]):
+        if len(selected) == _QUOTE_CANDIDATES:
+            break
+        # Small changes in the query can move the best window within a long
+        # original. Keep a second range only if it adds distant evidence.
+        if any(
+            (c.message_id == candidate.message_id and abs(c.start - candidate.start) < _EXCERPT_CHARS + _CHARS)
+            or (c.message_id != candidate.message_id and c.role == candidate.role
+                and c.digest == candidate.digest)
+            for c in selected
+        ):
+            continue
+        selected.append(candidate)
+    # Three distinct lookups can fill the verifier before it sees the tail
+    # of any one ranking. Surface the selected relation sources directly
+    # after the two leading topic matches, without changing membership.
+    relation_sources = [c for c in selected[keep:] if c in focused]
+    if not relation_sources:
+        return selected
+    return [*selected[:2], *relation_sources, *(c for c in selected[2:] if c not in relation_sources)]
+
+
+def _rank(candidates, query_terms, passage_count, oldest, limit, *, diversify=True, writer=None,
+          focus=False):
     if not candidates:
         return []
     frequencies = Counter(term for c in candidates for term in c.terms)
@@ -299,6 +386,8 @@ def _rank(candidates, query_terms, passage_count, oldest, limit, *, diversify=Tr
     else:
         scored.sort(key=lambda pair: (-pair[0], pair[2].message_id, pair[2].start))
     if limit == _QUOTE_CANDIDATES:
+        if focus:
+            return _focused_candidates(scored, dense_floor)
         return _quote_candidates(scored, dense_floor, diversify, writer)
     # Ordered/multiple-occurrence requests and single-result lookups keep the
     # original per-message ordering, including distinct occurrences of a quote.
@@ -358,30 +447,39 @@ def search_history(user_db: Path, session_id: str, cutoff: int, query: str, *, o
                    first_only=False, request_text: str | None = None, for_quotation=False):
     """Search one session. Full request text preserves comparison and counting intent."""
     started = time.monotonic()
+    request = query if request_text is None else request_text
+    quote = for_quotation and not oldest and not first_only
+    preserve_occurrences = _REPEATED_OCCURRENCES if quote else _OCCURRENCE_OR_COMPARISON
+    diversify = not preserve_occurrences.search(request)
+    focused = _focus_query(request, query) if quote and diversify else None
+    queries = [query, focused] if focused else [query]
     encoder = history_encoder()
-    query_vector = None
+    query_vectors = []
     if encoder is not None:
         try:
-            query_vector, = encoder.encode([query], query=True)
+            # The quantized encoder can give the same phrase a different
+            # ranking depending on the length of unrelated batch neighbours.
+            # Score the retained relation consistently across tool paraphrases.
+            query_vectors = [encoder.encode([q], query=True)[0] for q in queries]
         except Exception as error:
             _LOG.warning("History query encoding unavailable (%s)", type(error).__name__)
             encoder = None
     uri = Path(user_db).resolve().as_uri()
-    terms = topic_terms(query)
-    literal = re.compile(re.escape(query), re.IGNORECASE)
-    candidates = []
+    query_terms = [topic_terms(q) for q in queries]
+    literals = [re.compile(re.escape(q), re.IGNORECASE) for q in queries]
+    candidates = [[] for _ in queries]
     seen = embedded = last_id = 0
     scan_complete = False
     try:
         connection = sqlite3.connect(uri + ("?mode=rw" if encoder else "?mode=ro"), uri=True, timeout=1)
     except sqlite3.OperationalError:
         connection = sqlite3.connect(uri + "?mode=ro", uri=True, timeout=1)
-        encoder = query_vector = None
+        encoder, query_vectors = None, []
     with closing(connection) as db:
         # Legacy/read-only snapshots may not yet have the optional index.
         if encoder and not db.execute(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='chat_history_embeddings'").fetchone():
-            encoder = query_vector = None
+            encoder, query_vectors = None, []
         memo = OrderedDict()
         key, lock = _index_lock(user_db, session_id)
         while seen < _ONLINE_PASSAGES and time.monotonic() - started < _SCAN_SECONDS:
@@ -410,25 +508,27 @@ def search_history(user_db: Path, session_id: str, cutoff: int, query: str, *, o
             capped = len(passages) > remaining
             passages = passages[:remaining]
             vectors = [p.vector for p in passages if p.vector is not None]
-            scores = iter(encoder.scores(query_vector, vectors)) if encoder and vectors else iter(())
+            scores = [iter(encoder.scores(v, vectors)) for v in query_vectors] if encoder and vectors else []
             for p in passages:
-                dense = float(next(scores)) if encoder and p.vector is not None else None
-                embedded += int(dense is not None)
+                has_vector = bool(scores) and p.vector is not None
+                embedded += int(has_vector)
                 seen += 1
-                matches = frozenset(topic_terms(p.content) & terms)
-                found = literal.search(p.content)
-                if found or matches or dense is not None:
-                    candidates.append(Candidate(p.message_id, p.role, p.start, p.end, p.digest,
-                                                matches, found.start() if found else -1, dense))
+                passage_terms = topic_terms(p.content)
+                for i, (terms, literal) in enumerate(zip(query_terms, literals)):
+                    dense = float(next(scores[i])) if has_vector else None
+                    matches = frozenset(passage_terms & terms)
+                    found = literal.search(p.content)
+                    if found or matches or dense is not None:
+                        candidates[i].append(Candidate(p.message_id, p.role, p.start, p.end, p.digest,
+                                                       matches, found.start() if found else -1, dense))
             if len(rows) < _ROW_BATCH or capped:
                 scan_complete = not capped
                 break
             last_id = rows[-1][0]
-    complete = scan_complete and (query_vector is None or embedded == seen)
-    request = query if request_text is None else request_text
+    complete = scan_complete and (not query_vectors or embedded == seen)
     limit = 1 if first_only else 3
     writer = None
-    if for_quotation and not oldest and not first_only:
+    if quote:
         limit = _QUOTE_CANDIDATES
         writers = [role for role, pattern in _WRITER.items() if pattern.search(request)]
         if len(writers) == 1:
@@ -436,9 +536,10 @@ def search_history(user_db: Path, session_id: str, cutoff: int, query: str, *, o
     # An ambiguous quotation can have multiple distinct answers. Copies
     # of an unrelated answer must not crowd them out. Keep separate
     # occurrences where a user explicitly asks to count or compare them.
-    preserve_occurrences = _REPEATED_OCCURRENCES if limit == _QUOTE_CANDIDATES else _OCCURRENCE_OR_COMPARISON
-    selected = _rank(candidates, terms, seen, oldest=oldest, limit=limit,
-                     diversify=not preserve_occurrences.search(request), writer=writer)
+    ranked = [_rank(pool, terms, seen, oldest=oldest, limit=limit, diversify=diversify, writer=writer,
+                    focus=i > 0)
+              for i, (pool, terms) in enumerate(zip(candidates, query_terms))]
+    selected = _merge_quote_candidates(*ranked) if focused else ranked[0]
     with closing(sqlite3.connect(uri + "?mode=ro", uri=True, timeout=1)) as db:
         items = _excerpts(db, selected, session_id, cutoff)
     summary = {"kind": "hybrid" if embedded else "lexical", "coverage_complete": complete,

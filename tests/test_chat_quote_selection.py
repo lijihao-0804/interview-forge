@@ -351,3 +351,53 @@ class ChatQuoteSelectionTests(unittest.TestCase):
         self.assertEqual(model.calls, 2)
         self.assertEqual([e["data"]["delta"] for e in events if e["event"] == "message.delta"], ["我来核对。", "等待确认。"])
         self.assertFalse(hasattr(model, "judge_options"))
+
+    def test_conditional_speaker_stays_private_during_action_and_tool_fallback(self):
+        self.ctx.current_query = "能证实发言人再给原句和消息编号，身份没写清就直说不确定。"
+        registry = build_default_tool_registry()
+        registry.register(ToolSpec("draft_action", "操作", "操作", EmptyArgs, lambda *_: {},
+                                   kind=ToolKind.ACTION, requires_confirmation=True))
+        audio_note = "这句还没核对，消息 #1"
+        calls = [{"id": "r", "name": "recall_chat_history", "args": {"message_id": 1}},
+                 {"id": "a", "name": "draft_action", "args": {}}]
+        planning = FakeChunk(audio_note, tool_calls=calls)
+        for available in (True, False):
+            with self.subTest(tool_binding=available):
+                model = ScriptedModel([[planning], [FakeChunk('{"status":"none","quotes":[]}')]], bind=available)
+                engine = ToolOrchestrator(registry=registry)
+                events = asyncio.run(_collect(engine, model, self.ctx))
+                answer = "".join(e["data"]["delta"] for e in events if e["event"] == "message.delta")
+                self.assertNotIn("#1", answer)
+                self.assertIn(quotes.no_quote(self.ctx.current_query), answer)
+                self.assertFalse(engine.last_result.history_sources)
+                if available:
+                    self.assertTrue(any(e["event"] == "tool.confirmation_required" for e in events))
+                    self.assertTrue(engine.last_result.has_pending_confirmation)
+
+    def test_rechecked_decision_bills_both_rounds_and_uses_independent_admission(self):
+        query = "请逐字找回之前约好的乘车时间和消息编号。"
+        self.ctx.current_query = query
+        reject = FakeChunk('{"status":"none","quotes":[]}', usage={"input_tokens": 14, "output_tokens": 3})
+        accept = FakeChunk(decision("match", (1, self.one)), usage={"input_tokens": 19, "output_tokens": 8})
+        model = JudgeModel([[reject], [accept]])
+        engine = ToolOrchestrator()
+        with patch.object(quotes, "review_after_rejection", return_value=True):
+            result, refs = asyncio.run(engine._quote_answer_round(model, self.ctx, [[self.a]], 2, partial=False))
+        self.assertEqual(result.usage, {"input_tokens": 33, "output_tokens": 11})
+        self.assertEqual(model.calls, 2)
+        self.assertNotEqual(model.seen[0], model.seen[1])
+        self.assertEqual([ref["message_id"] for ref in refs], [1])
+
+    def test_truncated_deepseek_decision_gets_one_direct_source_check(self):
+        self.ctx.artifacts.update(deepseek_chat_completions=True)
+        selected = FakeChunk(decision("match", (1, self.one)), usage={"input_tokens": 30, "output_tokens": 14})
+        for text, reasoning in (("", 3072), ('{"checks":{"A":', 3001)):
+            with self.subTest(text=text):
+                exhausted = FakeChunk(text, usage={"input_tokens": 25, "output_tokens": 3072, "reasoning_tokens": reasoning})
+                model = JudgeModel([[exhausted], [selected]])
+                engine = ToolOrchestrator()
+                answer, refs = asyncio.run(engine._quote_answer_round(model, self.ctx, [[self.a]], 2, partial=False))
+                self.assertEqual(model.judge_options["extra_body"]["thinking"], {"type": "disabled"})
+                self.assertEqual(model.judge_options["extra_body"]["max_tokens"], quotes.MAX_OUTPUT_TOKENS)
+                self.assertEqual(answer.usage, {"input_tokens": 55, "output_tokens": 3086, "reasoning_tokens": reasoning})
+                self.assertEqual([ref["message_id"] for ref in refs], [1])
