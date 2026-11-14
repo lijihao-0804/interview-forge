@@ -139,13 +139,17 @@ def make_chat_model(config: AIConfig, *, thinking_mode: str | None = None, runti
     return _make_chat_model_impl(config, thinking_mode=thinking_mode, runtime=runtime)
 
 
-def _uses_native_structured_output(config: AIConfig) -> bool:
-    """DeepSeek currently rejects response_format; keep it for OpenAI-compatible peers."""
+def is_official_deepseek_endpoint(base_url: str) -> bool:
     try:
-        hostname = (urlparse(config.base_url).hostname or "").lower()
+        hostname = (urlparse(base_url).hostname or "").lower()
     except ValueError:
         hostname = ""
-    return hostname not in {"api.deepseek.com", "api.deepseek.cn"}
+    return hostname in {"api.deepseek.com", "api.deepseek.cn"}
+
+
+def _uses_native_structured_output(config: AIConfig) -> bool:
+    """DeepSeek currently rejects response_format; keep it for OpenAI-compatible peers."""
+    return not is_official_deepseek_endpoint(config.base_url)
 
 
 def _invoke_once(

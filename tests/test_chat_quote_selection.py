@@ -1,4 +1,5 @@
 import asyncio
+import importlib.util
 import json
 import os
 import sqlite3
@@ -6,10 +7,12 @@ import tempfile
 import unittest
 from contextlib import closing
 from pathlib import Path
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 from interview_forge.ai.chat import quote_selection as quotes
 from interview_forge.ai.chat.history_sources import read_source
+from interview_forge.ai.chat.service import _uses_deepseek_chat
 from interview_forge.ai.chat.tool_orchestrator import ToolOrchestrator
 from interview_forge.ai.tools.contracts import ToolExecutionContext, ToolKind, ToolSpec
 from interview_forge.ai.tools.policy import ToolPolicy
@@ -73,7 +76,8 @@ class ChatQuoteSelectionTests(unittest.TestCase):
         self.assertEqual(model.judge_options, {"max_tokens": quotes.MAX_OUTPUT_TOKENS})
         payload = json.loads(model.seen[-1][-1]["content"])
         self.assertEqual(payload["request"], self.ctx.current_query)
-        self.assertEqual({p["message_id"] for p in payload["passages"]}, {1, 2})
+        self.assertEqual({p["excerpt"] for p in payload["passages"]}, {self.one, self.two})
+        self.assertTrue(all(set(p) == {"source", "role", "excerpt"} for p in payload["passages"]))
         self.assertNotIn("future", str(payload))
         refs = engine.last_result.history_sources
         self.assertEqual([r["message_id"] for r in refs], [1,2])
@@ -243,6 +247,97 @@ class ChatQuoteSelectionTests(unittest.TestCase):
                      "请找昨天的原话，顺便帮我标记这道题", "我之前说过什么？", "之前学的整句语法要怎么分析？",
                      "把之前那条计划移到下周。"):
             self.assertFalse(quotes.requested(text), text)
+
+    @unittest.skipUnless(importlib.util.find_spec("langchain_openai"), "requires the optional AI dependencies")
+    def test_official_deepseek_quote_round_sends_its_documented_wire_limit(self):
+        import httpx
+        from langchain_openai import ChatOpenAI
+
+        self.ctx.current_query = "上次乘车的原话是什么？"
+        requests = []
+
+        async def capture(request):
+            self.assertEqual(request.url.path, "/v1/chat/completions")
+            body = json.loads(request.content)
+            requests.append(body)
+            if body.get("tools"):
+                delta = {"tool_calls": [{"index": 0, "id": "source", "type": "function",
+                          "function": {"name": "recall_chat_history", "arguments": json.dumps({"message_id": 1})}}]}
+                finish = "tool_calls"
+            else:
+                delta = {"content": decision("match", (1, self.one))}
+                finish = "stop"
+            chunk = {"id": "local", "object": "chat.completion.chunk", "created": 1, "model": "deepseek-flash",
+                     "choices": [{"index": 0, "delta": delta, "finish_reason": finish}]}
+            content = ("data: " + json.dumps(chunk) + "\n\ndata: [DONE]\n\n").encode()
+            return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=content)
+
+        async def run(profile, vendor, endpoint, model_limit):
+            runtime = SimpleNamespace(capability_profile=profile, vendor=vendor)
+            config = SimpleNamespace(wire_api="chat_completions", base_url=endpoint, model="deepseek-flash")
+            self.ctx.artifacts.update(deepseek_chat_completions=_uses_deepseek_chat(config, runtime), reserved_output_tokens=1200)
+            self.ctx.cache.clear()
+            async with httpx.AsyncClient(transport=httpx.MockTransport(capture)) as client:
+                model = ChatOpenAI(model=config.model, api_key="synthetic", base_url=config.base_url,
+                                   http_async_client=client, max_retries=0, max_tokens=model_limit, reasoning_effort="high",
+                                   extra_body={"thinking": {"type": "enabled"}, "user_id": "fixture"})
+                trace = Mock()
+                engine = ToolOrchestrator(trace_recorder=trace)
+                await _collect(engine, model, self.ctx)
+                self.assertEqual([ref["message_id"] for ref in engine.last_result.history_sources], [1])
+                return [call.kwargs["metadata"]["reserved_output_tokens"] for call in trace.record.call_args_list
+                        if call.kwargs["name"] == "request_admission"]
+
+        generic = "generic_openai_compatible"
+        providers = [
+            ("deepseek_official", "custom", "https://wire.test/v1", True, 160),
+            (generic, "deepseek", "https://api.deepseek.com/v1", True, None),
+            (generic, "deepseek", "https://wire.test/v1", True, None),
+            (generic, "custom", "https://api.deepseek.cn/v1", True, None),
+            (generic, "custom", "https://api.deepseek.com.wire.test/v1", False, None),
+        ]
+        for profile, vendor, endpoint, deepseek, model_limit in providers:
+            with self.subTest(profile=profile, vendor=vendor, endpoint=endpoint):
+                requests.clear()
+                reserves = asyncio.run(run(profile, vendor, endpoint, model_limit))
+                planning, judge = requests
+                self.assertEqual(planning["thinking"], {"type": "enabled"})
+                self.assertEqual(planning["reasoning_effort"], "high")
+                self.assertNotIn("max_tokens", planning)
+                self.assertEqual(planning.get("max_completion_tokens"), model_limit)
+                self.assertEqual(judge["user_id"], "fixture")
+                if deepseek:
+                    self.assertEqual(judge["max_tokens"], model_limit or 3072)
+                    self.assertNotIn("max_completion_tokens", judge)
+                    self.assertEqual(judge["thinking"], {"type": "enabled"})
+                    self.assertEqual(judge["reasoning_effort"], "low")
+                    self.assertEqual(reserves, [1200, judge["max_tokens"]])
+                else:
+                    self.assertEqual(judge["max_completion_tokens"], 1024)
+                    self.assertNotIn("max_tokens", judge)
+                    self.assertEqual(judge["thinking"], {"type": "enabled"})
+                    self.assertEqual(judge["reasoning_effort"], "high")
+                    self.assertEqual(reserves, [1200, judge["max_completion_tokens"]])
+
+    def test_deepseek_selection_only_reserves_space_left_by_its_checked_input(self):
+        self.ctx.artifacts.update(model_context_window=2400, reserved_output_tokens=1200, deepseek_chat_completions=True)
+        trace = Mock()
+        engine = ToolOrchestrator(trace_recorder=trace)
+        model = JudgeModel([[FakeChunk(decision("match", (1, self.one)))]])
+        result, refs = asyncio.run(engine._quote_answer_round(model, self.ctx, [[self.a]], 2, partial=False))
+        self.assertIn(self.one.splitlines()[-1], result.text)
+        self.assertEqual([ref["message_id"] for ref in refs], [1])
+        meta = trace.record.call_args.kwargs["metadata"]
+        self.assertEqual(meta["reserved_output_tokens"] + meta["admitted_prompt_tokens"], 2400)
+        self.assertEqual(model.judge_options["extra_body"]["max_tokens"], meta["reserved_output_tokens"])
+        self.assertEqual(self.ctx.artifacts["reserved_output_tokens"], 1200)
+
+    def test_explicit_deepseek_identity_does_not_override_wire_protocol(self):
+        runtime = SimpleNamespace(capability_profile="deepseek_official", vendor="deepseek")
+        for protocol in ("responses", "anthropic_messages", "gemini"):
+            with self.subTest(protocol=protocol):
+                config = SimpleNamespace(wire_api=protocol, base_url="https://api.deepseek.com/v1")
+                self.assertFalse(_uses_deepseek_chat(config, runtime))
 
     def test_a_turn_that_requests_an_action_keeps_normal_answer_and_preamble(self):
         registry = build_default_tool_registry()

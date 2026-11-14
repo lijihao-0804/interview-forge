@@ -8,12 +8,13 @@ import time
 from collections import Counter
 from collections.abc import Mapping
 from contextlib import aclosing
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from interview_forge.ai.chat import quote_selection
 from interview_forge.ai.chat.final_tool_reply import visible_final_reply
 from interview_forge.ai.chat.history_sources import HistorySource, cited_history_sources
+from interview_forge.ai.chat.token_budget import DEFAULT_CHAT_TOKEN_BUDGET
 from interview_forge.ai.chat.request_budget import (
     RequestAdmission,
     admit_request,
@@ -57,6 +58,7 @@ CONTEXT_BUDGET_ERROR_CODE = "context_budget_exceeded"
 CONTEXT_BUDGET_ERROR_MESSAGE = "当前对话上下文超出模型可处理范围，请缩短问题或开启新会话。"
 REQUEST_ADMISSION_POLICY_VERSION = "request_admission_v2"
 DEFAULT_RESERVED_OUTPUT_TOKENS = 1200
+_DEEPSEEK_QUOTE_MAX_OUTPUT_TOKENS = 3072
 
 
 @dataclass(frozen=True)
@@ -341,7 +343,12 @@ class ToolOrchestrator:
 
     async def _quote_answer_round(self, model, context, batches, round_index, *, partial):
         window, reserve = self._context_budget_inputs(context)
-        input_tokens = max(0, window - reserve) if window else quote_selection.MAX_INPUT_TOKENS
+        deepseek = context.artifacts.get("deepseek_chat_completions") is True
+        if deepseek:
+            window = window or DEFAULT_CHAT_TOKEN_BUDGET.max_request_tokens
+            input_tokens = min(quote_selection.MAX_INPUT_TOKENS, max(0, window - 1))
+        else:
+            input_tokens = max(0, window - reserve) if window else quote_selection.MAX_INPUT_TOKENS
         messages, items = await asyncio.to_thread(
             quote_selection.prepare, context, batches, input_tokens=input_tokens,
             result_tokens=self.policy.max_total_result_tokens,
@@ -356,8 +363,27 @@ class ToolOrchestrator:
                 model = binder(generation_config={"max_output_tokens": output_limit})
             elif getattr(model, "use_responses_api", False):
                 model = binder(max_output_tokens=output_limit)
+            elif deepseek:
+                # ChatOpenAI rewrites its max_tokens kwarg to max_completion_tokens.
+                # DeepSeek's wire limit covers reasoning and the visible selection.
+                prompt_tokens = estimate_json_tokens({"messages": messages, "tools": []})
+                output_limit = min(_DEEPSEEK_QUOTE_MAX_OUTPUT_TOKENS, window - prompt_tokens)
+                configured_limit = getattr(model, "max_tokens", None)
+                if type(configured_limit) is int and configured_limit > 0:
+                    output_limit = min(output_limit, configured_limit)
+                    # Drop only the constructor default that ChatOpenAI rewrites.
+                    # A shallow copy retains its configured clients and transport.
+                    model = model.model_copy(update={"max_tokens": None})
+                model = model.bind(extra_body={
+                    **(getattr(model, "extra_body", None) or {}),
+                    "max_tokens": output_limit,
+                    "thinking": {"type": "enabled"},
+                    "reasoning_effort": "low",
+                })
             else:
                 model = binder(max_tokens=output_limit)
+            # Admission and its trace use the wire cap for this round only.
+            context = replace(context, artifacts={**context.artifacts, "reserved_output_tokens": output_limit})
         size = 0
         # The selection is private data. Do not stream the JSON to the client.
         async with aclosing(self._stream_round(model, messages, context=context, round_index=round_index)) as stream:

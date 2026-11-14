@@ -18,6 +18,7 @@ from interview_forge.ai.config import AIConfig
 from interview_forge.ai.errors import AIServiceError
 from interview_forge.ai.generation import (
     classify_provider_exception,
+    is_official_deepseek_endpoint,
     load_ai_config,
     make_chat_model,
 )
@@ -86,6 +87,15 @@ _ACTIVE_MODEL_CALLS_LOCK = threading.Lock()
 
 def _now() -> str:
     return str(server_runtime.now_iso())
+
+
+def _uses_deepseek_chat(config: AIConfig, runtime: Any) -> bool:
+    # Legacy provider records can retain the generic compatibility profile.
+    return config.wire_api == "chat_completions" and (
+        getattr(runtime, "capability_profile", None) == "deepseek_official"
+        or str(getattr(runtime, "vendor", "")).strip().lower() == "deepseek"
+        or is_official_deepseek_endpoint(config.base_url)
+    )
 
 
 def _db_path(value: Path | str) -> Path:
@@ -926,6 +936,7 @@ class ChatService:
                         "username": path.parent.name,
                         "model_context_window": model_context_window,
                         "reserved_output_tokens": context_budget.output_tokens,
+                        "deepseek_chat_completions": _uses_deepseek_chat(config, runtime),
                         "chat_request_attempt": attempt,
                     },
                 )
