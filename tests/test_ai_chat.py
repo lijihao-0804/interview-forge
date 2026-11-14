@@ -454,6 +454,38 @@ class AIChatContractTests(unittest.TestCase):
         self.assertEqual(saved["content"], answer)
         self.assertFalse(saved["metadata"].get("history_sources"))
 
+    def test_explicit_history_quotes_are_selected_once_and_open_after_replay(self):
+        from tests.test_ai_tool_orchestrator import ScriptedModel
+
+        session = self.client.post("/api/chat/sessions", json={}).json()
+        base = f"/api/chat/sessions/{session['id']}"
+        source_text = "记录🚲\n先检查刹车，再出门。"
+        self.client.post(base + "/stream", json={"message": source_text})
+        first_id = self.client.get(base + "/messages").json()["items"][0]["id"]
+        call = {"id": "r", "name": "recall_chat_history", "args": {"message_id": first_id}}
+        quote = "先检查刹车，再出门。"
+        sel = json.dumps({"status":"match","quotes":[{"message_id":first_id,"quote":quote}]}, ensure_ascii=False)
+        model = ScriptedModel([[FakeChunk(tool_calls=[call])], [FakeChunk(sel)]])
+        self.service.model_factory = lambda _: model
+        request = {"message":"出发前我说过要检查车的什么？给我消息编号和原话。","client_request_id":"verified-quotation"}
+        first = parse_sse(self.client.post(base + "/stream", json=request).text)
+        replay = parse_sse(self.client.post(base + "/stream", json=request).text)
+        self.assertEqual(model.calls, 2)
+        self.assertEqual(first[-1][0], "message.done")
+        self.assertEqual(replay[-1][0], "message.done")
+        refs = first[-1][1]["history_sources"]
+        self.assertEqual(refs, replay[-1][1]["history_sources"])
+        saved = self.client.get(base + "/messages").json()["items"][-1]
+        self.assertIn(quote, saved["content"])
+        self.assertNotIn("quotes", saved["content"])
+        self.assertEqual(saved["metadata"]["history_sources"], refs)
+        ref, = refs
+        self.assertEqual(ref["offset"], source_text.index(quote))
+        url = base + f"/messages/{first_id}/excerpt"
+        opened = self.client.get(url, params={key:ref[key] for key in ("offset","length","sha256")})
+        self.assertEqual(opened.status_code, 200)
+        self.assertEqual(opened.json()["excerpt"], quote)
+
     def test_library_sources_from_parallel_tools_reach_model_sse_and_owner_history(self):
         model = LibrarySearchModel("TCP", "线程池", "TCP 与 UDP")
         self.service.model_factory = lambda _config: model

@@ -67,7 +67,7 @@ def recall_chat_history(context: ToolExecutionContext, args: RecallChatHistoryAr
         from interview_forge.ai.history_search import search_history
 
         data = search_history(context.user_db, context.session_id, context.user_message_id, args.query,
-                              oldest=oldest_first, first_only=first_only)
+                              oldest=oldest_first, first_only=first_only, request_text=context.current_query)
         if not data["retrieval"]["coverage_complete"]:
             status = "已检索部分会话历史"
         else:

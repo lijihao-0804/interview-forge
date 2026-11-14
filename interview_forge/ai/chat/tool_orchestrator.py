@@ -7,9 +7,11 @@ import json
 import time
 from collections import Counter
 from collections.abc import Mapping
+from contextlib import aclosing
 from dataclasses import dataclass, field
 from typing import Any
 
+from interview_forge.ai.chat import quote_selection
 from interview_forge.ai.chat.final_tool_reply import visible_final_reply
 from interview_forge.ai.chat.history_sources import HistorySource, cited_history_sources
 from interview_forge.ai.chat.request_budget import (
@@ -337,6 +339,37 @@ class ToolOrchestrator:
                 answer = _UNCONFIRMED_HISTORY if recalled else _UNCONFIRMED_RESULT
         return _RoundResult(answer, (), result.usage)
 
+    async def _quote_answer_round(self, model, context, batches, round_index, *, partial):
+        window, reserve = self._context_budget_inputs(context)
+        input_tokens = max(0, window - reserve) if window else quote_selection.MAX_INPUT_TOKENS
+        messages, items = await asyncio.to_thread(
+            quote_selection.prepare, context, batches, input_tokens=input_tokens,
+            result_tokens=self.policy.max_total_result_tokens,
+        )
+        if not messages:
+            return _RoundResult(quote_selection.NO_QUOTE, (), {}), ()
+        binder = getattr(model, "bind", None)
+        if callable(binder):
+            output_limit = min(quote_selection.MAX_OUTPUT_TOKENS, max(1, reserve))
+            module = type(model).__module__
+            if module.startswith("langchain_google"):
+                model = binder(generation_config={"max_output_tokens": output_limit})
+            elif getattr(model, "use_responses_api", False):
+                model = binder(max_output_tokens=output_limit)
+            else:
+                model = binder(max_tokens=output_limit)
+        size = 0
+        # The selection is private data. Do not stream the JSON to the client.
+        async with aclosing(self._stream_round(model, messages, context=context, round_index=round_index)) as stream:
+            async for item in stream:
+                size += len(item["data"]["delta"])
+                if size > quote_selection.MAX_OUTPUT_CHARS:
+                    break
+        result = self._round_result
+        decision = "" if result.calls or size > quote_selection.MAX_OUTPUT_CHARS else result.text
+        answer, refs = await asyncio.to_thread(quote_selection.render, context, decision, items, partial=partial)
+        return _RoundResult(answer, (), result.usage), refs
+
     async def _execute_calls(
         self,
         *,
@@ -498,6 +531,7 @@ class ToolOrchestrator:
         has_valid_tool_activity = False
         has_pending_confirmation = False
         history = list(messages)
+        quote_requested = quote_selection.requested(context.current_query)
 
         def visible_library_sources(*, index_offset: int = 0) -> tuple[LibrarySource, ...]:
             sources = {}
@@ -554,12 +588,23 @@ class ToolOrchestrator:
                 tool_schemas=tool_schemas,
                 round_index=round_index + 1,
             ):
-                yield item
+                if not quote_requested:
+                    yield item
             result = self._round_result
-            visible_text_parts.append(result.text)
             for key, value in result.usage.items():
                 total_usage[key] = total_usage.get(key, 0) + value
             calls = list(result.calls)
+            if quote_requested and any(
+                not (spec := self.registry.get(call.name)) or spec.kind != ToolKind.READ or spec.requires_confirmation
+                for call in calls
+            ):
+                quote_requested = False
+                if result.text:
+                    yield _event("message.delta", {"delta": result.text})
+            if not quote_requested or not calls:
+                visible_text_parts.append(result.text)
+                if quote_requested and result.text:
+                    yield _event("message.delta", {"delta": result.text})
             history.append(_tool_call_message(result.text, calls))
             if not calls:
                 self.last_result = ToolTurnResult(
@@ -612,6 +657,40 @@ class ToolOrchestrator:
                     history, calls, results, sources_by_position=sources_by_position, recall_by_position=recall_by_position,
                 )
                 tool_run_ids.extend(result.run_id for result in results if result.run_id)
+                recall_results = [r for r in results if r.tool_name == "recall_chat_history" and r.status in {"ok", "cache_hit"}]
+                if quote_requested and recall_results:
+                    supplement = quote_selection.semantic_supplement(context.current_query, calls, recall_results)
+                    if (supplement and call_count < self.policy.max_calls_per_turn
+                            and total_result_tokens < self.policy.max_total_result_tokens):
+                        extra = NormalizedToolCall(f"recall-semantic-{call_count + 1}", "recall_chat_history",
+                                                   {"mode": "semantic", "query": supplement})
+                        history.append(_tool_call_message("", [extra]))
+                        async for item in self._execute_calls(calls=[extra], context=context):
+                            yield item
+                        extra_results = self._call_results
+                        call_count += 1
+                        tool_names.append(extra.name)
+                        tool_run_ids.extend(r.run_id for r in extra_results if r.run_id)
+                        self._append_tool_messages(history, [extra], extra_results, sources_by_position=sources_by_position,
+                                                   recall_by_position=recall_by_position)
+                        recall_results.extend(r for r in extra_results if r.status in {"ok", "cache_hit"})
+                    # Rank from the actual tool evidence. A holder of a prompt
+                    # or tool-run ID cannot inject an account/session selector.
+                    batches = []
+                    for r in reversed(recall_results):
+                        if r.result and estimate_json_tokens(r.model_payload()) <= self.policy.max_total_result_tokens:
+                            batches.append(r.result.data.get("items", []))
+                    partial = any(r.result and (r.result.data.get("retrieval", {}).get("coverage_complete") is False
+                                  or r.arguments.get("after_message_id") or r.arguments.get("before_message_id")
+                                  or r.arguments.get("message_id")) for r in recall_results)
+                    final, refs = await self._quote_answer_round(model, context, batches, round_index + 2, partial=partial)
+                    for key, value in final.usage.items():
+                        total_usage[key] = total_usage.get(key, 0) + value
+                    yield _event("message.delta", {"delta": final.text})
+                    self.last_result = ToolTurnResult(usage=total_usage, tool_calls_count=call_count,
+                        tool_names=tuple(dict.fromkeys(tool_names)), tool_run_ids=tuple(tool_run_ids),
+                        visible_text_chars=len(final.text), has_valid_tool_activity=True, history_sources=refs)
+                    return
                 if round_index + 1 < self.policy.max_rounds and total_result_tokens <= self.policy.max_total_result_tokens:
                     continue
 

@@ -219,12 +219,12 @@ class ChatRecallTests(unittest.TestCase):
         engine = ToolOrchestrator(registry=build_default_tool_registry(), trace_recorder=trace)
         model = ScriptedModel([
             [FakeChunk(tool_calls=[{"id": "r", "name": "recall_chat_history", "args": {"message_id": 1}}])],
-            [FakeChunk("已核对。")],
+            [FakeChunk('{"status":"none","quotes":[]}')],
         ])
         events = asyncio.run(_collect(engine, model, self.context(2)))
         self.assertEqual([event["event"] for event in events], ["tool.start", "tool.done", "message.delta"])
-        observations = [json.loads(m["content"]) for m in model.seen[-1] if m.get("role") == "tool"]
-        self.assertEqual(observations[0]["data"]["items"][0]["excerpt"], source)
+        observations = json.loads(model.seen[-1][-1]["content"])
+        self.assertEqual(observations["passages"][0]["excerpt"], source)
         with closing(sqlite3.connect(self.db)) as db:
             audit = db.execute("SELECT arguments_json, result_meta_json FROM chat_tool_runs").fetchall()
             traces = db.execute("SELECT metadata_json FROM ai_trace_events").fetchall()

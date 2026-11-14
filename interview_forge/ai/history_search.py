@@ -1,4 +1,10 @@
-"""Hybrid retrieval over exact passages in a single account, session and turn prefix."""
+"""Hybrid retrieval over exact passages in a single account, session and turn prefix.
+
+Ordinary lookups return at most three sources: two by hybrid relevance, then
+one by eligible dense relevance when it can improve on the third hybrid hit.
+Same-role copies of the entire original message count as one source for that
+lookup. Ordered, comparison and occurrence queries retain individual messages.
+"""
 from __future__ import annotations
 
 import hashlib
@@ -30,6 +36,15 @@ _EXCERPT_CHARS = 320
 _VECTOR_SIZE = EMBEDDING_DIMENSION * 4
 _LOCKS = tuple(threading.Lock() for _ in range(64))
 _SCOPE = "m.session_id=? AND m.id<? AND m.role IN ('user','assistant')"
+_OCCURRENCE_OR_COMPARISON = re.compile(
+    r"最早|最初|最先|最晚|最后|最迟|先后|前后|后来|时间线|按.{0,3}(?:顺序|次序)|"
+    r"比较|对比|对照|分别|区别|差异|不同|变化|变更|更改|改口|矛盾|冲突|"
+    r"重复|反复|几次|几遍|多少次|多少遍|次数|频率|每次|各次|每条|逐条|所有|全部|"
+    r"每一[次条]|(?:两|多)[次遍条]|多少条|几条|第[一二三四五六七八九十百千万两\d]+[次条遍]|"
+    r"\b(?:compar\w*|contrast\w*|differ\w*|versus|vs|both|respectively|contradict\w*|"
+    r"repeat\w*|repetit\w*|occurrence\w*|duplicates?|count(?:s|ed|ing)?|how (?:many|often)|"
+    r"each|every|all|twice|multiple|changed?|changes|first|earliest|oldest|last|latest|timeline|chronolog\w*)\b", re.I,
+)
 
 
 def _windows(text: str):
@@ -172,7 +187,7 @@ def backfill_session(user_db: Path, session_id: str, cutoff: int = 2**63 - 1) ->
     return {"passages": total, "new_vectors": indexed, "model": MODEL_ID}
 
 
-def _rank(candidates, query_terms, passage_count, oldest, limit):
+def _rank(candidates, query_terms, passage_count, oldest, limit, *, diversify=True):
     if not candidates:
         return []
     frequencies = Counter(term for c in candidates for term in c.terms)
@@ -180,12 +195,13 @@ def _rank(candidates, query_terms, passage_count, oldest, limit):
                for t in query_terms}
     total_weight = sum(weights.values()) or 1.0
     best_dense = max((c.dense for c in candidates if c.dense is not None), default=-1.0)
+    dense_floor = max(0.76, best_dense - 0.045)
     scored = []
     for c in candidates:
         lexical = sum(weights[t] for t in c.terms) / total_weight
         # E5's contrastive training concentrates even irrelevant scores near
         # .7-.8. Rank dense candidates relative to their strongest neighbour.
-        dense_match = c.dense is not None and c.dense >= max(0.76, best_dense - 0.045)
+        dense_match = c.dense is not None and c.dense >= dense_floor
         if c.exact < 0 and not dense_match and (not c.terms or lexical < 0.12):
             continue
         score = (c.dense if c.dense is not None else 0.65) + 0.10 * lexical + 0.15 * (c.exact >= 0)
@@ -202,12 +218,36 @@ def _rank(candidates, query_terms, passage_count, oldest, limit):
         scored.sort(key=lambda pair: (pair[2].message_id, -pair[0], pair[2].start))
     else:
         scored.sort(key=lambda pair: (-pair[0], pair[2].message_id, pair[2].start))
-    unique = {}
+    # Ordered/multiple-occurrence requests and single-result lookups keep the
+    # original per-message ordering, including distinct occurrences of a quote.
+    diversify = diversify and not oldest and limit == 3
+    selected = []
+    source_keys = set()
+    best_remaining_dense = None
     for _, _, c in scored:
-        unique.setdefault(c.message_id, c)
-        if len(unique) == limit:
-            break
-    return list(unique.values())
+        key = (c.role, c.digest) if diversify else c.message_id
+        if key in source_keys:
+            continue
+        if not diversify or len(selected) < 2:
+            selected.append(c)
+            source_keys.add(key)
+            if len(selected) == limit:
+                break
+            continue
+        # Keep the third hybrid source as a fallback, including in lexical mode.
+        # Compare dense evidence across messages. When both rankings select
+        # the same third source its hybrid excerpt stays in place.
+        if len(selected) == 2:
+            selected.append(c)
+        if c.dense is not None and c.dense >= dense_floor and (
+            best_remaining_dense is None or c.dense > best_remaining_dense.dense
+        ):
+            best_remaining_dense = c
+    if best_remaining_dense is not None:
+        third = selected[2]
+        if (third.role, third.digest) != (best_remaining_dense.role, best_remaining_dense.digest):
+            selected[2] = best_remaining_dense
+    return selected
 
 
 def _excerpts(db, sources, session_id, cutoff):
@@ -232,8 +272,9 @@ def _excerpts(db, sources, session_id, cutoff):
     return items
 
 
-def search_history(user_db: Path, session_id: str, cutoff: int, query: str, *, oldest=False, first_only=False):
-    """Serve one scoped search, indexing missing vectors oldest first up to a deadline."""
+def search_history(user_db: Path, session_id: str, cutoff: int, query: str, *, oldest=False,
+                   first_only=False, request_text: str | None = None):
+    """Search one session. Full request text preserves comparison and counting intent."""
     started = time.monotonic()
     encoder = history_encoder()
     query_vector = None
@@ -302,7 +343,9 @@ def search_history(user_db: Path, session_id: str, cutoff: int, query: str, *, o
                 break
             last_id = rows[-1][0]
     complete = scan_complete and (query_vector is None or embedded == seen)
-    selected = _rank(candidates, terms, seen, oldest=oldest, limit=1 if first_only else 3)
+    request = query if request_text is None else request_text
+    selected = _rank(candidates, terms, seen, oldest=oldest, limit=1 if first_only else 3,
+                     diversify=not _OCCURRENCE_OR_COMPARISON.search(request))
     with closing(sqlite3.connect(uri + "?mode=ro", uri=True, timeout=1)) as db:
         items = _excerpts(db, selected, session_id, cutoff)
     summary = {"kind": "hybrid" if embedded else "lexical", "coverage_complete": complete,
