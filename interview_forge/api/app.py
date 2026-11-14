@@ -29,6 +29,7 @@ from interview_forge.api.routers.leetcode import router as leetcode_router
 from interview_forge.api.routers.study import router as study_router
 from interview_forge.api.routers.weather import router as weather_router
 from interview_forge.api.routers.static import router as static_router
+from interview_forge.api.routers.private_archive import router as private_archive_router
 from interview_forge.api.routers.chat import router as chat_router
 from interview_forge.api.routers.admin_observability import router as admin_observability_router
 from interview_forge.api.routers.admin_operations import router as admin_operations_router
@@ -211,6 +212,10 @@ async def request_observability(request, call_next):
         )
         raise
     elapsed = round((time.perf_counter() - started) * 1000, 2)
+    if request.url.path.startswith(("/api/private-archive/", "/api/private-archive-status")):
+        # Also protect middleware-generated authentication failures from caches.
+        from interview_forge.api.routers.private_archive import HEADERS
+        response.headers.update(HEADERS)
     response.headers["X-Request-ID"] = request_id
     response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
     response.headers.setdefault(
@@ -263,4 +268,5 @@ app.include_router(admin_operations_router)
 app.include_router(admin_ai_config_router)
 app.include_router(gym_router)
 app.include_router(practice_router)
+app.include_router(private_archive_router)
 app.include_router(static_router)

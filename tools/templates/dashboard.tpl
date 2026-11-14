@@ -341,8 +341,9 @@ html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--panel-so
 @media(max-width:760px){.workspace{padding:16px 12px}.study-nav{margin-top:14px;padding:5px;border-radius:10px}.study-nav a{padding-inline:12px}.grid.is-compact .card{grid-template-columns:minmax(0,1fr);gap:5px}.grid.is-compact .card-actions{grid-column:auto}.catalog-toolbar{align-items:flex-start}.catalog-tools{gap:6px}.controls .field:first-child{flex-basis:100%}.hero-eyebrow{font-size:11px}.resume-strip a{flex-basis:60%}}
 @media print{.study-nav,.catalog-toolbar,.controls,.catalog-pagination{display:none}}
 </style>
+<link rel="stylesheet" href="assets/workspace-layout.css?v=20261115-desktop">
 </head>
-<body class="auth-checking">
+<body data-forge-page="catalog" class="auth-checking">
 <a class="skip-link" href="#problemGrid">跳到题目列表</a>
 <main class="shell">
   <header class="masthead">

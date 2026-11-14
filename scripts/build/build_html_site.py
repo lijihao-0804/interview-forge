@@ -670,6 +670,9 @@ box-shadow:0 10px 28px color-mix(in srgb,var(--brand) 14%,transparent),0 0 0 1px
 # 分段说明只能写在字符串之外（此处与下一个常量之间）。
 # =============================================================================
 
+# Shared responsive layout is embedded so existing generated pages and exports inherit it.
+SITE_CSS += "\n" + (ROOT / "assets" / "workspace-layout.css").read_text(encoding="utf-8")
+
 SITE_JS = r"""
 function fallbackCopy(text) {
   const textarea = document.createElement('textarea');
