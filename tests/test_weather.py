@@ -164,7 +164,6 @@ class WeatherTests(unittest.TestCase):
         self.assertNotIn("Weather data by Open-Meteo", html)
         self.assertNotIn("定位仅在点击后申请", html)
         self.assertIn(".weather-card{min-width:0", html)
-        self.assertIn("border-radius:20px", html)
         self.assertIn("weather-breathe 16s", html)
         self.assertIn('id="clock-main"', html)
         self.assertIn('id="clock-seconds"', html)

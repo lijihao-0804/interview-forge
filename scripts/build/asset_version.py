@@ -5,4 +5,4 @@
 # Python, but the two values intentionally share the same release date.
 ASSET_VERSION = "20261112-guest-python"
 SITE_JS_VERSION = "20261112-python-teaching"
-SERVICE_WORKER_VERSION = "hot100-v25-20261114-semantic-recall"
+SERVICE_WORKER_VERSION = "hot100-v26-20261114-study-theme"
