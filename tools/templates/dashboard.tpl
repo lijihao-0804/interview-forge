@@ -46,7 +46,7 @@ button,input,select{font:inherit}button{color:inherit}
 :focus-visible{outline:3px solid color-mix(in srgb,var(--brand) 48%,transparent);outline-offset:3px}
 .skip-link{position:absolute;left:12px;top:-60px;z-index:10;padding:8px 12px;border:1px solid var(--line);border-radius:8px;color:var(--text);background:var(--panel)}
 .skip-link:focus{top:12px}
-.shell{width:min(calc(100% - 64px),1240px);margin:auto;padding:0 0 92px}
+.shell{width:min(calc(100% - 64px),max(1240px,92%),2400px);margin:auto;padding:0 0 92px}
 .masthead{display:flex;align-items:center;justify-content:space-between;gap:20px;min-height:76px}
 .brand{display:inline-flex;align-items:center;gap:10px;color:var(--text);font-size:22px;font-weight:740;letter-spacing:-.055em;white-space:nowrap}
 .brand:hover{text-decoration:none}.brand img{width:34px;height:34px;border-radius:9px}
@@ -253,6 +253,17 @@ body.auth-checking .auth-private,body.is-guest .auth-private,body.auth-error .au
 .shelf-due-link{flex:0 0 auto;color:var(--brand);font-size:13px;text-decoration:none;white-space:nowrap}
 .shelf-due-link:hover{text-decoration:underline}
 @media(max-width:980px){.quick-cards{grid-template-columns:minmax(0,1fr)}}
+@media(min-width:1440px){
+  .hero{grid-template-columns:minmax(0,1fr) minmax(245px,440px)}
+  .controls{max-width:1240px}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
+  .heatmap{--week-column-max:22px;justify-content:start}
+}
+@media(min-width:1680px){
+  .more-section{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
+  .more-section>.review-section{margin:0}
+  .more-section>.track-section{grid-column:1/-1;margin:0}
+}
 footer{margin-top:25px;color:var(--muted);text-align:center;font-size:13px}
 @media(max-width:1050px){.stats{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:840px){
@@ -828,7 +839,7 @@ function renderHeatmap(){
   const weeks=[];
   for(let i=0;i<cells.length;i+=7)weeks.push(cells.slice(i,i+7));
   while(weeks[weeks.length-1].length<7)weeks[weeks.length-1].push(null);
-  el.style.gridTemplateColumns=`auto repeat(${weeks.length},minmax(9px,1fr))`;
+  el.style.gridTemplateColumns=`auto repeat(${weeks.length},minmax(9px,var(--week-column-max,1fr)))`;
   const monthRow=['<span class="hm-label"></span>'];
   let prevMonth='';
   for(const week of weeks){
