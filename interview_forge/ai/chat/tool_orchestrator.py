@@ -59,6 +59,7 @@ CONTEXT_BUDGET_ERROR_MESSAGE = "当前对话上下文超出模型可处理范围
 REQUEST_ADMISSION_POLICY_VERSION = "request_admission_v2"
 DEFAULT_RESERVED_OUTPUT_TOKENS = 1200
 _DEEPSEEK_QUOTE_MAX_OUTPUT_TOKENS = 3072
+_DEEPSEEK_RECOVERY_MAX_OUTPUT_TOKENS = 2048
 
 
 @dataclass(frozen=True)
@@ -352,7 +353,7 @@ class ToolOrchestrator:
             input_tokens = max(0, window - reserve) if window else quote_selection.MAX_INPUT_TOKENS
         messages, items = await asyncio.to_thread(
             quote_selection.prepare, context, batches, input_tokens=input_tokens,
-            result_tokens=self.policy.max_total_result_tokens, review=review,
+            result_tokens=self.policy.max_total_result_tokens, review=review, direct_selection=direct_selection,
         )
         if not messages:
             return _RoundResult(quote_selection.no_quote(context.current_query), (), {}), ()
@@ -377,13 +378,13 @@ class ToolOrchestrator:
                     # A shallow copy retains its configured clients and transport.
                     model = model.model_copy(update={"max_tokens": None})
                 if direct_selection:
-                    # The previous reply spent its entire cap on reasoning. Reserve
-                    # this one short retry for the source selections themselves.
-                    output_limit = min(output_limit, quote_selection.MAX_OUTPUT_TOKENS)
+                    # Keep enough room to relate paraphrases to technical terms.
+                    # The shorter positive-only schema reduces work in this retry.
+                    output_limit = min(output_limit, _DEEPSEEK_RECOVERY_MAX_OUTPUT_TOKENS)
                 model = model.bind(extra_body={
                     **(getattr(model, "extra_body", None) or {}),
                     "max_tokens": output_limit,
-                    "thinking": {"type": "disabled" if direct_selection else "enabled"},
+                    "thinking": {"type": "enabled"},
                     "reasoning_effort": "low",
                 })
             else:
@@ -399,7 +400,9 @@ class ToolOrchestrator:
                     break
         result = self._round_result
         decision = "" if result.calls or size > quote_selection.MAX_OUTPUT_CHARS else result.text
-        answer, refs = await asyncio.to_thread(quote_selection.render, context, decision, items, partial=partial)
+        answer, refs = await asyncio.to_thread(
+            quote_selection.render, context, decision, items, partial=partial, direct_selection=direct_selection,
+        )
         # A capped stream can contain the start of a valid JSON object but
         # stop before closing it. Retry incomplete wire output as well as an
         # entirely empty selection, never a well-formed unsupported claim.
@@ -409,11 +412,12 @@ class ToolOrchestrator:
                      and not quote_selection.has_complete_decision(decision))
         if (not review and not refs and round_index < self.policy.max_rounds and
                 (exhausted or quote_selection.review_after_rejection(context.current_query, decision, items, batches))):
-            # Recheck a supported paraphrase once. Each call is admitted, traced and
-            # counted, including the first decision if the model still abstains.
+            # Give a corroborated negative a different question, too. Repeating
+            # the exhaustive classification can spend the next round explaining
+            # every rejection before returning even one source.
             retry, refs = await self._quote_answer_round(
                 original_model, original_context, batches, round_index + 1, partial=partial,
-                review=True, direct_selection=exhausted,
+                review=True, direct_selection=True,
             )
             usage = Counter(result.usage)
             usage.update(retry.usage)

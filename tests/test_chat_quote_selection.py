@@ -386,6 +386,7 @@ class ChatQuoteSelectionTests(unittest.TestCase):
         self.assertEqual(result.usage, {"input_tokens": 33, "output_tokens": 11})
         self.assertEqual(model.calls, 2)
         self.assertNotEqual(model.seen[0], model.seen[1])
+        self.assertIn('"picks"', model.seen[1][0]["content"])
         self.assertEqual([ref["message_id"] for ref in refs], [1])
 
     def test_truncated_deepseek_decision_gets_one_direct_source_check(self):
@@ -397,7 +398,7 @@ class ChatQuoteSelectionTests(unittest.TestCase):
                 model = JudgeModel([[exhausted], [selected]])
                 engine = ToolOrchestrator()
                 answer, refs = asyncio.run(engine._quote_answer_round(model, self.ctx, [[self.a]], 2, partial=False))
-                self.assertEqual(model.judge_options["extra_body"]["thinking"], {"type": "disabled"})
-                self.assertEqual(model.judge_options["extra_body"]["max_tokens"], quotes.MAX_OUTPUT_TOKENS)
+                self.assertEqual(model.judge_options["extra_body"]["thinking"], {"type": "enabled"})
+                self.assertEqual(model.judge_options["extra_body"]["max_tokens"], 2048)
                 self.assertEqual(answer.usage, {"input_tokens": 55, "output_tokens": 3086, "reasoning_tokens": reasoning})
                 self.assertEqual([ref["message_id"] for ref in refs], [1])

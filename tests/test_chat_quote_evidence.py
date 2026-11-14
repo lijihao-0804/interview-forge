@@ -182,3 +182,49 @@ class QuoteEvidenceTests(unittest.TestCase):
         self.assertIn("先裹插头。", text)
         self.assertNotIn("我负责", text)
         self.assertEqual(len(refs), 1)
+
+    def test_capped_selection_uses_a_short_fair_view_and_never_autocites_high_ranks(self):
+        items = self.records(*(f"送回第 {n} 号柜。" for n in range(12)))
+        self.ctx.current_query = "之前器材送到哪里？我忘了哪次，给消息编号和原句。"
+        batches = [items[:6], items[6:]]
+        normal, all_items = quotes.prepare(self.ctx, batches, input_tokens=4096, result_tokens=3500)
+        messages, visible = quotes.prepare(self.ctx, batches, input_tokens=4096, result_tokens=3500,
+                                          review=True, direct_selection=True)
+        self.assertEqual(len(all_items), 12)
+        self.assertEqual([p["message_id"] for p in visible], [1, 7, 2, 8, 3, 9, 4, 10, 5, 11, 6, 12])
+        self.assertLess(len(messages[0]["content"]), len(normal[0]["content"]))
+        self.assertIn('"picks"', messages[0]["content"])
+        self.assertNotIn('"checks"', messages[0]["content"])
+        self.assertEqual([p["excerpt"] for p in json.loads(messages[1]["content"])["passages"]],
+                         [p["excerpt"] for p in visible])
+        body = json.dumps({"picks": ["A", "D"], "relation": "alternatives"})
+        answer, refs = quotes.render(self.ctx, body, visible, direct_selection=True)
+        self.assertEqual([p["message_id"] for p in refs], [1, 8])
+        self.assertIn(items[0]["excerpt"], answer)
+        self.assertIn(items[7]["excerpt"], answer)
+        self.assertIn("无法唯一确定", answer)
+        self.assertEqual(quotes.render(self.ctx, body, visible), (quotes.NO_QUOTE, ()))
+        for rejected in ({"picks": []}, {"picks": ["Q"]}, {"picks": ["D", "D"]},
+                         {"picks": [{"source": "A", "quote": items[7]["excerpt"]}]},
+                         {"picks": ["A"], "relation": "none"}, {"picks": [], "checks": {"A": 1}}):
+            result = quotes.render(self.ctx, json.dumps(rejected), visible, direct_selection=True)
+            self.assertEqual(result, (quotes.NO_QUOTE, ()), rejected)
+
+    def test_direct_selection_requires_verifiable_identity_and_rechecks_whole_observed_range(self):
+        line = "先摆低架。"
+        items = self.records(f"值班时小罗亲口说：“{line}”", f"笔记只有一句：“{line}”发言人不详。")
+        picks = ["B", {"source": "A", "quote": line, "speaker": "小罗", "attribution": "小罗亲口说"}]
+        decision = json.dumps({"picks": picks, "relation": "alternatives"})
+        for body in ('{"picks":["A"]}', '{"picks":["B"]}', json.dumps({"picks": [{"source": "A", "quote": line}]})):
+            text, refs = quotes.render(self.ctx, body, items, direct_selection=True)
+            self.assertEqual((text, refs), (quotes.no_quote(self.ctx.current_query), ()))
+        text, refs = quotes.render(self.ctx, decision, items, direct_selection=True)
+        self.assertEqual([r["message_id"] for r in refs], [1])
+        self.assertIn(line, text)
+        self.assertIn("小罗", text)
+        self.assertNotIn("#2", text)
+        with closing(sqlite3.connect(self.db)) as db:
+            db.execute("UPDATE chat_messages SET content=replace(content,'小罗亲口说','我猜小罗说') WHERE id=1")
+            db.commit()
+        self.assertEqual(quotes.render(self.ctx, decision, items, direct_selection=True),
+                         (quotes.no_quote(self.ctx.current_query), ()))
