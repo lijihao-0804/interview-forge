@@ -93,12 +93,20 @@ class ToolRuntime:
         cache_hit: bool = False,
         result_chars: int = 0,
         result_tokens_estimated: int = 0,
+        recalled: ToolResult | None = None,
     ) -> None:
         metadata = {
             "cache_hit": bool(cache_hit),
             "result_chars": int(result_chars),
             "result_tokens_estimated": int(result_tokens_estimated),
         }
+        # Record the returned IDs at execution time. Replaying a search later
+        # can yield a different ranking after the session index has warmed.
+        if call.name == "recall_chat_history" and recalled is not None:
+            metadata["history_message_ids"] = list(dict.fromkeys(
+                item["message_id"] for item in recalled.data.get("items", [])
+                if isinstance(item, dict) and type(item.get("message_id")) is int
+            ))
         try:
             with closing(server_runtime.connect(Path(context.user_db))) as connection:
                 connection.execute(
@@ -244,6 +252,7 @@ class ToolRuntime:
                 cache_hit=True,
                 result_chars=len(serialized),
                 result_tokens_estimated=result_tokens,
+                recalled=result,
             )
             return ToolExecutionResult(
                 tool_name=call.name, call_id=call.call_id, status="cache_hit",
@@ -307,6 +316,7 @@ class ToolRuntime:
             context=context, run_id=run_id, call=call, kind=spec.kind,
             arguments=arguments, status="success", duration_ms=duration_ms,
             result_chars=len(serialized), result_tokens_estimated=result_tokens,
+            recalled=result,
         )
         debug_ai_event(
             "chat_tool_completed", tool_name=call.name, tool_kind=spec.kind.value,

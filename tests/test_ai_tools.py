@@ -166,6 +166,26 @@ class ToolInfrastructureTests(unittest.TestCase):
             len(json.dumps(envelope, ensure_ascii=False, sort_keys=True, separators=(",", ":"))),
         )
 
+    def test_recall_audits_ids_without_copying_text_even_on_cache_hit(self):
+        passage = {"message_id": 57, "excerpt": "private sentence"}
+        runtime = ToolRuntime(ToolRegistry([ToolSpec(
+            "recall_chat_history", "历史", "历史", Args, lambda *_: {"items": [passage, passage]},
+        )]))
+        context = _context(self.db)
+        for call_id in ("first", "repeat"):
+            asyncio.run(runtime.execute(call=NormalizedToolCall(
+                call_id, "recall_chat_history", {"value": "theme"},
+            ), context=context))
+        connection = server_runtime.connect(self.db)
+        try:
+            rows = list(connection.execute("SELECT status, result_meta_json FROM chat_tool_runs"))
+        finally:
+            connection.close()
+        self.assertEqual({row[0] for row in rows}, {"success", "cache_hit"})
+        for _, metadata in rows:
+            self.assertEqual(json.loads(metadata)["history_message_ids"], [57])
+            self.assertNotIn("private sentence", metadata)
+
     def test_read_cache_and_action_confirmation_audit(self):
         calls = []
 

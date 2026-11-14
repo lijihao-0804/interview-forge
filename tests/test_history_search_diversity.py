@@ -13,8 +13,9 @@ from unittest.mock import patch
 from interview_forge.ai import history_search
 from interview_forge.ai.embedding_spec import EMBEDDING_DIMENSION
 from interview_forge.ai.history_encoder import history_encoder
-from interview_forge.ai.tools.builtins.history import RecallChatHistoryArgs, recall_chat_history
-from interview_forge.ai.tools.contracts import ToolExecutionContext
+from interview_forge.ai.token_counting import estimate_json_tokens
+from interview_forge.ai.tools.builtins.history import HISTORY_RESULT_TOKENS, RecallChatHistoryArgs, recall_chat_history
+from interview_forge.ai.tools.contracts import ToolExecutionContext, ToolExecutionResult
 from interview_forge.db.ai_schema import AI_DB_SCHEMA
 
 
@@ -121,6 +122,78 @@ class HistorySearchDiversityTests(unittest.TestCase):
             actual = self.recall("苗木抵达")
         self.assertEqual([x["message_id"] for x in actual], [1, 2, 3])
         self.assertEqual(len({x["excerpt"] for x in actual}), 1)
+
+    def test_quote_keeps_paraphrase_below_a_lone_literal_distractor(self):
+        topic = "泊船处停用"
+        messages = ["“泊船处停用”是报上的一个标题。", "渡口暂停靠岸，我改在上游的浮桥接人。",
+                    "三楼的窗户要刷漆。"]
+        self.add_messages([("user", text) for text in messages])
+        scores = ScoredEncoder(dict(zip(messages, [.95, .88, .70], strict=True)))
+        with patch.object(history_search, "history_encoder", return_value=scores):
+            self.assertEqual([x["message_id"] for x in self.recall(topic)], [1])
+            quote = self.recall(topic, "我当时提到码头关闭后的碰头地点。请给我原句。")
+            self.assertEqual([x["message_id"] for x in quote], [1, 2])
+
+    def test_quote_makes_room_for_requested_writer_and_retains_both_roles(self):
+        assistant = ["关于库房的备注 " + str(i) for i in range(9)]
+        user = ["我在清点货架时记录了一件事 " + str(i) for i in range(7)]
+        self.add_messages([("assistant", text) for text in assistant] + [("user", text) for text in user])
+        scores = ScoredEncoder(dict(zip(assistant + user, [.93] * 9 + [.91] * 7, strict=True)))
+        with patch.object(history_search, "history_encoder", return_value=scores):
+            query = "物料点数"
+            quote = self.recall(query, "我当时怎么记的？请逐字引用那条消息。")
+            self.assertEqual(len(quote), 8)
+            self.assertEqual([x["message_id"] for x in quote if x["role"] == "user"], [10, 11, 12, 13, 14])
+            self.assertEqual([x["message_id"] for x in quote[:2]], [1, 2])
+            reverse = self.recall(query, "你之前给我的建议写在哪条消息里？请给原句。")
+            self.assertEqual(reverse[0]["message_id"], 1)
+            self.assertIn("user", {x["role"] for x in reverse})
+            two = self.recall(query, "我说过、你也说过。请分别引用消息里的两种原话。")
+            self.assertEqual([x["message_id"] for x in two[:2]], [1, 2])
+            self.assertEqual({x["role"] for x in two}, {"user", "assistant"})
+
+    def test_ambiguous_quote_needs_distinct_answers_but_explicit_repeats_keep_ids(self):
+        repeated = "场务确认签到本已收到。"
+        choices = ["后备站点可以选旧车棚。", "后备站点也可选西侧水房。"]
+        self.add_messages([("assistant", repeated)] * 12 + [("user", text) for text in choices])
+        scores = ScoredEncoder({repeated: .92, choices[0]: .91, choices[1]: .90})
+        with patch.object(history_search, "history_encoder", return_value=scores):
+            choices_only = self.recall("集合的预备地点", "有两条备选说法，分别附原句和消息编号。")
+            copies = self.recall("集合的预备地点", "这条原话出现过几次？请附消息编号。")
+        self.assertEqual([x["message_id"] for x in choices_only], [1, 13, 14])
+        self.assertTrue({1, 2, 3}.issubset(x["message_id"] for x in copies))
+
+    def test_full_excerpts_fit_tool_budget_without_losing_later_short_source(self):
+        long_rows = ["长" * 350 + str(i) for i in range(7)]
+        long_rows[3] = "A" * 40 + long_rows[3][40:]
+        short_row = "仓库南门上了红锁。"
+        self.add_messages([("user", text) for text in long_rows + [short_row]])
+        scores = {text[start:end]: .91 for text in long_rows for start, end in history_search._windows(text)}
+        scores[short_row] = .90
+        with patch.object(history_search, "history_encoder", return_value=ScoredEncoder(scores)):
+            context = ToolExecutionContext(self.db, "s", "turn", 100, "请给之前写的原句和消息编号。")
+            result = recall_chat_history(context, RecallChatHistoryArgs(query="接货地点", mode="semantic"))
+        items = result.data["items"]
+        self.assertLess(len(items), 8)
+        self.assertIn(8, [item["message_id"] for item in items])
+        self.assertTrue(all(len(x["excerpt"]) == 320 for x in items if x["message_id"] < 8))
+        payload = ToolExecutionResult("recall_chat_history", "", "ok", result).model_payload()
+        self.assertLessEqual(estimate_json_tokens(payload), HISTORY_RESULT_TOKENS)
+
+    def test_quote_can_verify_distant_suggestions_in_one_message(self):
+        rejected = "白釉样片可以淋水，这句话是采购者建议的。"
+        accepted = "我的安排是把白釉样片装进防潮袋。"
+        source = rejected + "本批陶坯将于月底验收，暂存于木架上。" * 58 + accepted
+        self.add_messages([("user", source), ("user", source)])
+        windows = (source[start:end] for start, end in history_search._windows(source))
+        scores = {w: .94 if rejected in w else (.90 if accepted in w else .67) for w in windows}
+        with patch.object(history_search, "history_encoder", return_value=ScoredEncoder(scores)):
+            actual = self.recall("样品如何避免返潮", "我当时对保管样品是什么安排？请给原句。")
+        self.assertEqual([item["message_id"] for item in actual], [1, 1])
+        self.assertIn(rejected, actual[0]["excerpt"])
+        self.assertIn(accepted, actual[1]["excerpt"])
+        for item in actual:
+            self.assertEqual(item["excerpt"], source[item["offset"]:item["offset"] + len(item["excerpt"])])
 
     def test_reserving_one_slot_can_displace_a_distinct_literal_source(self):
         topic = "十号展台"

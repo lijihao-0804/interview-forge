@@ -20,6 +20,7 @@ def register_builtin_tools(registry: ToolRegistry) -> ToolRegistry:
         sync_leetcode_confirmation,
     )
     from interview_forge.ai.tools.builtins.history import (
+        HISTORY_RESULT_TOKENS,
         RecallChatHistoryArgs,
         recall_chat_history,
     )
@@ -68,7 +69,7 @@ def register_builtin_tools(registry: ToolRegistry) -> ToolRegistry:
         args_model=RecallChatHistoryArgs,
         handler=recall_chat_history,
         timeout_seconds=30.0,
-        max_result_tokens=2100,
+        max_result_tokens=HISTORY_RESULT_TOKENS,
         cache_within_turn=False,
     ))
     registry.register(ToolSpec(

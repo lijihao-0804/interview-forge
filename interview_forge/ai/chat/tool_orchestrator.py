@@ -553,6 +553,11 @@ class ToolOrchestrator:
             bound_model = bind_tools(model, self.registry.list_specs())
         except (ToolingUnavailableError, ImportError, AttributeError, TypeError, ValueError):
             debug_ai_event("chat_tooling_unavailable", session_id=context.session_id)
+            if quote_requested:
+                # Source IDs and quotations need the owner-scoped history read.
+                self.last_result = ToolTurnResult(tooling_unavailable=True, visible_text_chars=len(quote_selection.NO_QUOTE))
+                yield _event("message.delta", {"delta": quote_selection.NO_QUOTE})
+                return
             fallback_messages = _with_tool_notice(history, TOOLING_UNAVAILABLE_NOTICE)
             admitted_fallback_messages = await self._admit_model_request(
                 fallback_messages,
@@ -594,6 +599,16 @@ class ToolOrchestrator:
             for key, value in result.usage.items():
                 total_usage[key] = total_usage.get(key, 0) + value
             calls = list(result.calls)
+            if quote_requested and not calls:
+                recall_spec = self.registry.get("recall_chat_history")
+                if (recall_spec and recall_spec.kind == ToolKind.READ and not recall_spec.requires_confirmation
+                        and call_count < self.policy.max_calls_per_turn and recall_spec.name not in tool_names):
+                    # The model can answer from a recent message without a tool.
+                    # Reopen the bounded evidence path before exposing any quotation.
+                    calls = [NormalizedToolCall(f"recall-request-{round_index + 1}", recall_spec.name,
+                                                {"mode": "semantic", "query": context.current_query.strip()[:96]})]
+                else:
+                    result = _RoundResult(quote_selection.NO_QUOTE, (), result.usage)
             if quote_requested and any(
                 not (spec := self.registry.get(call.name)) or spec.kind != ToolKind.READ or spec.requires_confirmation
                 for call in calls
@@ -671,8 +686,10 @@ class ToolOrchestrator:
                         call_count += 1
                         tool_names.append(extra.name)
                         tool_run_ids.extend(r.run_id for r in extra_results if r.run_id)
-                        self._append_tool_messages(history, [extra], extra_results, sources_by_position=sources_by_position,
-                                                   recall_by_position=recall_by_position)
+                        total_result_tokens += self._append_tool_messages(
+                            history, [extra], extra_results, sources_by_position=sources_by_position,
+                            recall_by_position=recall_by_position,
+                        )
                         recall_results.extend(r for r in extra_results if r.status in {"ok", "cache_hit"})
                     # Rank from the actual tool evidence. A holder of a prompt
                     # or tool-run ID cannot inject an account/session selector.
@@ -694,6 +711,13 @@ class ToolOrchestrator:
                 if round_index + 1 < self.policy.max_rounds and total_result_tokens <= self.policy.max_total_result_tokens:
                     continue
 
+            if quote_requested:
+                # A blocked or failed read cannot be replaced by unverified model text.
+                self.last_result = ToolTurnResult(usage=total_usage, tool_calls_count=call_count,
+                    tool_names=tuple(dict.fromkeys(tool_names)), tool_run_ids=tuple(tool_run_ids),
+                    visible_text_chars=len(quote_selection.NO_QUOTE), has_valid_tool_activity=has_valid_tool_activity)
+                yield _event("message.delta", {"delta": quote_selection.NO_QUOTE})
+                return
             final_messages = _with_tool_notice(history, TOOLS_DISABLED_NOTICE)
             final_result = await self._final_answer_round(
                 model, final_messages, context=context, round_index=round_index + 2,

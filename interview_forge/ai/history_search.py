@@ -2,8 +2,8 @@
 
 Ordinary lookups return at most three sources: two by hybrid relevance, then
 one by eligible dense relevance when it can improve on the third hybrid hit.
-Same-role copies of the entire original message count as one source for that
-lookup. Ordered, comparison and occurrence queries retain individual messages.
+Explicit quotation requests can inspect a larger set before verifying the
+answer. Ordered, comparison and occurrence queries retain individual messages.
 """
 from __future__ import annotations
 
@@ -33,6 +33,7 @@ _ONLINE_PASSAGES = 32768
 _SOFT_SECONDS = 20.0
 _SCAN_SECONDS = 25.0
 _EXCERPT_CHARS = 320
+_QUOTE_CANDIDATES = 8
 _VECTOR_SIZE = EMBEDDING_DIMENSION * 4
 _LOCKS = tuple(threading.Lock() for _ in range(64))
 _SCOPE = "m.session_id=? AND m.id<? AND m.role IN ('user','assistant')"
@@ -45,6 +46,20 @@ _OCCURRENCE_OR_COMPARISON = re.compile(
     r"repeat\w*|repetit\w*|occurrence\w*|duplicates?|count(?:s|ed|ing)?|how (?:many|often)|"
     r"each|every|all|twice|multiple|changed?|changes|first|earliest|oldest|last|latest|timeline|chronolog\w*)\b", re.I,
 )
+_REPEATED_OCCURRENCES = re.compile(
+    r"重复|反复|几次|几遍|多少[次遍条]|次数|频率|每[次条]|逐条|每一[次条]|(?:两|多)[次遍]|"
+    r"第[一二三四五六七八九十百千万两\d]+[次条遍]|(?:所有|全部|每个).{0,6}(?:消息|记录|留言|出现)|"
+    r"比较|对比|对照|\b(?:compar\w*|contrast\w*|repeat\w*|occurrence\w*|duplicates?|"
+    r"count(?:s|ed|ing)?|how (?:many|often)|every|twice|chronolog\w*)\b", re.I,
+)
+_WRITER = {
+    "user": re.compile(r"我(?:当时|之前|先前|最初|原先|曾经|写过|说过|提过|问过|记下|发过)|"
+                       r"我的(?:原话|原句|说法|提问|留言|记录)|"
+                       r"\b(?:I (?:said|wrote|noted|recorded|asked)|my (?:original )?(?:words|quote|message|note))\b", re.I),
+    "assistant": re.compile(r"(?:你|助手)(?:当时|之前|先前|最初|原先|曾经|写过|说过|提过|问过|发过|建议我)|"
+                            r"你的(?:原话|原句|说法|回答|建议|留言)|"
+                            r"\b(?:you (?:said|wrote|advised|suggested|recommended)|your (?:original )?(?:words|quote|message|advice))\b", re.I),
+}
 
 
 def _windows(text: str):
@@ -187,7 +202,67 @@ def backfill_session(user_db: Path, session_id: str, cutoff: int = 2**63 - 1) ->
     return {"passages": total, "new_vectors": indexed, "model": MODEL_ID}
 
 
-def _rank(candidates, query_terms, passage_count, oldest, limit, *, diversify=True):
+def _quote_candidates(scored, dense_floor, diversify, writer):
+    """Retain plausible competing sources for the separate quotation verifier."""
+    selected = []
+    seen = set()
+
+    def source_key(candidate):
+        return (candidate.role, candidate.digest) if diversify else candidate.message_id
+
+    def add(candidate):
+        key = source_key(candidate)
+        if key not in seen:
+            seen.add(key)
+            selected.append(candidate)
+            return True
+        return False
+
+    for _, _, candidate in scored:
+        add(candidate)
+        if len(selected) == 2:
+            break
+    # Authorship is a soft preference. A person can be quoted in either role,
+    # and passages in the other role keep their global and dense slots.
+    roles = {candidate.role for candidate in selected}
+    if len(roles) == 1:
+        alternative = next((c for _, _, c in scored if c.role not in roles), None)
+        if alternative is not None:
+            add(alternative)
+    if writer:
+        slots = 5 - sum(c.role == writer for c in selected)
+        for _, _, candidate in scored:
+            if candidate.role == writer and add(candidate):
+                slots -= 1
+                if slots == 0:
+                    break
+    dense_best = max((c for _, _, c in scored if c.dense is not None and c.dense >= dense_floor and
+                      source_key(c) not in seen),
+                     key=lambda c: c.dense, default=None)
+    if dense_best is not None:
+        add(dense_best)
+    for _, _, candidate in scored:
+        if len(selected) == _QUOTE_CANDIDATES:
+            break
+        add(candidate)
+    # A long source can contain a reported suggestion near the top and the
+    # writer's own conclusion much later. Use spare capacity for eligible
+    # non-overlapping evidence from the same original, never a duplicate
+    # copy of that message with a different ID.
+    if len(selected) < _QUOTE_CANDIDATES:
+        starts_by_id = {c.message_id: [c.start] for c in selected}
+        for _, _, candidate in scored:
+            starts = starts_by_id.get(candidate.message_id)
+            if starts is not None and all(abs(candidate.start - start) >= _EXCERPT_CHARS + _CHARS
+                                          for start in starts):
+                selected.append(candidate)
+                starts.append(candidate.start)
+                if len(selected) == _QUOTE_CANDIDATES:
+                    break
+    return selected
+
+
+def _rank(candidates, query_terms, passage_count, oldest, limit, *, diversify=True, writer=None):
     if not candidates:
         return []
     frequencies = Counter(term for c in candidates for term in c.terms)
@@ -196,6 +271,11 @@ def _rank(candidates, query_terms, passage_count, oldest, limit, *, diversify=Tr
     total_weight = sum(weights.values()) or 1.0
     best_dense = max((c.dense for c in candidates if c.dense is not None), default=-1.0)
     dense_floor = max(0.76, best_dense - 0.045)
+    if limit == _QUOTE_CANDIDATES:
+        # A nearly literal distractor can be much closer to the query than a
+        # genuine paraphrase. The wider band admits alternatives for the
+        # quotation verifier while preserving an absolute similarity floor.
+        dense_floor = min(dense_floor, max(0.80, best_dense - 0.085))
     scored = []
     for c in candidates:
         lexical = sum(weights[t] for t in c.terms) / total_weight
@@ -218,6 +298,8 @@ def _rank(candidates, query_terms, passage_count, oldest, limit, *, diversify=Tr
         scored.sort(key=lambda pair: (pair[2].message_id, -pair[0], pair[2].start))
     else:
         scored.sort(key=lambda pair: (-pair[0], pair[2].message_id, pair[2].start))
+    if limit == _QUOTE_CANDIDATES:
+        return _quote_candidates(scored, dense_floor, diversify, writer)
     # Ordered/multiple-occurrence requests and single-result lookups keep the
     # original per-message ordering, including distinct occurrences of a quote.
     diversify = diversify and not oldest and limit == 3
@@ -273,7 +355,7 @@ def _excerpts(db, sources, session_id, cutoff):
 
 
 def search_history(user_db: Path, session_id: str, cutoff: int, query: str, *, oldest=False,
-                   first_only=False, request_text: str | None = None):
+                   first_only=False, request_text: str | None = None, for_quotation=False):
     """Search one session. Full request text preserves comparison and counting intent."""
     started = time.monotonic()
     encoder = history_encoder()
@@ -344,8 +426,19 @@ def search_history(user_db: Path, session_id: str, cutoff: int, query: str, *, o
             last_id = rows[-1][0]
     complete = scan_complete and (query_vector is None or embedded == seen)
     request = query if request_text is None else request_text
-    selected = _rank(candidates, terms, seen, oldest=oldest, limit=1 if first_only else 3,
-                     diversify=not _OCCURRENCE_OR_COMPARISON.search(request))
+    limit = 1 if first_only else 3
+    writer = None
+    if for_quotation and not oldest and not first_only:
+        limit = _QUOTE_CANDIDATES
+        writers = [role for role, pattern in _WRITER.items() if pattern.search(request)]
+        if len(writers) == 1:
+            writer = writers[0]
+    # An ambiguous quotation can have multiple distinct answers. Copies
+    # of an unrelated answer must not crowd them out. Keep separate
+    # occurrences where a user explicitly asks to count or compare them.
+    preserve_occurrences = _REPEATED_OCCURRENCES if limit == _QUOTE_CANDIDATES else _OCCURRENCE_OR_COMPARISON
+    selected = _rank(candidates, terms, seen, oldest=oldest, limit=limit,
+                     diversify=not preserve_occurrences.search(request), writer=writer)
     with closing(sqlite3.connect(uri + "?mode=ro", uri=True, timeout=1)) as db:
         items = _excerpts(db, selected, session_id, cutoff)
     summary = {"kind": "hybrid" if embedded else "lexical", "coverage_complete": complete,

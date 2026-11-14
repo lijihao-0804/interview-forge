@@ -9,12 +9,14 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from interview_forge.ai.chat.relevance import requests_first_history_match
-from interview_forge.ai.tools.contracts import ToolExecutionContext, ToolResult
+from interview_forge.ai.token_counting import estimate_json_tokens
+from interview_forge.ai.tools.contracts import ToolExecutionContext, ToolExecutionResult, ToolResult
 
 _EXCERPT_CHARS = 320
 _SEARCH_ROWS = 256
 _MAX_HITS = 3
 _MAX_MESSAGE_ID = 2**63 - 1
+HISTORY_RESULT_TOKENS = 2100
 
 
 class RecallChatHistoryArgs(BaseModel):
@@ -64,10 +66,21 @@ def recall_chat_history(context: ToolExecutionContext, args: RecallChatHistoryAr
     first_only = requests_first_history_match(context.current_query)
     oldest_first = args.oldest_first or (first_only and args.message_id is None)
     if args.mode == "semantic":
+        from interview_forge.ai.chat.quote_selection import requested
         from interview_forge.ai.history_search import search_history
 
         data = search_history(context.user_db, context.session_id, context.user_message_id, args.query,
-                              oldest=oldest_first, first_only=first_only, request_text=context.current_query)
+                              oldest=oldest_first, first_only=first_only, request_text=context.current_query,
+                              for_quotation=requested(context.current_query))
+        # Some sources are short one-liners; others occupy the full 320 code
+        # points. Admit whole source ranges under the normal tool envelope cap.
+        items = data["items"]
+        data["items"] = []
+        envelope = ToolExecutionResult("recall_chat_history", "", "ok", ToolResult(data)).model_payload()
+        for item in items:
+            data["items"].append(item)
+            if estimate_json_tokens(envelope) > HISTORY_RESULT_TOKENS:
+                data["items"].pop()
         if not data["retrieval"]["coverage_complete"]:
             status = "已检索部分会话历史"
         else:
