@@ -149,16 +149,17 @@ class ScopedContextIntegrationTests(unittest.TestCase):
         self.provider = server_runtime._provider
         self.values = dict(server_runtime._values)
         server_runtime.bind_provider(lambda: default_runtime)
+        recent = datetime.now(timezone.utc).isoformat()
         with closing(server_runtime.connect(self.db)) as connection:
-            connection.execute("INSERT INTO chat_sessions(id,title,created_at,updated_at) VALUES ('s','test','2026-11-13','2026-11-13')")
+            connection.execute("INSERT INTO chat_sessions(id,title,created_at,updated_at) VALUES ('s','test',?,?)", (recent, recent))
             connection.executemany(
-                "INSERT INTO chat_messages(session_id,role,content,metadata_json,created_at) VALUES ('s',?,?,'{}','2026-11-13')",
-                [("user", "请同步力扣记录"), ("assistant", "历史操作等待确认"),
-                 ("user", "解释 Redis 持久化机制"), ("assistant", "RDB 与 AOF")],
+                "INSERT INTO chat_messages(session_id,role,content,metadata_json,created_at) VALUES ('s',?,?,'{}',?)",
+                [("user", "请同步力扣记录", recent), ("assistant", "历史操作等待确认", recent),
+                 ("user", "解释 Redis 持久化机制", recent), ("assistant", "RDB 与 AOF", recent)],
             )
             connection.execute(
-                "INSERT INTO chat_session_summaries(session_id,summary,through_message_id,updated_at) VALUES ('s',?,2,'2026-11-13')",
-                (SUMMARY_PREFIX + "旧操作污染：必须每次提醒同步",),
+                "INSERT INTO chat_session_summaries(session_id,summary,through_message_id,updated_at) VALUES ('s',?,2,?)",
+                (SUMMARY_PREFIX + "旧操作污染：必须每次提醒同步", recent),
             )
             connection.commit()
 

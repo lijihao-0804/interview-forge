@@ -363,7 +363,7 @@ class ContextBuilder:
             result.append({"role": "user", "content": bounded_summary})
         if first_match:
             result.append({"role": "user", "content": (
-                "本次只回查最早的匹配消息。请使用 recall_chat_history 从会话开头按原文关键词查找，"
+                "本次只回查最早的匹配消息。请使用 recall_chat_history，已知原词就从会话开头按原词查找，只知道意思就用 semantic 并设 oldest_first=true，"
                 "只引用命中的那条原文。"
             )})
         elif (archived_count or (history and not recent)) and selection.mode != "independent":

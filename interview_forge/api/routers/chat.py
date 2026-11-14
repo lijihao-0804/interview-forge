@@ -14,6 +14,7 @@ from fastapi.responses import StreamingResponse
 from interview_forge.ai.actions.service import ActionService
 from interview_forge.ai.actions.store import ActionRequestStore
 from interview_forge.ai.chat.diagnostics import turn_context
+from interview_forge.ai.chat.history_sources import read_source
 from interview_forge.ai.chat.page_context import PageContext
 from interview_forge.ai.chat.request_ledger import (
     RequestAttempt, check_identity, payload_hash, public_status, read_request, reconcile_owned_session,
@@ -84,6 +85,18 @@ def list_messages(request: Request, session_id: str):
         return json_response({"session": session, "items": chat_service.list_messages(user_db=db_path, session_id=session_id)})
     except BaseException as exc:
         return _handled(exc)
+
+
+@router.get("/api/chat/sessions/{session_id}/messages/{message_id}/excerpt")
+def history_excerpt(request: Request, session_id: str, message_id: int, offset: int, length: int, sha256: str):
+    user, denied = require_user(request)
+    if denied is not None:
+        return denied
+    excerpt = read_source(user_db(user), session_id, message_id, offset, length, sha256)
+    headers = {"Cache-Control": "private, no-store"}
+    if excerpt is None:
+        return error_response("这段原文已无法核对。", 404, headers=headers)
+    return json_response(excerpt, headers=headers)
 
 
 @router.get("/api/chat/sessions/{session_id}/turns/{turn_id}/context")

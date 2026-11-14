@@ -28,6 +28,7 @@ from interview_forge.ai.chat.context_builder import (
     ContextBuilder,
 )
 from interview_forge.ai.chat.context_blocks import ContextBlock
+from interview_forge.ai.chat.history_sources import HistorySource
 from interview_forge.ai.chat.learning_context import LearningContextProvider, learning_projection_block
 from interview_forge.ai.chat.page_context import PageContext, PageContextProvider
 from interview_forge.ai.chat.recent_action_context import RecentActionContextProvider
@@ -590,7 +591,7 @@ class ChatService:
     def _save_assistant_message(
         *, user_db: Path, session_id: str, content: str, stream_message_id: str, usage: Mapping[str, Any],
         library_sources: tuple[LibrarySource, ...] = (), attempt: RequestAttempt | None = None,
-        confirmations: list[dict] | None = None,
+        confirmations: list[dict] | None = None, history_sources: tuple[HistorySource, ...] = (),
     ) -> dict[str, Any]:
         """Commit the reply and its replay receipt before emitting message.done."""
         done = {"message_id": stream_message_id, "usage": dict(usage)}
@@ -602,6 +603,8 @@ class ChatService:
                 done["created_at"] = timestamp
                 if library_sources:
                     done["library_sources"] = metadata["library_sources"] = list(library_sources)
+                if history_sources:
+                    done["history_sources"] = metadata["history_sources"] = list(history_sources)
                 cursor = connection.execute(
                     "INSERT INTO chat_messages(session_id, role, content, metadata_json, created_at) "
                     "VALUES (?, 'assistant', ?, ?, ?)",
@@ -975,7 +978,7 @@ class ChatService:
                 done_payload = self._save_assistant_message(
                     user_db=path, session_id=session_id, content=answer, stream_message_id=stream_message_id,
                     usage=usage_payload, library_sources=turn_result.library_sources,
-                    attempt=attempt, confirmations=confirmations,
+                    attempt=attempt, confirmations=confirmations, history_sources=turn_result.history_sources,
                 )
                 assistant_saved = bool(answer.strip())
                 debug_ai_event(

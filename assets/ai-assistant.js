@@ -526,6 +526,37 @@
     });
   }
 
+  function renderHistorySources(content, sources) {
+    if (!Array.isArray(sources) || !sources.length || !state.current || content.querySelector(".history-source")) return;
+    var session = state.current;
+    sources.forEach(function (source) {
+      if (!source || !Number.isSafeInteger(source.message_id) || !Number.isSafeInteger(source.offset) ||
+          !Number.isInteger(source.length) || !/^[0-9a-f]{64}$/.test(source.sha256)) return;
+      var details = document.createElement("details");
+      details.className = "history-source";
+      var summary = document.createElement("summary");
+      summary.textContent = "核对原话 · 消息 #" + source.message_id;
+      var quote = document.createElement("blockquote");
+      details.append(summary, quote);
+      content.insertBefore(details, content.querySelector(".message-time"));
+      var loading = false, loaded = false;
+      details.addEventListener("toggle", async function () {
+        if (!details.open || loading || loaded) return;
+        loading = true;
+        quote.textContent = "正在读取原文…";
+        try {
+          var result = await api(sessionPath(session) + "/messages/" + source.message_id + "/excerpt?offset=" +
+            source.offset + "&length=" + source.length + "&sha256=" + source.sha256);
+          quote.textContent = result.excerpt;
+          loaded = true;
+        } catch (err) {
+          loaded = err.status === 404;
+          quote.textContent = loaded ? "这段原文已无法核对。" : "暂时无法读取，收起后展开可重试。";
+        } finally { loading = false; }
+      });
+    });
+  }
+
   function renderMessage(item, target) {
     var node = document.createElement("div");
     node.className = "message " + (item.role === "user" ? "user" : "assistant");
@@ -542,6 +573,7 @@
     content.appendChild(time);
     if (item.role === "assistant" && item.metadata) {
       renderLibrarySources(content, item.metadata.library_sources);
+      renderHistorySources(content, item.metadata.history_sources);
       renderContextDetails(content, item.metadata.stream_message_id);
     }
     node.appendChild(content);
@@ -912,6 +944,7 @@
             finalizeAssistant(state.assistantNode.querySelector(".bubble"));
             setMessageTime(state.assistantNode, payload && payload.created_at);
             renderLibrarySources(state.assistantNode.querySelector(".message-content"), payload && payload.library_sources);
+            renderHistorySources(state.assistantNode.querySelector(".message-content"), payload && payload.history_sources);
             renderContextDetails(state.assistantNode.querySelector(".message-content"), payload && payload.message_id);
             scheduleScrollBottom();
           }

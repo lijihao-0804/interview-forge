@@ -68,6 +68,7 @@ class ToolSpec:
     timeout_seconds: float = 8.0
     max_result_tokens: int = 1500
     confirmation_builder: ConfirmationBuilder | None = None
+    cache_within_turn: bool = True
 
     def __post_init__(self) -> None:
         if not self.name or not self.name.replace("_", "").isalnum():

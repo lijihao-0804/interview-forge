@@ -66,6 +66,20 @@ CREATE INDEX IF NOT EXISTS ix_chat_sessions_updated
     ON chat_sessions(updated_at DESC, id DESC);
 CREATE INDEX IF NOT EXISTS ix_chat_messages_session_id
     ON chat_messages(session_id, id ASC);
+CREATE TABLE IF NOT EXISTS chat_history_embeddings (
+    message_id INTEGER NOT NULL REFERENCES chat_messages(id) ON DELETE CASCADE,
+    source_offset INTEGER NOT NULL,
+    source_end INTEGER NOT NULL,
+    index_version TEXT NOT NULL,
+    vector BLOB NOT NULL,
+    PRIMARY KEY(message_id, source_offset)
+) WITHOUT ROWID;
+CREATE TRIGGER IF NOT EXISTS chat_history_embeddings_edit
+    AFTER UPDATE OF id, content, role, session_id ON chat_messages
+    BEGIN DELETE FROM chat_history_embeddings WHERE message_id = OLD.id; END;
+CREATE TRIGGER IF NOT EXISTS chat_history_embeddings_delete
+    AFTER DELETE ON chat_messages
+    BEGIN DELETE FROM chat_history_embeddings WHERE message_id = OLD.id; END;
 CREATE TABLE IF NOT EXISTS chat_request_ledger (
     session_id TEXT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
     client_request_id TEXT NOT NULL,

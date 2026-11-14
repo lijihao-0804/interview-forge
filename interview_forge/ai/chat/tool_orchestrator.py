@@ -10,6 +10,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+from interview_forge.ai.chat.history_sources import HistorySource, cited_history_sources
 from interview_forge.ai.chat.request_budget import (
     RequestAdmission,
     admit_request,
@@ -64,6 +65,7 @@ class ToolTurnResult:
     has_valid_tool_activity: bool = False
     has_pending_confirmation: bool = False
     library_sources: tuple[LibrarySource, ...] = ()
+    history_sources: tuple[HistorySource, ...] = ()
 
     @property
     def is_valid_turn(self) -> bool:
@@ -418,6 +420,7 @@ class ToolOrchestrator:
         results: list[ToolExecutionResult],
         *,
         sources_by_position: dict[int, tuple[LibrarySource, ...]],
+        recall_by_position: dict[int, list[dict]] | None = None,
         blocked: bool = False,
     ) -> int:
         """Keep bounded runtime results in the turn. Admission controls each model's view."""
@@ -446,6 +449,8 @@ class ToolOrchestrator:
                     result_tokens += estimate_json_tokens(payload)
                     if result.result.library_sources:
                         sources_by_position[len(messages)] = result.result.library_sources
+                    if recall_by_position is not None and call.name == "recall_chat_history":
+                        recall_by_position[len(messages)] = result.result.data.get("items", [])
             messages.append({
                 "role": "tool",
                 "tool_call_id": call.call_id,
@@ -468,6 +473,7 @@ class ToolOrchestrator:
         call_count = 0
         total_result_tokens = 0
         sources_by_position: dict[int, tuple[LibrarySource, ...]] = {}
+        recall_by_position: dict[int, list[dict]] = {}
         identical_calls: Counter[str] = Counter()
         visible_text_parts: list[str] = []
         has_valid_tool_activity = False
@@ -481,6 +487,11 @@ class ToolOrchestrator:
                     for item in items:
                         sources.setdefault(item["url"], item)
             return tuple(sources.values())
+
+        def visible_history_sources(answer: str, index_offset: int = 0) -> tuple[HistorySource, ...]:
+            items = [item for position, batch in recall_by_position.items()
+                     if position + index_offset in self._visible_tool_message_indices for item in batch]
+            return cited_history_sources(answer, items)
 
         try:
             tool_schemas = tuple(
@@ -541,6 +552,7 @@ class ToolOrchestrator:
                     has_valid_tool_activity=has_valid_tool_activity,
                     has_pending_confirmation=has_pending_confirmation,
                     library_sources=visible_library_sources(),
+                    history_sources=visible_history_sources(result.text),
                 )
                 return
 
@@ -589,6 +601,7 @@ class ToolOrchestrator:
                     has_valid_tool_activity=has_valid_tool_activity,
                     has_pending_confirmation=has_pending_confirmation,
                     library_sources=visible_library_sources(index_offset=len(final_messages) - len(history)),
+                    history_sources=visible_history_sources(final_result.text, len(final_messages) - len(history)),
                 )
                 return
 
@@ -606,7 +619,7 @@ class ToolOrchestrator:
             ):
                 has_pending_confirmation = True
             total_result_tokens += self._append_tool_messages(
-                history, calls, results, sources_by_position=sources_by_position,
+                history, calls, results, sources_by_position=sources_by_position, recall_by_position=recall_by_position,
             )
             for result in results:
                 if result.run_id:
@@ -634,6 +647,7 @@ class ToolOrchestrator:
                     has_valid_tool_activity=has_valid_tool_activity,
                     has_pending_confirmation=has_pending_confirmation,
                     library_sources=visible_library_sources(index_offset=len(final_messages) - len(history)),
+                    history_sources=visible_history_sources(final_result.text, len(final_messages) - len(history)),
                 )
                 return
 

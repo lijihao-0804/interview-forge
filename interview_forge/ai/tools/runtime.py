@@ -232,7 +232,7 @@ class ToolRuntime:
 
         canonical_args = _safe_json(arguments)
         cache_key = f"{spec.name}:{canonical_args}"
-        if spec.kind == ToolKind.READ and cache_key in context.cache:
+        if spec.kind == ToolKind.READ and spec.cache_within_turn and cache_key in context.cache:
             result = context.cache[cache_key]
             payload = _result_envelope(spec.name, result)
             serialized = _safe_json(payload)
@@ -300,7 +300,7 @@ class ToolRuntime:
                 arguments=arguments,
             )
 
-        if spec.kind == ToolKind.READ:
+        if spec.kind == ToolKind.READ and spec.cache_within_turn:
             context.cache[cache_key] = result
         duration_ms = round((time.perf_counter() - started) * 1000)
         self._audit(

@@ -4,6 +4,7 @@ from __future__ import annotations
 import re
 import sqlite3
 from contextlib import closing
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -19,12 +20,13 @@ _MAX_MESSAGE_ID = 2**63 - 1
 class RecallChatHistoryArgs(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
+    mode: Literal["literal", "semantic"] = Field(default="literal", description="已知原词用 literal；仅记得意思、同义改写或跨语言时用 semantic 检索整段历史")
     message_id: int | None = Field(
         default=None, strict=True, ge=1, le=_MAX_MESSAGE_ID, description="摘要或上次查询给出的来源消息 ID",
     )
     query: str | None = Field(
         default=None, strict=True, min_length=1, max_length=96,
-        description="要在历史原文中查找的连续短语，可与消息 ID 合用",
+        description="literal 用连续原词；semantic 用待找的具体主题或意思，去掉回顾、引用等操作要求",
     )
     oldest_first: bool = Field(default=False, strict=True, description="关键词默认从最近查起；查最初的约定时设为 true")
     offset: int = Field(
@@ -43,6 +45,9 @@ class RecallChatHistoryArgs(BaseModel):
     def validate_lookup(self) -> RecallChatHistoryArgs:
         if self.message_id is None and self.query is None:
             raise ValueError("Provide a message_id or a query")
+        if self.mode == "semantic" and (self.message_id is not None or self.before_message_id is not None
+                                        or self.after_message_id is not None):
+            raise ValueError("Semantic lookup takes a query and optional oldest_first")
         if self.offset and self.message_id is None:
             raise ValueError("An offset requires a message_id")
         paginated = self.before_message_id is not None or self.after_message_id is not None
@@ -58,6 +63,16 @@ class RecallChatHistoryArgs(BaseModel):
 def recall_chat_history(context: ToolExecutionContext, args: RecallChatHistoryArgs) -> ToolResult:
     first_only = requests_first_history_match(context.current_query)
     oldest_first = args.oldest_first or (first_only and args.message_id is None)
+    if args.mode == "semantic":
+        from interview_forge.ai.history_search import search_history
+
+        data = search_history(context.user_db, context.session_id, context.user_message_id, args.query,
+                              oldest=oldest_first, first_only=first_only)
+        if not data["retrieval"]["coverage_complete"]:
+            status = "已检索部分会话历史"
+        else:
+            status = "已找到本会话历史片段" if data["items"] else "本次未找到匹配的历史片段"
+        return ToolResult(data, status)
     cutoff = context.user_message_id
     if args.before_message_id is not None and not oldest_first:
         cutoff = min(cutoff, args.before_message_id)

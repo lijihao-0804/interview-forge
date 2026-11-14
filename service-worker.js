@@ -1,7 +1,7 @@
 /* Hot 100 学习站缓存兜底（在线优先；动态 API 一律走网络） */
 // Bump with every deploy that changes shell/runtime assets. Navigation is
 // network-first below, so clients can self-upgrade without manual cache clear.
-const VERSION = "hot100-v24-20261114-chat-replay";
+const VERSION = "hot100-v25-20261114-semantic-recall";
 const STATIC_PREFIX = ["/cockpit.html", "/index.html", "/pages/", "/assets/", "/library/assets/", "/library/", "/00-总览/", "/01-基础/", "/02-专题/", "/03-题解/", "/04-模板/", "/05-可视化/", "/maintenance.html", "/guide.html", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
