@@ -1,4 +1,5 @@
 import json
+import re
 import unittest
 from pathlib import Path
 
@@ -197,6 +198,26 @@ class LibraryReaderLayoutTests(unittest.TestCase):
         self.assertIn('href="chapter-05.html"', chapter_nav)
         self.assertIn("下一章 →", chapter_nav)
         self.assertNotIn(".reader-sticky", build_library.LIBRARY_CSS)
+
+    def test_module_guest_auth_links_resolve_to_site_pages(self):
+        module_pages = sorted(
+            page for page in (ROOT / "library").glob("*/index.html")
+            if page.parent.name != "hot100"
+        )
+        self.assertEqual(len(module_pages), 48)
+        for page in module_pages:
+            source = page.read_text(encoding="utf-8")
+            for element_id, target in (
+                ("guestLoginLink", ROOT / "pages" / "login.html"),
+                ("guestRegisterLink", ROOT / "pages" / "register.html"),
+            ):
+                match = re.search(
+                    rf'<a\b[^>]*\bid="{element_id}"[^>]*\bhref="([^"]+)"',
+                    source,
+                )
+                self.assertIsNotNone(match, f"{page}: missing {element_id}")
+                resolved = (page.parent / match.group(1).split("?", 1)[0]).resolve()
+                self.assertEqual(resolved, target.resolve(), f"{page}: {element_id}")
 
     def test_agent_interview_embedding_copy_has_no_split_chinese_words(self):
         source = (ROOT / "books" / "agent面经" / "agent面经.md").read_text(encoding="utf-8")

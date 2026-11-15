@@ -7,11 +7,19 @@ class FakeClassList {
   constructor() { this.items = new Set(); }
   add(...names) { names.forEach((name) => this.items.add(name)); }
   remove(...names) { names.forEach((name) => this.items.delete(name)); }
+  toggle(name, force) {
+    const enabled = force === undefined ? !this.items.has(name) : !!force;
+    if (enabled) this.items.add(name);
+    else this.items.delete(name);
+    return enabled;
+  }
+  contains(name) { return this.items.has(name); }
 }
 
 class FakeElement {
   constructor(tagName) {
     this.tagName = tagName.toUpperCase();
+    this.nodeType = 1;
     this.children = [];
     this.parentNode = null;
     this.classList = new FakeClassList();
@@ -30,10 +38,36 @@ class FakeElement {
   }
   get className() { return this._className; }
   appendChild(child) {
+    if (child.parentNode) child.parentNode.removeChild(child);
     this.children.push(child);
     child.parentNode = this;
     if (this.tagName === "SELECT" && child.tagName === "OPTION" && child.selected) this.value = child.value;
     return child;
+  }
+  insertBefore(child, reference) {
+    if (child.parentNode) child.parentNode.removeChild(child);
+    const index = reference ? this.children.indexOf(reference) : -1;
+    if (index < 0) this.children.push(child);
+    else this.children.splice(index, 0, child);
+    child.parentNode = this;
+    return child;
+  }
+  removeChild(child) {
+    const index = this.children.indexOf(child);
+    if (index >= 0) this.children.splice(index, 1);
+    child.parentNode = null;
+    return child;
+  }
+  get firstChild() { return this.children[0] || null; }
+  get nextSibling() {
+    if (!this.parentNode) return null;
+    const index = this.parentNode.children.indexOf(this);
+    return index >= 0 ? (this.parentNode.children[index + 1] || null) : null;
+  }
+  get nextElementSibling() {
+    let node = this.nextSibling;
+    while (node && node.nodeType !== 1) node = node.nextSibling;
+    return node;
   }
   set textContent(value) { this._text = String(value ?? ""); this.children = []; }
   get textContent() { return this._text || this.children.map((child) => child.textContent).join(""); }
@@ -44,9 +78,53 @@ class FakeElement {
     if (typeof this.onclick === "function") this.onclick({ target: this });
     (this.listeners.click || []).forEach((callback) => callback({ target: this }));
   }
-  querySelector() { return null; }
+  descendants() {
+    const result = [];
+    const walk = (node) => (node.children || []).forEach((child) => {
+      result.push(child);
+      walk(child);
+    });
+    walk(this);
+    return result;
+  }
+  matches(selector) {
+    const alternatives = String(selector).split(",").map((value) => value.trim()).filter(Boolean);
+    return alternatives.some((part) => {
+      if (part.includes(" > ")) {
+        const [parentSelector, childSelector] = part.split(" > ");
+        return this.parentNode && this.parentNode.matches(parentSelector) && this.matches(childSelector);
+      }
+      const tokens = part.split(/\s+/).filter(Boolean);
+      if (tokens.length > 1) {
+        if (!this.matches(tokens[tokens.length - 1])) return false;
+        let ancestor = this.parentNode;
+        while (ancestor) {
+          if (tokens.slice(0, -1).every((token) => ancestor.matches(token))) return true;
+          ancestor = ancestor.parentNode;
+        }
+        return false;
+      }
+      const tag = (part.match(/^[A-Za-z][\w-]*/) || [null])[0];
+      const classes = [...part.matchAll(/\.([\w-]+)/g)].map((match) => match[1]);
+      const id = (part.match(/#([\w-]+)/) || [null, null])[1];
+      return (!tag || this.tagName === tag.toUpperCase()) &&
+        classes.every((name) => this.classList.contains(name)) &&
+        (!id || (this.attrs || {}).id === id);
+    });
+  }
+  querySelector(selector) { return this.querySelectorAll(selector)[0] || null; }
+  querySelectorAll(selector) { return this.descendants().filter((item) => item.matches(selector)); }
+  closest(selector) {
+    let node = this;
+    while (node) {
+      if (node.matches && node.matches(selector)) return node;
+      node = node.parentNode;
+    }
+    return null;
+  }
   setAttribute(name, value) { (this.attrs ||= {})[name] = String(value); }
   getAttribute(name) { return (this.attrs || {})[name] ?? null; }
+  removeAttribute(name) { if (this.attrs) delete this.attrs[name]; }
 }
 
 const created = [];
@@ -62,9 +140,15 @@ const document = {
 };
 
 const windowListeners = {};
+const storage = new Map();
 const window = {
   addEventListener(name, callback) { (windowListeners[name] ||= []).push(callback); },
   dispatchEvent(event) { (windowListeners[event.type] || []).forEach((callback) => callback(event)); },
+};
+window.localStorage = {
+  getItem(key) { return storage.has(key) ? storage.get(key) : null; },
+  setItem(key, value) { storage.set(key, String(value)); },
+  removeItem(key) { storage.delete(key); },
 };
 
 let nextTimerId = 1;
@@ -214,6 +298,39 @@ checkbox.checked = true;
 checkbox.onchange();
 assert(has(main, "is-compare"), "toggling must open the compare column");
 
+// 5) 全局语言跟随：非 Java 模式不得保留 Java 行节点，但演示本体与控制仍可用。
+created.length = 0;
+window.localStorage.setItem("forge-lang", "python");
+window.dispatchEvent({ type: "storage", key: "forge-lang" });
+const mountedNodes = [];
+(function walk(node) {
+  mountedNodes.push(node);
+  (node.children || []).forEach(walk);
+})(app);
+const mountedByClass = (name) => mountedNodes.filter((item) => item.classList.items.has(name));
+assert.strictEqual(mountedByClass("dk-code-line").length, 0, "Python mode must not display Java-only lines");
+const languageNotes = mountedByClass("dk-code-empty");
+assert.strictEqual(languageNotes.length, 1, "Python mode needs one language note");
+assert(!languageNotes[0].hidden, "language note must be visible when Java code is suppressed");
+assert(languageNotes[0].textContent.includes("Python") && languageNotes[0].textContent.includes("Java"));
+assert(mountedByClass("dk-stage").length >= 1, "language isolation must preserve the animation stage");
+assert(mountedNodes.some((item) => item.tagName === "BUTTON" && item.textContent === "下一步 ▶"),
+  "language isolation must preserve step controls");
+
+window.localStorage.setItem("forge-lang", "java");
+window.dispatchEvent({ type: "storage", key: "forge-lang" });
+const restoredNodes = [];
+(function walk(node) {
+  restoredNodes.push(node);
+  (node.children || []).forEach(walk);
+})(app);
+const restoredByClass = (name) => restoredNodes.filter((item) => item.classList.items.has(name));
+const javaLines = restoredByClass("dk-code-line");
+assert.strictEqual(javaLines.length, 4, "returning to Java must restore one node per source line");
+assert.deepStrictEqual(javaLines.map((item) => has(item, "on")), [false, true, true, false],
+  "returning to Java must restore current line highlighting");
+assert(restoredByClass("dk-code-empty")[0].hidden, "language note must hide when code is available");
+
 console.log(JSON.stringify({
   ok: true,
   build_count: buildCount,
@@ -223,3 +340,143 @@ console.log(JSON.stringify({
   invariants: chips.length,
   compare_builds: compareBuilds,
 }));
+
+/* ── 自测模式：语言面板内 H2 也必须按解法分区遮罩 ─────────────────────── */
+{
+  const selftestSource = fs.readFileSync("scripts/build/build_html_site.py", "utf8");
+  const match = selftestSource.match(/SELFTEST_JS = """([\s\S]*?)"""/);
+  assert(match, "SELFTEST_JS must be extractable from the HTML builder");
+
+  const pageBody = new FakeElement("body");
+  const article = new FakeElement("article");
+  article.className = "markdown-body hot100-solution";
+  const toggleButton = new FakeElement("button");
+  toggleButton.setAttribute("id", "selftestToggle");
+  toggleButton.textContent = "自测模式";
+
+  const pageTitle = new FakeElement("h1");
+  pageTitle.textContent = "测试题";
+  const commonHeading = new FakeElement("h2");
+  commonHeading.textContent = "题目与约束";
+  const statement = new FakeElement("p");
+  statement.className = "statement";
+  statement.textContent = "公共题面";
+
+  const pythonPanel = new FakeElement("section");
+  pythonPanel.className = "language-panel";
+  pythonPanel.dataset.lang = "python";
+  const pythonDeriveHead = new FakeElement("h2");
+  pythonDeriveHead.textContent = "Python 完整推导";
+  const pythonDerive = new FakeElement("p");
+  pythonDerive.className = "python-derivation";
+  pythonDerive.textContent = "Python 推导内容";
+  const pythonCodeHead = new FakeElement("h2");
+  pythonCodeHead.textContent = "Python 实现";
+  const pythonCode = new FakeElement("pre");
+  pythonCode.className = "python-code";
+  pythonCode.textContent = "class Solution: ...";
+  pythonPanel.appendChild(pythonDeriveHead);
+  pythonPanel.appendChild(pythonDerive);
+  pythonPanel.appendChild(pythonCodeHead);
+  pythonPanel.appendChild(pythonCode);
+
+  const legacyPanel = new FakeElement("section");
+  legacyPanel.className = "legacy-solution-panel";
+  const legacyHead = new FakeElement("h2");
+  legacyHead.textContent = "通用思路";
+  const legacyBody = new FakeElement("p");
+  legacyBody.className = "legacy-derivation";
+  legacyBody.textContent = "旧语言思路内容";
+  legacyPanel.appendChild(legacyHead);
+  legacyPanel.appendChild(legacyBody);
+
+  const nav = new FakeElement("nav");
+  nav.className = "problem-nav";
+  const visual = new FakeElement("section");
+  visual.className = "reader-visual";
+  const visualBody = new FakeElement("div");
+  visual.appendChild(visualBody);
+
+  article.appendChild(pageTitle);
+  article.appendChild(commonHeading);
+  article.appendChild(statement);
+  article.appendChild(pythonPanel);
+  article.appendChild(legacyPanel);
+  article.appendChild(nav);
+  article.appendChild(visual);
+  pageBody.appendChild(toggleButton);
+  pageBody.appendChild(article);
+
+  const selftestDocument = {
+    body: pageBody,
+    createElement: (tag) => new FakeElement(tag),
+    createTextNode: (value) => ({ nodeType: 3, textContent: String(value), parentNode: null }),
+    getElementById: (id) => id === "selftestToggle" ? toggleButton : null,
+    querySelector: (selector) => pageBody.querySelector(selector),
+    querySelectorAll: (selector) => pageBody.querySelectorAll(selector),
+    addEventListener() {},
+  };
+  const selftestWindowListeners = {};
+  const replacedUrls = [];
+  const selftestWindow = {
+    location: { search: "?selftest=1", pathname: "/problem.html", hash: "" },
+    history: { replaceState(_state, _title, url) { replacedUrls.push(url); } },
+    addEventListener(name, callback) { (selftestWindowListeners[name] ||= []).push(callback); },
+  };
+  const selftestStorage = new Map();
+  const selftestContext = {
+    window: selftestWindow,
+    document: selftestDocument,
+    localStorage: {
+      getItem(key) { return selftestStorage.get(key) || null; },
+      setItem(key, value) { selftestStorage.set(key, String(value)); },
+      removeItem(key) { selftestStorage.delete(key); },
+    },
+    URLSearchParams,
+    CustomEvent: CustomEventFake,
+    Array,
+    console,
+  };
+  vm.runInNewContext(match[1], selftestContext, { filename: "SELFTEST_JS" });
+
+  assert.strictEqual(pageBody.classList.contains("selftest-active"), true);
+  assert.deepStrictEqual(replacedUrls, ["/problem.html"]);
+  assert.strictEqual(statement.closest(".selftest-block"), null, "public statement must stay visible");
+  assert.strictEqual(nav.closest(".selftest-block"), null, "problem navigation must stay visible");
+  assert(pythonDerive.closest(".selftest-block"), "Python derivation must be masked");
+  assert(pythonCode.closest(".selftest-block"), "Python implementation must be masked");
+  assert(legacyBody.closest(".selftest-block"), "legacy language-panel derivation must be masked");
+  assert(visual.closest(".selftest-block"), "visualization must remain separately masked");
+
+  const blocks = pageBody.querySelectorAll(".selftest-block");
+  assert.strictEqual(blocks.length, 4, "three solution segments plus one visualization must be wrapped");
+  const revealButtons = blocks.map((block) => block.querySelector(".selftest-reveal"));
+  assert(revealButtons.filter(Boolean).length === blocks.length, "every hidden block needs a reveal button");
+  assert(revealButtons.some((button) => button.closest(".language-panel") === pythonPanel),
+    "Python reveal controls must remain inside the Python language scope");
+  assert(revealButtons.some((button) => button.closest(".legacy-solution-panel") === legacyPanel),
+    "legacy reveal controls must remain inside their language scope");
+
+  // 模拟语言容器显隐：wrapper 与按钮仍在 panel 内，因此服务端渲染的
+  // data-lang / data-hide-in-language 规则会随当前语言共同隐藏它们。
+  pythonPanel.style.display = "none";
+  legacyPanel.style.display = "none";
+  assert(pythonDerive.closest(".language-panel").style.display === "none");
+  assert(legacyBody.closest(".legacy-solution-panel").style.display === "none");
+
+  const firstButton = revealButtons.find(Boolean);
+  const firstBlock = firstButton.parentNode;
+  const firstContent = firstBlock.querySelector(".selftest-content");
+  assert.strictEqual(firstContent.hidden, true);
+  firstButton.click();
+  assert.strictEqual(firstContent.hidden, false);
+  assert.strictEqual(firstBlock.querySelector(".selftest-reveal"), null);
+
+  toggleButton.click();
+  assert.strictEqual(pageBody.classList.contains("selftest-active"), false);
+  assert.strictEqual(pageBody.querySelectorAll(".selftest-block").length, 0,
+    "leaving selftest mode must fully unwrap language-panel content");
+  assert.strictEqual(pythonDerive.parentNode, pythonPanel);
+  assert.strictEqual(pythonCode.parentNode, pythonPanel);
+  assert.strictEqual(legacyBody.parentNode, legacyPanel);
+}

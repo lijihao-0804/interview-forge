@@ -1,4 +1,8 @@
-# Java 数组学习笔记
+# Hot 100 · 数组与序列
+
+<section class="language-panel java-basic-panel" data-lang-scope="true" data-lang="java" markdown="1">
+
+## Java 模式
 
 ## 一、数组基础
 
@@ -675,3 +679,61 @@ long area = (long) width * height;
 ---
 
 > **一句话总结：** 数组是刷题基础中的基础 — 索引访问 O(1)、查找 O(n)、排序 O(n log n)。配合双指针、前缀和、滑动窗口等技巧可以解决大量高频题。数据范围较小时，数组比 HashMap 快得多，优先考虑。
+
+</section>
+
+<section class="language-panel python-basic-panel" data-lang-scope="true" data-lang="python" markdown="1">
+
+## Python 模式：Python 数组与序列
+
+刷题主容器通常是 `list`：随机访问和尾部操作方便，头部插入删除会搬移元素，切片则会复制。
+
+### 引用、复制和切片要看对象身份
+
+```python
+nums = [1, 2]
+same = nums
+copy = nums[:]
+same.append(3)
+```
+
+执行后 `nums` 与 `same` 都是 `[1,2,3]`，因为它们指向同一个列表；`copy` 仍是 `[1,2]`。切片 `[start:end]` 的结束下标不包含在结果中，并会复制选中的元素。
+
+### 用 `[0,1,0,3,12]` 看原地覆盖
+
+`write = 0` 指向下一个非零值应放置的位置。读到 1 时写到下标 0；读到 3 时写到下标 1；读到 12 时写到下标 2。最终 `[1,3,12,3,12]`，再从 `write = 3` 到尾全部补 0，得到 `[1,3,12,0,0]`。
+
+### 二维列表不能直接乘整行
+
+`[[0] * cols] * rows` 复制的是内层列表的引用，改一格会改多行。应写成 `[[0] * cols for _ in range(rows)]`，每一轮生成式都会创建新的内层列表。
+
+### 可运行示例：非零元素原地前移
+
+```python
+def compact_nonzero(nums: list[int]) -> None:
+    write = 0
+    for value in nums:
+        if value != 0:
+            nums[write] = value
+            write += 1
+    while write < len(nums):
+        nums[write] = 0
+        write += 1
+```
+
+
+### 复杂度与边界
+
+模板只向 `nums` 写入，不创建非零元素副本；扫描一次并在尾部补零，时间 O(n)，额外空间 O(1)。空列表时循环和补零循环都不会执行。
+
+需要先进先出的队列时不要用 `list.pop(0)`，它要移动头部之后的元素；应改用 `collections.deque.popleft()`。
+
+### 常用操作
+
+| 操作 | 示例 | 在示例中的用途 |
+|---|---|---|
+| `append` | `answer.append(value)` | 在答案尾部追加 |
+| `enumerate` | `for index, value in enumerate(nums)` | 同时读取下标和值 |
+| `range` | `range(len(nums) - 1, -1, -1)` | 从右向左遍历下标 |
+
+</section>

@@ -457,6 +457,31 @@ html.hot100-single-panel .container > .sort-tabs,
 html.hot100-single-panel .container > .ds-tabs {
   display: none !important;
 }
+/* Java 专属代码只属于 Java 语言视图；非 Java 题解模式保留通用动画并给出说明。 */
+html:not([data-code-language="java"]) .code-section,
+html:not([data-code-language="java"]) .status > .code,
+html:not([data-code-language="java"]) [data-language="java"],
+html:not([data-code-language="java"]) [data-lang="java"].language-panel,
+html:not([data-code-language="java"]) .language-java,
+html:not([data-code-language="java"]) .java-code {
+  display: none !important;
+}
+.hot100-language-note {
+  width: min(100% - 24px, 1400px);
+  margin: 10px auto 12px;
+  padding: 9px 12px;
+  color: var(--hot-muted);
+  background: var(--hot-surface-soft);
+  border: 1px solid var(--hot-line);
+  border-left: 3px solid var(--hot-brand);
+  border-radius: 9px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+html.hot100-embedded .hot100-language-note {
+  width: 100%;
+  margin: 0 0 10px;
+}
 html.hot100-embedded body > .container,
 html.hot100-embedded body > .shell,
 html.hot100-embedded body > main,
@@ -512,7 +537,83 @@ html.hot100-embedded .ds-tabs { margin-top: 0 !important; }
   });
 })();
 </script><script src="../../../assets/navigation-policy.js?v=2" defer></script>
-</head>
+<script id="hot100-language-sync">
+(() => {
+  const root = document.documentElement;
+  const supported = new Set(["java", "python", "cpp", "go", "c"]);
+  const params = new URLSearchParams(location.search);
+  let current = "java";
+  let ready = false;
+
+  function readStored() {
+    try {
+      const value = localStorage.getItem("forge-lang");
+      return supported.has(value) ? value : "java";
+    } catch (e) { return "java"; }
+  }
+  function neutralTitle(text) {
+    return String(text || "")
+      .replace(/（\s*Java\s*）/gi, "")
+      .replace(/\(\s*Java\s*\)/gi, "")
+      .replace(/\s*[-·|—]\s*Java(?:\s*版)?\s*$/i, "")
+      .replace(/Java\s*(?:专属)?(?:代码|实现|版)/gi, "语言无关演示")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+  }
+  function syncTitles() {
+    if (!ready) return;
+    const nodes = [document.querySelector("title"), ...document.querySelectorAll(".hot100-topnav strong, body h1")];
+    nodes.forEach((node) => {
+      if (!node) return;
+      if (!node.dataset.hot100OriginalText) node.dataset.hot100OriginalText = node.textContent;
+      node.textContent = current === "java"
+        ? node.dataset.hot100OriginalText
+        : neutralTitle(node.dataset.hot100OriginalText);
+    });
+  }
+  function syncNote() {
+    if (!ready) return;
+    const codeNodes = document.querySelectorAll(
+      ".code-section, .status > .code, [data-language=\"java\"], [data-lang=\"java\"], .language-java, .java-code"
+    );
+    let note = document.getElementById("hot100-language-note");
+    if (!note && codeNodes.length) {
+      note = document.createElement("p");
+      note.id = "hot100-language-note";
+      note.className = "hot100-language-note";
+      note.setAttribute("role", "note");
+      note.textContent = "当前语言模式隐藏 Java 专属代码；下方动画、控制与状态变化为语言无关演示。完整实现请回到题解的对应语言面板。";
+      const main = document.querySelector("main, .container, .shell") || document.body;
+      main.insertBefore(note, main.firstChild);
+    }
+    if (note) note.hidden = current === "java";
+  }
+  function apply(lang) {
+    const value = supported.has(lang) ? lang : "java";
+    current = value;
+    root.dataset.codeLanguage = value;
+    syncTitles();
+    syncNote();
+    document.dispatchEvent(new CustomEvent("forge-lang-change", { detail: { lang: value } }));
+    requestAnimationFrame(() => window.__hot100ScheduleEmbeddedMeasure?.("language-change"));
+  }
+
+  const initial = params.get("lang");
+  current = supported.has(initial) ? initial : readStored();
+  root.dataset.codeLanguage = current;
+  ready = document.readyState !== "loading";
+  const boot = () => { ready = true; apply(params.get("lang") || readStored()); };
+  if (ready) boot();
+  else document.addEventListener("DOMContentLoaded", boot, { once: true });
+  window.addEventListener("storage", (event) => {
+    if (!event || event.key === null || event.key === "forge-lang") apply(readStored());
+  });
+  window.addEventListener("message", (event) => {
+    if (event.data && event.data.type === "forge-lang" && event.data.lang) apply(event.data.lang);
+  });
+  window.addEventListener("hot100:demo-rebuilt", () => { syncTitles(); syncNote(); });
+})();
+</script></head>
 <body>
 <nav aria-label="学习导航" class="hot100-topnav" data-hot100-nav=""><strong>synchronized 锁升级可视化</strong><span class="hot100-links"><a href="../../../index.html" target="_blank" rel="noopener noreferrer">学习面板</a><a href="index.html" target="_blank" rel="noopener noreferrer">可视化中心</a></span></nav>
 <main class="shell">

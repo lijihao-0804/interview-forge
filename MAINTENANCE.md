@@ -10,6 +10,18 @@
 
 线上学习记录按账号保存在服务器端 SQLite 数据库；本地开发生成的 `data/hot100-study.db` 仅用于本地调试和备份演练，全量重建题解不会覆盖它。
 
+### 0.2 Python 教学内容维护
+
+Python 完整教学源独立于 Java 原稿：`tools/python_hot100.json` 保存 100 题的算法选择、不变量、推导、API 提示、完整代码、复杂度与执行用例；`tools/python_hot100_topics.json` 保存 17 专题；`tools/python_hot100_basics.json` 保存基础资料。结构约束见 `tools/python_hot100.schema.json`，加载与渲染逻辑位于 `scripts/build/python_hot100.py`。修改 Java 原笔记不会自动产生 Python 译本，新增或变更题目时需同步对应语言的结构化内容。
+
+Python 修订应先对照原 Java 叙述与 `tools/lang_solutions.json` 的旧 Python 实现及来源。好的例子、比喻和代码优先保留；只在错误、输入规模风险或讲解不匹配时更换主算法。`teaching_markdown` 保存代码前的具体推演，`explanation_markdown` 保存代码后的 API 细节及易错点，不再用固定三条概述替代完整叙述。`source` 与 `source_note` 会显示为来源及改写说明；`revision_notes` 仅供内部审阅，不进入发布正文。代码内部使用普通赋值，保留必要的函数签名注解；力扣提供的节点类由测试夹具注入，不为本地测试在提交代码里重复定义。方法、复杂度、API 元数据与执行用例必须同步匹配实际实现。
+
+语言切换使用完整正文容器。公共题面和导航共享，Python 视图替换整套思路及提示；其他语言保留已有说明与对应实现。不要仅隐藏 Java 代码块而留下 Java API 提示，也不要将修改只写入生成的 HTML。
+
+修改后先执行 `python -m pytest tests/test_python_hot100_curriculum.py -q`，再用 `python tools/build_hot100.py` 重建，最后运行 `python -m pytest tests/test_python_rendered_acceptance.py -q` 及 `python tools/check_hot100.py`。前者验证结构化源与逐题用例，后者从最终 HTML 提取实现，检查随机差分、状态类、链表和合法深输入。完整回归使用 `python -m pytest tests -q`；本机若存在真实预约任务，应在验收进程中禁用无关的预约调度启动，避免测试生命周期触发实际预约。
+
+统一构建收尾会刷新已生成公开 HTML 的共享资源版本，包括其他题库仍引用的旧权限脚本。刷新只处理允许列表中的本地 script/link 地址，并保留正文及其他属性；不需要为更新脚本版本重新导入机试题库数据。发布检查排除虚拟环境、依赖包和验收产物，仍检查真实页面的链接、HTML/Python/JavaScript 与可视化约束。
+
 ## 1. 先理解三个层次
 
 | 层次 | 主要位置 | 作用 | 是否直接维护 |
