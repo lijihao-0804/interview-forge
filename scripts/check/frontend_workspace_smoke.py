@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 from contextlib import ExitStack
 import json
+import sqlite3
 from pathlib import Path
 import tempfile
 from unittest.mock import patch
@@ -116,17 +117,25 @@ def run(output: Path) -> None:
         expect(page).to_have_url("http://localhost/library/search.html?q=" + "%E6%95%B0%E6%8D%AE%E5%BA%93")
         page.goto("http://localhost/")
         page.screenshot(path=str(output / "cockpit-desktop.png"), full_page=True)
-        page.locator(".launch-path").first.click()
-        expect(page.locator("#difficulty")).to_have_value("简单")
+        expect(page.locator(".launch-paths,.launch-path")).to_have_count(0)
+        expect(page.locator("#launchSearch")).to_be_visible()
 
-        for width in (320, 390, 768, 1440):
-            page.set_viewport_size({"width": width, "height": 900})
+        for width in (320, 390, 768, 1920, 2560):
+            page.set_viewport_size({"width": width, "height": 1440 if width == 2560 else 1080 if width == 1920 else 900})
             for path, name in (("/index.html", "catalog"), ("/", "cockpit")):
                 page.goto("http://localhost" + path)
                 expect(page.locator("body")).to_have_class("is-guest")
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, path)
-                if width == 390:
-                    page.screenshot(path=str(output / f"{name}-mobile.png"), full_page=True)
+                if path == "/index.html":
+                    assert page.evaluate("document.querySelector('.hero-cta').nextElementSibling.id === 'leetcodeSyncBtn'")
+                    expect(page.locator('#leetcodeSyncBtn')).to_be_disabled()
+                    first=page.locator('.hero-cta').bounding_box(); sync=page.locator('#leetcodeSyncBtn').bounding_box()
+                    same_row=abs(sync['y']+sync['height']/2-first['y']-first['height']/2)<2
+                    assert (same_row and sync['x']>first['x']) or sync['y']>=first['y']+first['height']-1
+                else:
+                    assert page.locator('.launchpad').bounding_box()['height'] < 350
+                if width in (390,1920,2560):
+                    page.screenshot(path=str(output / f"{name}-{width}.png"), full_page=True)
                 page.evaluate("document.documentElement.setAttribute('data-theme','dark')")
                 page.wait_for_function("getComputedStyle(document.body).backgroundColor === 'rgb(15, 19, 27)'")
                 if width in (390, 1440):
@@ -137,6 +146,13 @@ def run(output: Path) -> None:
         page.goto("http://localhost/index.html")
         expect(page.locator("body")).to_have_class("is-authenticated")
         expect(page.locator("#connection")).to_have_text("学习服务已连接")
+        expect(page.locator('#leetcodeSyncBtn')).to_be_enabled()
+        with page.expect_response(lambda response: '/api/leetcode/status' in response.url):
+            page.locator('#leetcodeSyncBtn').click()
+        expect(page.locator('#leetcodeSyncBtn')).to_be_enabled()
+        expect(page.locator('#leetcodeSyncBtn')).to_have_text('一键同步')
+        expect(page.locator('#leetcodeSyncModal')).to_be_visible()
+        page.locator('#leetcodeSyncDone').click()
         with page.expect_response(lambda response: response.url.endswith("/api/mark")) as marked:
             page.locator("#grid [data-mark='1']").select_option("weak")
         assert marked.value.status == 201, marked.value.text()
@@ -155,6 +171,33 @@ def run(output: Path) -> None:
         page.once("dialog", lambda dialog: dialog.accept())
         page.locator("#mockAbandon").click()
         expect(page.locator("#mockReport")).to_contain_text("已放弃")
+        # Metadata-only fixtures: Python excludes its AC, Java excludes its own AC.
+        with sqlite3.connect(db) as connection:
+            connection.executemany("INSERT INTO submissions(problem_id,status,lang,submitted_at) VALUES (?,?,?,?)", [(1,'ac','Python3','2026-01-01T12:00:00Z'),(2,'ac','Java','2026-01-01T12:00:00Z')])
+        page.locator('#mockSettings summary').click()
+        page.locator('#mockScope').select_option('unseen')
+        page.locator('#mockLanguage').select_option('python')
+        expect(page.locator('#mockPool')).to_contain_text('当前可抽 99 题')
+        for width,height in ((1920,1080),(2560,1440),(390,844)):
+            page.set_viewport_size({'width':width,'height':height})
+            page.locator('#mockSettings').scroll_into_view_if_needed()
+            assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+            page.screenshot(path=str(output / f'mock-language-{width}.png'))
+        for language, excluded in (('python',1),('java',2)):
+            page.locator('#mockLanguage').select_option(language)
+            expect(page.locator('#mockPool')).to_contain_text('当前可抽 99 题')
+            with page.expect_response(lambda response:'/api/mock?' in response.url and 'preview=' not in response.url) as exam:
+                page.locator('#mockStart').click()
+            actual=exam.value.json()
+            assert actual['language']==language and actual['scope_pool']==99
+            assert excluded not in [problem['id'] for problem in actual['problems']]
+            page.once('dialog',lambda dialog:dialog.accept())
+            page.locator('#mockAbandon').click()
+            page.locator('#mockSettings summary').click()
+        page.locator('#mockScope').select_option('all')
+        expect(page.locator('#mockLanguage')).to_be_disabled()
+        expect(page.locator('#mockPool')).to_contain_text('当前可抽 100 题')
+        page.set_viewport_size({'width':1440,'height':1000})
         failures.add("/api/bootstrap")
         page.reload()
         expect(page.locator("#serverNotice")).to_be_visible()
@@ -175,8 +218,8 @@ def run(output: Path) -> None:
         assert page.locator("#grid .card").count() > 0
         assert not errors, errors
         browser.close()
-    (output / "result.json").write_text(json.dumps({"ok": True, "widths": [320, 390, 768, 1440], "page_errors": errors}, ensure_ascii=False, indent=2))
-    print("PASS: guest/authenticated/error recovery, filters, navigation, mock, marks, four widths and two themes")
+    (output / "result.json").write_text(json.dumps({"ok": True, "widths": [320, 390, 768, 1920, 2560], "page_errors": errors}, ensure_ascii=False, indent=2))
+    print("PASS: guest/authenticated/error recovery, filters, navigation, mock, marks, five widths and two themes")
 
 
 if __name__ == "__main__":

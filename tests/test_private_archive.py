@@ -43,7 +43,7 @@ class PrivateArchiveTests(unittest.TestCase):
         self.stack.enter_context(patch.object(auth,'server_runtime',runtime))
         self.stack.enter_context(patch('interview_forge.runtime.shared.enabled',return_value=False))
         self.stack.enter_context(patch.object(private_archive,'server_runtime',SimpleNamespace(PERMANENT_ADMIN_USERNAME='owner')))
-        self.stack.enter_context(patch.dict('os.environ',{'INTERVIEW_FORGE_PRIVATE_ARCHIVE':str(self.archive)}))
+        self.stack.enter_context(patch.dict('os.environ',{'INTERVIEW_FORGE_PRIVATE_ARCHIVE':str(self.archive), 'INTERVIEW_FORGE_PRIVATE_ARCHIVE_DIR':''}))
         self.client = self.stack.enter_context(TestClient(app))
 
     def connect(self):
@@ -96,3 +96,53 @@ class PrivateArchiveTests(unittest.TestCase):
             for name in ['assets/app.js','data/history-data.json','assets/media/image.webp']:
                 self.assertEqual(self.request('/api/private-archive/'+name,'owner-token').content,z.read('site/'+name))
         self.assertEqual(self.request('/api/private-archive/index.html','owner-token','HEAD').content,b'')
+
+
+class PrivateDirectoryTests(PrivateArchiveTests):
+    """Run the same real-session boundary suite against an extracted fixture."""
+    def setUp(self):
+        super().setUp()
+        self.site = self.root / 'site'
+        with zipfile.ZipFile(self.archive) as package:
+            for info in package.infolist():
+                target = self.site / info.filename.removeprefix('site/')
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(package.read(info))
+        self.stack.enter_context(patch.dict('os.environ', {'INTERVIEW_FORGE_PRIVATE_ARCHIVE_DIR':str(self.site)}))
+
+    def test_missing_configuration_and_public_repo_paths_fail_closed(self):
+        for location in [str(self.root/'missing'), str(private_archive.ROOT), 'relative/site']:
+            with patch.dict('os.environ', {'INTERVIEW_FORGE_PRIVATE_ARCHIVE_DIR':location}):
+                self.assertIn(self.request('/api/private-archive/index.html','owner-token').status_code, (404,503))
+                self.assertFalse(self.request('/api/private-archive-status','owner-token').json()['available'])
+        with patch.object(private_archive,'server_runtime',SimpleNamespace(PERMANENT_ADMIN_USERNAME='')):
+            self.assertEqual(self.request('/api/private-archive/index.html','owner-token').status_code,403)
+
+    def test_directory_takes_priority_over_legacy_zip(self):
+        (self.site/'assets/app.js').write_text('window.extracted = true;')
+        self.assertEqual(self.request('/api/private-archive/assets/app.js','owner-token').text,'window.extracted = true;')
+
+    def test_links_special_files_and_disallowed_members_are_never_served(self):
+        import os
+        target = self.site/'assets/app.js'
+        target.unlink()
+        outside = self.root/'outside.js';outside.write_text('PRIVATE_OUTSIDE')
+        target.symlink_to(outside)
+        self.assertNotEqual(self.request('/api/private-archive/assets/app.js','owner-token').status_code,200)
+        target.unlink();os.link(outside,target)
+        self.assertNotEqual(self.request('/api/private-archive/assets/app.js','owner-token').status_code,200)
+        target.unlink();os.mkfifo(target)
+        self.assertNotEqual(self.request('/api/private-archive/assets/app.js','owner-token').status_code,200)
+        target.unlink()
+        (self.site/'assets/extra.js').write_text('PRIVATE_OUTSIDE')
+        self.assertEqual(self.request('/api/private-archive/assets/extra.js','owner-token').status_code,404)
+        directory = self.site/'data'; directory.rename(self.root/'moved-data');directory.symlink_to(self.root/'moved-data',target_is_directory=True)
+        self.assertNotEqual(self.request('/api/private-archive/data/history-data.json','owner-token').status_code,200)
+        root_link=self.root/'linked-site';root_link.symlink_to(self.site,target_is_directory=True)
+        with patch.dict('os.environ', {'INTERVIEW_FORGE_PRIVATE_ARCHIVE_DIR':str(root_link)}):
+            self.assertNotEqual(self.request('/api/private-archive/index.html','owner-token').status_code,200)
+
+    def test_oversized_regular_file_is_rejected(self):
+        with (self.site/'assets/app.js').open('wb') as stream:
+            stream.truncate(private_archive.MAX_MEMBER_BYTES+1)
+        self.assertEqual(self.request('/api/private-archive/assets/app.js','owner-token').status_code,404)

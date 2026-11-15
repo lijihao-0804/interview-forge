@@ -27,7 +27,7 @@ from interview_forge.services.review import (
     FSRS_VERSION,
     fsrs_review,
 )
-from interview_forge.services.submissions import problem_language_progress, submission_summary_from_connection
+from interview_forge.services.submissions import problem_language_progress, submission_language_key, submission_summary_from_connection
 
 
 
@@ -1588,6 +1588,8 @@ def mock_exam(
     recent_days: int = 3,
     avoid_repeat: bool = True,
     db_path: Path = DB_PATH,
+    language: str = "",
+    preview: bool = False,
 ) -> dict[str, object]:
     """限时模拟组卷。
 
@@ -1606,12 +1608,17 @@ def mock_exam(
         if (not category or str(p["category"]) == category)
         and (not difficulty or str(p["difficulty"]) == difficulty)
     ]
-    if not candidates:
+    if not candidates and not preview:
         raise ValueError("没有匹配的题目")
 
     today = server_runtime.business_now().date()
     state = _mock_problem_state(db_path)
     norm_scope = (scope or "").strip().lower()
+
+    language = submission_language_key(language) if language.strip() else ""
+    language_labels = {"python": "Python", "java": "Java", "cpp": "C++", "javascript": "JavaScript", "typescript": "TypeScript", "go": "Go", "c#": "C#"}
+    if language and (language not in language_labels or norm_scope != "unseen"):
+        raise ValueError("语言筛选仅支持从未做过范围中的已列出语言")
 
     # 2) 按学习状态筛范围
     if norm_scope == "recent":
@@ -1636,11 +1643,21 @@ def mock_exam(
                     if not str(state.get(int(p["id"]), {}).get("last_activity_date", ""))
                     and int(state.get(int(p["id"]), {}).get("rounds", 0)) == 0]
         scope_label = "从未做过"
+        if language:
+            with closing(server_runtime.connect(db_path)) as connection:
+                language_progress = problem_language_progress(connection)
+            filtered = [p for p in candidates if not language_progress.get(int(p["id"]), {}).get(language, {}).get("rounds", 0)]
+            scope_label += " · " + language_labels[language]
+
     elif norm_scope in ("", "all"):
         filtered = list(candidates)
         scope_label = "全部"
     else:
         raise ValueError("未知的抽题范围")
+
+    if preview:
+        return {"count": min(max(1, count), len(filtered)), "scope": norm_scope or "all",
+                "scope_label": scope_label, "scope_pool": len(filtered), "language": language}
 
     if not filtered:
         raise ValueError("该范围内没有可用的题目（%s）" % scope_label)
@@ -1703,6 +1720,7 @@ def mock_exam(
         "scope": norm_scope or "all",
         "scope_label": scope_label,
         "scope_pool": len(filtered),
+        "language": language,
         "repeated_count": sum(1 for p in chosen if int(p["id"]) in recent_ids),
         "problems": [
             {
