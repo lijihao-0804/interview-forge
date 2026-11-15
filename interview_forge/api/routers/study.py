@@ -237,6 +237,8 @@ def mock(request: Request):
             scope=request.query_params.get("scope", ""),
             recent_days=recent_days,
             avoid_repeat=request.query_params.get("avoid", "1") != "0",
+            language=request.query_params.get("language", ""),
+            preview=request.query_params.get("preview", "0") == "1",
             db_path=user_db(user),
         ))
     except BaseException as exc:

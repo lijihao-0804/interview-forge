@@ -25,10 +25,14 @@ class DashboardLeetcodeSyncTests(unittest.TestCase):
                 r'rel="noopener noreferrer">力扣连接</a>',
             )
             self.assertRegex(
-                markup,
+                page,
                 r'<button(?=[^>]*\bid="leetcodeSyncBtn")(?=[^>]*\bdata-online-action\b)'
                 r'[^>]*>一键同步</button>',
             )
+            actions = re.search(r'<div class="hero-actions">(.*?)</div>', page, re.S).group(1)
+            self.assertEqual(page.count('id="leetcodeSyncBtn"'), 1)
+            self.assertRegex(actions, r'开始刷题 →</a>\s*<button[^>]*id="leetcodeSyncBtn"')
+            self.assertNotIn('leetcodeSyncBtn', markup)
             self.assertNotRegex(markup, r'<a class="lc-button"[^>]*>力扣连接</a>')
 
     def test_incremental_request_loading_guard_and_refresh(self):

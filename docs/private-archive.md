@@ -8,13 +8,20 @@
 
 在已确认部署流程的服务器上，由操作者完成：
 
-1. 将原始 ZIP 放在仓库和所有 Web 根目录之外，例如 `/srv/interview-forge-private/site.zip`。限制文件权限，仅服务账号和服务器管理员可读。不要解压到 `assets`、`pages`、`library` 或发布目录。
-2. 在实际服务环境中设置 `INTERVIEW_FORGE_PRIVATE_ARCHIVE` 为 ZIP 的绝对路径；ZIP 应包含 `site/index.html`、`site/assets/` 和 `site/data/`。
-3. 核对原有 `INTERVIEW_FORGE_PERMANENT_ADMIN_USERNAME`，必须是已有的永久管理员账号；不要为此改变其他账号权限。未配置时拒绝所有用户。
-4. 按现有流程重启 FastAPI 服务。确保 `/api/` 经过应用、没有代理/CDN缓存，也没有其他站点暴露私有存储目录。纯 GitHub Pages 或纯静态托管不支持此功能。
-5. 分别用未登录用户、普通用户、普通管理员和永久管理员请求 `/api/private-archive/index.html` 及 `/api/private-archive/data/manifest.json`，预期为 401、403、403、200；失效或撤销会话应立即拒绝后续请求。
+1. 新部署必须把附件**实际解压**成独立教学前端。将 ZIP 和目标 release 目录置于仓库及所有 Web 根目录外，例如 `/srv/interview-forge-private/releases/20261115/site`。父目录仅服务账号/管理员可写，建议权限 0700；不要放入 Git、`assets`、`pages`、`library` 或 nginx 静态 alias。
+2. 在项目 Python 环境运行下面的安全安装器。它检查完整结构、成员白名单、路径穿越、重复名称、符号链接、文件/总容量上限，再解压到新建私有临时目录，最后原子更名。文件权限 0600、目录 0700；不会覆盖已有版本，也不改历史动画、源码、图表或媒体字节。
 
-服务端直接从 ZIP 读取指定成员，不解压、不建立公共索引、不返回任意文件。配置为仓库内文件（包括解析符号链接后位于仓库内）会拒绝。响应包括 `private, no-store`、`Vary: Cookie` 和 `nosniff`；不发 ETag 或 304。API 路径被现有 Service Worker 排除。旧版 Python HTTP 服务不会提供这些 API，必须使用 FastAPI。
+   ```sh
+   python -m scripts.install_private_archive /private/incoming/site.zip /srv/interview-forge-private/releases/20261115/site
+   ```
+
+3. 设置 `INTERVIEW_FORGE_PRIVATE_ARCHIVE_DIR` 为上面的 **site 目录绝对路径**。服务读取已解压目录，ZIP 可移走；`INTERVIEW_FORGE_PRIVATE_ARCHIVE` 仅保留旧部署兼容。目录一旦配置，即使失效也不会偷偷退回 ZIP。
+4. 核对 `INTERVIEW_FORGE_PERMANENT_ADMIN_USERNAME` 为指定固定账号，按现有流程重启 FastAPI。目录读取要求 Linux/POSIX 的 `openat` / `O_NOFOLLOW`；不支持的平台拒绝服务，不使用不安全替代。Windows 可准备原始附件，但应在服务器运行安装器和验证。
+5. `/api/` 必须经过应用且绕过代理/CDN缓存；不可给私有目录配置公开 alias。测试游客/普通用户/其他管理员/永久管理员访问入口及 `data/manifest.json`，预期 401/403/403/200。缺少部署目录会显示不可用，不应回退为公开静态内容。
+
+服务每次请求重新校验真实会话和永久管理员身份，逐层以不跟随符号链接的文件描述符打开目录；只读取白名单内的普通单链接文件，拒绝目录链接、文件链接、硬链接、设备/FIFO、越界路径及超限文件。配置在仓库内也会拒绝。响应为 `private, no-store`、`Vary: Cookie`、`nosniff`，不发 ETag/304，Service Worker 排除 API 路径。纯静态托管或旧版 Python HTTP 服务不支持此入口。
+
+回滚：保留上一版已解压 release，把环境变量改回其绝对路径并重启服务；不要用符号链接切换。首次从 ZIP 迁移时，可清空目录变量并恢复原 ZIP 变量作为临时回滚。切换前后都检查授权/未授权访问和缓存头，旧目录保留到验收完成后再由操作者清理。
 
 已打开页面在重新聚焦、从浏览器历史恢复及周期检查时重新验证身份；撤销后清空页面并返回登录。已经合法发送给永久管理员的内容不能远程收回，浏览器内存中已打开内容也不是新的网络授权。不得把客户端隐藏当成访问控制。
 
@@ -27,7 +34,8 @@
 ## 验证
 
 ```sh
-python -m pytest -q tests/test_private_archive.py tests/test_workspace_layout.py
+python -m pytest -q tests/test_private_archive.py tests/test_private_archive_install.py
+python -m scripts.check.private_directory_smoke
 python -m scripts.check.private_archive_smoke /absolute/private/site.zip
 ```
 
@@ -35,4 +43,6 @@ python -m scripts.check.private_archive_smoke /absolute/private/site.zip
 
 本次仅完成代码集成和本地验证；没有把私有附件上传服务器或部署。接入用户本地电脑时需先核对其未提交改动和现有部署流程，不能直接覆盖工作目录。
 
-本次实际附件浏览器验证通过：18 个章节、64 份原始资料、1553 个语法高亮 token、29 个流程图，六种视口、九种历史视图；流程图放大/缩放/关闭和失效后的跳转通过。历史脚本、模板、数据与 ZIP 原件逐字节一致。
+前一轮 ZIP 兼容模式的实际附件浏览器验证通过：18 个章节、64 份原始资料、1553 个语法高亮 token、29 个流程图，六种视口、九种历史视图；流程图放大/缩放/关闭和失效后的跳转通过。历史脚本、模板、数据与 ZIP 原件逐字节一致。
+
+目录模式本轮只使用独立临时目录内的合成教学夹具，不读取真实用户正文。安装后删除夹具 ZIP，再验证入口、脚本、JSON、语法高亮与图表尺寸，确保不是继续依赖 ZIP。真实附件由后续服务器安装流程提供；本轮不触碰生产。
