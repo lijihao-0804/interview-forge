@@ -1902,6 +1902,15 @@ def _replace_required(source: str, old: str, new: str, label: str) -> str:
 # 触发方式：直接运行本文件，或被 build_hot100.build() 末尾的 subprocess 调用
 # (build_hot100.py 1242-1244 行)；两处共用同一入口保证产物一致。
 # ---------------------------------------------------------------------------
+def private_shelf_entry(body: str) -> str:
+    """Empty mount only: metadata must come from the authenticated status API."""
+    anchor = '<main class="module-grid" id="moduleGrid">'
+    return _replace_required(body, anchor,
+        '<section id="privateTeachingShelf" class="module-grid" hidden style="display:none;margin-bottom:18px"></section>'
+        '<script src="../assets/private-archive-entry.js?v=2" defer></script>' + anchor,
+        'private shelf mount')
+
+
 def build() -> None:
     # 第 0 步：固定资产落盘。library.css / library-mermaid.js 只 strip 首尾空白再写
     # (与常量内容逐字节一致，便于 check 脚本比对)；版本号 ?v= 在页面引用处统一。
@@ -2892,6 +2901,7 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
     index_body = index_body.replace("fetchWithTimeout('/api/library'", "guestAuth.request('/api/library'", 1)
     index_body = index_body.replace("fetchWithTimeout('/api/favorites'", "guestAuth.request('/api/favorites'", 1)
     index_body = index_body.replace("fetchWithTimeout('/api/daily'", "guestAuth.request('/api/daily'", 1)
+    index_body = private_shelf_entry(index_body)
     # Windows 上索引页可能被浏览器/杀毒软件短暂占用；先写同目录临时文件再
     # 原子替换，避免直接截断写入偶发 OSError 后留下半个页面。
     # 书架首页也要加载埋点脚本（搜索关键词上报）
