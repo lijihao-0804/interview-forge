@@ -7,9 +7,7 @@ concurrent workers serialize without holding a database transaction during a
 network call.  Failed deliveries remain in the attempt ledger and therefore
 consume the same limits as successful sends.
 
-Anonymous search limits live in process memory: search must never queue behind
-an authentication-database write lock, and losing those counters on restart is
-harmless.
+Anonymous search retains the existing cross-process SQLite limits.
 """
 from __future__ import annotations
 
@@ -422,13 +420,13 @@ _PURPOSE_MESSAGES = {
 
 
 def _send_verification_code(email_value: object, ip: str, *, purpose: str,
-                            user_id: int | None = None) -> dict[str, int | bool]:
+                            user_id: int | None = None, _reserved=None) -> dict[str, int | bool]:
     """Reserve limits, persist only a salted hash, then deliver the code."""
     email = normalize_email(email_value)
     if purpose not in _CODE_PURPOSES:
         raise ValueError("unsupported verification purpose")
     now = int(time.time())
-    attempt_id, policy = _reserve_registration_send(email, str(ip or "unknown"), now, purpose)
+    attempt_id, policy = _reserved or _reserve_registration_send(email, str(ip or "unknown"), now, purpose)
     code = f"{secrets.randbelow(1_000_000):06d}"
     salt = secrets.token_bytes(16)
     expires_at = now + policy.code_ttl
@@ -524,7 +522,48 @@ def send_password_reset_code(email_value: object, ip: str) -> dict[str, int | bo
     if user is None:
         _reserve_registration_send(email, str(ip or "unknown"), purpose="reset")
         return {"ok": True, "resend_after": policy.email_cooldown, "expires_in": policy.code_ttl}
-    return _send_verification_code(email, ip, purpose="reset", user_id=int(user["id"]))
+    try:
+        return _send_verification_code(email, ip, purpose="reset", user_id=int(user["id"]))
+    except RegistrationError as exc:
+        # Delivery/storage failures must not distinguish a registered address
+        # from an unknown one. Quotas and malformed inputs still fail normally;
+        # failed codes remain invalidated by the delivery primitive.
+        if exc.category not in {"email_not_configured", "email_delivery_failed", "registration_storage_failed"}:
+            raise
+        return {"ok": True, "resend_after": policy.email_cooldown, "expires_in": policy.code_ttl}
+
+
+def _deliver_reserved_password_reset(email: str, ip: str, reserved) -> None:
+    attempt_id, _policy = reserved
+    try:
+        user = _active_user_by_email(email)
+        if user is None:
+            _invalidate_attempt_code(attempt_id, "not_delivered")
+            return
+        _send_verification_code(email, ip, purpose="reset", user_id=int(user["id"]), _reserved=reserved)
+    except Exception:
+        # An accepted request is not a delivery promise. Never log recipients,
+        # codes or provider errors; the attempt ledger retains safe categories.
+        with suppress(Exception):
+            _invalidate_attempt_code(attempt_id, "email_delivery_failed")
+
+
+def request_password_reset_code(email_value: object, ip: str) -> dict[str, int | bool]:
+    """Reserve identical limits and acknowledge before account lookup or SMTP.
+
+    Unknown and known recipients take the same public path, including when SMTP
+    is unavailable or slow. Delivery runs on the bounded worker pool. A restart
+    may drop a queued request; users can retry after the existing cooldown.
+    """
+    email = normalize_email(email_value)
+    reserved = _reserve_registration_send(email, str(ip or "unknown"), purpose="reset")
+    attempt_id, policy = reserved
+    try:
+        registration_email_executor.submit(_deliver_reserved_password_reset, email, ip, reserved)
+    except RuntimeError as exc:
+        _invalidate_attempt_code(attempt_id, "email_queue_unavailable")
+        raise RegistrationError("邮件服务暂不可用，请稍后重试", 503, category="email_delivery_failed") from exc
+    return {"ok": True, "resend_after": policy.email_cooldown, "expires_in": policy.code_ttl}
 
 
 def send_email_change_code(user_id: int, email_value: object, ip: str) -> dict[str, int | bool]:
@@ -899,51 +938,16 @@ def registration_verify_rate_limit(ip: str, now: int | None = None) -> None:
     ), now=now)
 
 
-_SEARCH_EVENTS: dict[str, list[float]] = {}
-_SEARCH_GLOBAL: list[float] = []
-_SEARCH_LOCK = threading.Lock()
-_SEARCH_MAX_SUBJECTS = 4096
-
-
-def _search_integer(name: str, default: int) -> int:
-    try:
-        return max(1, int(os.environ.get(name, str(default))))
-    except ValueError:
-        return default
-
-
 def public_search_rate_limit(ip: str) -> None:
-    """Limit anonymous search in process memory, never in the auth database.
+    def integer(name: str, default: int) -> int:
+        try:
+            return max(1, int(os.environ.get(name, str(default))))
+        except ValueError:
+            return default
 
-    Search is read-only and must stay available even while the authentication
-    database is locked by a registration or session write.  Counters are
-    per-process, so a multi-worker deployment allows a small multiple of the
-    configured rate; that is an acceptable trade for removing the shared write
-    lock, and the total is also capped globally in memory.
-    """
-    per_minute = _search_integer("IF_SEARCH_RATE_PER_MINUTE", 30)
-    per_day = _search_integer("IF_SEARCH_RATE_PER_DAY", 500)
-    global_per_minute = _search_integer("IF_SEARCH_GLOBAL_PER_MINUTE", 600)
-    now = time.time()
-    subject = str(ip or "unknown")
-    with _SEARCH_LOCK:
-        stamps = [stamp for stamp in _SEARCH_EVENTS.get(subject, ()) if now - stamp < 86400]
-        if len(stamps) >= per_day:
-            retry_after = math.ceil(86400 - (now - stamps[0]))
-            _SEARCH_EVENTS[subject] = stamps
-            raise PublicRateLimitError("搜索次数已达上限，请明天再试", retry_after)
-        recent = [stamp for stamp in stamps if now - stamp < 60]
-        if len(recent) >= per_minute:
-            _SEARCH_EVENTS[subject] = stamps
-            raise PublicRateLimitError("搜索过于频繁，请稍后再试", math.ceil(60 - (now - recent[0])))
-        global_recent = [stamp for stamp in _SEARCH_GLOBAL if now - stamp < 60]
-        if len(global_recent) >= global_per_minute:
-            _SEARCH_GLOBAL[:] = global_recent
-            _SEARCH_EVENTS[subject] = stamps
-            raise PublicRateLimitError("搜索服务繁忙，请稍后再试", 60)
-        if len(_SEARCH_EVENTS) > _SEARCH_MAX_SUBJECTS:
-            for key in [key for key, value in _SEARCH_EVENTS.items() if not value or now - value[-1] >= 86400]:
-                _SEARCH_EVENTS.pop(key, None)
-        stamps.append(now)
-        _SEARCH_EVENTS[subject] = stamps
-        _SEARCH_GLOBAL[:] = global_recent + [now]
+    consume_public_rate_limit(
+        "search",
+        str(ip or "unknown"),
+        ((integer("IF_SEARCH_RATE_PER_MINUTE", 30), 60),
+         (integer("IF_SEARCH_RATE_PER_DAY", 500), 86400)),
+    )

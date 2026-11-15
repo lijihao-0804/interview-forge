@@ -17,7 +17,7 @@ class AiFrontendIntegrationTests(unittest.TestCase):
         for current_asset in (
             "/assets/ai-launcher.js?v=4",
             "/assets/feedback-widget.js?v=4",
-            "/assets/auth-widget.js?v=7",
+            "/assets/auth-widget.js?v=8",
         ):
             self.assertIn(current_asset, _WIDGET_SCRIPTS)
             self.assertIn(current_asset, rendered)

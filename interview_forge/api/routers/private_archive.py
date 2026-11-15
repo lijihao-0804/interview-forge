@@ -17,6 +17,7 @@ from fastapi.responses import Response
 from interview_forge.api import support
 from interview_forge.core.paths import ROOT
 from interview_forge.core.runtime import server_runtime
+from interview_forge.core.roles import effective_role
 
 from interview_forge.services.private_archive_store import (
     MAX_MEMBER_BYTES, member_type, private_directory, read_directory_member,
@@ -33,8 +34,7 @@ def _denied(request: Request):
     user = support.current_user(request)
     if user is None:
         return support.error_response("未登录", 401, headers=HEADERS)
-    configured = str(server_runtime.PERMANENT_ADMIN_USERNAME).strip()
-    if not configured or str(user["role"]) != "admin" or str(user["username"]) != configured:
+    if effective_role(user, permanent_username=server_runtime.PERMANENT_ADMIN_USERNAME) != "super_admin":
         return support.error_response("此档案仅限永久管理员访问", 403, headers=HEADERS)
     return None
 

@@ -29,6 +29,7 @@
 #   "到期日 <= 今天" 的条目就是"今日待复习"（见 daily_data / today_plan）。
 # ============================================================================
 from __future__ import annotations
+from interview_forge.core.roles import has_admin_role, role_fields
 
 # E402 is intentional in this compatibility facade: service/schema imports are
 # placed after legacy constants and adapters are defined to avoid import cycles.
@@ -540,7 +541,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
     # 管理页与登录页不显示反馈悬浮按钮，避免遮挡页面自身的操作区。
     FEEDBACK_WIDGET_SKIP_PATHS = {"/pages/login.html", "/pages/register.html", "/pages/forgot-password.html", "/pages/account.html", "/pages/admin.html", "/pages/ai-assistant.html"}
     # 页面增强脚本清单（v 参数用于更新缓存）：导航策略/认证胶囊/反馈/主题切换。
-    WIDGET_SCRIPTS = ["/assets/navigation-policy.js?v=2", "/assets/auth-widget.js?v=7", "/assets/feedback-widget.js?v=4", "/assets/theme-toggle.js?v=1"]
+    WIDGET_SCRIPTS = ["/assets/navigation-policy.js?v=2", "/assets/role-display.js?v=1", "/assets/auth-widget.js?v=8", "/assets/feedback-widget.js?v=4", "/assets/theme-toggle.js?v=1"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
@@ -633,7 +634,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
         user = self.current_user()
         self._gate_user = user  # 复用给 do_GET，避免同请求二次查会话库
         if is_admin_path(canonical) or is_admin_path(target_relative):
-            if user is None or str(user["role"]) != "admin":
+            if user is None or not has_admin_role(user):
                 if canonical.startswith("/api/"):
                     self.send_json({"error": "需要管理员权限"}, HTTPStatus.FORBIDDEN)
                 else:
@@ -691,7 +692,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/me":
             self.send_json({"username": str(user["username"]), "email": str(user["email"] or ""),
                             "nickname": str(user["nickname"]),
-                            "lang": str(user["lang"]), "role": str(user["role"])})
+                            "lang": str(user["lang"]), **role_fields(user)})
             return
         # /api/avatar/<用户名>：读取用户头像（登录可见）。
         if decoded_path.startswith("/api/avatar/"):
@@ -887,7 +888,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
             return
         # /api/report/summary：年度报告全站汇总（?year=2026），仅管理员
         if parsed.path == "/api/report/summary":
-            if not user or str(user["role"]) != "admin":
+            if not user or not has_admin_role(user):
                 self.send_json({"error": "需要管理员权限"}, HTTPStatus.FORBIDDEN)
                 return
             params = {key: values[0] for key, values in parse_qs(parsed.query).items()}
@@ -1207,7 +1208,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
                         self.rfile.read(unauthenticated_length)
                 self.send_json({"error": "未登录"}, HTTPStatus.UNAUTHORIZED)
                 return
-            if path in admin_post and str(user["role"]) != "admin":
+            if path in admin_post and not has_admin_role(user):
                 self.close_connection = True
                 self.send_json({"error": "需要管理员权限"}, HTTPStatus.FORBIDDEN)
                 return
@@ -1344,7 +1345,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
                 token = create_session(int(row_user["id"]))
                 cookie_headers.append(("Set-Cookie", self.session_cookie(token)))
                 result = {"ok": True, "username": str(row_user["username"]),
-                          "email": str(row_user["email"] or ""), "role": str(row_user["role"])}
+                          "email": str(row_user["email"] or ""), **role_fields(row_user)}
             # /api/feedback：登录用户的 Bug/问题反馈（频控防灌水），由悬浮按钮提交。
             elif path == "/api/feedback":
                 fb_ip = self.client_ip()
@@ -1454,7 +1455,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
                 )
             # /api/admin/users/reset-password：管理员重置用户密码（重置后该用户全部会话失效）。
             elif path == "/api/admin/users/reset-password":
-                result = reset_user_password(str(payload.get("username", "")), str(payload.get("new_password", "")))
+                result = reset_user_password(str(payload.get("username", "")), str(payload.get("new_password", "")), str(user["username"]))
             # /api/admin/chat/delete：管理员删除公屏消息（公屏治理）。
             elif path == "/api/admin/chat/delete":
                 result = chat_delete(int(payload.get("id", 0)))

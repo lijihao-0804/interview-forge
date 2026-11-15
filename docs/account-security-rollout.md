@@ -3,6 +3,27 @@
 This change is a separate account feature release. Do not enable it as part of a
 content-only update. Tests use synthetic accounts and mocked mail delivery.
 
+## Three compatible identity tiers
+
+The database and legacy JSON `role` remain `user`/`admin`. Server-derived
+`effective_role` is `user`, `admin`, or `super_admin`; `role_label` is 用户,
+管理员, or 超级管理员. `core.roles` is the authority: only the exact configured
+permanent-admin username, with an active account and an actual `admin` database
+role, qualifies as `super_admin`. Missing configuration, missing active status,
+client fields, forged cookies and a stored/custom `super_admin` role do not qualify.
+Old clients checking `role == admin` retain the same administrator functionality.
+
+The initializer no longer promotes an account based on its configured name.
+No account, role, or service configuration is changed by adding these labels.
+Ordinary administrators retain existing management permissions but cannot modify
+the reserved administrator's role, password, nickname, or active status, and cannot
+access any private teaching resource. Normal public registration always creates
+a user. There is no endpoint for granting `super_admin`.
+
+Before activation, verify the configured permanent administrator is already active
+and has the database admin role, without printing the identity. A missing or
+inconsistent account is a deployment gate; do not repair/elevate it automatically.
+
 ## User-visible behavior
 
 | Situation | Behavior |
@@ -27,6 +48,19 @@ public reading and already-issued code redemption remain available.
 
 No real key, provider call or SMTP send is required for offline tests. Live provider
 and mail-delivery verification requires a separately approved deployment check.
+
+Recovery requests reserve the same SQLite quota for every normalized recipient,
+then queue delivery on the email worker pool. The public acknowledgement does not
+wait for account lookup or SMTP and does not disclose whether delivery succeeded.
+Known and unknown addresses therefore have identical response bodies/statuses even
+when SMTP is unavailable. CAPTCHA and quota failures still fail closed before
+delivery. Queued requests are not durable across restarts; after the existing
+cooldown the user can request a fresh code. Stop all workers, including delivery
+workers, before migration or rollback.
+
+Anonymous search keeps the deployed cross-process SQLite limits; this release does
+not adopt the earlier WIP's per-process counters. Known-route wrong-method requests
+return 405 with Allow; valid private operations retain their authentication gates.
 
 ## Database upgrade
 
@@ -73,6 +107,13 @@ and could resurrect revoked sessions.
 5. Verify health, existing login, rejected old passwords/revoked sessions, and
    anonymous/ordinary-admin rejection at private teaching routes. Retain both
    snapshots; re-upgrade is supported and reinstates the scoped index.
+
+The previous application automatically promoted the configured permanent-admin
+name at initialization. Before reverting to that version, confirm the configured
+account is still an active database administrator (or the setting is absent).
+If it is not, stop the downgrade; old startup would otherwise change privileges.
+Do not change the configured name or an account's privileges merely to pass this
+check. The new role fields themselves require no schema migration.
 
 A pre-upgrade snapshot may be restored only if the upgrade has accepted no user
 writes and no security changes have occurred since that snapshot. Otherwise use

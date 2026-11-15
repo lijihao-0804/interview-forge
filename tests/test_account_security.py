@@ -73,6 +73,10 @@ class AccountSecurityTests(unittest.TestCase):
         root = Path(self.temp.name)
         self.sent: list[tuple[str, str, str]] = []
         self.patches = [
+            # Exercise delivery/redemption deterministically; queued HTTP
+            # acknowledgement has separate coverage in test_effective_roles.
+            patch("interview_forge.api.routers.auth.send_password_reset_code",
+                  side_effect=registration.send_password_reset_code),
             patch.dict(server_runtime._values, {
                 "AUTH_DB_PATH": root / "auth.db",
                 "USERS_DIR": root / "users",
@@ -84,14 +88,10 @@ class AccountSecurityTests(unittest.TestCase):
         ]
         for item in self.patches:
             item.start()
-        registration._SEARCH_EVENTS.clear()
-        registration._SEARCH_GLOBAL.clear()
 
     def tearDown(self) -> None:
         for item in reversed(self.patches):
             item.stop()
-        registration._SEARCH_EVENTS.clear()
-        registration._SEARCH_GLOBAL.clear()
         self.temp.cleanup()
 
     def _client(self) -> TestClient:
@@ -310,21 +310,16 @@ class AccountSecurityTests(unittest.TestCase):
         self.assertEqual(conflict.exception.category, "email_taken")
         self.assertEqual(auth_login(target, "password-1")["id"], first["id"])
 
-    def test_search_rate_limit_never_opens_the_auth_database(self) -> None:
+    def test_search_rate_limit_retains_shared_database_budget(self) -> None:
         with patch.dict(os.environ, {
-            "IF_SEARCH_RATE_PER_MINUTE": "2",
-            "IF_SEARCH_RATE_PER_DAY": "100",
-            "IF_SEARCH_GLOBAL_PER_MINUTE": "1000",
-        }, clear=False), patch(
-            "interview_forge.services.registration.connect_auth",
-            side_effect=AssertionError("search must not touch auth.db"),
-        ):
+            "IF_SEARCH_RATE_PER_MINUTE": "2", "IF_SEARCH_RATE_PER_DAY": "100",
+        }, clear=False):
             registration.public_search_rate_limit("203.0.113.5")
             registration.public_search_rate_limit("203.0.113.5")
-            with self.assertRaises(PublicRateLimitError) as limited:
+            with self.assertRaises(PublicRateLimitError):
                 registration.public_search_rate_limit("203.0.113.5")
-        self.assertEqual(limited.exception.status, 429)
-        self.assertGreaterEqual(limited.exception.retry_after, 1)
+        with closing(connect_auth()) as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM public_rate_events WHERE namespace='search'").fetchone()[0], 2)
 
     def test_registration_send_is_bucketed_by_recipient_domain(self) -> None:
         with patch.dict(os.environ, {

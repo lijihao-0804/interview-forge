@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+from interview_forge.core.roles import role_fields
 
 from fastapi import APIRouter, Request
 from fastapi.responses import Response
@@ -23,7 +24,7 @@ from interview_forge.services.community import (
 from interview_forge.services.registration import (
     captcha_config, confirm_email_change, registration_email_executor,
     register_with_email_code, reset_password_with_code, send_email_change_code,
-    send_password_reset_code, send_registration_code, verify_captcha,
+    request_password_reset_code as send_password_reset_code, send_registration_code, verify_captcha,
 )
 
 router = APIRouter()
@@ -65,7 +66,7 @@ def me(request: Request):
         "email": str(user["email"] or ""),
         "nickname": str(user["nickname"]),
         "lang": str(user["lang"]),
-        "role": str(user["role"]),
+        **role_fields(user),
     })
 
 
@@ -95,7 +96,7 @@ async def login(request: Request):
             "ok": True,
             "username": str(user["username"]),
             "email": str(user["email"] or ""),
-            "role": str(user["role"]),
+            **role_fields(user),
         }, 201)
         response.headers["set-cookie"] = session_cookie(request, token)
         return response
@@ -143,7 +144,7 @@ async def register(request: Request):
             client_ip(request),
         )
         token = await asyncio.to_thread(create_session, int(user["id"]))
-        response = json_response({"ok": True, "username": str(user["username"]), "role": str(user["role"])}, 201)
+        response = json_response({"ok": True, "username": str(user["username"]), **role_fields(user)}, 201)
         response.headers["set-cookie"] = session_cookie(request, token)
         return response
     except BaseException as exc:

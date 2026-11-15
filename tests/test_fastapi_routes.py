@@ -15,6 +15,9 @@ from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 
 from interview_forge.api.app import app
+from interview_forge.core.runtime import server_runtime
+from interview_forge.services.auth import connect_auth
+from contextlib import closing
 
 
 USER = {"id": 7, "username": "alice", "nickname": "Alice", "lang": "java", "role": "user"}
@@ -23,11 +26,21 @@ ADMIN = {**USER, "role": "admin"}
 
 class FastApiRouteContractTests(unittest.TestCase):
     def setUp(self):
+        self.auth_temp = tempfile.TemporaryDirectory()
+        self.auth_patch = patch.dict(server_runtime._values, {
+            "AUTH_DB_PATH": Path(self.auth_temp.name) / "auth.db",
+            "USERS_DIR": Path(self.auth_temp.name) / "users", "_AUTH_READY": False,
+        })
+        self.auth_patch.start()
+        with closing(connect_auth()):
+            pass
         self.client = TestClient(app, raise_server_exceptions=False)
         self.db_path = Path("data") / "__fastapi_contract_test__.db"
 
     def tearDown(self):
         self.client.close()
+        self.auth_patch.stop()
+        self.auth_temp.cleanup()
 
     def test_domain_paths_are_explicit_and_not_legacy_catch_all(self):
         paths = app.openapi()["paths"]

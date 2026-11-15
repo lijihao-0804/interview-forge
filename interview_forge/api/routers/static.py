@@ -4,6 +4,7 @@ This replaces the old handler's static catch-all in the FastAPI runtime.  It
 keeps the same path gate and widget injection but never invokes StudyHandler.
 """
 from __future__ import annotations
+from interview_forge.core.roles import has_admin_role
 
 import hashlib
 from pathlib import Path
@@ -31,7 +32,7 @@ _WIDGET_STYLES = ("/assets/ai-launcher.css?v=5",)
 _WIDGET_SCRIPTS = (
     "/assets/time-utils.js?v=2",
     "/assets/navigation-policy.js?v=2",
-    "/assets/auth-widget.js?v=7",
+    "/assets/role-display.js?v=1", "/assets/auth-widget.js?v=8",
     "/assets/feedback-widget.js?v=4",
     "/assets/theme-toggle.js?v=2",
     "/assets/ai-page-context.js?v=2",
@@ -214,7 +215,7 @@ def static_path(request: Request, path: str):
         return _not_found_response(request, decoded)
     user = current_user(request)
     if is_admin_path(decoded) or is_admin_path(target_relative):
-        if user is None or str(user["role"]) != "admin":
+        if user is None or not has_admin_role(user):
             return error_response("Forbidden", 403)
     if user is None and not is_public_get(decoded):
         # next 只保留 .html 页面（带上 query，保持与客户端 401 跳转一致的行为）：

@@ -785,7 +785,7 @@
       sep0.style.color = "#dfe4ee";
       pill.appendChild(sep0);
 
-      if (me.role === "admin") {
+      if (window.InterviewForgeRoles ? window.InterviewForgeRoles.isAdmin(me) : me.role === "admin") {
         var adminLink = document.createElement("a");
         adminLink.href = "/pages/admin.html";
         adminLink.className = "fap-admin-link";
@@ -802,6 +802,7 @@
       var name = document.createElement("button");
       name.type = "button";
       name.setAttribute("aria-label", "设置昵称与头像");
+      name.title = window.InterviewForgeRoles ? window.InterviewForgeRoles.label(me) : "";
       name.className = "fap-name";
       name.title = "点击设置昵称与头像";
       name.textContent = me.nickname || me.username;

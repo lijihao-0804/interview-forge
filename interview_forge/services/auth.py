@@ -21,6 +21,7 @@ from typing import Mapping
 
 from interview_forge.core.paths import DATA_DIR, DB_PATH, USERS_DIR
 from interview_forge.core.runtime import server_runtime
+from interview_forge.core.roles import effective_role, role_fields
 
 _LAST_SEEN_TS: dict[int, float] = {}
 _LAST_SEEN_LOCK = threading.Lock()
@@ -316,10 +317,8 @@ def connect_auth() -> sqlite3.Connection:
                     "CREATE UNIQUE INDEX IF NOT EXISTS ux_users_email_nocase "
                     "ON users(email COLLATE NOCASE) WHERE email IS NOT NULL AND email <> ''"
                 )
-                connection.execute(
-                    "UPDATE users SET role = 'admin' WHERE username = ? AND role <> 'admin'",
-                    (runtime.PERMANENT_ADMIN_USERNAME,),
-                )
+                # Configuration identifies an existing administrator; it is not
+                # authority to elevate a user during schema initialization.
                 connection.execute("DELETE FROM sessions WHERE expires_at < ?", (runtime.now_iso(),))
                 runtime._AUTH_READY = True
     return connection
@@ -647,7 +646,8 @@ def list_users() -> list[dict[str, object]]:
             "COALESCE(last_seen, last_login) AS last_active, ai_daily_limit FROM users ORDER BY id"
         ):
             item = dict(row)
-            item["permanent_admin"] = str(item["username"]) == runtime.PERMANENT_ADMIN_USERNAME
+            item.update(role_fields(item))
+            item["permanent_admin"] = effective_role(item) == "super_admin"
             custom_limit = item.get("ai_daily_limit")
             effective_limit = runtime.AI_DAILY_LIMIT_DEFAULT if custom_limit is None else int(custom_limit)
             item["ai_daily_limit_custom"] = custom_limit is not None
@@ -733,7 +733,7 @@ def set_user_active(username: str, active: bool) -> dict[str, object]:
         row = connection.execute("SELECT id, role FROM users WHERE username = ?", (username,)).fetchone()
         if row is None:
             raise ValueError("用户不存在")
-        if str(row["role"]) == "admin":
+        if str(row["role"]) == "admin" or username == server_runtime.PERMANENT_ADMIN_USERNAME:
             raise ValueError("不能停用管理员账号")
         connection.execute("BEGIN IMMEDIATE")
         connection.execute("UPDATE users SET is_active = ? WHERE id = ?", (1 if active else 0, row["id"]))
@@ -757,8 +757,8 @@ def set_user_role(username: str, role: str, actor_username: str = "") -> dict[st
         if row is None:
             raise ValueError("用户不存在")
         current_role = str(row["role"])
-        if username == runtime.PERMANENT_ADMIN_USERNAME and role != "admin":
-            raise ValueError("永久管理员账号不能降级为普通用户")
+        if username == runtime.PERMANENT_ADMIN_USERNAME and (role != current_role or actor_username != username):
+            raise ValueError("永久管理员（超级管理员）的角色不能通过管理接口修改")
         if current_role == role:
             connection.execute("COMMIT")
             return {"username": username, "role": role}
@@ -782,14 +782,16 @@ def reset_user_nickname(username: str, actor_username: str = "") -> dict[str, ob
         row = connection.execute("SELECT id, username, role FROM users WHERE username = ?", (username,)).fetchone()
         if row is None:
             raise ValueError("用户不存在")
-        if str(row["role"]) == "admin" and username != actor_username:
+        if (str(row["role"]) == "admin" or username == server_runtime.PERMANENT_ADMIN_USERNAME) and username != actor_username:
             raise ValueError("不能修改其他管理员的昵称")
         connection.execute("UPDATE users SET nickname = ? WHERE id = ?", (username, row["id"]))
         connection.execute("COMMIT")
     return {"username": username, "nickname": username}
 
 
-def reset_user_password(username: str, new_password: str) -> dict[str, object]:
+def reset_user_password(username: str, new_password: str, actor_username: str = "") -> dict[str, object]:
+    if username == server_runtime.PERMANENT_ADMIN_USERNAME and actor_username != username:
+        raise ValueError("不能修改超级管理员的密码")
     if len(new_password) < 8:
         raise ValueError("密码至少 8 位")
     with closing(connect_auth()) as connection:

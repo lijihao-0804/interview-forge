@@ -18,9 +18,9 @@
 
 登录接受用户名或注册邮箱：`POST /api/login {username, password}` 中的 `username` 字段可填用户名（在不存在历史大小写冲突账号时不区分大小写）或邮箱（不区分大小写），密码正确即可登录；只接受 `identifier`、`email` 或 `account` 字段的客户端同样可用。`GET /api/me` 会返回绑定邮箱，便于用户确认注册地址。
 
-邮箱找回闭环：登录页“忘记密码”进入 `/pages/forgot-password.html`，先 `POST /api/password/forgot/send-code {email}`，再 `POST /api/password/forgot/reset {email, code, password}`；重置成功后该用户全部会话立即失效。未注册邮箱返回与已注册邮箱一致的响应且不实际发信，避免账号枚举。已登录用户可在 `/pages/account.html` 更换绑定邮箱：`POST /api/account/email/send-code {email}` 向新邮箱发码，`POST /api/account/email {email, code, password}` 需同时校验当前密码与新邮箱验证码；新邮箱不能与其他账号重复。验证码按用途（`register` / `reset` / `email_change`）隔离，一种用途的验证码不能用于另一种。
+邮箱找回闭环：登录页“忘记密码”进入 `/pages/forgot-password.html`，先 `POST /api/password/forgot/send-code {email}`，再 `POST /api/password/forgot/reset {email, code, password}`；重置成功后该用户全部会话立即失效。找回请求在统一预留额度后进入后台邮件队列，响应不等待账号查询或 SMTP；未注册邮箱与已注册邮箱收到相同的受理响应，不承诺实际投递，邮件服务失败也不通过响应暴露账号是否存在。已登录用户可在 `/pages/account.html` 更换绑定邮箱：`POST /api/account/email/send-code {email}` 向新邮箱发码，`POST /api/account/email {email, code, password}` 需同时校验当前密码与新邮箱验证码；新邮箱不能与其他账号重复。验证码按用途（`register` / `reset` / `email_change`）隔离，一种用途的验证码不能用于另一种。
 
-`PERMANENT_ADMIN_USERNAME` 配置的永久管理员用户名保留给内部初始化，公开注册不能占用该名称或其大小写变体，避免其他 worker 初始化时误提升普通注册账号。
+`PERMANENT_ADMIN_USERNAME` 配置的永久管理员必须是已经存在且活跃的管理员，服务端将其标记为超级管理员；初始化不会提升账号。公开注册不能占用该名称或其大小写变体。
 
 注册发信复用管理后台中现有的全局 SMTP 配置及加密授权码，不要把发件凭证写入源码。465 使用隐式 TLS，其他端口要求 STARTTLS 成功，失败时停止发信。未配置返回 `503 email_not_configured`，不会以开发模式回显验证码。部署时必须保留 SMTP 原有的加密主密钥（`INTERVIEW_FORGE_GYM_KEY` 或私有 `data/gym-secret.key`）。
 
@@ -38,9 +38,8 @@
 | 验证码有效期 | 600 秒 | `IF_REGISTER_CODE_TTL_SECONDS` |
 | 单码最大错误次数 | 5 | `IF_REGISTER_CODE_MAX_ATTEMPTS` |
 | 游客搜索 IP 每分钟 / 24 小时 | 30 / 500 | `IF_SEARCH_RATE_PER_MINUTE` / `IF_SEARCH_RATE_PER_DAY` |
-| 游客搜索全站每分钟 | 600 | `IF_SEARCH_GLOBAL_PER_MINUTE` |
 
-游客搜索限额保存在进程内存中，不写认证数据库：搜索是只读操作，不应与注册、登录和会话写入争用同一 SQLite 写锁。多 worker 部署时每个进程各有一份计数，因此实际上限约为配置值乘以进程数；这份限额只用于保护索引扫描，不承担账号安全职责。
+游客搜索保留线上既有的 SQLite 原子限流；多 worker 共享同一份额度，不在本次账户发布中切换为进程内计数。
 
 “每天”额度采用滚动 24 小时窗口。代理 IP 只接受来自可信代理的转发头：现有本机 nginx 属于兼容信任边界；其他代理需在 `INTERVIEW_FORGE_TRUSTED_PROXIES` 中配置地址或 CIDR，且由代理覆盖 `X-Real-IP`。应用与 nginx 均禁止公开下载数据库、密钥和点文件；修改 nginx 模板后，需要在实际部署环境执行 `nginx -t`。
 

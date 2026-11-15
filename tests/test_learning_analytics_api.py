@@ -1259,7 +1259,7 @@ class RealAuthenticationIsolationTests(unittest.TestCase):
         self.assertEqual(status, 400)
         self.assertIn("管理员账号", body["error"])
 
-    def test_permanent_admin_is_repaired_marked_and_cannot_be_demoted(self):
+    def test_permanent_admin_is_not_auto_promoted_and_cannot_be_modified(self):
         server._AUTH_READY = False
         with server.closing(server.connect_auth()) as connection:
             self.assertIsNone(connection.execute(
@@ -1273,7 +1273,9 @@ class RealAuthenticationIsolationTests(unittest.TestCase):
             role = connection.execute(
                 "SELECT role FROM users WHERE id = ?", (permanent["id"],)
             ).fetchone()["role"]
-        self.assertEqual(role, "admin")
+        self.assertEqual(role, "user")
+        with server.closing(server.connect_auth()) as connection:
+            connection.execute("UPDATE users SET role = 'admin' WHERE id = ?", (permanent["id"],))
         items = {item["username"]: item for item in server.list_users()}
         self.assertTrue(items[server.PERMANENT_ADMIN_USERNAME]["permanent_admin"])
         with self.assertRaisesRegex(ValueError, "永久管理员"):

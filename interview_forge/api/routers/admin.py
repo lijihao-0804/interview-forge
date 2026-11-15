@@ -128,7 +128,7 @@ async def user_quota_limit(request: Request):
 
 @router.post("/api/admin/users/reset-password")
 async def user_password_reset(request: Request):
-    return await _admin_write(request, lambda p, u: reset_user_password(str(p.get("username", "")), str(p.get("new_password", ""))))
+    return await _admin_write(request, lambda p, u: reset_user_password(str(p.get("username", "")), str(p.get("new_password", "")), str(u["username"])))
 
 
 @router.post("/api/admin/feedback/resolve")

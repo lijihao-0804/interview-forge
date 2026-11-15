@@ -5,6 +5,7 @@ only translates the established cookie/body/error conventions into FastAPI
 responses so domain routers can call the existing services directly.
 """
 from __future__ import annotations
+from interview_forge.core.roles import has_admin_role
 
 import asyncio
 import json
@@ -83,7 +84,7 @@ def require_admin(request: Request):
     user, response = require_user(request)
     if response is not None:
         return None, response
-    if str(user["role"]) != "admin":
+    if not has_admin_role(user):
         return None, error_response("需要管理员权限", HTTPStatus.FORBIDDEN)
     return user, None
 
@@ -104,7 +105,7 @@ async def async_require_admin(request: Request):
     user, response = await async_require_user(request)
     if response is not None:
         return None, response
-    if str(user["role"]) != "admin":
+    if not has_admin_role(user):
         return None, error_response("需要管理员权限", HTTPStatus.FORBIDDEN)
     return user, None
 
