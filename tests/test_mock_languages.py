@@ -26,6 +26,7 @@ class MockLanguagesTests(TestCase):
                 (3,'ac','python','2026-01-02T12:00:00Z'),
                 (3,'ac','Java','2026-01-02T12:00:00Z'),
                 (4,'ac','','2026-01-02T12:00:00Z'),
+                (4,'wa','','2026-01-02T12:00:00Z'),
                 (5,'wa','python','2026-01-02T12:00:00Z'),
                 (6,'ac','python','invalid-date'),
             ])
@@ -35,7 +36,7 @@ class MockLanguagesTests(TestCase):
         return mock_exam(count=50, scope='unseen', db_path=self.db, **kwargs)
 
     def test_language_independence_aliases_and_unknowns(self):
-        for language, expected in [('Python3',{2,4,5,6,7,8}), ('PYTHON',{2,4,5,6,7,8}), ('java',{1,4,5,6,7,8})]:
+        for language, expected in [('Python3',{2,4,7,8}), ('PYTHON',{2,4,7,8}), ('java',{1,4,5,6,7,8})]:
             with self.subTest(language=language):
                 preview = self.exam(language=language, preview=True)
                 actual = self.exam(language=language)
@@ -57,7 +58,7 @@ class MockLanguagesTests(TestCase):
             self.exam(language='python', category='missing')
 
     def test_filters_and_invalid_language(self):
-        self.assertEqual({p['id'] for p in self.exam(language='python', category='A')['problems']}, {2,4,5})
+        self.assertEqual({p['id'] for p in self.exam(language='python', category='A')['problems']}, {2,4})
         self.assertEqual(self.exam(language='python', difficulty='困难', preview=True)['scope_pool'], 0)
         for kwargs in ({'language':'unknown'}, {'language':'rust'}):
             with self.assertRaises(ValueError):
@@ -65,3 +66,11 @@ class MockLanguagesTests(TestCase):
         with self.assertRaises(ValueError):
             mock_exam(scope='all', language='python', db_path=self.db)
         self.assertEqual(mock_exam(scope='all', preview=True, db_path=self.db)['scope_pool'], 8)
+
+    def test_wa_attempts_exhaust_preview_and_actual_pool_together(self):
+        with sqlite3.connect(self.db) as con:
+            con.executemany('INSERT INTO submissions(problem_id,status,lang,submitted_at) VALUES (?,?,?,?)', [(pid,'wa','Python3','2026-01-03T12:00:00Z') for pid in (2,4,7,8)])
+        self.assertEqual(self.exam(language='python', preview=True)['scope_pool'], 0)
+        with self.assertRaisesRegex(ValueError, '没有可用'):
+            self.exam(language='python')
+        self.assertEqual(self.exam(language='java', preview=True)['scope_pool'], 6)
