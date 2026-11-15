@@ -1206,7 +1206,7 @@ async function updateMockPool(){
   const sequence=++mockPreviewSequence;
   const unseen=document.getElementById('mockScope').value==='unseen';
   document.getElementById('mockLanguage').disabled=!unseen;
-  document.getElementById('mockLanguageHint').textContent=unseen&&document.getElementById('mockLanguage').value?'仅排除有明确语言及有效日期的通过（AC）记录；其他语言、未通过、仅浏览和未知语言记录不排除。历史未记录语言的完成记录无法归属，请先同步可用的提交记录。':'不限语言保留原有浏览与完成记录范围；选择「从未做过的」可按语言筛选。';
+  document.getElementById('mockLanguageHint').textContent=unseen&&document.getElementById('mockLanguage').value?'排除该语言已有提交/尝试记录的题目（包括 AC 和 WA）；其他语言、仅浏览和未知语言记录不排除。历史未记录语言的提交无法归属，请先同步可用的提交记录。':'不限语言保留原有浏览与完成记录范围；选择「从未做过的」可按语言筛选。';
   const output=document.getElementById('mockPool');
   if(!document.getElementById('mockSettings').open)return;
   if(!document.body.classList.contains('is-authenticated')){output.textContent='登录后可查看可抽题数';return}

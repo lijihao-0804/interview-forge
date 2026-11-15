@@ -171,9 +171,9 @@ def run(output: Path) -> None:
         page.once("dialog", lambda dialog: dialog.accept())
         page.locator("#mockAbandon").click()
         expect(page.locator("#mockReport")).to_contain_text("已放弃")
-        # Metadata-only fixtures: Python excludes its AC, Java excludes its own AC.
+        # Metadata-only fixtures: Python excludes its WA attempt, Java excludes its own AC.
         with sqlite3.connect(db) as connection:
-            connection.executemany("INSERT INTO submissions(problem_id,status,lang,submitted_at) VALUES (?,?,?,?)", [(1,'ac','Python3','2026-01-01T12:00:00Z'),(2,'ac','Java','2026-01-01T12:00:00Z')])
+            connection.executemany("INSERT INTO submissions(problem_id,status,lang,submitted_at) VALUES (?,?,?,?)", [(1,'wa','Python3','2026-01-01T12:00:00Z'),(2,'ac','Java','2026-01-01T12:00:00Z')])
         page.locator('#mockSettings summary').click()
         page.locator('#mockScope').select_option('unseen')
         page.locator('#mockLanguage').select_option('python')

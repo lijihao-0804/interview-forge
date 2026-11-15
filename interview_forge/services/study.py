@@ -1646,7 +1646,7 @@ def mock_exam(
         if language:
             with closing(server_runtime.connect(db_path)) as connection:
                 language_progress = problem_language_progress(connection)
-            filtered = [p for p in candidates if not language_progress.get(int(p["id"]), {}).get(language, {}).get("rounds", 0)]
+            filtered = [p for p in candidates if not language_progress.get(int(p["id"]), {}).get(language, {}).get("submits", 0)]
             scope_label += " · " + language_labels[language]
 
     elif norm_scope in ("", "all"):
