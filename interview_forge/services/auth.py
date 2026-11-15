@@ -21,6 +21,7 @@ from typing import Mapping
 
 from interview_forge.core.paths import DATA_DIR, DB_PATH, USERS_DIR
 from interview_forge.core.runtime import server_runtime
+from interview_forge.core.roles import effective_role, role_fields
 
 _LAST_SEEN_TS: dict[int, float] = {}
 _LAST_SEEN_LOCK = threading.Lock()
@@ -171,6 +172,8 @@ CREATE TABLE IF NOT EXISTS registration_send_attempts (
     id INTEGER PRIMARY KEY,
     ip_hash TEXT NOT NULL,
     email_hash TEXT NOT NULL,
+    domain_hash TEXT NOT NULL DEFAULT '',
+    purpose TEXT NOT NULL DEFAULT 'register',
     requested_at INTEGER NOT NULL,
     completed_at INTEGER,
     status TEXT NOT NULL CHECK (status IN ('reserved', 'sent', 'failed')),
@@ -187,6 +190,8 @@ CREATE TABLE IF NOT EXISTS registration_email_codes (
     email TEXT NOT NULL,
     code_hash TEXT NOT NULL,
     code_salt TEXT NOT NULL,
+    purpose TEXT NOT NULL DEFAULT 'register',
+    user_id INTEGER,
     status TEXT NOT NULL CHECK (status IN ('pending', 'active', 'consumed', 'invalidated')),
     created_at INTEGER NOT NULL,
     expires_at INTEGER NOT NULL,
@@ -195,9 +200,6 @@ CREATE TABLE IF NOT EXISTS registration_email_codes (
     consumed_at INTEGER,
     invalidated_at INTEGER
 );
-CREATE UNIQUE INDEX IF NOT EXISTS ux_registration_code_active_email
-    ON registration_email_codes(email COLLATE NOCASE)
-    WHERE status IN ('pending', 'active');
 CREATE INDEX IF NOT EXISTS ix_registration_code_email
     ON registration_email_codes(email COLLATE NOCASE, id DESC);
 CREATE TABLE IF NOT EXISTS public_rate_events (
@@ -278,11 +280,28 @@ def connect_auth() -> sqlite3.Connection:
                     "ALTER TABLE users ADD COLUMN last_seen TEXT",
                     "ALTER TABLE users ADD COLUMN ai_daily_limit INTEGER CHECK (ai_daily_limit IS NULL OR (ai_daily_limit >= 0 AND ai_daily_limit <= 100))",
                     "ALTER TABLE feedback ADD COLUMN username TEXT NOT NULL DEFAULT ''",
+                    "ALTER TABLE registration_send_attempts ADD COLUMN domain_hash TEXT NOT NULL DEFAULT ''",
+                    "ALTER TABLE registration_send_attempts ADD COLUMN purpose TEXT NOT NULL DEFAULT 'register'",
+                    "ALTER TABLE registration_email_codes ADD COLUMN purpose TEXT NOT NULL DEFAULT 'register'",
+                    "ALTER TABLE registration_email_codes ADD COLUMN user_id INTEGER",
                 ):
                     try:
                         connection.execute(statement)
                     except sqlite3.OperationalError:
                         pass
+                # One active code per (address, purpose, account) instead of one
+                # per address, so a pending registration code can never be
+                # redeemed by the password-reset flow (or vice versa).
+                connection.execute("DROP INDEX IF EXISTS ux_registration_code_active_email")
+                connection.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ux_registration_code_active_scope "
+                    "ON registration_email_codes(email COLLATE NOCASE, purpose, IFNULL(user_id, 0)) "
+                    "WHERE status IN ('pending', 'active')"
+                )
+                connection.execute(
+                    "CREATE INDEX IF NOT EXISTS ix_registration_attempt_domain "
+                    "ON registration_send_attempts(domain_hash, requested_at)"
+                )
                 # Older databases stored the bearer token itself.  Hash it
                 # in-place once so active sessions survive the migration while
                 # the auth database no longer contains reusable credentials.
@@ -298,10 +317,8 @@ def connect_auth() -> sqlite3.Connection:
                     "CREATE UNIQUE INDEX IF NOT EXISTS ux_users_email_nocase "
                     "ON users(email COLLATE NOCASE) WHERE email IS NOT NULL AND email <> ''"
                 )
-                connection.execute(
-                    "UPDATE users SET role = 'admin' WHERE username = ? AND role <> 'admin'",
-                    (runtime.PERMANENT_ADMIN_USERNAME,),
-                )
+                # Configuration identifies an existing administrator; it is not
+                # authority to elevate a user during schema initialization.
                 connection.execute("DELETE FROM sessions WHERE expires_at < ?", (runtime.now_iso(),))
                 runtime._AUTH_READY = True
     return connection
@@ -391,6 +408,20 @@ def _username_case_collision(connection: sqlite3.Connection, username: str, *, e
     return row is not None
 
 
+def _unique_violation_message(exc: sqlite3.IntegrityError, email: str | None) -> str:
+    """Attribute a unique-constraint failure to the column SQLite names.
+
+    A registration always supplies both columns, so guessing from ``email``
+    alone mislabels a username collision that happened to include an email.
+    """
+    detail = str(exc).casefold()
+    if "users.email" in detail:
+        return "该邮箱已注册"
+    if "users.username" in detail:
+        return "用户名已被占用"
+    return "该邮箱已注册" if email is not None else "用户名已被占用"
+
+
 def create_user(username: str, password: str, role: str = "user", conn: sqlite3.Connection | None = None,
                 email: str | None = None) -> dict[str, object]:
     runtime = server_runtime
@@ -432,8 +463,7 @@ def create_user(username: str, password: str, role: str = "user", conn: sqlite3.
         if started_transaction:
             with suppress(sqlite3.Error):
                 connection.execute("ROLLBACK")
-        message = "该邮箱已注册" if email is not None else "用户名已被占用"
-        raise ValueError(message) from exc
+        raise ValueError(_unique_violation_message(exc, email)) from exc
     except BaseException:
         if started_transaction:
             with suppress(sqlite3.Error):
@@ -455,14 +485,37 @@ def ensure_admin(username: str, password: str) -> dict[str, object]:
     return create_user(username, password, role="admin")
 
 
-def auth_login(username: str, password: str) -> sqlite3.Row:
+def auth_login(identifier: str, password: str) -> sqlite3.Row:
+    """Authenticate with either the username or the verified email address.
+
+    Usernames never contain ``@`` (``USERNAME_RE``), so an ``@`` in the input
+    is an unambiguous hint to try the email column second.  Both lookup paths
+    run the same dummy-hash verification when no account matches, keeping the
+    response time independent of account existence.
+    """
     runtime = server_runtime
+    identifier = str(identifier or "").strip()
     with closing(connect_auth()) as connection:
-        row = connection.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+        row = connection.execute("SELECT * FROM users WHERE username = ?", (identifier,)).fetchone()
+        if row is None and "@" in identifier:
+            row = connection.execute(
+                "SELECT * FROM users WHERE email = ? COLLATE NOCASE LIMIT 1", (identifier,)
+            ).fetchone()
+        if row is None and identifier and "@" not in identifier:
+            # Tolerate only the unambiguous case variant: legacy databases can
+            # still contain case-colliding usernames, and those must keep
+            # failing closed (the collision check below rejects them).
+            variants = connection.execute(
+                "SELECT * FROM users WHERE username = ? COLLATE NOCASE LIMIT 2", (identifier,)
+            ).fetchall()
+            if len(variants) == 1:
+                row = variants[0]
         if row is None:
             verify_password(password, runtime._DUMMY_HASH)
             raise ValueError("用户名或密码错误")
-        if _username_case_collision(connection, str(row["username"]), exclude_user_id=int(row["id"])):
+        if _username_case_collision(
+            connection, str(row["username"]), exclude_user_id=int(row["id"])
+        ):
             verify_password(password, runtime._DUMMY_HASH)
             raise ValueError("用户名或密码错误")
         if int(row["is_active"]) != 1 or not verify_password(password, str(row["password_hash"])):
@@ -509,7 +562,7 @@ def session_user(token: str) -> sqlite3.Row | None:
             return cached
     with closing(connect_auth()) as connection:
         row = connection.execute(
-            """SELECT u.id, u.username, u.role, u.is_active, u.ai_daily_limit,
+            """SELECT u.id, u.username, u.email, u.role, u.is_active, u.ai_daily_limit,
                       COALESCE(NULLIF(u.nickname, ''), u.username) AS nickname, COALESCE(u.lang, 'java') AS lang,
                       s.expires_at AS session_expires_at
                FROM sessions s JOIN users u ON u.id = s.user_id
@@ -584,21 +637,17 @@ def revoke_invite_code(code: str) -> dict[str, object]:
     return {"code": code, "status": "revoked"}
 
 
-def register_with_code(username: str, password: str, code: str) -> dict[str, object]:
-    """Retired entry point; invite codes may not bypass email ownership."""
-    raise ValueError("旧邀请码注册已停用，请使用邮箱验证码注册")
-
-
 def list_users() -> list[dict[str, object]]:
     runtime = server_runtime
     items: list[dict[str, object]] = []
     with closing(connect_auth()) as connection:
         for row in connection.execute(
-            "SELECT id, username, COALESCE(nickname, '') AS nickname, role, is_active, created_at, last_login, "
+            "SELECT id, username, COALESCE(email, '') AS email, COALESCE(nickname, '') AS nickname, role, is_active, created_at, last_login, "
             "COALESCE(last_seen, last_login) AS last_active, ai_daily_limit FROM users ORDER BY id"
         ):
             item = dict(row)
-            item["permanent_admin"] = str(item["username"]) == runtime.PERMANENT_ADMIN_USERNAME
+            item.update(role_fields(item))
+            item["permanent_admin"] = effective_role(item) == "super_admin"
             custom_limit = item.get("ai_daily_limit")
             effective_limit = runtime.AI_DAILY_LIMIT_DEFAULT if custom_limit is None else int(custom_limit)
             item["ai_daily_limit_custom"] = custom_limit is not None
@@ -684,7 +733,7 @@ def set_user_active(username: str, active: bool) -> dict[str, object]:
         row = connection.execute("SELECT id, role FROM users WHERE username = ?", (username,)).fetchone()
         if row is None:
             raise ValueError("用户不存在")
-        if str(row["role"]) == "admin":
+        if str(row["role"]) == "admin" or username == server_runtime.PERMANENT_ADMIN_USERNAME:
             raise ValueError("不能停用管理员账号")
         connection.execute("BEGIN IMMEDIATE")
         connection.execute("UPDATE users SET is_active = ? WHERE id = ?", (1 if active else 0, row["id"]))
@@ -708,8 +757,8 @@ def set_user_role(username: str, role: str, actor_username: str = "") -> dict[st
         if row is None:
             raise ValueError("用户不存在")
         current_role = str(row["role"])
-        if username == runtime.PERMANENT_ADMIN_USERNAME and role != "admin":
-            raise ValueError("永久管理员账号不能降级为普通用户")
+        if username == runtime.PERMANENT_ADMIN_USERNAME and (role != current_role or actor_username != username):
+            raise ValueError("永久管理员（超级管理员）的角色不能通过管理接口修改")
         if current_role == role:
             connection.execute("COMMIT")
             return {"username": username, "role": role}
@@ -733,14 +782,16 @@ def reset_user_nickname(username: str, actor_username: str = "") -> dict[str, ob
         row = connection.execute("SELECT id, username, role FROM users WHERE username = ?", (username,)).fetchone()
         if row is None:
             raise ValueError("用户不存在")
-        if str(row["role"]) == "admin" and username != actor_username:
+        if (str(row["role"]) == "admin" or username == server_runtime.PERMANENT_ADMIN_USERNAME) and username != actor_username:
             raise ValueError("不能修改其他管理员的昵称")
         connection.execute("UPDATE users SET nickname = ? WHERE id = ?", (username, row["id"]))
         connection.execute("COMMIT")
     return {"username": username, "nickname": username}
 
 
-def reset_user_password(username: str, new_password: str) -> dict[str, object]:
+def reset_user_password(username: str, new_password: str, actor_username: str = "") -> dict[str, object]:
+    if username == server_runtime.PERMANENT_ADMIN_USERNAME and actor_username != username:
+        raise ValueError("不能修改超级管理员的密码")
     if len(new_password) < 8:
         raise ValueError("密码至少 8 位")
     with closing(connect_auth()) as connection:

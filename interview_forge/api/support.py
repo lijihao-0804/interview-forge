@@ -5,6 +5,7 @@ only translates the established cookie/body/error conventions into FastAPI
 responses so domain routers can call the existing services directly.
 """
 from __future__ import annotations
+from interview_forge.core.roles import has_admin_role
 
 import asyncio
 import json
@@ -43,7 +44,19 @@ def error_response(message: str, status: int, *, headers: dict[str, str] | None 
     return json_response(payload, status, headers=headers)
 
 
+_UNRESOLVED = object()
+
+
 def current_user(request: Request):
+    """Resolve the session once per request and reuse it in the route.
+
+    The authentication middleware already resolves private API requests, so
+    caching the result on ``request.state`` avoids a second database round
+    trip (and a second sliding-renewal check) inside the route handler.
+    """
+    cached = getattr(request.state, "forge_current_user", _UNRESOLVED)
+    if cached is not _UNRESOLVED:
+        return cached
     token = ""
     for part in request.headers.get("cookie", "").split(";"):
         name, separator, value = part.strip().partition("=")
@@ -52,11 +65,12 @@ def current_user(request: Request):
             break
     try:
         user = session_user(token)
-        if user is not None:
-            request.state.session_token = token
-        return user
     except sqlite3.Error:
-        return None
+        user = None
+    if user is not None:
+        request.state.session_token = token
+    request.state.forge_current_user = user
+    return user
 
 
 def require_user(request: Request):
@@ -70,7 +84,7 @@ def require_admin(request: Request):
     user, response = require_user(request)
     if response is not None:
         return None, response
-    if str(user["role"]) != "admin":
+    if not has_admin_role(user):
         return None, error_response("需要管理员权限", HTTPStatus.FORBIDDEN)
     return user, None
 
@@ -91,7 +105,7 @@ async def async_require_admin(request: Request):
     user, response = await async_require_user(request)
     if response is not None:
         return None, response
-    if str(user["role"]) != "admin":
+    if not has_admin_role(user):
         return None, error_response("需要管理员权限", HTTPStatus.FORBIDDEN)
     return user, None
 

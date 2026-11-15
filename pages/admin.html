@@ -37,6 +37,7 @@
   select.role-select { padding:4px 8px; border:1px solid var(--line); border-radius:7px; color:var(--text); background:var(--surface); font:inherit; font-size:13px; }
   select.role-select:disabled { opacity:.65; cursor:wait; }
   button.mini:disabled { opacity:.55; cursor:not-allowed; }
+  #admin-users { max-width:100%; overflow-x:auto; }
   table { width:100%; border-collapse:collapse; margin-top:14px; font-size:13px; }
   /* 桌面端使用真正的表格布局，让扩宽后的后台内容充分铺开。 */
   @media (min-width:901px) { table { display:table; table-layout:auto; } }
@@ -346,6 +347,7 @@ padding:2px 8px;border-radius:6px;transition:background-color .15s ease}
   </div>
 </dialog>
 
+<script src="/assets/role-display.js?v=1"></script>
 <script>
 function fmtBytes(n) {
   if (!n) return "—";
@@ -440,7 +442,12 @@ function loadUsers() {
       var tr = el("tr");
       var usernameCell = el("td");
       usernameCell.appendChild(document.createTextNode(user.username));
-      if (user.permanent_admin) usernameCell.appendChild(el("span", "permanent-badge", "永久管理员"));
+      if (user.email) {
+        var emailLine = el("div", null, user.email);
+        emailLine.style.cssText = "font-size:11px;color:#8a96a8;margin-top:2px;overflow-wrap:anywhere";
+        usernameCell.appendChild(emailLine);
+      }
+      if (user.permanent_admin) usernameCell.appendChild(el("span", "permanent-badge", "超级管理员"));
       tr.appendChild(usernameCell);
       tr.appendChild(el("td", null, user.nickname || "—"));
       var roleCell = el("td");
@@ -453,6 +460,7 @@ function loadUsers() {
         roleSelect.appendChild(optionNode);
       });
       roleSelect.value = user.role;
+      if (user.effective_role === "super_admin") roleSelect.options[1].textContent = "超级管理员";
       if (user.permanent_admin) {
         roleSelect.disabled = true;
         roleSelect.title = "永久管理员账号不能降级";
@@ -485,7 +493,7 @@ function loadUsers() {
       tr.appendChild(status);
       var quota = user.ai_quota || {};
       var quotaCell = el("td", "muted");
-      if (user.role === "admin") {
+      if (InterviewForgeRoles.isAdmin(user)) {
         quotaCell.textContent = "不限";
       } else {
         quotaCell.appendChild(el("div", null,
@@ -540,7 +548,7 @@ function loadUsers() {
       tr.appendChild(el("td", "muted", fmtBytes(user.db_bytes)));
       var action = el("td");
       var repairBtn = el("button", "mini ghost", "修复昵称");
-      var canRepairNickname = user.role !== "admin" || user.username === currentAdminUsername;
+      var canRepairNickname = !InterviewForgeRoles.isAdmin(user) || user.username === currentAdminUsername;
       repairBtn.disabled = !canRepairNickname;
       if (!canRepairNickname) {
         repairBtn.title = "不能修改其他管理员的昵称";
@@ -559,7 +567,7 @@ function loadUsers() {
         };
       }
       action.appendChild(repairBtn);
-      if (user.role !== "admin") {
+      if (!InterviewForgeRoles.isAdmin(user)) {
         action.appendChild(document.createTextNode(" "));
         var quotaBtn = el("button", "mini ghost", "恢复今日可用次数");
         quotaBtn.title = "重置今日分析次数";
@@ -713,14 +721,14 @@ api("/api/me").then(function (res) {
   if (!res.ok) { location.replace("/pages/login.html?next=" + encodeURIComponent("/pages/admin.html")); return; }
   var who = document.getElementById("who");
   currentAdminUsername = res.data.username;
-  who.appendChild(el("span", null, "当前：" + res.data.username + (res.data.role === "admin" ? "（管理员）" : "")));
+  who.appendChild(el("span", null, "当前：" + res.data.username + ("（" + InterviewForgeRoles.label(res.data) + "）")));
   var out = el("a", null, "退出登录");
   out.href = "#";
   out.onclick = function () {
     api("/api/logout", { method: "POST", body: "{}" }).then(function () { location.replace("/pages/login.html"); });
   };
   who.appendChild(out);
-  if (res.data.role !== "admin") { document.getElementById("denied").hidden = false; return; }
+  if (!InterviewForgeRoles.isAdmin(res.data)) { document.getElementById("denied").hidden = false; return; }
   document.getElementById("panel").hidden = false;
   loadCodes();
   loadUsers();
@@ -784,7 +792,7 @@ api("/api/me").then(function (res) {
     if (kind === 'obs'){ el = document.getElementById('admin-observability'); if (el) activateTab(el,'data-admin-tab',name); }
     else if (kind === 'ops'){ el = document.getElementById('admin-operations'); if (el) activateTab(el,'data-ops-tab',name); }
     else { el = document.getElementById(name); }
-    if (el) el.scrollIntoView({behavior:'smooth', block:'start'});
+    if (el) { el.hidden = false; el.scrollIntoView({behavior:'smooth', block:'start'}); }
     setCurrent(target);
   }
   nav.addEventListener('click', function(e){

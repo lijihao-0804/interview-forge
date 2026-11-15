@@ -1,4 +1,4 @@
-"""In-process authentication and registration rate limits."""
+"""In-process authentication rate limits."""
 from __future__ import annotations
 
 import threading
@@ -8,12 +8,6 @@ _LOGIN_FAILS: dict[str, list[float]] = {}
 _LOGIN_LOCK = threading.Lock()
 _LOGIN_MAX_FAILS = 5
 _LOGIN_LOCKOUT_SECONDS = 600.0
-_REGISTER_ATTEMPTS: dict[str, list[float]] = {}
-_REGISTER_GLOBAL: list[float] = []
-_REGISTER_LOCK = threading.Lock()
-_REGISTER_WINDOW = 3600.0
-_REGISTER_MAX_PER_IP = 10
-_REGISTER_MAX_GLOBAL = 100
 
 
 def login_rate_limit_ok(ip: str) -> bool:
@@ -36,20 +30,3 @@ def login_rate_limit_fail(ip: str) -> None:
 def login_rate_limit_clear(ip: str) -> None:
     with _LOGIN_LOCK:
         _LOGIN_FAILS.pop(ip, None)
-
-
-def register_rate_limit_ok(ip: str) -> bool:
-    now = time.time()
-    with _REGISTER_LOCK:
-        stamps = [stamp for stamp in _REGISTER_ATTEMPTS.get(ip, []) if now - stamp < _REGISTER_WINDOW]
-        global_stamps = [stamp for stamp in _REGISTER_GLOBAL if now - stamp < _REGISTER_WINDOW]
-        _REGISTER_ATTEMPTS[ip] = stamps
-        _REGISTER_GLOBAL[:] = global_stamps
-        return len(stamps) < _REGISTER_MAX_PER_IP and len(global_stamps) < _REGISTER_MAX_GLOBAL
-
-
-def register_rate_limit_record(ip: str) -> None:
-    now = time.time()
-    with _REGISTER_LOCK:
-        _REGISTER_ATTEMPTS.setdefault(ip, []).append(now)
-        _REGISTER_GLOBAL.append(now)

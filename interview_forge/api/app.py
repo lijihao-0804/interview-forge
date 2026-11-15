@@ -17,7 +17,6 @@ from urllib.parse import urlsplit
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
 from fastapi.responses import JSONResponse, Response
-from starlette.routing import Match
 
 from interview_forge.api.routers.health import router as health_router
 from interview_forge.api.routers.auth import router as auth_router
@@ -46,6 +45,7 @@ from interview_forge.runtime.task_manager import task_manager
 from interview_forge.services import leetcode as _leetcode_service  # noqa: F401
 from interview_forge.services import gym as _gym_service  # noqa: F401
 from interview_forge.ai import tasks as _ai_tasks  # noqa: F401
+from interview_forge.core.public_api import PUBLIC_API_OPERATIONS
 from interview_forge.observability.logging import log_event
 from interview_forge.observability.store import enqueue_request, start_metrics_writer, stop_metrics_writer
 
@@ -90,14 +90,10 @@ _DEFAULT_ALLOWED_ORIGINS = frozenset({
     "http://localhost:8765",
     "http://127.0.0.1:8765",
 })
-_PUBLIC_API_OPERATIONS = frozenset({
-    ("GET", "/api/health"),
-    ("GET", "/api/catalog"),
-    ("GET", "/api/search"),
-    ("POST", "/api/login"),
-    ("POST", "/api/register"),
-    ("POST", "/api/register/send-code"),
-})
+
+# Compatibility alias for existing callers; the reviewed list is defined once
+# in interview_forge.core.public_api, which web_access and the tests share.
+_PUBLIC_API_OPERATIONS = PUBLIC_API_OPERATIONS
 
 
 def _allowed_origins() -> set[str]:
@@ -135,19 +131,68 @@ def _same_origin_request(request) -> bool:
     return origin in _allowed_origins() or _is_loopback_origin(origin)
 
 
-def _private_api_route(request) -> bool:
-    """Return whether the request matches a known private API operation."""
-    if not request.url.path.startswith("/api/"):
-        return False
-    if (request.method, request.url.path) in _PUBLIC_API_OPERATIONS:
-        return False
+_API_ROUTE_SURFACE: tuple[tuple[tuple[object, frozenset[str], str], ...], dict[str, tuple[tuple[object, frozenset[str], str], ...]]] | None = None
+
+
+def _api_route_surface():
+    """Index ``/api`` routes once by first path segment.
+
+    The middleware runs for every request, so walking and regex-matching the
+    whole route table per request is wasteful.  First-segment buckets keep the
+    common case to one or two compiled regex checks while still supporting
+    parameterized routes such as ``/api/avatar/{username}``.
+    """
+    global _API_ROUTE_SURFACE
+    if _API_ROUTE_SURFACE is not None:
+        return _API_ROUTE_SURFACE
+    buckets: dict[str, list[tuple[object, frozenset[str], str]]] = {}
+    wildcard: list[tuple[object, frozenset[str], str]] = []
     for route in app.router.routes:
         if not isinstance(route, APIRoute) or not route.path.startswith("/api/"):
             continue
-        match, _child = route.matches(request.scope)
-        if match is not Match.NONE:
-            return True
-    return False
+        methods = frozenset(method.upper() for method in route.methods)
+        entry = (route.path_regex, methods, route.path)
+        parts = route.path.split("/", 3)
+        segment = parts[2] if len(parts) > 2 else ""
+        if "{" in segment:
+            wildcard.append(entry)
+        else:
+            buckets.setdefault(segment, []).append(entry)
+    _API_ROUTE_SURFACE = (tuple(wildcard), {key: tuple(value) for key, value in buckets.items()})
+    return _API_ROUTE_SURFACE
+
+
+def _api_access_decision(method: str, path: str) -> tuple[str, tuple[str, ...]] | None:
+    """Classify one request against the registered API surface.
+
+    Returns ``None`` when no API route matches the path, ``("public", ())`` or
+    ``("private", ())`` for an allowed method, and ``("method_not_allowed",
+    allow)`` when the path exists under another method.  Reporting 405 instead
+    of a misleading 401 keeps clients and operators from misdiagnosing a
+    method mismatch as an authentication problem.
+    """
+    wildcard, buckets = _api_route_surface()
+    parts = path.split("/", 3)
+    segment = parts[2] if len(parts) > 2 else ""
+    matched: list[tuple[str, frozenset[str]]] = []
+    for pattern, methods, template in buckets.get(segment, ()) + wildcard:
+        if pattern.match(path):
+            matched.append((template, methods))
+    if not matched:
+        return None
+    allowed: set[str] = set()
+    private = False
+    method_allowed = False
+    for template, methods in matched:
+        allowed.update(methods)
+        if method in methods:
+            method_allowed = True
+            if (method, template) not in PUBLIC_API_OPERATIONS:
+                private = True
+    if not method_allowed:
+        return "method_not_allowed", tuple(sorted(allowed))
+    return ("private" if private else "public"), ()
+
 
 @app.middleware("http")
 async def request_observability(request, call_next):
@@ -180,15 +225,23 @@ async def request_observability(request, call_next):
                           "请设置环境变量 INTERVIEW_FORGE_ALLOWED_ORIGINS（逗号分隔）后重启服务。"},
                 status_code=403,
             )
-        elif _private_api_route(request):
-            from interview_forge.api.support import current_user
-            user = await asyncio.to_thread(current_user, request)
-            if user is None:
-                response = JSONResponse({"error": "未登录"}, status_code=401)
+        else:
+            decision = _api_access_decision(request.method, request.url.path)
+            if decision is not None and decision[0] == "method_not_allowed":
+                response = JSONResponse(
+                    {"error": "请求方法不被允许"},
+                    status_code=405,
+                    headers={"Allow": ", ".join((*decision[1], "OPTIONS"))},
+                )
+            elif decision is not None and decision[0] == "private":
+                from interview_forge.api.support import current_user
+                user = await asyncio.to_thread(current_user, request)
+                if user is None:
+                    response = JSONResponse({"error": "未登录"}, status_code=401)
+                else:
+                    response = await call_next(request)
             else:
                 response = await call_next(request)
-        else:
-            response = await call_next(request)
     except Exception as exc:
         # Exception handlers may turn this into a 500 response later, but the
         # request event must still exist even when the router never returned.

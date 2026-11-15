@@ -605,6 +605,7 @@
         profilePanel = panel;
         panel.innerHTML =
           '<div class="fp-head"><h3>昵称与头像</h3><span class="fp-sub">' + me.username + '</span>' +
+          '<a href="/pages/account.html" style="margin-left:auto;margin-right:6px;font-size:12px;color:#5654d4;text-decoration:none">账号设置</a>' +
           '<button class="fp-close" type="button">✕</button></div>' +
           '<div style="padding:12px 14px 14px">' +
           '<div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">' +
@@ -784,7 +785,7 @@
       sep0.style.color = "#dfe4ee";
       pill.appendChild(sep0);
 
-      if (me.role === "admin") {
+      if (window.InterviewForgeRoles ? window.InterviewForgeRoles.isAdmin(me) : me.role === "admin") {
         var adminLink = document.createElement("a");
         adminLink.href = "/pages/admin.html";
         adminLink.className = "fap-admin-link";
@@ -801,6 +802,7 @@
       var name = document.createElement("button");
       name.type = "button";
       name.setAttribute("aria-label", "设置昵称与头像");
+      name.title = window.InterviewForgeRoles ? window.InterviewForgeRoles.label(me) : "";
       name.className = "fap-name";
       name.title = "点击设置昵称与头像";
       name.textContent = me.nickname || me.username;

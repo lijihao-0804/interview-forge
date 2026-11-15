@@ -21,7 +21,15 @@
       email_not_configured: true,
       email_delivery_failed: true,
       verification_code_expired: true,
-      verification_code_attempts_exceeded: true
+      verification_code_attempts_exceeded: true,
+      email_taken: true,
+      email_unchanged: true,
+      password_mismatch: true,
+      captcha_required: true,
+      captcha_failed: true,
+      captcha_unavailable: true,
+      reset_failed: true,
+      unauthorized: true
     };
     var message = payload.error.trim();
     if (!allowedCategories[category] || !message || message.length > 180 || /[\r\n<>]/.test(message)) return fallback || "";
@@ -80,6 +88,35 @@
     return "注册失败，请检查输入后重试。";
   }
 
+  function resetError(status, payload) {
+    var code = codeOf(payload);
+    if (Number(status) === 429 || code === "rate_limited" || /rate|too_many/.test(code)) {
+      return "操作过于频繁，请稍后再试。";
+    }
+    if (/expired/.test(code)) return "验证码已过期，请重新获取。";
+    if (/code.*(invalid|wrong)|invalid.*code|verification.*fail/.test(code)) return "验证码无效，请检查后重试。";
+    if (/email.*invalid/.test(code)) return "请输入有效的邮箱地址。";
+    if (/password/.test(code)) return "新密码不符合要求，请至少输入 8 位。";
+    var controlled = controlledMessage(status, payload, "");
+    if (controlled) return controlled;
+    return "密码重置失败，请检查输入后重试。";
+  }
+
+  function accountError(status, payload) {
+    var code = codeOf(payload);
+    if (code === "email_taken") return "该邮箱已被其他账号使用，请更换邮箱。";
+    if (code === "email_unchanged") return "新邮箱与当前绑定邮箱相同。";
+    if (code === "password_mismatch") return "密码错误，请重新输入。";
+    if (Number(status) === 401) return "登录状态已失效，请重新登录。";
+    if (Number(status) === 429 || code === "rate_limited") return "操作过于频繁，请稍后再试。";
+    if (/expired/.test(code)) return "验证码已过期，请重新获取。";
+    if (/code.*(invalid|wrong)|invalid.*code/.test(code)) return "验证码无效，请检查后重试。";
+    if (/email.*invalid/.test(code)) return "请输入有效的邮箱地址。";
+    var controlled = controlledMessage(status, payload, "");
+    if (controlled) return controlled;
+    return "操作失败，请检查输入后重试。";
+  }
+
   function isValidEmail(value) {
     var email = String(value || "").trim();
     return email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -90,6 +127,8 @@
     parseRetryAfter: parseRetryAfter,
     cooldownFrom: cooldownFrom,
     sendCodeError: sendCodeError,
-    registerError: registerError
+    registerError: registerError,
+    resetError: resetError,
+    accountError: accountError
   });
 }));

@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>注册 · InterviewForge</title>
-<script src="../assets/register-flow.js?v=4"></script>
+<script src="../assets/register-flow.js?v=5"></script>
+<script src="../assets/email-captcha.js?v=2"></script>
 <style>
   :root { --page-bg:#f4f6fb; --surface:#fff; --text:#182235; --muted:#66748a; --line:#dfe4ee; --brand:#5654d4; --brand-strong:#4543bd; --brand-soft:#eeedff; --error:#b3372f; --success:#13764b; }
   * { box-sizing:border-box; margin:0; }
@@ -25,6 +26,8 @@
   .hint { min-height:18px; margin-top:5px; font-size:12px; color:var(--muted); }
   .hint.error { color:var(--error); }
   .hint.success { color:var(--success); }
+  .captcha { margin-top:10px; min-height:65px; }
+  .captcha[hidden] { display:none; }
   .msg { margin-top:14px; font-size:13px; min-height:20px; }
   .msg.error { color:var(--error); }
   .links { margin-top:18px; font-size:13px; text-align:center; }
@@ -45,13 +48,14 @@
   <form id="form" novalidate>
     <label for="email">邮箱</label>
     <div class="email-row">
-      <input id="email" name="email" type="email" autocomplete="email" maxlength="254" placeholder="name@example.com" required autofocus>
+      <input id="email" name="email" type="email" autocomplete="email" maxlength="254" placeholder="name@example.com" required autofocus aria-describedby="emailHint">
       <button id="sendCode" type="button">发送验证码</button>
     </div>
     <div class="hint" id="emailHint" role="status" aria-live="polite"></div>
+    <div class="captcha" id="captcha" hidden></div>
 
     <label for="code">邮箱验证码</label>
-    <input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="12" placeholder="请输入邮件中的验证码" required>
+    <input id="code" name="code" inputmode="numeric" pattern="[0-9]{6}" autocomplete="one-time-code" maxlength="6" placeholder="6 位数字验证码" required>
 
     <label for="username">用户名</label>
     <input id="username" name="username" autocomplete="username" required pattern="[A-Za-z0-9_-]{2,32}" title="2~32 位字母、数字、下划线或连字符">
@@ -70,7 +74,34 @@
 <script>
 (function () {
   "use strict";
-  var flow = window.InterviewForgeRegister;
+  // Keep the page usable even if the shared flow module fails to load.
+  function fallbackFlow() {
+    return {
+      isEmail: function (value) {
+        var email = String(value || "").trim();
+        return email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+      },
+      cooldownFrom: function () { return 0; },
+      sendCodeError: function (status) {
+        return Number(status) === 429 ? "发送过于频繁，请稍后再试。" : "验证码发送失败，请稍后重试。";
+      },
+      registerError: function (status) {
+        return Number(status) === 429 ? "操作过于频繁，请稍后再试。" : "注册失败，请检查输入后重试。";
+      }
+    };
+  }
+  var flow = window.InterviewForgeRegister || fallbackFlow();
+  var captcha = { enabled: true, blocked: true, token: function () { return ""; }, reset: function () {} };
+  var captchaBox = document.getElementById("captcha");
+  if (captchaBox && window.InterviewForgeCaptcha && window.InterviewForgeCaptcha.load) {
+    window.InterviewForgeCaptcha.load(captchaBox).then(function (state) {
+      captcha = state;
+      paintSendButton();
+    });
+  } else if (captchaBox) {
+    captchaBox.hidden = false;
+    captchaBox.textContent = "验证码发送服务未能加载，请刷新重试；已有账号仍可登录。";
+  }
   var form = document.getElementById("form");
   var email = document.getElementById("email");
   var code = document.getElementById("code");
@@ -78,6 +109,7 @@
   var password = document.getElementById("password");
   var confirm = document.getElementById("confirm");
   var sendButton = document.getElementById("sendCode");
+  sendButton.disabled = true;
   var submit = document.getElementById("submit");
   var message = document.getElementById("msg");
   var emailHint = document.getElementById("emailHint");
@@ -85,6 +117,11 @@
   var cooldownTimer = null;
   var sending = false;
   var submitting = false;
+
+  code.addEventListener("input", function () {
+    var digits = code.value.replace(/\D+/g, "").slice(0, 6);
+    if (code.value !== digits) code.value = digits;
+  });
 
   function safeNext() {
     var value = new URLSearchParams(location.search).get("next") || "/index.html";
@@ -115,7 +152,7 @@
 
   function paintSendButton() {
     var seconds = remainingSeconds();
-    sendButton.disabled = sending || submitting || seconds > 0;
+    sendButton.disabled = captcha.blocked || sending || submitting || seconds > 0;
     sendButton.textContent = sending ? "发送中…" : seconds > 0 ? seconds + " 秒后重试" : "发送验证码";
   }
 
@@ -142,7 +179,7 @@
   }
 
   sendButton.addEventListener("click", async function () {
-    if (sending || submitting || remainingSeconds() > 0) return;
+    if (captcha.blocked || sending || submitting || remainingSeconds() > 0) return;
     var address = email.value.trim();
     if (!flow.isEmail(address)) {
       setEmailHint("请输入有效的邮箱地址。", "error");
@@ -158,7 +195,7 @@
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: address })
+        body: JSON.stringify({ email: address, captcha: captcha.token() })
       });
       var payload = await readJson(response);
       if (!response.ok) {
@@ -178,6 +215,7 @@
     } finally {
       sending = false;
       paintSendButton();
+      captcha.reset();
     }
   });
 
@@ -190,6 +228,7 @@
     var account = username.value.trim();
     if (!flow.isEmail(address)) { setMessage("请输入有效的邮箱地址。", "error"); email.focus(); return; }
     if (!enteredCode) { setMessage("请输入邮箱验证码。", "error"); code.focus(); return; }
+    if (!/^[0-9]{6}$/.test(enteredCode)) { setMessage("验证码为 6 位数字，请检查后重试。", "error"); code.focus(); return; }
     if (!/^[A-Za-z0-9_-]{2,32}$/.test(account)) { setMessage("用户名需为 2~32 位字母、数字、下划线或连字符。", "error"); username.focus(); return; }
     if (password.value.length < 8) { setMessage("密码至少需要 8 位。", "error"); password.focus(); return; }
     if (password.value !== confirm.value) { setMessage("两次输入的密码不一致。", "error"); confirm.focus(); return; }

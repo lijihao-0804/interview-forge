@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>账号设置 · InterviewForge</title>
+<script src="../assets/register-flow.js?v=5"></script>
+<style>
+  :root { --page-bg:#f4f6fb; --surface:#fff; --text:#182235; --muted:#66748a; --line:#dfe4ee; --brand:#5654d4; --brand-strong:#4543bd; --brand-soft:#eeedff; --error:#b3372f; --success:#13764b; }
+  * { box-sizing:border-box; margin:0; }
+  body { min-height:100vh; display:flex; align-items:center; justify-content:center; background:var(--page-bg); color:var(--text); font:15px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif; padding:24px; }
+  .card { width:100%; max-width:520px; background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:32px; box-shadow:0 16px 44px rgba(33,45,73,.08); }
+  h1 { font-size:22px; margin-bottom:4px; }
+  .sub { color:var(--muted); font-size:13px; margin-bottom:20px; }
+  section { border-top:1px solid var(--line); padding-top:18px; margin-top:18px; }
+  h2 { font-size:15px; margin-bottom:4px; }
+  .summary { display:grid; gap:4px; font-size:14px; }
+  .summary .key { color:var(--muted); }
+  .empty-email { color:var(--error); }
+  label { display:block; font-size:13px; font-weight:650; margin:12px 0 6px; }
+  input { width:100%; min-height:40px; padding:9px 12px; border:1px solid var(--line); border-radius:8px; color:var(--text); background:#fbfcff; font:inherit; }
+  input:focus,button:focus-visible,a:focus-visible { outline:2px solid var(--brand-soft); outline-offset:1px; border-color:var(--brand); }
+  .row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; align-items:stretch; }
+  .row button { padding:8px 12px; border:1px solid color-mix(in srgb,var(--brand) 36%,var(--line)); border-radius:8px; color:var(--brand-strong); background:var(--brand-soft); font:inherit; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap; }
+  .row button:disabled { opacity:.62; cursor:wait; }
+  .primary { margin-top:18px; padding:10px 14px; border:0; border-radius:8px; background:var(--brand); color:#fff; font:inherit; font-weight:700; cursor:pointer; }
+  .primary:hover { background:var(--brand-strong); }
+  .primary:disabled { opacity:.6; cursor:wait; }
+  .ghost { margin-top:18px; padding:9px 14px; border:1px solid var(--line); border-radius:8px; background:transparent; color:var(--muted); font:inherit; cursor:pointer; }
+  .hint { min-height:17px; margin-top:5px; font-size:12px; color:var(--muted); }
+  .hint.error { color:var(--error); }
+  .hint.success { color:var(--success); }
+  .msg { margin-top:10px; font-size:13px; min-height:18px; }
+  .msg.error { color:var(--error); }
+  .msg.success { color:var(--success); }
+  .links { margin-top:18px; font-size:13px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  a { color:var(--brand); text-decoration:none; }
+  a:hover { text-decoration:underline; }
+  @media (prefers-color-scheme:dark) {
+    :root { --page-bg:#0f131b; --surface:#181e29; --text:#edf2fb; --muted:#a7b2c4; --line:#313b4c; --brand:#b2b0ff; --brand-strong:#cbc9ff; --brand-soft:#292955; --error:#ff969d; --success:#79d8a8; }
+    input { background:#141a24; }
+  }
+</style>
+</head>
+<body>
+<main class="card">
+  <h1>账号设置</h1>
+  <p class="sub">确认或更换绑定邮箱，并管理登录密码。</p>
+
+  <div id="loading" class="hint">正在读取账号信息…</div>
+  <div id="guest" hidden>
+    <p class="hint error">请先登录后再管理账号。</p>
+    <div class="links"><a id="guestLogin" href="/pages/login.html">前往登录</a><a href="/index.html">游客继续阅读</a></div>
+  </div>
+
+  <div id="account" hidden>
+    <div class="summary">
+      <div><span class="key">用户名：</span><strong id="username"></strong></div>
+      <div><span class="key">绑定邮箱：</span><strong id="currentEmail"></strong></div>
+      <div><span class="key">账号类型：</span><span id="role"></span></div>
+    </div>
+
+    <section>
+      <h2>更换绑定邮箱</h2>
+      <p class="hint" id="emailTip">验证码会发送到新邮箱；更换后可以用新邮箱或用户名登录。</p>
+      <div class="row">
+        <input id="newEmail" type="email" autocomplete="email" maxlength="254" placeholder="新邮箱 name@example.com" aria-describedby="emailTip">
+        <button id="sendCode" type="button">发送验证码</button>
+      </div>
+      <div class="hint" id="emailHint" role="status" aria-live="polite"></div>
+      <label for="code">新邮箱验证码</label>
+      <input id="code" inputmode="numeric" pattern="[0-9]{6}" autocomplete="one-time-code" maxlength="6" placeholder="6 位数字验证码">
+      <label for="emailPassword">当前密码</label>
+      <input id="emailPassword" type="password" autocomplete="current-password" placeholder="用于确认是本人操作">
+      <button class="primary" id="saveEmail" type="button">保存新邮箱</button>
+      <div class="msg" id="emailMessage" role="alert" aria-live="assertive"></div>
+    </section>
+
+    <section>
+      <h2>修改密码</h2>
+      <label for="oldPassword">当前密码</label>
+      <input id="oldPassword" type="password" autocomplete="current-password">
+      <label for="newPassword">新密码</label>
+      <input id="newPassword" type="password" autocomplete="new-password" minlength="8">
+      <label for="confirmPassword">确认新密码</label>
+      <input id="confirmPassword" type="password" autocomplete="new-password" minlength="8">
+      <button class="primary" id="savePassword" type="button">修改密码</button>
+      <div class="msg" id="passwordMessage" role="alert" aria-live="assertive"></div>
+    </section>
+
+    <div class="links"><a href="/index.html">返回首页</a><button class="ghost" id="logout" type="button">退出登录</button></div>
+  </div>
+</main>
+<script src="/assets/role-display.js?v=1"></script>
+<script>
+(function () {
+  "use strict";
+  var flow = window.InterviewForgeRegister || {
+    accountError: function (status) {
+      return Number(status) === 429 ? "操作过于频繁，请稍后再试。" : "操作失败，请检查输入后重试。";
+    }
+  };
+  var loading = document.getElementById("loading");
+  var guest = document.getElementById("guest");
+  var account = document.getElementById("account");
+  var currentEmail = document.getElementById("currentEmail");
+  var newEmail = document.getElementById("newEmail");
+  var code = document.getElementById("code");
+  var emailPassword = document.getElementById("emailPassword");
+  var sendButton = document.getElementById("sendCode");
+  var emailHint = document.getElementById("emailHint");
+  var emailMessage = document.getElementById("emailMessage");
+  var passwordMessage = document.getElementById("passwordMessage");
+  var cooldownUntil = 0;
+  var cooldownTimer = null;
+  var sending = false;
+
+  function safeNext() {
+    var value = new URLSearchParams(location.search).get("next") || "/pages/account.html";
+    try {
+      var target = new URL(value, location.origin);
+      if (target.origin !== location.origin || !target.pathname.startsWith("/")) throw new Error("external next");
+      return target.pathname + target.search + target.hash;
+    } catch (_) { return "/pages/account.html"; }
+  }
+  document.getElementById("guestLogin").href =
+    "/pages/login.html?next=" + encodeURIComponent(safeNext());
+
+  function setHint(node, text, type) {
+    node.textContent = text || "";
+    node.className = "hint" + (type ? " " + type : "");
+  }
+  function setMessage(node, text, type) {
+    node.textContent = text || "";
+    node.className = "msg" + (type ? " " + type : "");
+  }
+  function readJson(response) {
+    return response.json().catch(function () { return {}; });
+  }
+  function remainingSeconds() {
+    return Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000));
+  }
+  function paintSendButton() {
+    var seconds = remainingSeconds();
+    sendButton.disabled = sending || seconds > 0;
+    sendButton.textContent = sending ? "发送中…" : seconds > 0 ? seconds + " 秒后重试" : "发送验证码";
+  }
+  function startCooldown(seconds) {
+    cooldownUntil = Date.now() + Math.max(1, Math.ceil(Number(seconds) || 1)) * 1000;
+    if (cooldownTimer) clearInterval(cooldownTimer);
+    paintSendButton();
+    cooldownTimer = setInterval(function () {
+      if (remainingSeconds() <= 0) { clearInterval(cooldownTimer); cooldownTimer = null; cooldownUntil = 0; }
+      paintSendButton();
+    }, 250);
+  }
+
+  function showAccount(user) {
+    loading.hidden = true;
+    guest.hidden = true;
+    account.hidden = false;
+    document.getElementById("username").textContent = user.username || "";
+    document.getElementById("role").textContent = InterviewForgeRoles.label(user);
+    currentEmail.textContent = user.email || "尚未绑定邮箱";
+    currentEmail.className = user.email ? "" : "empty-email";
+  }
+
+  fetch("/api/me", { credentials: "same-origin", cache: "no-store" }).then(function (response) {
+    if (response.status === 401) {
+      loading.hidden = true;
+      guest.hidden = false;
+      return null;
+    }
+    if (!response.ok) throw new Error("me_" + response.status);
+    return response.json();
+  }).then(function (user) {
+    if (user) showAccount(user);
+  }).catch(function () {
+    loading.textContent = "暂时无法读取账号信息，请刷新重试。";
+  });
+
+  code.addEventListener("input", function () {
+    var digits = code.value.replace(/\D+/g, "").slice(0, 6);
+    if (code.value !== digits) code.value = digits;
+  });
+
+  sendButton.addEventListener("click", async function () {
+    if (sending || remainingSeconds() > 0) return;
+    var address = newEmail.value.trim();
+    if (!flow.isEmail || !flow.isEmail(address)) {
+      setHint(emailHint, "请输入有效的新邮箱地址。", "error");
+      newEmail.focus();
+      return;
+    }
+    sending = true;
+    paintSendButton();
+    setHint(emailHint, "正在发送验证码…", "");
+    try {
+      var response = await fetch("/api/account/email/send-code", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: address })
+      });
+      var payload = await readJson(response);
+      if (!response.ok) {
+        setHint(emailHint, flow.accountError(response.status, payload), "error");
+        return;
+      }
+      startCooldown(flow.cooldownFrom ? (flow.cooldownFrom(response, payload) || 60) : 60);
+      setHint(emailHint, "验证码已发送到新邮箱，请同时检查垃圾邮件目录。", "success");
+      code.focus();
+    } catch (_) {
+      setHint(emailHint, "未能确认发送结果，请检查网络后重试。", "error");
+    } finally {
+      sending = false;
+      paintSendButton();
+    }
+  });
+
+  document.getElementById("saveEmail").addEventListener("click", async function () {
+    var address = newEmail.value.trim();
+    var enteredCode = code.value.trim();
+    if (!address || !/^[0-9]{6}$/.test(enteredCode) || !emailPassword.value) {
+      setMessage(emailMessage, "请填写新邮箱、6 位验证码和当前密码。", "error");
+      return;
+    }
+    var button = document.getElementById("saveEmail");
+    button.disabled = true;
+    setMessage(emailMessage, "保存中…", "");
+    try {
+      var response = await fetch("/api/account/email", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: address, code: enteredCode, password: emailPassword.value })
+      });
+      var payload = await readJson(response);
+      if (!response.ok) {
+        setMessage(emailMessage, flow.accountError(response.status, payload), "error");
+        return;
+      }
+      currentEmail.textContent = payload.email || address;
+      currentEmail.className = "";
+      newEmail.value = "";
+      code.value = "";
+      emailPassword.value = "";
+      setHint(emailHint, "绑定邮箱已更新，可以用新邮箱或用户名登录。", "success");
+      setMessage(emailMessage, "保存成功。", "success");
+    } catch (_) {
+      setMessage(emailMessage, "未能确认保存结果，请刷新后查看当前邮箱。", "error");
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  document.getElementById("savePassword").addEventListener("click", async function () {
+    var oldPassword = document.getElementById("oldPassword");
+    var newPassword = document.getElementById("newPassword");
+    var confirmPassword = document.getElementById("confirmPassword");
+    if (newPassword.value.length < 8) {
+      setMessage(passwordMessage, "新密码至少需要 8 位。", "error");
+      return;
+    }
+    if (newPassword.value !== confirmPassword.value) {
+      setMessage(passwordMessage, "两次输入的新密码不一致。", "error");
+      return;
+    }
+    var button = document.getElementById("savePassword");
+    button.disabled = true;
+    setMessage(passwordMessage, "保存中…", "");
+    try {
+      var response = await fetch("/api/password", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ old_password: oldPassword.value, new_password: newPassword.value })
+      });
+      var payload = await readJson(response);
+      if (!response.ok) {
+        setMessage(passwordMessage, String(payload.error || "修改失败，请检查当前密码。"), "error");
+        return;
+      }
+      oldPassword.value = "";
+      newPassword.value = "";
+      confirmPassword.value = "";
+      setMessage(passwordMessage, "密码已更新，其他设备的登录状态已失效。", "success");
+    } catch (_) {
+      setMessage(passwordMessage, "未能确认修改结果，请稍后重试。", "error");
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  document.getElementById("logout").addEventListener("click", function () {
+    fetch("/api/logout", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: "{}" })
+      .then(function () { location.replace("/pages/login.html"); })
+      .catch(function () { location.replace("/pages/login.html"); });
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+const assert = require('node:assert/strict');
+require('../assets/role-display.js');
+const roles = globalThis.InterviewForgeRoles;
+assert.equal(roles.label({role:'user', effective_role:'super_admin'}), '用户');
+assert.equal(roles.label({role:'admin', effective_role:'super_admin'}), '超级管理员');
+assert.equal(roles.label({role:'admin', effective_role:'admin'}), '管理员');
+assert.equal(roles.label({role:'user', effective_role:'user'}), '用户');
+assert.equal(roles.label({role:'super_admin'}), '用户');
+assert.equal(roles.label(null), '用户');
+assert.equal(roles.isAdmin({role:'admin',effective_role:'super_admin'}), true);
+assert.equal(roles.isAdmin({role:'user',effective_role:'super_admin'}), false);
+assert.equal(roles.label({role:'admin'}), '管理员');
+console.log('role-display: three labels, legacy admin compatibility, untrusted hints PASS');

@@ -29,13 +29,13 @@ class PrivateArchiveTests(unittest.TestCase):
                 z.writestr('site/' + name, content)
         self.db = self.root / 'auth.db'
         with self.connect() as db:
-            db.executescript('''CREATE TABLE users(id INTEGER,username TEXT,role TEXT,is_active INTEGER,ai_daily_limit INTEGER,nickname TEXT,lang TEXT,last_seen TEXT);
+            db.executescript('''CREATE TABLE users(id INTEGER,username TEXT,role TEXT,is_active INTEGER,ai_daily_limit INTEGER,nickname TEXT,lang TEXT,last_seen TEXT,email TEXT);
             CREATE TABLE sessions(token TEXT,user_id INTEGER,expires_at TEXT);''')
             for i,(name,role,active,expiry) in enumerate([
                 ('owner','admin',1,'2099-01-01'),('admin','admin',1,'2099-01-01'),
                 ('reader','user',1,'2099-01-01'),('inactive','admin',0,'2099-01-01'),
                 ('expired','admin',1,'2000-01-01')],1):
-                db.execute('INSERT INTO users VALUES(?,?,?,?,?,?,?,?)',(i,name,role,active,50,name,'java',''))
+                db.execute('INSERT INTO users VALUES(?,?,?,?,?,?,?,?,?)',(i,name,role,active,50,name,'java','',None))
                 db.execute('INSERT INTO sessions VALUES(?,?,?)',(auth._session_digest(name+'-token'),i,expiry))
         runtime=SimpleNamespace(AUTH_DB_PATH=self.db,now_iso=lambda:'2026-11-15T00:00:00',
                                 _maybe_purge_sessions=lambda:None,SESSION_TTL=timedelta(days=30),time=time,BUSINESS_TZ=timezone.utc)

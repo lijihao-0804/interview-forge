@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+from interview_forge.core.roles import role_fields
 
 from fastapi import APIRouter, Request
 from fastapi.responses import Response
@@ -20,9 +21,27 @@ from interview_forge.services.community import (
     feedback_rate_limit_ok, feedback_rate_limit_record, get_avatar, get_profile,
     set_profile, submit_feedback,
 )
-from interview_forge.services.registration import register_with_email_code, send_registration_code
+from interview_forge.services.registration import (
+    captcha_config, confirm_email_change, registration_email_executor,
+    register_with_email_code, reset_password_with_code, send_email_change_code,
+    request_password_reset_code as send_password_reset_code, send_registration_code, verify_captcha,
+)
 
 router = APIRouter()
+
+
+def _send_registration_job(email: object, token: object, ip: str):
+    verify_captcha(token, ip)
+    return send_registration_code(email, ip)
+
+
+def _send_reset_job(email: object, token: object, ip: str):
+    verify_captcha(token, ip)
+    return send_password_reset_code(email, ip)
+
+
+def _send_email_change_job(user_id: int, email: object, ip: str):
+    return send_email_change_code(user_id, email, ip)
 
 
 def _cookie(request: Request) -> str:
@@ -44,9 +63,10 @@ def me(request: Request):
         return error_response("未登录", 401)
     return json_response({
         "username": str(user["username"]),
+        "email": str(user["email"] or ""),
         "nickname": str(user["nickname"]),
         "lang": str(user["lang"]),
-        "role": str(user["role"]),
+        **role_fields(user),
     })
 
 
@@ -57,29 +77,53 @@ async def login(request: Request):
         ip = client_ip(request)
         if not login_rate_limit_ok(ip):
             raise ValueError("尝试次数过多，请 10 分钟后再试")
+        identifier = ""
+        for key in ("identifier", "username", "email", "account"):
+            candidate = str(payload.get(key) or "").strip()
+            if candidate:
+                identifier = candidate
+                break
         try:
             user = await asyncio.to_thread(
-                auth_login, str(payload.get("username", "")).strip(), str(payload.get("password", ""))
+                auth_login, identifier, str(payload.get("password", ""))
             )
         except ValueError:
             login_rate_limit_fail(ip)
             raise
         login_rate_limit_clear(ip)
         token = await asyncio.to_thread(create_session, int(user["id"]))
-        response = json_response({"ok": True, "username": str(user["username"]), "role": str(user["role"])}, 201)
+        response = json_response({
+            "ok": True,
+            "username": str(user["username"]),
+            "email": str(user["email"] or ""),
+            **role_fields(user),
+        }, 201)
         response.headers["set-cookie"] = session_cookie(request, token)
         return response
     except BaseException as exc:
         return _handled(exc, write=True)
 
 
+@router.get("/api/register/config")
+def register_config():
+    """Tell the public registration pages whether a bot check is required."""
+    try:
+        return json_response({"captcha": captcha_config()}, headers={"Cache-Control": "no-store"})
+    except Exception as exc:
+        response = _handled(exc)
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+
 @router.post("/api/register/send-code")
 async def register_send_code(request: Request):
     try:
         payload = await read_json(request)
-        result = await asyncio.to_thread(
-            send_registration_code,
+        result = await asyncio.get_running_loop().run_in_executor(
+            registration_email_executor,
+            _send_registration_job,
             payload.get("email", ""),
+            payload.get("captcha", ""),
             client_ip(request),
         )
         return json_response(result)
@@ -100,9 +144,80 @@ async def register(request: Request):
             client_ip(request),
         )
         token = await asyncio.to_thread(create_session, int(user["id"]))
-        response = json_response({"ok": True, "username": str(user["username"]), "role": str(user["role"])}, 201)
+        response = json_response({"ok": True, "username": str(user["username"]), **role_fields(user)}, 201)
         response.headers["set-cookie"] = session_cookie(request, token)
         return response
+    except BaseException as exc:
+        return _handled(exc, write=True)
+
+
+@router.post("/api/password/forgot/send-code")
+async def password_forgot_send_code(request: Request):
+    try:
+        payload = await read_json(request)
+        result = await asyncio.get_running_loop().run_in_executor(
+            registration_email_executor,
+            _send_reset_job,
+            payload.get("email", ""),
+            payload.get("captcha", ""),
+            client_ip(request),
+        )
+        return json_response(result)
+    except BaseException as exc:
+        return _handled(exc, write=True)
+
+
+@router.post("/api/password/forgot/reset")
+async def password_forgot_reset(request: Request):
+    try:
+        payload = await read_json(request)
+        result = await asyncio.to_thread(
+            reset_password_with_code,
+            payload.get("email", ""),
+            payload.get("code", ""),
+            payload.get("password", ""),
+            client_ip(request),
+        )
+        return json_response(result, 201)
+    except BaseException as exc:
+        return _handled(exc, write=True)
+
+
+@router.post("/api/account/email/send-code")
+async def account_email_send_code(request: Request):
+    user, denied = await async_require_user(request)
+    if denied is not None:
+        return denied
+    try:
+        payload = await read_json(request)
+        result = await asyncio.get_running_loop().run_in_executor(
+            registration_email_executor,
+            _send_email_change_job,
+            int(user["id"]),
+            payload.get("email", ""),
+            client_ip(request),
+        )
+        return json_response(result)
+    except BaseException as exc:
+        return _handled(exc, write=True)
+
+
+@router.post("/api/account/email")
+async def account_email_confirm(request: Request):
+    user, denied = await async_require_user(request)
+    if denied is not None:
+        return denied
+    try:
+        payload = await read_json(request)
+        result = await asyncio.to_thread(
+            confirm_email_change,
+            int(user["id"]),
+            payload.get("email", ""),
+            payload.get("code", ""),
+            payload.get("password", ""),
+            client_ip(request),
+        )
+        return json_response(result, 201)
     except BaseException as exc:
         return _handled(exc, write=True)
 

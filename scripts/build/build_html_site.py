@@ -87,10 +87,11 @@ SHARED_ASSET_VERSIONS = {
     "term-tooltip.js": ASSET_VERSION,
     "ai-launcher.js": "4",
     "guest-auth.js": "2",
-    "auth-widget.js": "6",
+    "auth-widget.js": "7",
     "feedback-widget.js": "4",
     "ai-assistant.js": "10",
-    "register-flow.js": "4",
+    "register-flow.js": "5",
+    "email-captcha.js": "2",
     "practice-reference.js": "7",
     "practice-checker.js": "1",
 }

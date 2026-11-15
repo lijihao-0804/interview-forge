@@ -11,6 +11,8 @@ import posixpath
 from pathlib import Path
 from urllib.parse import unquote
 
+from interview_forge.core.public_api import PUBLIC_API_OPERATIONS
+
 PUBLIC_FILES = frozenset({
     "/docs/面试准备/项目面试报告.html",
     "/",
@@ -23,10 +25,9 @@ PUBLIC_FILES = frozenset({
     "/favicon.ico",
     "/pages/login.html",
     "/pages/register.html",
-    "/api/health",
-    "/api/catalog",
-    "/api/search",
-})
+    "/pages/forgot-password.html",
+    "/pages/account.html",
+}) | frozenset(path for _method, path in PUBLIC_API_OPERATIONS)
 PUBLIC_PREFIXES = ("/assets/", "/books/", "/library/")
 PUBLIC_DOCUMENTS = frozenset({
     "/docs/qa-report.html",
