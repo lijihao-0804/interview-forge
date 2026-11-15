@@ -588,6 +588,9 @@ html,body,.module-card,.chapter-list,.reader,.chapter-side{transition:background
 """
 
 
+# Shared responsive layout is embedded so existing generated pages and exports inherit it.
+LIBRARY_CSS += "\n" + (HOT100_ROOT / "assets" / "workspace-layout.css").read_text(encoding="utf-8")
+
 # 章节页 Mermaid 图表的浏览器端渲染驱动，构建时写入 library/assets/library-mermaid.js。
 # 原理：构建端不渲染 Mermaid，只把源码以 <pre class="mermaid"> 形式留在 HTML；
 # 页面加载后本脚本调用全局 mermaid 逐图渲染(startOnLoad:false + 手动 run，
