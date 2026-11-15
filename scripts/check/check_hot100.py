@@ -42,6 +42,7 @@ from bs4 import BeautifulSoup
 from scripts.build.build_html_site import VISUAL_EMBEDS
 from scripts.build.build_hot100 import LEETCODE_SLUGS, PROBLEMS
 from scripts.build.library_catalog import LIBRARY_MODULES
+from scripts.check.server_page_links import is_registered_server_page
 from scripts.check.release_content_scope import (
     is_release_content_path,
     iter_release_content_files,
@@ -234,6 +235,8 @@ for path in release_document_files:
             target = (path.parent / link).resolve()
         try:
             exists = target.exists()
+            if not exists and link.startswith("/api/"):
+                exists = is_registered_server_page(link)
             # 书架源笔记（books/ 下）里的 chapter-NN.html 是构建期才生成的
             # 站内跳转链接，源文件旁边自然没有这些页面；只要该笔记登记的
             # 模块在 library/ 下已生成，就视为有效（产物校验由 library/ 负责）。
