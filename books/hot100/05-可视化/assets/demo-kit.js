@@ -143,6 +143,8 @@ transition:background-color .2s,border-color .2s}
 .dk-code-line .n{flex:0 0 auto;width:20px;text-align:right;color:#5b6880;user-select:none}
 .dk-code-line.on{background:rgba(177,175,255,.16);border-left-color:var(--dk-brand);color:#fff}
 .dk-code-line.on .n{color:var(--dk-brand)}
+.dk-code-empty{margin-top:8px;padding:10px 12px;border:1px solid var(--dk-line);border-radius:9px;
+background:var(--dk-soft);color:var(--dk-muted);font-size:12.5px;line-height:1.55}
 /* ---- 代码窗格的语言切换 ---- */
 .dk-langs{display:flex;gap:3px;margin-left:auto;flex-wrap:wrap}
 .dk-lang{border:1px solid var(--dk-line);background:var(--dk-panel);color:var(--dk-muted);border-radius:6px;
@@ -346,7 +348,12 @@ transition:none!important;transform:none!important}}
     }
     var lines = Array.isArray(code) ? code : code.lines;
     if (!lines || !lines.length) return null;
-    return { title: (Array.isArray(code) ? "" : code.title) || "对应代码", lines: lines };
+    return {
+      title: (Array.isArray(code) ? "" : code.title) || "对应代码",
+      lines: lines,
+      langs: { java: lines },
+      order: ["java"]
+    };
   }
 
   /* 语言切换是全局的：监听器只注册一次，永远打给当前挂载的那个实例。 */
@@ -423,7 +430,7 @@ transition:none!important;transform:none!important}}
     // 只有用到代码窗格或反例对照时才引入 .dk-main 栅格；
     // 否则舞台仍是 #app 的直接子节点，老页面的布局与测试保持不变。
     var main = null, stageB = null, descB = null, codeLines = [], compareOn = false, cmpToggle = null;
-    var codeBox = null, langBar = null, curLang = null;
+    var codeBox = null, codeNote = null, langBar = null, curLang = null;
 
     function paintCode() {
       if (!codeBox) return;
@@ -437,6 +444,14 @@ transition:none!important;transform:none!important}}
         codeBox.appendChild(line);
         codeLines.push(line);
       });
+      codeBox.hidden = lines.length === 0;
+      if (codeNote) {
+        codeNote.hidden = lines.length !== 0;
+        if (!lines.length) {
+          codeNote.textContent = "当前演示只有 Java 专属代码，" + (LANG_NAMES[curLang] || curLang) +
+            " 模式已隐藏这段代码；下方动画、步骤和控制仍可继续使用。完整实现请回到题解的对应语言面板。";
+        }
+      }
       if (langBar && langBar.children) {
         [].forEach.call(langBar.children, function (b) {
           if (b.classList) b.classList.toggle("on", b.getAttribute("data-lang") === curLang);
@@ -446,7 +461,7 @@ transition:none!important;transform:none!important}}
     // persist=true 表示这次切换由本页发起，要写回偏好并通知父页面；
     // 来自外部广播的切换只改自己，避免两端互相回弹。
     function applyLang(lang, persist) {
-      if (!code || !code.langs || !code.langs[lang] || lang === curLang) return;
+      if (!code || !LANG_NAMES[lang] || lang === curLang) return;
       curLang = lang;
       paintCode();
       if (typeof measureStage === "function") measureStage();
@@ -513,8 +528,12 @@ transition:none!important;transform:none!important}}
             titleC.appendChild(langBar);
           }
         }
+        codeNote = el("p", "dk-code-empty");
+        codeNote.hidden = true;
+        codeNote.setAttribute("role", "note");
         paintCode();
         paneC.appendChild(codeBox);
+        paneC.appendChild(codeNote);
         main.appendChild(paneC);
       }
       wrap.appendChild(main);

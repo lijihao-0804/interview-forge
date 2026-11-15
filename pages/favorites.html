@@ -6,6 +6,7 @@
 <meta name="color-scheme" content="light dark">
 <title>我的收藏 · InterviewForge</title>
 <script src="../assets/time-utils.js?v=3"></script>
+<script src="../assets/guest-auth.js?v=2"></script>
 <style>
 :root{color-scheme:light dark;--bg:#f3f5fa;--panel:#fff;--soft:#f7f8fc;--text:#172033;--muted:#647188;--line:#dce2ec;--brand:#5654d4;--brand-soft:#eeedff;--success:#13764b;--danger:#c1363e;--warning:#a8620a}
 @media(prefers-color-scheme:dark){:root{--bg:#0f131b;--panel:#181e29;--soft:#141a24;--text:#edf2fb;--muted:#a7b2c4;--line:#313b4c;--brand:#b2b0ff;--brand-soft:#292955;--success:#79d8a8;--danger:#ff969d;--warning:#e8b463}}
@@ -201,10 +202,20 @@ opacity:0;pointer-events:none;transition:opacity .2s ease,transform .2s ease;z-i
     }).join("");
   }
 
-  function load(){
+  const guestAuth=window.InterviewForgeGuestAuth;
+  let loadedSessionKey='';
+  function showGuestState(session){
+    errEl.hidden=false;
+    errEl.innerHTML=esc(session&&session.status==='error'?'登录状态暂未确认':'收藏需要登录后查看')+'。题解、书架和搜索仍可直接访问。 <a href="'+esc(guestAuth.authHref('/pages/login.html'))+'" style="margin-left:8px">登录</a> · <a href="'+esc(guestAuth.authHref('/pages/register.html'))+'">注册</a>';
+    listEl.innerHTML='<div class="empty" style="padding:36px 20px"><strong>登录后查看收藏</strong><p>登录后会回到本页。</p></div>';
+    countEl.textContent='登录后查看';
+  }
+  async function load(){
+    const session=await guestAuth.ready();
+    if(session.status!=='authenticated'){showGuestState(session);return}
     errEl.hidden = true;
     countEl.textContent = "正在读取…";
-    fetch("/api/favorites", {cache: "no-store"})
+    guestAuth.request("/api/favorites", {cache: "no-store"}, '查看收藏')
       .then(function(r){
         if (r.ok) return r.json();
         // 把 HTTP 状态也带出来，便于区分「未登录 401」「服务端 500」等
@@ -227,14 +238,11 @@ opacity:0;pointer-events:none;transition:opacity .2s ease,transform .2s ease;z-i
         }
       })
       .catch(function(e){
+        if(e&&e.category==='unauthorized'){showGuestState(guestAuth.getState());return}
         errEl.hidden = false;
-        var detail = (e && e.message) ? e.message : "网络异常";
-        var hint = "";
-        if (/HTTP 401/.test(detail)) hint = "登录状态已失效，请重新登录。";
-        else if (/HTTP 5/.test(detail)) hint = "服务端暂时异常，请稍后重试。";
-        else if (/Failed to fetch|NetworkError/i.test(detail)) hint = "无法连接服务，请检查网络或服务是否运行。";
-        else hint = "请稍后重试。";
-        errEl.innerHTML = esc("读取收藏失败：" + detail + "。" + hint)
+        var detail = String(e && e.message || '');
+        var hint = /HTTP 5/.test(detail) ? "服务端暂时异常，请稍后重试。" : /Failed to fetch|NetworkError/i.test(detail) ? "无法连接服务，请检查网络后重试。" : "请稍后重试。";
+        errEl.innerHTML = esc("读取收藏失败。" + hint)
           + ' <button type="button" id="retryLoad" class="btn" style="margin-left:8px">重试</button>';
         countEl.textContent = "读取失败";
         var rb = document.getElementById("retryLoad");
@@ -302,10 +310,10 @@ opacity:0;pointer-events:none;transition:opacity .2s ease,transform .2s ease;z-i
     if (!btn) return;
     var parts = btn.dataset.remove.split("|");
     btn.disabled = true;
-    fetch("/api/favorites/remove", {
+    guestAuth.request("/api/favorites/remove", {
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({target_type: parts[0], target_id: parts[1]})
-    }).then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    }, '移除收藏').then(function(r){ return r.ok ? r.json() : Promise.reject(); })
       .then(function(){
         items = items.filter(function(it){ return !(it.target_type===parts[0] && it.target_id===parts[1]); });
         if (stats[parts[2]] ) {}
@@ -318,7 +326,19 @@ opacity:0;pointer-events:none;transition:opacity .2s ease,transform .2s ease;z-i
       .catch(function(){ btn.disabled = false; toast("移除失败，请重试"); });
   });
 
-  load();
+  document.addEventListener('interviewforge:auth-change',function(event){
+    if(!event||!event.detail||event.detail.status==='checking')return;
+    if(event.detail.status==='authenticated'){
+      var key=String(event.detail.user&&(event.detail.user.id||event.detail.user.username)||'authenticated');
+      if(key!==loadedSessionKey){loadedSessionKey=key;load();}
+    }else{loadedSessionKey='';showGuestState(event.detail);}
+  });
+  guestAuth.ready().then(function(session){
+    if(session.status==='authenticated'){
+      var key=String(session.user&&(session.user.id||session.user.username)||'authenticated');
+      if(!loadedSessionKey){loadedSessionKey=key;load();}
+    }else showGuestState(session);
+  }).catch(function(error){showGuestState({status:'error',reason:error&&error.message||'session_check_failed'});});
 })();
 </script>
 </body>

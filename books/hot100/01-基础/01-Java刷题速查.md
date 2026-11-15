@@ -1,4 +1,8 @@
-# LeetCode Hot 100：Java 基础语法、常用类与 API 速查
+# Hot 100 · 刷题速查
+
+<section class="language-panel java-basic-panel" data-lang-scope="true" data-lang="java" markdown="1">
+
+## Java 模式
 
 > 目的：刷 Hot 100 时快速查“该用哪个类、方法叫什么、返回什么、空集合时怎样”。  
 > 适用：Java 17+；示例已使用本机 JDK 25 编译验证，核心 API 均为长期稳定的 Java Collections Framework API。  
@@ -1785,3 +1789,64 @@ PriorityQueue 默认小顶堆。
 ## 最后的判断
 
 Hot 100 的 Java 语法不在于记住所有 JDK API，而在于形成稳定习惯：哈希使用 Map/Set，BFS 使用 Queue，栈和单调结构使用 ArrayDeque，Top K 使用 PriorityQueue；所有区间明确开闭，所有比较避免溢出，所有中间求和考虑 long。每次写模板时理解不变量，比背一段代码更可靠。
+
+</section>
+
+<section class="language-panel python-basic-panel" data-lang-scope="true" data-lang="python" markdown="1">
+
+## Python 模式：Python 刷题速查
+
+先写清函数输入、返回值、空值语义和容器变量，再利用 Python 真值与解包减少样板代码。
+
+### 函数入口与节点类到底由谁提供
+
+力扣会根据题目签名接收代码。链表和树题通常已经在判题环境中提供 `ListNode`、`TreeNode`；提交时只需写 `Solution` 方法和函数体，不需要再定义一份节点类。若在本地写独立测试，才需要自己构造节点或调用测试辅助函数。
+
+实例方法的第一个参数 `self` 表示当前对象，调用时 `solution.method(value)` 不需要手写 `self`。嵌套辅助函数若只读写闭包变量，就不能再把它当实例方法调用。
+
+### 真值表要结合具体类型
+
+| 值 | `bool(value)` | 常见判断 |
+|---|---:|---|
+| `None` | `False` | 用 `is None` 判断缺失 |
+| `0` | `False` | 数字 0 |
+| `""` | `False` | 空字符串 |
+| `[]`、`{}`、`set()` | `False` | 空容器 |
+| `"0"` | `True` | 长度为 1 的字符串 |
+| `" "` | `True` | 字符串不为空 |
+
+所以 `if not value` 可能同时表示“没有值”和“值为数字 0”。节点适合写 `while node is not None`；数字 0 仍然可能有效时，要明确检查 `is None`。
+
+### 多重赋值做了什么
+
+`a, b = b, a` 会先按旧值求出右侧的 `b`、`a`，再从左到右绑定 `a`、`b`。因此交换时不需要额外写临时变量，也不会因为先改 `a` 而让右侧的 `b` 读到新值。
+
+### 可运行示例：显式处理 None 的类方法
+
+```python
+class Solution:
+    def first_positive(self, nums: list[int]) -> int:
+        answer = None
+        for value in nums:
+            if value > 0:
+                answer = value
+                break
+        return -1 if answer is None else answer
+```
+
+
+### 示例如何读
+
+`first_positive` 用 `answer = None` 表示“还没遇到正数”，而不是把 0 当哨兵。找到第一个正数后保存并退出；最终用 `answer is None` 判断是否需要返回题目约定的 `-1`。
+
+只循环一次且每轮常量工作，时间 O(n)；除输入外只保存一个候选变量，额外空间 O(1)。
+
+### 常用操作
+
+| 操作 | 示例 | 在示例中的用途 |
+|---|---|---|
+| `enumerate` | `for index, value in enumerate(values)` | 同时取得下标与值 |
+| `len` | `size = len(values)` | 取得序列或容器长度 |
+| `is None` | `if value is None:` | 把 `None` 与数字 0 区分开 |
+
+</section>

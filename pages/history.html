@@ -36,6 +36,8 @@ li:last-child{border-bottom:0}
 .status-pill.wa{color:var(--danger);background:color-mix(in srgb,var(--danger) 12%,var(--panel))}
 .submit-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:3px}
 .notice{margin:0 0 16px;padding:8px;border:1px solid color-mix(in srgb,var(--danger) 40%,var(--line));border-radius:10px;background:color-mix(in srgb,var(--danger) 7%,var(--panel))}
+.notice.guest-notice{border-color:color-mix(in srgb,var(--brand) 32%,var(--line));background:var(--brand-soft);color:var(--text)}
+.notice.guest-notice a{color:var(--brand);font-weight:650;text-decoration:none}
 .ui-error{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;color:var(--danger)}
 .round-button{padding:6px 10px;border:1px solid color-mix(in srgb,var(--brand) 34%,var(--line));border-radius:8px;color:var(--brand);background:var(--panel);cursor:pointer;font:inherit;font-size:13px}
 .round-button:focus-visible{outline:3px solid color-mix(in srgb,var(--brand) 40%,transparent);outline-offset:2px}
@@ -86,18 +88,42 @@ function fetchWithTimeout(input,options,timeout=12000){
   const timer=setTimeout(()=>controller.abort(),timeout);
   return fetch(input,request).finally(()=>clearTimeout(timer));
 }
+function waitForAuthClient(){
+  if(window.InterviewForgeAuth&&window.InterviewForgeAuth.ready)return Promise.resolve(window.InterviewForgeAuth);
+  return new Promise(function(resolve,reject){
+    var timer=setTimeout(function(){document.removeEventListener('interviewforge:auth-ready',ready);reject(new Error('登录状态确认超时'))},12000);
+    function ready(){clearTimeout(timer);document.removeEventListener('interviewforge:auth-ready',ready);if(window.InterviewForgeAuth)resolve(window.InterviewForgeAuth);else reject(new Error('登录状态暂时不可用'))}
+    document.addEventListener('interviewforge:auth-ready',ready,{once:true});
+  });
+}
+function showGuestState(){
+  const notice=document.getElementById('notice');
+  notice.hidden=false;notice.className='notice guest-notice';notice.textContent='';
+  const copy=document.createElement('span');copy.textContent='游客可继续阅读题解和书架；学习记录需登录后查看。';
+  const login=document.createElement('a');login.href='/pages/login.html?next='+encodeURIComponent(location.pathname+location.search+location.hash);login.textContent='登录';
+  const register=document.createElement('a');register.href='/pages/register.html?next='+encodeURIComponent(location.pathname+location.search+location.hash);register.textContent='注册';
+  notice.append(copy,document.createTextNode(' '),login,document.createTextNode(' · '),register);
+  ['todayViewed','todayRounds','completedCount','streakCount'].forEach(id=>document.getElementById(id).textContent='—');
+  document.getElementById('dayList').innerHTML='<li class="empty">登录后查看学习日、复习轮次和提交记录。</li>';
+  document.getElementById('eventList').innerHTML='<li class="empty">登录后查看最近学习活动。</li>';
+  document.getElementById('submitList').innerHTML='<li class="empty">登录后查看力扣同步记录。</li>';
+}
 async function load(){
   const dayList=document.getElementById('dayList');
   const eventList=document.getElementById('eventList');
   const submitList=document.getElementById('submitList');
   const notice=document.getElementById('notice');
   try{
+    const auth=await waitForAuthClient();
+    const session=await auth.ready;
+    if(session.status!=='authenticated'){showGuestState();return}
     const [dashboardResponse,manifestResponse]=await Promise.all([
       fetchWithTimeout('/api/dashboard',{cache:'no-store'}),
       fetchWithTimeout('../library/manifest.json',{cache:'no-store'})
     ]);
     if(dashboardResponse.status===401){
-      location.replace('/pages/login.html?next='+encodeURIComponent(location.pathname));
+      auth.handleUnauthorized('查看学习记录');
+      showGuestState();
       return;
     }
     if(!dashboardResponse.ok||!manifestResponse.ok)throw new Error('unavailable');

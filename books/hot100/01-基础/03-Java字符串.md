@@ -1,4 +1,8 @@
-# Java 字符串学习笔记
+# Hot 100 · 字符串
+
+<section class="language-panel java-basic-panel" data-lang-scope="true" data-lang="java" markdown="1">
+
+## Java 模式
 
 ## 一、String 概述
 
@@ -686,3 +690,58 @@ String.valueOf(true): true
 ---
 
 > **提示：** 字符串题目在面试中出镜率极高，务必熟练掌握以上所有 API 的用法。尤其注意 `==` 与 `equals()` 的区别、`StringBuilder` 的性能优势、以及正则表达式的常见用法。
+
+</section>
+
+<section class="language-panel python-basic-panel" data-lang-scope="true" data-lang="python" markdown="1">
+
+## Python 模式：Python 字符串
+
+字符串不可变：下标取出字符，切片和拼接产生新字符串；循环收集片段后用 `join` 一次拼接更稳妥。
+
+### 不可变字符串怎样变化
+
+```python
+s = "abc"
+t = s.upper()
+part = s[1:3]
+```
+
+`upper()` 返回新字符串 `"ABC"`，原来的 `s` 仍是 `"abc"`；`s[1:3]` 返回 `"bc"`，结束下标 3 不包含。若回溯或构造过程中要频繁修改字符，应先把字符放到列表中，修改后再 `"".join(...)`。
+
+### 用 `eat` 建立频次签名
+
+对 `word = "eat"`，26 个位置的计数列表最终只有 `a`、`e`、`t` 各为 1，其余为 0。转换成元组后，`eat`、`tea`、`ate` 得到同一个不可变签名，可作为字典键。该模板只适用于输入保证为小写英文字母的题目。
+
+### `find` 与 `index`
+
+`"banana".find("na")` 返回 2；找不到时返回 -1。`index` 找不到时抛异常。滑动窗口、解码或词典匹配经常更适合 `startswith`，因为它能限定从哪个位置开始检查。
+
+### 可运行示例：小写字母频次签名
+
+```python
+def frequency_signature(word: str) -> tuple[int, ...]:
+    counts = [0] * 26
+    for ch in word:
+        counts[ord(ch) - ord("a")] += 1
+    return tuple(counts)
+```
+
+
+### Python 细节
+
+`tuple(counts)` 复制计数并转换成可哈希对象。若直接返回 `counts`，列表本身不能作为字典键。
+
+`ch.isdigit()` 能识别一些 Unicode 数字字符，不只是 ASCII 的 `0` 到 `9`。解码题如果题面只允许 ASCII 数字，可使用 `"0" <= ch <= "9"` 明确范围。
+
+小写字母固定为 26 个时，签名构造与单词长度成正比；保存签名的额外空间固定为 26 项。
+
+### 常用操作
+
+| 操作 | 示例 | 在示例中的用途 |
+|---|---|---|
+| `join` | `"".join(parts)` | 一次连接多个字符或字符串片段 |
+| `ord` | `ord(ch) - ord("a")` | 把确定的小写字母映射到 0..25 |
+| `startswith` | `s.startswith(word, start)` | 从指定位置检查单词前缀 |
+
+</section>
