@@ -11,7 +11,7 @@
   const actions = document.querySelector('.archive-actions');
   if (actions) {
     const back = document.createElement('a');
-    back.href = '/pages/admin.html'; back.className = 'forge-archive-back'; back.textContent = '← 管理后台';
+    back.href = '/library/index.html'; back.className = 'forge-archive-back'; back.textContent = '← 学习书架';
     actions.prepend(back);
   }
   // A restored history entry must reauthorize instead of showing a logged-out snapshot.

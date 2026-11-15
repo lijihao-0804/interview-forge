@@ -23,7 +23,7 @@ class PrivateArchiveTests(unittest.TestCase):
         self.root = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
         self.archive = self.root / 'private.zip'
         with zipfile.ZipFile(self.archive, 'w') as z:
-            for name, content in {'index.html':'<html><head></head><body>PRIVATE_FIXTURE</body></html>',
+            for name, content in {'index.html':'<html><head></head><body><div class="archive-actions"></div>PRIVATE_FIXTURE</body></html>',
                                   'assets/app.js':'window.fixture = 1;', 'data/history-data.json':'{"private":true}',
                                   'assets/media/image.webp':'private-image'}.items():
                 z.writestr('site/' + name, content)
@@ -65,6 +65,18 @@ class PrivateArchiveTests(unittest.TestCase):
                         self.assertEqual(response.status_code,status)
                         self.assertIn('no-store',response.headers['cache-control'])
                         if status!=200:self.assertNotIn('PRIVATE_FIXTURE',response.text)
+
+    def test_shelf_metadata_requires_authorization_and_availability(self):
+        for token in (None, 'reader-token', 'admin-token'):
+            response = self.request('/api/private-archive-status', token)
+            self.assertNotIn('entry', response.json())
+            self.assertNotIn('AgentHub', response.text)
+        response = self.request('/api/private-archive-status', 'owner-token')
+        self.assertEqual(response.json()['entry']['url'], '/api/private-archive/index.html')
+        self.assertEqual(response.headers['vary'], 'Cookie')
+        with patch.object(private_archive, '_read_member', side_effect=FileNotFoundError):
+            self.assertEqual(self.request('/api/private-archive-status', 'owner-token').json(),
+                             {'available': False, 'url': '/api/private-archive/index.html'})
 
     def test_revocation_and_role_changes_apply_on_next_request(self):
         self.assertEqual(self.request('/api/private-archive/index.html','owner-token').status_code,200)

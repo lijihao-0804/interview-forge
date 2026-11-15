@@ -79,8 +79,11 @@ def archive_status(request: Request):
         available = True
     except (OSError, ValueError, KeyError, zipfile.BadZipFile, RuntimeError):
         available = False
-    return support.json_response({"available": available,
-                                  "url": "/api/private-archive/index.html"}, headers=HEADERS)
+    result = {"available": available, "url": "/api/private-archive/index.html"}
+    if available:
+        result["entry"] = {"title": "AgentHub 教学档案", "description": "专属教学资料 · 仅超级管理员可见",
+                           "url": "/api/private-archive/index.html"}
+    return support.json_response(result, headers=HEADERS)
 
 
 @router.api_route("/api/private-archive/{path:path}", methods=["GET", "HEAD"], include_in_schema=False)
@@ -102,6 +105,6 @@ def archive_resource(request: Request, path: str):
         body = body.replace(b'./assets/hljs.js', b'/assets/vendor/highlight-11.11.1.min.js')
         body = body.replace(b'<script defer src="./assets/app.js">', b'<script defer src="/assets/private-archive-highlight.js"></script><script defer src="./assets/app.js">')
         body = body.replace(b"</head>", b'<link rel="stylesheet" href="/assets/private-archive-theme.css?v=1"></head>', 1)
-        body = body.replace(b"</body>", b'<script src="/assets/private-archive-shell.js?v=1" defer></script></body>', 1)
+        body = body.replace(b"</body>", b'<script src="/assets/private-archive-shell.js?v=2" defer></script></body>', 1)
     return Response(content=b"" if request.method == "HEAD" else body,
                     media_type=media_type, headers=HEADERS)
