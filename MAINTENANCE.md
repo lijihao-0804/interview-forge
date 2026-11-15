@@ -10,6 +10,42 @@
 
 线上学习记录按账号保存在服务器端 SQLite 数据库；本地开发生成的 `data/hot100-study.db` 仅用于本地调试和备份演练，全量重建题解不会覆盖它。
 
+### 0.1 游客阅读、邮箱注册与权限
+
+首页、题解、专题、学习书架与全文搜索可直接阅读。`/api/catalog` 只提供公开目录；个人仪表盘、进度、收藏、聊天、反馈提交、代码运行、AI 和力扣接口仍要求会话。游客可阅读示例代码，运行或提交代码需要登录。管理后台与工具箱继续限制为管理员。匿名写接口仅保留登录、注册、获取注册验证码，以及找回密码的发送验证码/重置两步；公开操作清单统一维护在 `interview_forge/core/public_api.py`，中间件与验收测试共用同一份。
+
+公开注册流程为 `POST /api/register/send-code {email}`，再调用 `POST /api/register {email, username, password, code}`。旧邀请码不能通过公开注册接口兑换。已有未绑定邮箱的账号仍可按原用户名和密码登录。
+
+登录接受用户名或注册邮箱：`POST /api/login {username, password}` 中的 `username` 字段可填用户名（在不存在历史大小写冲突账号时不区分大小写）或邮箱（不区分大小写），密码正确即可登录；只接受 `identifier`、`email` 或 `account` 字段的客户端同样可用。`GET /api/me` 会返回绑定邮箱，便于用户确认注册地址。
+
+邮箱找回闭环：登录页“忘记密码”进入 `/pages/forgot-password.html`，先 `POST /api/password/forgot/send-code {email}`，再 `POST /api/password/forgot/reset {email, code, password}`；重置成功后该用户全部会话立即失效。未注册邮箱返回与已注册邮箱一致的响应且不实际发信，避免账号枚举。已登录用户可在 `/pages/account.html` 更换绑定邮箱：`POST /api/account/email/send-code {email}` 向新邮箱发码，`POST /api/account/email {email, code, password}` 需同时校验当前密码与新邮箱验证码；新邮箱不能与其他账号重复。验证码按用途（`register` / `reset` / `email_change`）隔离，一种用途的验证码不能用于另一种。
+
+`PERMANENT_ADMIN_USERNAME` 配置的永久管理员用户名保留给内部初始化，公开注册不能占用该名称或其大小写变体，避免其他 worker 初始化时误提升普通注册账号。
+
+注册发信复用管理后台中现有的全局 SMTP 配置及加密授权码，不要把发件凭证写入源码。465 使用隐式 TLS，其他端口要求 STARTTLS 成功，失败时停止发信。未配置返回 `503 email_not_configured`，不会以开发模式回显验证码。部署时必须保留 SMTP 原有的加密主密钥（`INTERVIEW_FORGE_GYM_KEY` 或私有 `data/gym-secret.key`）。
+
+验证码只保存加盐哈希，默认 10 分钟过期、最多错误 5 次、成功兑换立即失效。发信和兑换限流保存在认证数据库中，由 SQLite 事务原子预留，多 worker 共享；发信失败也会消耗额度。限流返回 `429`，同时给出 `Retry-After` 与 JSON `retry_after`（秒）。发码接口可选接入 Cloudflare Turnstile：同时设置 `IF_TURNSTILE_SITE_KEY` 与 `IF_TURNSTILE_SECRET` 后，注册与找回密码的发送接口会要求 `captcha` 令牌并向 Cloudflare 校验；两项都未设置时保持免人机验证。发放限额按收件域单独计桶，避免单一收件服务消耗全站额度。
+
+| 限制 | 默认值 | 环境变量 |
+|---|---|---|
+| 同邮箱重发冷却 | 60 秒 | `IF_REGISTER_EMAIL_COOLDOWN_SECONDS` |
+| 发信 IP 小时 / 24 小时 | 5 / 10 | `IF_REGISTER_IP_HOURLY_LIMIT` / `IF_REGISTER_IP_DAILY_LIMIT` |
+| 发信邮箱小时 / 24 小时 | 3 / 5 | `IF_REGISTER_EMAIL_HOURLY_LIMIT` / `IF_REGISTER_EMAIL_DAILY_LIMIT` |
+| 发信收件域小时 / 24 小时 | 20 / 60 | `IF_REGISTER_DOMAIN_HOURLY_LIMIT` / `IF_REGISTER_DOMAIN_DAILY_LIMIT` |
+| 发信全站小时 / 24 小时 | 100 / 300 | `IF_REGISTER_GLOBAL_HOURLY_LIMIT` / `IF_REGISTER_GLOBAL_DAILY_LIMIT` |
+| 兑换 IP 小时 / 24 小时 | 20 / 60 | `IF_REGISTER_VERIFY_IP_HOURLY_LIMIT` / `IF_REGISTER_VERIFY_IP_DAILY_LIMIT` |
+| 兑换全站小时 / 24 小时 | 500 / 5000 | `IF_REGISTER_VERIFY_GLOBAL_HOURLY_LIMIT` / `IF_REGISTER_VERIFY_GLOBAL_DAILY_LIMIT` |
+| 验证码有效期 | 600 秒 | `IF_REGISTER_CODE_TTL_SECONDS` |
+| 单码最大错误次数 | 5 | `IF_REGISTER_CODE_MAX_ATTEMPTS` |
+| 游客搜索 IP 每分钟 / 24 小时 | 30 / 500 | `IF_SEARCH_RATE_PER_MINUTE` / `IF_SEARCH_RATE_PER_DAY` |
+| 游客搜索全站每分钟 | 600 | `IF_SEARCH_GLOBAL_PER_MINUTE` |
+
+游客搜索限额保存在进程内存中，不写认证数据库：搜索是只读操作，不应与注册、登录和会话写入争用同一 SQLite 写锁。多 worker 部署时每个进程各有一份计数，因此实际上限约为配置值乘以进程数；这份限额只用于保护索引扫描，不承担账号安全职责。
+
+“每天”额度采用滚动 24 小时窗口。代理 IP 只接受来自可信代理的转发头：现有本机 nginx 属于兼容信任边界；其他代理需在 `INTERVIEW_FORGE_TRUSTED_PROXIES` 中配置地址或 CIDR，且由代理覆盖 `X-Real-IP`。应用与 nginx 均禁止公开下载数据库、密钥和点文件；修改 nginx 模板后，需要在实际部署环境执行 `nginx -t`。
+
+首次运行会自动增加可空邮箱字段、唯一索引及验证码/额度表，并为既有验证码表补齐用途、账号归属与收件域字段。维护与迁移前按现有策略备份认证库和 SMTP 加密密钥，不要通过删除认证库重置额度或完成升级。旧版 Python `StudyHandler` 兜底服务只提供读取与已有账号的登录等能力，公开注册和找回密码仅由 FastAPI 应用提供；它不再包含重复的注册分支。
+
 ### 0.2 Python 教学内容维护
 
 Python 完整教学源独立于 Java 原稿：`tools/python_hot100.json` 保存 100 题的算法选择、不变量、推导、API 提示、完整代码、复杂度与执行用例；`tools/python_hot100_topics.json` 保存 17 专题；`tools/python_hot100_basics.json` 保存基础资料。结构约束见 `tools/python_hot100.schema.json`，加载与渲染逻辑位于 `scripts/build/python_hot100.py`。修改 Java 原笔记不会自动产生 Python 译本，新增或变更题目时需同步对应语言的结构化内容。

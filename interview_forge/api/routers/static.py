@@ -31,15 +31,15 @@ _WIDGET_STYLES = ("/assets/ai-launcher.css?v=5",)
 _WIDGET_SCRIPTS = (
     "/assets/time-utils.js?v=2",
     "/assets/navigation-policy.js?v=2",
-    "/assets/auth-widget.js?v=6",
+    "/assets/auth-widget.js?v=7",
     "/assets/feedback-widget.js?v=4",
     "/assets/theme-toggle.js?v=2",
     "/assets/ai-page-context.js?v=2",
     "/assets/ai-launcher.js?v=4",
 )
-_AUTH_WIDGET_SKIP = {"/pages/login.html", "/pages/register.html", "/pages/admin.html", "/pages/ai-assistant.html"}
-_FEEDBACK_WIDGET_SKIP = {"/pages/login.html", "/pages/register.html", "/pages/admin.html", "/pages/ai-assistant.html"}
-_AI_LAUNCHER_SKIP = {"/pages/login.html", "/pages/register.html", "/pages/admin.html", "/pages/ai-assistant.html"}
+_AUTH_WIDGET_SKIP = {"/pages/login.html", "/pages/register.html", "/pages/forgot-password.html", "/pages/account.html", "/pages/admin.html", "/pages/ai-assistant.html"}
+_FEEDBACK_WIDGET_SKIP = {"/pages/login.html", "/pages/register.html", "/pages/forgot-password.html", "/pages/account.html", "/pages/admin.html", "/pages/ai-assistant.html"}
+_AI_LAUNCHER_SKIP = {"/pages/login.html", "/pages/register.html", "/pages/forgot-password.html", "/pages/account.html", "/pages/admin.html", "/pages/ai-assistant.html"}
 
 
 # 内容页 404 的品牌化兜底页：只给浏览器（Accept: text/html）返回；

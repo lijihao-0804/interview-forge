@@ -12,6 +12,9 @@ from urllib.error import HTTPError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
+from fastapi.testclient import TestClient
+
+from interview_forge.api.app import app as fastapi_app
 from tools import ai_coach
 from tools import study_server as server
 
@@ -989,16 +992,14 @@ class RealAuthenticationIsolationTests(unittest.TestCase):
         self.assertEqual(server._AUTH_READY, self._auth_ready_before)
         self.temp_dir.cleanup()
 
-    def registration_code_for(self, email: str) -> str:
+    def registration_code_for(self, email: str, client: TestClient) -> str:
         sent: list[str] = []
         with patch(
             "interview_forge.services.gym.send_email",
             side_effect=lambda _recipient, _subject, body: sent.append(body),
         ):
-            status, body, _headers = self.request(
-                "/api/register/send-code", payload={"email": email}
-            )
-        self.assertEqual(status, 200, body)
+            response = client.post("/api/register/send-code", json={"email": email})
+        self.assertEqual(response.status_code, 200, response.text)
         match = re.search(r"验证码：([0-9]{6})", sent[-1])
         self.assertIsNotNone(match)
         return match.group(1)
@@ -1039,90 +1040,86 @@ class RealAuthenticationIsolationTests(unittest.TestCase):
         return cookie.split(";", 1)[0].split("=", 1)[1]
 
     def test_register_rejects_case_collision_atomically_and_keeps_normal_users_working(self):
-        alice_code = self.registration_code_for("alice@example.com")
-        status, body, headers = self.request(
-            "/api/register",
-            payload={
+        client = TestClient(fastapi_app, raise_server_exceptions=False)
+        try:
+            alice_code = self.registration_code_for("alice@example.com", client)
+            response = client.post("/api/register", json={
                 "email": "alice@example.com",
                 "username": "Alice",
                 "password": "alice-pass-1",
                 "code": alice_code,
-            },
-        )
-        self.assertEqual(status, 201)
-        alice_token = self.cookie_token(headers)
-        self.assertEqual(body["username"], "Alice")
+            })
+            self.assertEqual(response.status_code, 201, response.text)
+            alice_token = response.cookies.get("forge_session")
+            self.assertTrue(alice_token)
+            self.assertEqual(response.json()["username"], "Alice")
 
-        bob_code = self.registration_code_for("bob@example.com")
-        status, body, _headers = self.request(
-            "/api/register",
-            payload={
+            bob_code = self.registration_code_for("bob@example.com", client)
+            conflict = client.post("/api/register", json={
                 "email": "bob@example.com",
                 "username": "alice",
                 "password": "alice-pass-2",
                 "code": bob_code,
-            },
-        )
-        self.assertEqual(status, 409)
-        self.assertEqual(body.get("error_category"), "already_registered")
-        self.assertEqual(body.get("error"), "该邮箱或用户名已被占用")
-        self.assertNotIn("Alice", json.dumps(body, ensure_ascii=False))
+            })
+            self.assertEqual(conflict.status_code, 409, conflict.text)
+            self.assertEqual(conflict.json().get("error_category"), "already_registered")
+            self.assertEqual(conflict.json().get("error"), "该邮箱或用户名已被占用")
+            self.assertNotIn("Alice", json.dumps(conflict.json(), ensure_ascii=False))
 
-        with server.closing(server.connect_auth()) as connection:
-            users = connection.execute("SELECT username FROM users ORDER BY id").fetchall()
-            code = connection.execute(
-                "SELECT status FROM registration_email_codes "
-                "WHERE email = 'bob@example.com' ORDER BY id DESC LIMIT 1"
-            ).fetchone()
-        self.assertEqual([row["username"] for row in users], ["Alice"])
-        self.assertEqual(code["status"], "active")
-        self.assertTrue(server.user_db_path("Alice").exists())
+            with server.closing(server.connect_auth()) as connection:
+                users = connection.execute("SELECT username FROM users ORDER BY id").fetchall()
+                code = connection.execute(
+                    "SELECT status FROM registration_email_codes "
+                    "WHERE email = 'bob@example.com' ORDER BY id DESC LIMIT 1"
+                ).fetchone()
+            self.assertEqual([row["username"] for row in users], ["Alice"])
+            self.assertEqual(code["status"], "active")
+            self.assertTrue(server.user_db_path("Alice").exists())
 
-        status, bob_body, bob_headers = self.request(
-            "/api/register",
-            payload={
+            retry = client.post("/api/register", json={
                 "email": "bob@example.com",
                 "username": "Bob",
                 "password": "bob-pass-1",
                 "code": bob_code,
-            },
-        )
-        self.assertEqual(status, 201)
-        self.assertEqual(bob_body["username"], "Bob")
-        bob_token = self.cookie_token(bob_headers)
-        status, me, _headers = self.request("/api/me", token=bob_token)
-        self.assertEqual(status, 200)
-        self.assertEqual(me["username"], "Bob")
-        self.assertNotEqual(alice_token, bob_token)
-        self.assertFalse(self.default_db.exists())
+            })
+            self.assertEqual(retry.status_code, 201, retry.text)
+            self.assertEqual(retry.json()["username"], "Bob")
+            bob_token = retry.cookies.get("forge_session")
+            self.assertNotEqual(alice_token, bob_token)
+            me = client.get("/api/me")
+            self.assertEqual(me.status_code, 200, me.text)
+            self.assertEqual(me.json()["username"], "Bob")
+            self.assertFalse(self.default_db.exists())
+        finally:
+            client.close()
 
     def test_register_verification_rate_limit_returns_retry_after(self):
-        with patch.dict(os.environ, {
-            "IF_REGISTER_VERIFY_IP_HOURLY_LIMIT": "1",
-            "IF_REGISTER_VERIFY_IP_DAILY_LIMIT": "10",
-            "IF_REGISTER_VERIFY_GLOBAL_HOURLY_LIMIT": "100",
-            "IF_REGISTER_VERIFY_GLOBAL_DAILY_LIMIT": "1000",
-        }, clear=False):
-            code = self.registration_code_for("rate@example.com")
-            wrong = "000000" if code != "000000" else "999999"
-            payload = {
-                "email": "rate@example.com",
-                "username": "RateUser",
-                "password": "password-1",
-                "code": wrong,
-            }
-            first_status, _first_body, _first_headers = self.request(
-                "/api/register", payload=payload
-            )
-            second_status, second_body, second_headers = self.request(
-                "/api/register", payload=payload
-            )
-        self.assertEqual(first_status, 400)
-        self.assertEqual(second_status, 429)
-        retry_after = int(second_headers["Retry-After"])
+        client = TestClient(fastapi_app, raise_server_exceptions=False)
+        try:
+            with patch.dict(os.environ, {
+                "IF_REGISTER_VERIFY_IP_HOURLY_LIMIT": "1",
+                "IF_REGISTER_VERIFY_IP_DAILY_LIMIT": "10",
+                "IF_REGISTER_VERIFY_GLOBAL_HOURLY_LIMIT": "100",
+                "IF_REGISTER_VERIFY_GLOBAL_DAILY_LIMIT": "1000",
+            }, clear=False):
+                code = self.registration_code_for("rate@example.com", client)
+                wrong = "000000" if code != "000000" else "999999"
+                payload = {
+                    "email": "rate@example.com",
+                    "username": "RateUser",
+                    "password": "password-1",
+                    "code": wrong,
+                }
+                first = client.post("/api/register", json=payload)
+                second = client.post("/api/register", json=payload)
+        finally:
+            client.close()
+        self.assertEqual(first.status_code, 400, first.text)
+        self.assertEqual(second.status_code, 429, second.text)
+        retry_after = int(second.headers["Retry-After"])
         self.assertGreaterEqual(retry_after, 1)
-        self.assertEqual(second_body["retry_after"], retry_after)
-        self.assertEqual(second_body["error_category"], "rate_limited")
+        self.assertEqual(second.json()["retry_after"], retry_after)
+        self.assertEqual(second.json()["error_category"], "rate_limited")
 
     def test_legacy_case_conflict_fails_closed_for_login_and_session_but_not_bob(self):
         alice = server.create_user("Alice", "alice-pass-1")

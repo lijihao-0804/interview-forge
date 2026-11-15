@@ -17,7 +17,7 @@ class AiFrontendIntegrationTests(unittest.TestCase):
         for current_asset in (
             "/assets/ai-launcher.js?v=4",
             "/assets/feedback-widget.js?v=4",
-            "/assets/auth-widget.js?v=6",
+            "/assets/auth-widget.js?v=7",
         ):
             self.assertIn(current_asset, _WIDGET_SCRIPTS)
             self.assertIn(current_asset, rendered)
@@ -105,7 +105,9 @@ class AiFrontendIntegrationTests(unittest.TestCase):
         self.assertEqual(rendered.count("ai-page-context.js"), 1)
         self.assertIn("ai-page-context.js?v=2", rendered)
         collector = Path("assets") / "ai-page-context.js"
-        self.assertEqual((ROOT / "library" / collector).read_bytes(), (ROOT / collector).read_bytes())
+        # Git checkouts may use different line endings for the tracked copies.
+        self.assertEqual((ROOT / "library" / collector).read_text(encoding="utf-8"),
+                         (ROOT / collector).read_text(encoding="utf-8"))
 
     def test_generated_page_markup_uses_shared_launcher_contract(self):
         from scripts.build import build_html_site, build_library

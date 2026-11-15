@@ -10,16 +10,11 @@ from fastapi.testclient import TestClient
 
 from interview_forge.api.app import app
 from interview_forge.core.paths import ROOT
+from interview_forge.core.public_api import PUBLIC_API_OPERATIONS
 
-# Every newly introduced API is private unless deliberately reviewed here.
-PUBLIC_OPERATIONS = {
-    ("GET", "/api/health"),
-    ("GET", "/api/catalog"),
-    ("GET", "/api/search"),
-    ("POST", "/api/login"),
-    ("POST", "/api/register"),
-    ("POST", "/api/register/send-code"),
-}
+# The middleware and this test must agree on one reviewed list; importing the
+# constant keeps them from drifting apart.
+PUBLIC_OPERATIONS = set(PUBLIC_API_OPERATIONS)
 
 PRIVATE_OPERATIONS = sorted({
     (method, route.path)
@@ -52,6 +47,7 @@ def test_each_private_api_rejects_a_direct_anonymous_request(client, method, rou
 @pytest.mark.parametrize("path", [
     "/cockpit.html", "/index.html", "/library/index.html",
     "/library/search.html", "/pages/login.html", "/pages/register.html",
+    "/pages/forgot-password.html", "/pages/account.html",
 ])
 def test_guest_entry_pages_are_readable_without_redirect(client, path):
     response = client.get(path, follow_redirects=False)

@@ -35,6 +35,7 @@
           <div class="toc">
 <ul>
 <li><a href="#0">0. 本地开发与线上入口</a><ul>
+<li><a href="#01">0.1 游客阅读、邮箱注册与权限</a></li>
 <li><a href="#02-python">0.2 Python 教学内容维护</a></li>
 </ul>
 </li>
@@ -90,6 +91,83 @@
 <h2 id="0">0. 本地开发与线上入口</h2>
 <p>正式使用请访问 <a href="https://hot100.xyz/" target="_blank" rel="noopener noreferrer">https://hot100.xyz/</a>；不要把本地启动脚本当作线上入口。本地开发或线上故障应急维护时，才使用根目录的 <code>启动学习站.cmd</code> 启动本地服务，命令窗口需要保持开启；结束后按 <code>Ctrl+C</code> 停止。</p>
 <p>线上学习记录按账号保存在服务器端 SQLite 数据库；本地开发生成的 <code>data/hot100-study.db</code> 仅用于本地调试和备份演练，全量重建题解不会覆盖它。</p>
+<h3 id="01">0.1 游客阅读、邮箱注册与权限</h3>
+<p>首页、题解、专题、学习书架与全文搜索可直接阅读。<code>/api/catalog</code> 只提供公开目录；个人仪表盘、进度、收藏、聊天、反馈提交、代码运行、AI 和力扣接口仍要求会话。游客可阅读示例代码，运行或提交代码需要登录。管理后台与工具箱继续限制为管理员。匿名写接口仅保留登录、注册、获取注册验证码，以及找回密码的发送验证码/重置两步；公开操作清单统一维护在 <code>interview_forge/core/public_api.py</code>，中间件与验收测试共用同一份。</p>
+<p>公开注册流程为 <code>POST /api/register/send-code {email}</code>，再调用 <code>POST /api/register {email, username, password, code}</code>。旧邀请码不能通过公开注册接口兑换。已有未绑定邮箱的账号仍可按原用户名和密码登录。</p>
+<p>登录接受用户名或注册邮箱：<code>POST /api/login {username, password}</code> 中的 <code>username</code> 字段可填用户名（在不存在历史大小写冲突账号时不区分大小写）或邮箱（不区分大小写），密码正确即可登录；只接受 <code>identifier</code>、<code>email</code> 或 <code>account</code> 字段的客户端同样可用。<code>GET /api/me</code> 会返回绑定邮箱，便于用户确认注册地址。</p>
+<p>邮箱找回闭环：登录页“忘记密码”进入 <code>/pages/forgot-password.html</code>，先 <code>POST /api/password/forgot/send-code {email}</code>，再 <code>POST /api/password/forgot/reset {email, code, password}</code>；重置成功后该用户全部会话立即失效。未注册邮箱返回与已注册邮箱一致的响应且不实际发信，避免账号枚举。已登录用户可在 <code>/pages/account.html</code> 更换绑定邮箱：<code>POST /api/account/email/send-code {email}</code> 向新邮箱发码，<code>POST /api/account/email {email, code, password}</code> 需同时校验当前密码与新邮箱验证码；新邮箱不能与其他账号重复。验证码按用途（<code>register</code> / <code>reset</code> / <code>email_change</code>）隔离，一种用途的验证码不能用于另一种。</p>
+<p><code>PERMANENT_ADMIN_USERNAME</code> 配置的永久管理员用户名保留给内部初始化，公开注册不能占用该名称或其大小写变体，避免其他 worker 初始化时误提升普通注册账号。</p>
+<p>注册发信复用管理后台中现有的全局 SMTP 配置及加密授权码，不要把发件凭证写入源码。465 使用隐式 TLS，其他端口要求 STARTTLS 成功，失败时停止发信。未配置返回 <code>503 email_not_configured</code>，不会以开发模式回显验证码。部署时必须保留 SMTP 原有的加密主密钥（<code>INTERVIEW_FORGE_GYM_KEY</code> 或私有 <code>data/gym-secret.key</code>）。</p>
+<p>验证码只保存加盐哈希，默认 10 分钟过期、最多错误 5 次、成功兑换立即失效。发信和兑换限流保存在认证数据库中，由 SQLite 事务原子预留，多 worker 共享；发信失败也会消耗额度。限流返回 <code>429</code>，同时给出 <code>Retry-After</code> 与 JSON <code>retry_after</code>（秒）。发码接口可选接入 Cloudflare Turnstile：同时设置 <code>IF_TURNSTILE_SITE_KEY</code> 与 <code>IF_TURNSTILE_SECRET</code> 后，注册与找回密码的发送接口会要求 <code>captcha</code> 令牌并向 Cloudflare 校验；两项都未设置时保持免人机验证。发放限额按收件域单独计桶，避免单一收件服务消耗全站额度。</p>
+<table>
+<thead>
+<tr>
+<th>限制</th>
+<th>默认值</th>
+<th>环境变量</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>同邮箱重发冷却</td>
+<td>60 秒</td>
+<td><code>IF_REGISTER_EMAIL_COOLDOWN_SECONDS</code></td>
+</tr>
+<tr>
+<td>发信 IP 小时 / 24 小时</td>
+<td>5 / 10</td>
+<td><code>IF_REGISTER_IP_HOURLY_LIMIT</code> / <code>IF_REGISTER_IP_DAILY_LIMIT</code></td>
+</tr>
+<tr>
+<td>发信邮箱小时 / 24 小时</td>
+<td>3 / 5</td>
+<td><code>IF_REGISTER_EMAIL_HOURLY_LIMIT</code> / <code>IF_REGISTER_EMAIL_DAILY_LIMIT</code></td>
+</tr>
+<tr>
+<td>发信收件域小时 / 24 小时</td>
+<td>20 / 60</td>
+<td><code>IF_REGISTER_DOMAIN_HOURLY_LIMIT</code> / <code>IF_REGISTER_DOMAIN_DAILY_LIMIT</code></td>
+</tr>
+<tr>
+<td>发信全站小时 / 24 小时</td>
+<td>100 / 300</td>
+<td><code>IF_REGISTER_GLOBAL_HOURLY_LIMIT</code> / <code>IF_REGISTER_GLOBAL_DAILY_LIMIT</code></td>
+</tr>
+<tr>
+<td>兑换 IP 小时 / 24 小时</td>
+<td>20 / 60</td>
+<td><code>IF_REGISTER_VERIFY_IP_HOURLY_LIMIT</code> / <code>IF_REGISTER_VERIFY_IP_DAILY_LIMIT</code></td>
+</tr>
+<tr>
+<td>兑换全站小时 / 24 小时</td>
+<td>500 / 5000</td>
+<td><code>IF_REGISTER_VERIFY_GLOBAL_HOURLY_LIMIT</code> / <code>IF_REGISTER_VERIFY_GLOBAL_DAILY_LIMIT</code></td>
+</tr>
+<tr>
+<td>验证码有效期</td>
+<td>600 秒</td>
+<td><code>IF_REGISTER_CODE_TTL_SECONDS</code></td>
+</tr>
+<tr>
+<td>单码最大错误次数</td>
+<td>5</td>
+<td><code>IF_REGISTER_CODE_MAX_ATTEMPTS</code></td>
+</tr>
+<tr>
+<td>游客搜索 IP 每分钟 / 24 小时</td>
+<td>30 / 500</td>
+<td><code>IF_SEARCH_RATE_PER_MINUTE</code> / <code>IF_SEARCH_RATE_PER_DAY</code></td>
+</tr>
+<tr>
+<td>游客搜索全站每分钟</td>
+<td>600</td>
+<td><code>IF_SEARCH_GLOBAL_PER_MINUTE</code></td>
+</tr>
+</tbody>
+</table>
+<p>游客搜索限额保存在进程内存中，不写认证数据库：搜索是只读操作，不应与注册、登录和会话写入争用同一 SQLite 写锁。多 worker 部署时每个进程各有一份计数，因此实际上限约为配置值乘以进程数；这份限额只用于保护索引扫描，不承担账号安全职责。</p>
+<p>“每天”额度采用滚动 24 小时窗口。代理 IP 只接受来自可信代理的转发头：现有本机 nginx 属于兼容信任边界；其他代理需在 <code>INTERVIEW_FORGE_TRUSTED_PROXIES</code> 中配置地址或 CIDR，且由代理覆盖 <code>X-Real-IP</code>。应用与 nginx 均禁止公开下载数据库、密钥和点文件；修改 nginx 模板后，需要在实际部署环境执行 <code>nginx -t</code>。</p>
+<p>首次运行会自动增加可空邮箱字段、唯一索引及验证码/额度表，并为既有验证码表补齐用途、账号归属与收件域字段。维护与迁移前按现有策略备份认证库和 SMTP 加密密钥，不要通过删除认证库重置额度或完成升级。旧版 Python <code>StudyHandler</code> 兜底服务只提供读取与已有账号的登录等能力，公开注册和找回密码仅由 FastAPI 应用提供；它不再包含重复的注册分支。</p>
 <h3 id="02-python">0.2 Python 教学内容维护</h3>
 <p>Python 完整教学源独立于 Java 原稿：<code>tools/python_hot100.json</code> 保存 100 题的算法选择、不变量、推导、API 提示、完整代码、复杂度与执行用例；<code>tools/python_hot100_topics.json</code> 保存 17 专题；<code>tools/python_hot100_basics.json</code> 保存基础资料。结构约束见 <code>tools/python_hot100.schema.json</code>，加载与渲染逻辑位于 <code>scripts/build/python_hot100.py</code>。修改 Java 原笔记不会自动产生 Python 译本，新增或变更题目时需同步对应语言的结构化内容。</p>
 <p>Python 修订应先对照原 Java 叙述与 <code>tools/lang_solutions.json</code> 的旧 Python 实现及来源。好的例子、比喻和代码优先保留；只在错误、输入规模风险或讲解不匹配时更换主算法。<code>teaching_markdown</code> 保存代码前的具体推演，<code>explanation_markdown</code> 保存代码后的 API 细节及易错点，不再用固定三条概述替代完整叙述。<code>source</code> 与 <code>source_note</code> 会显示为来源及改写说明；<code>revision_notes</code> 仅供内部审阅，不进入发布正文。代码内部使用普通赋值，保留必要的函数签名注解；力扣提供的节点类由测试夹具注入，不为本地测试在提交代码里重复定义。方法、复杂度、API 元数据与执行用例必须同步匹配实际实现。</p>

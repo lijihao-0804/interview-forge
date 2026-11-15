@@ -605,6 +605,7 @@
         profilePanel = panel;
         panel.innerHTML =
           '<div class="fp-head"><h3>昵称与头像</h3><span class="fp-sub">' + me.username + '</span>' +
+          '<a href="/pages/account.html" style="margin-left:auto;margin-right:6px;font-size:12px;color:#5654d4;text-decoration:none">账号设置</a>' +
           '<button class="fp-close" type="button">✕</button></div>' +
           '<div style="padding:12px 14px 14px">' +
           '<div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">' +
