@@ -1,11 +1,10 @@
 /* Optional Cloudflare Turnstile mount for the anonymous email forms.
  * The backend only enables it when IF_TURNSTILE_SITE_KEY/SECRET are set; the
- * form asks /api/register/config first and renders nothing otherwise. */
+ * only an explicitly disabled config permits sending without a widget. */
 (function (root) {
   "use strict";
 
   var SCRIPT_URL = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
-  var widgetId = null;
 
   function loadScript() {
     return new Promise(function (resolve, reject) {
@@ -30,16 +29,18 @@
   /** Mount Turnstile into `container`; returns a token getter ("" when disabled). */
   function mount(container, config) {
     container.hidden = false;
-    widgetId = null;
+    var widgetId = null;
     var api = {
       enabled: true,
+      blocked: false,
       token: function () { return ""; },
       reset: function () { if (widgetId !== null && root.turnstile) root.turnstile.reset(widgetId); }
     };
-    if (!config || config.provider !== "turnstile" || !config.site_key) {
+    if (config === null) {
       container.hidden = true;
-      return { enabled: false, token: function () { return ""; }, reset: function () {} };
+      return { enabled: false, blocked: false, token: function () { return ""; }, reset: function () {} };
     }
+    if (!config || config.provider !== "turnstile" || !config.site_key) return unavailable(container);
     loadScript().then(function (turnstile) {
       if (!turnstile || typeof turnstile.render !== "function") throw new Error("captcha_unavailable");
       widgetId = turnstile.render(container, {
@@ -55,5 +56,28 @@
     return api;
   }
 
-  root.InterviewForgeCaptcha = Object.freeze({ mount: mount });
+  function unavailable(container) {
+    container.hidden = false;
+    container.textContent = "人机验证暂不可用，验证码发送已暂停。请稍后刷新重试；已有账号仍可登录。";
+    container.setAttribute("role", "status");
+    return { enabled: true, blocked: true, token: function () { return ""; }, reset: function () {} };
+  }
+
+  function load(container) {
+    container.hidden = false;
+    container.textContent = "正在确认验证码发送服务…";
+    return root.fetch("/api/register/config", { cache: "no-store", credentials: "same-origin" })
+      .then(function (response) {
+        if (!response.ok) throw new Error("captcha_config_unavailable");
+        return response.json();
+      }).then(function (payload) {
+        if (!payload || !Object.prototype.hasOwnProperty.call(payload, "captcha")) {
+          throw new Error("captcha_config_invalid");
+        }
+        container.textContent = "";
+        return mount(container, payload.captcha);
+      }).catch(function () { return unavailable(container); });
+  }
+
+  root.InterviewForgeCaptcha = Object.freeze({ mount: mount, load: load });
 }(typeof window !== "undefined" ? window : globalThis));

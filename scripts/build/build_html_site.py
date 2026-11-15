@@ -91,7 +91,7 @@ SHARED_ASSET_VERSIONS = {
     "feedback-widget.js": "4",
     "ai-assistant.js": "10",
     "register-flow.js": "5",
-    "email-captcha.js": "1",
+    "email-captcha.js": "2",
     "practice-reference.js": "7",
     "practice-checker.js": "1",
 }

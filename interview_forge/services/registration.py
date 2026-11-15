@@ -152,6 +152,18 @@ def _digest(namespace: str, value: str) -> str:
     return hashlib.sha256(f"{namespace}:{value}".encode()).hexdigest()
 
 
+def _captcha_settings() -> tuple[str, str]:
+    """A partially configured anti-abuse check must never become optional."""
+    site_key = os.environ.get("IF_TURNSTILE_SITE_KEY", "").strip()
+    secret = os.environ.get("IF_TURNSTILE_SECRET", "").strip()
+    if bool(site_key) != bool(secret):
+        raise RegistrationError(
+            "人机验证暂不可用，验证码发送已暂停，请稍后重试。",
+            503, category="captcha_unavailable",
+        )
+    return site_key, secret
+
+
 def captcha_config() -> dict[str, object] | None:
     """Describe the configured bot check, if any, for the public pages.
 
@@ -159,16 +171,15 @@ def captcha_config() -> dict[str, object] | None:
     without an external service; setting both the site key and secret enables
     an anonymous proof-of-human before any email is sent.
     """
-    site_key = os.environ.get("IF_TURNSTILE_SITE_KEY", "").strip()
-    secret = os.environ.get("IF_TURNSTILE_SECRET", "").strip()
-    if not site_key or not secret:
+    site_key, secret = _captcha_settings()
+    if not secret:
         return None
     return {"provider": "turnstile", "site_key": site_key}
 
 
 def verify_captcha(token: object, ip: str) -> None:
     """Validate an optional Turnstile token before spending SMTP quota."""
-    secret = os.environ.get("IF_TURNSTILE_SECRET", "").strip()
+    _site_key, secret = _captcha_settings()
     if not secret:
         return
     token = str(token or "").strip()

@@ -123,6 +123,34 @@ class AccountSecurityTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "用户名或密码错误"):
             auth_login("nobody@example.com", "password-1")
 
+    def test_email_does_not_bypass_legacy_username_collision(self) -> None:
+        user = create_user("Collision", "password-1", email="collision@example.com")
+        with closing(connect_auth()) as db:
+            db.execute("INSERT INTO users(username,password_hash,created_at) "
+                       "SELECT 'collision',password_hash,created_at FROM users WHERE id=?", (user["id"],))
+        for identifier in ("Collision", "collision", "collision@example.com"):
+            with self.subTest(identifier=identifier), self.assertRaises(ValueError):
+                auth_login(identifier, "password-1")
+
+    def test_existing_account_without_email_can_login_and_bind_before_recovery(self) -> None:
+        user = create_user("LegacyEmptyEmail", "password-1")
+        self.assertIsNone(auth_login("LegacyEmptyEmail", "password-1")["email"])
+        registration.send_password_reset_code("not-bound@example.com", "203.0.113.8")
+        self.assertEqual(self.sent, [])
+        registration.send_email_change_code(user["id"], "bound@example.com", "203.0.113.8")
+        code = self._code_from_last_mail()
+        registration.confirm_email_change(user["id"], "bound@example.com", code, "password-1", "203.0.113.8")
+        self.assertEqual(auth_login("bound@example.com", "password-1")["id"], user["id"])
+
+    def test_partial_captcha_does_not_disable_existing_login_or_guest_pages(self) -> None:
+        create_user("ExistingLogin", "password-1")
+        with patch.dict(os.environ, {"IF_TURNSTILE_SITE_KEY": "", "IF_TURNSTILE_SECRET": "fixture-secret"}), self._client() as client:
+            for path in ("/index.html", "/pages/login.html", "/pages/register.html", "/pages/forgot-password.html"):
+                self.assertEqual(client.get(path).status_code, 200)
+            result = client.post("/api/login", json={"username": "ExistingLogin", "password": "password-1"})
+            self.assertEqual(result.status_code, 201)
+            self.assertEqual(client.get("/api/me").json()["email"], "")
+
     def test_login_endpoint_and_me_expose_email_without_hash(self) -> None:
         create_user("BobUser", "password-1", email="bob@example.com")
         client = self._client()

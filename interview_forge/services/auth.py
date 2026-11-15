@@ -498,12 +498,10 @@ def auth_login(identifier: str, password: str) -> sqlite3.Row:
     identifier = str(identifier or "").strip()
     with closing(connect_auth()) as connection:
         row = connection.execute("SELECT * FROM users WHERE username = ?", (identifier,)).fetchone()
-        matched_by_email = False
         if row is None and "@" in identifier:
             row = connection.execute(
                 "SELECT * FROM users WHERE email = ? COLLATE NOCASE LIMIT 1", (identifier,)
             ).fetchone()
-            matched_by_email = row is not None
         if row is None and identifier and "@" not in identifier:
             # Tolerate only the unambiguous case variant: legacy databases can
             # still contain case-colliding usernames, and those must keep
@@ -516,7 +514,7 @@ def auth_login(identifier: str, password: str) -> sqlite3.Row:
         if row is None:
             verify_password(password, runtime._DUMMY_HASH)
             raise ValueError("用户名或密码错误")
-        if not matched_by_email and _username_case_collision(
+        if _username_case_collision(
             connection, str(row["username"]), exclude_user_id=int(row["id"])
         ):
             verify_password(password, runtime._DUMMY_HASH)

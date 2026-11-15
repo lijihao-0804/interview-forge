@@ -106,7 +106,12 @@ async def login(request: Request):
 @router.get("/api/register/config")
 def register_config():
     """Tell the public registration pages whether a bot check is required."""
-    return json_response({"captcha": captcha_config()})
+    try:
+        return json_response({"captcha": captcha_config()}, headers={"Cache-Control": "no-store"})
+    except Exception as exc:
+        response = _handled(exc)
+        response.headers["Cache-Control"] = "no-store"
+        return response
 
 
 @router.post("/api/register/send-code")

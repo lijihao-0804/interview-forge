@@ -6,7 +6,7 @@
 <meta name="color-scheme" content="light dark">
 <title>注册 · InterviewForge</title>
 <script src="../assets/register-flow.js?v=5"></script>
-<script src="../assets/email-captcha.js?v=1"></script>
+<script src="../assets/email-captcha.js?v=2"></script>
 <style>
   :root { --page-bg:#f4f6fb; --surface:#fff; --text:#182235; --muted:#66748a; --line:#dfe4ee; --brand:#5654d4; --brand-strong:#4543bd; --brand-soft:#eeedff; --error:#b3372f; --success:#13764b; }
   * { box-sizing:border-box; margin:0; }
@@ -91,14 +91,16 @@
     };
   }
   var flow = window.InterviewForgeRegister || fallbackFlow();
-  var captcha = { enabled: false, token: function () { return ""; }, reset: function () {} };
+  var captcha = { enabled: true, blocked: true, token: function () { return ""; }, reset: function () {} };
   var captchaBox = document.getElementById("captcha");
-  if (captchaBox && window.InterviewForgeCaptcha) {
-    fetch("/api/register/config", { cache: "no-store" }).then(function (response) {
-      return response.ok ? response.json() : {};
-    }).then(function (config) {
-      captcha = window.InterviewForgeCaptcha.mount(captchaBox, config && config.captcha);
-    }).catch(function () { captchaBox.hidden = true; });
+  if (captchaBox && window.InterviewForgeCaptcha && window.InterviewForgeCaptcha.load) {
+    window.InterviewForgeCaptcha.load(captchaBox).then(function (state) {
+      captcha = state;
+      paintSendButton();
+    });
+  } else if (captchaBox) {
+    captchaBox.hidden = false;
+    captchaBox.textContent = "验证码发送服务未能加载，请刷新重试；已有账号仍可登录。";
   }
   var form = document.getElementById("form");
   var email = document.getElementById("email");
@@ -107,6 +109,7 @@
   var password = document.getElementById("password");
   var confirm = document.getElementById("confirm");
   var sendButton = document.getElementById("sendCode");
+  sendButton.disabled = true;
   var submit = document.getElementById("submit");
   var message = document.getElementById("msg");
   var emailHint = document.getElementById("emailHint");
@@ -149,7 +152,7 @@
 
   function paintSendButton() {
     var seconds = remainingSeconds();
-    sendButton.disabled = sending || submitting || seconds > 0;
+    sendButton.disabled = captcha.blocked || sending || submitting || seconds > 0;
     sendButton.textContent = sending ? "发送中…" : seconds > 0 ? seconds + " 秒后重试" : "发送验证码";
   }
 
@@ -176,7 +179,7 @@
   }
 
   sendButton.addEventListener("click", async function () {
-    if (sending || submitting || remainingSeconds() > 0) return;
+    if (captcha.blocked || sending || submitting || remainingSeconds() > 0) return;
     var address = email.value.trim();
     if (!flow.isEmail(address)) {
       setEmailHint("请输入有效的邮箱地址。", "error");
