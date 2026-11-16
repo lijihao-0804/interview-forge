@@ -6,7 +6,7 @@
 
 ### InterviewForge 开发手记
 
-报告文件直接位于 `library/development-history/`。超级管理员在书架点击「InterviewForge 开发手记」后进入 `/library/development-history/index.html`，点击篇名才请求对应的 `chapters/*.html`。更新时直接替换这一目录下的页面和样式，无需单独设置环境变量。
+报告文件直接位于 `library/development-history/`。超级管理员在学习书架选择「项目学习笔记」，再点击「InterviewForge 开发手记」后进入 `/library/development-history/index.html`，点击篇名才请求对应的 `chapters/*.html`。更新时直接替换这一目录下的页面和样式，无需单独设置环境变量。
 
 入口位于 `/library/index.html` 学习书架的动态卡片（原管理后台页头入口已移除）。只有服务端确认当前会话属于指定永久管理员（超级管理员）且教学站可用时才返回卡片信息并显示；页面、JSON、源码摘录、图片、脚本的每次直接请求都再次检查身份。普通 `admin` 角色不足以访问。
 

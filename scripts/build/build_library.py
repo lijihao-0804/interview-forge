@@ -1907,7 +1907,7 @@ def private_shelf_entry(body: str) -> str:
     anchor = '<main class="module-grid" id="moduleGrid">'
     return _replace_required(body, anchor,
         '<section id="privateTeachingShelf" class="module-grid" hidden style="display:none;margin-bottom:18px"></section>'
-        '<script src="../assets/private-archive-entry.js?v=5" defer></script>' + anchor,
+        '<script src="../assets/private-archive-entry.js?v=6" defer></script>' + anchor,
         'private shelf mount')
 
 
@@ -2764,6 +2764,13 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
         for name, icon, desc, cat_items, mod_n, ch_n in track_stats
     )
 
+    track_cards += (
+        '<button type="button" class="track-card" id="projectNotesTrack" data-track-filter="项目学习笔记" hidden style="display:none">'
+        '<span class="track-ico" aria-hidden="true">📓</span>'
+        '<span class="track-body"><strong>项目学习笔记</strong><span class="track-desc">项目历程、工程选择与面试追问</span></span>'
+        '<span class="track-go" aria-hidden="true">→</span></button>'
+    )
+
     # 分类胶囊按形态分组渲染：切到某个形态时只显示该形态的分类，减少干扰。
     cat_groups = []
     for name, _, _, cat_items, _, _ in track_stats:
@@ -2786,7 +2793,7 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
     <p class="shelf-result" id="shelfResult" aria-live="polite"></p>
   </div>
 </div>
-<main class="module-grid" id="moduleGrid">{module_cards}</main><section class="fav-entry" aria-label="收藏中心"><a class="fav-entry-card" href="../pages/favorites.html"><span class="fav-entry-ico" aria-hidden="true">⭐</span><span class="fav-entry-body"><strong>我的收藏</strong><span>集中查看你在题目和章节里收藏的内容，可按来源筛选</span></span><span class="fav-entry-count" id="favEntryCount" hidden></span><span class="fav-entry-go" aria-hidden="true">→</span></a></section><section id="chapterHits" class="chapter-hits" aria-label="章节搜索结果" hidden><div class="hits-head"><h2>章节内容匹配</h2><span id="hitsCount" class="hits-count"></span></div><div id="hitsBody" class="hits-body"></div></section></div><script>(function(){{var cards=[].slice.call(document.querySelectorAll("#moduleGrid .module-card"));var trackCards=[].slice.call(document.querySelectorAll("[data-track-filter]"));var catButtons=[].slice.call(document.querySelectorAll("[data-cat-filter]"));var groups=[].slice.call(document.querySelectorAll("[data-track-group]"));var search=document.getElementById("shelfSearch");var result=document.getElementById("shelfResult");var st={{track:"",cat:"",q:""}};function apply(){{var shown=0;cards.forEach(function(c){{var okT=!st.track||c.dataset.track===st.track;var okC=!st.cat||c.dataset.category===st.cat;var okQ=!st.q||(c.dataset.search||"").indexOf(st.q)>=0;var ok=okT&&okC&&okQ;c.hidden=!ok;c.style.display=ok?"":"none";if(ok)shown++;}});trackCards.forEach(function(b){{b.classList.toggle("active",b.dataset.trackFilter===st.track);}});groups.forEach(function(g){{g.hidden=!st.track||!!st.q||g.dataset.trackGroup!==st.track;}});var chipRow=document.getElementById("chipRow");if(chipRow){{chipRow.hidden=!st.track||!!st.q;}}var chipAll=document.getElementById("chipAllCount");if(chipAll&&st.track){{chipAll.textContent=cards.filter(function(c){{return c.dataset.track===st.track;}}).length;}}catButtons.forEach(function(b){{b.classList.toggle("active",(b.dataset.catFilter||"")===st.cat);}});document.dispatchEvent(new Event("shelf-filter-change"));window.__shelfState={{track:st.track,cat:st.cat}};if(result){{var p=[];if(st.track)p.push(st.track);if(st.cat)p.push(st.cat);var scopeLbl=p.length?p.join(" · "):"";result.textContent=shown===0?(st.q?"当前范围没有匹配「"+st.q+"」的课程名"+(scopeLbl?"，"+st.q+" 的章节内容见下方":""):"当前范围没有课程"):(st.q?(scopeLbl?"在「"+scopeLbl+"」内搜索「"+st.q+"」":"全局搜索「"+st.q+"」")+"：匹配 "+shown+" 个课程":(scopeLbl?scopeLbl+"："+shown+" 个模块":"共 "+shown+" 个模块 · 点上方学习形态可按类型收窄"));}}}}trackCards.forEach(function(b){{b.addEventListener("click",function(){{var n=b.dataset.trackFilter;st.track=st.track===n?"":n;if(st.track)st.cat="";apply();}});}});catButtons.forEach(function(b){{b.addEventListener("click",function(){{st.cat=b.dataset.catFilter||"";apply();}});}});if(search){{search.addEventListener("input",function(){{st.q=search.value.trim().toLowerCase();apply();}});search.addEventListener("keydown",function(e){{if(e.key==="Escape"){{search.value="";st.q="";apply();}}}});}}try{{var u=new URLSearchParams(location.search);var t=u.get("track"),c=u.get("cat");if(t)st.track=t;if(c)st.cat=c;}}catch(e){{}}apply();}})();
+<main class="module-grid" id="moduleGrid">{module_cards}</main><section class="fav-entry" aria-label="收藏中心"><a class="fav-entry-card" href="../pages/favorites.html"><span class="fav-entry-ico" aria-hidden="true">⭐</span><span class="fav-entry-body"><strong>我的收藏</strong><span>集中查看你在题目和章节里收藏的内容，可按来源筛选</span></span><span class="fav-entry-count" id="favEntryCount" hidden></span><span class="fav-entry-go" aria-hidden="true">→</span></a></section><section id="chapterHits" class="chapter-hits" aria-label="章节搜索结果" hidden><div class="hits-head"><h2>章节内容匹配</h2><span id="hitsCount" class="hits-count"></span></div><div id="hitsBody" class="hits-body"></div></section></div><script src="../assets/shelf-filters.js?v=1"></script><script>
 (function(){{
   var idx=null, loading=false, timer=null;
   var hits=document.getElementById("chapterHits"), hitsBody=document.getElementById("hitsBody"),
@@ -2851,16 +2858,17 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
       .then(function(d){{idx=d;loading=false;cb();}})
       .catch(function(){{loading=false;if(hitsCount)hitsCount.textContent="索引加载失败，请稍后重试";}});
   }}
-  box.addEventListener("input",function(){{
-    var q=box.value.trim().toLowerCase();
-    clearTimeout(timer);
-    if(!q){{if(hits)hits.hidden=true;return;}}
-    timer=setTimeout(function(){{ensure(function(){{render(q);}});}},220);
-  }});
-  // 形态/分类切换后，若有关键词就按新范围重算
+  // 项目笔记在当前分类内按书名和简介搜索。
   document.addEventListener("shelf-filter-change",function(){{
+    clearTimeout(timer);
     var q=box.value.trim().toLowerCase();
-    if(q&&idx)render(q);
+    var notes=document.getElementById("projectNotesTrack");
+    if(!q||window.__shelfState.track===notes.dataset.trackFilter){{
+      hits.hidden=true;return;
+    }}
+    timer=setTimeout(function(){{ensure(function(){{
+      render(box.value.trim().toLowerCase());
+    }});}},220);
   }});
 }})();</script><script>function fetchWithTimeout(input,options,timeout=12000){{const controller=new AbortController();const request=Object.assign({{}},options||{{}},{{signal:controller.signal}});const timer=setTimeout(()=>controller.abort(),timeout);return fetch(input,request).finally(()=>clearTimeout(timer));}}fetch('/api/library',{{cache:'no-store'}}).then(r=>r.ok?r.json():Promise.reject()).then(data=>document.querySelectorAll('[data-module-progress]').forEach(bar=>{{const info=data.modules[bar.dataset.moduleProgress]||{{completed:0,total:1}};const pct=Math.round(info.completed/info.total*100);bar.style.width=`${{pct}}%`;const pctEl=document.querySelector(`[data-module-pct="${{bar.dataset.moduleProgress}}"]`);if(pctEl)pctEl.textContent=pct+'%'}})).catch(()=>{{}});fetch('/api/favorites',{{cache:'no-store'}}).then(function(r){{return r.ok?r.json():Promise.reject()}}).then(function(d){{var n=(d.stats&&d.stats.__total__)||0;var el=document.getElementById('favEntryCount');if(el&&n){{el.textContent=n+' 条';el.hidden=false;}}}}).catch(function(){{}});fetch('/api/daily',{{cache:'no-store'}}).then(r=>r.ok?r.json():Promise.reject()).then(daily=>{{const summary=daily.summary||{{}};const total=summary.contents||0,overdue=summary.overdue_contents||0;const el=document.getElementById('shelfDueSummary');if(el){{el.innerHTML=total?`<span><strong>全书架待复习 ${{total}} 章</strong>${{overdue?`（逾期 ${{overdue}}）`:''}}，完成一轮后自动推进下次复习</span><a class="shelf-due-go" href="#moduleGrid">去各模块复习 →</a>`:`<span>今日全书架没有到期章节，可以继续学习新内容。</span>`}}document.querySelectorAll('[data-module-due]').forEach(badge=>{{const info=(summary.modules||{{}})[badge.dataset.moduleDue];if(info&&info.due){{badge.hidden=false;badge.textContent=`待复习 ${{info.due}}`;badge.classList.toggle('overdue',(info.overdue||0)>0)}}}})}}).catch(()=>{{}});</script>'''
 

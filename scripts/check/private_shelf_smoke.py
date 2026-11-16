@@ -45,10 +45,14 @@ def run(output):
                 token[0] = identity
                 page.goto('http://localhost/library/index.html')
                 host = page.locator('#privateTeachingShelf')
+                track = page.locator('#projectNotesTrack')
+                expect(host).to_be_hidden()
                 if identity == 'owner-token':
+                    track.click()
                     expect(host).to_be_visible()
                     expect(host.locator('h2')).to_have_text('AgentHub 教学档案')
                 else:
+                    expect(track).to_be_hidden()
                     expect(host).to_be_empty()
                     expect(host).to_be_hidden()
                 assert page.locator('#moduleGrid .module-card').count() > 20
@@ -69,7 +73,7 @@ def run(output):
                     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
                     page.screenshot(path=str(output/f'shelf-{width}-{theme}.png'))
             page.locator('#shelfSearch').fill('NO_MATCH_FIXTURE')
-            expect(host).to_be_visible()
+            expect(host).to_be_hidden()
             assert page.locator('#moduleGrid .module-card').count() == public_count
             page.locator('#shelfSearch').fill('')
             unavailable[0] = True
@@ -81,6 +85,7 @@ def run(output):
                 page.wait_for_timeout(150)
                 expect(host).to_be_empty()
             page.evaluate('dispatchEvent(new Event("focus"))')
+            track.click()
             expect(host).to_be_visible()
             token[0] = 'admin-token'
             page.evaluate('document.dispatchEvent(new CustomEvent("interviewforge:auth-change",{detail:{status:"checking"}}))')
@@ -89,6 +94,7 @@ def run(output):
             page.wait_for_timeout(150); expect(host).to_be_empty()
             token[0] = 'owner-token'
             page.evaluate('dispatchEvent(new PageTransitionEvent("pageshow",{persisted:true}))')
+            track.click()
             expect(host).to_be_visible()
             page.evaluate('dispatchEvent(new PageTransitionEvent("pagehide",{persisted:true}))')
             expect(host).to_be_empty()
@@ -97,6 +103,7 @@ def run(output):
             page.wait_for_timeout(150); expect(host).to_be_empty()
             token[0] = 'owner-token'
             page.evaluate('dispatchEvent(new Event("focus"))')
+            track.click()
             expect(host).to_be_visible()
             with fixture.connect() as db:
                 db.execute("UPDATE users SET role='user' WHERE username='owner'")

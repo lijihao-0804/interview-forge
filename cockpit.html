@@ -57,8 +57,6 @@ transition:background-color .25s var(--ease-in-out),color .25s var(--ease-in-out
 .clock{display:flex;align-items:baseline;gap:5px;font-variant-numeric:tabular-nums;color:var(--text)}
 .clock-main{font-size:clamp(33px,3.6vw,54px);font-weight:420;line-height:1.05;letter-spacing:-.035em}
 .clock-seconds{min-width:2ch;font-size:13px;font-weight:550;line-height:1;color:var(--brand-strong)}
-.clock-seconds.tick{animation:second-tick .2s var(--ease-out)}
-@keyframes second-tick{0%{opacity:.58;transform:translateY(1px)}55%{opacity:1;transform:none}100%{opacity:.72;transform:none}}
 .g-day{margin-top:5px;color:var(--muted);font-size:13px}
 .greet{margin-top:9px;color:var(--muted);font-size:14px}
 .g-hello{font-weight:640}.g-hello::after{content:"，"}
@@ -483,22 +481,21 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
       }).catch(function () {});
     });
   }
-  /* ---- 时钟：rAF 对齐秒边界 ---- */
+  /* ---- 时钟按整秒更新 ---- */
   var clockEl = document.getElementById("clock");
   var clockMainEl = document.getElementById("clock-main");
   var clockSecondsEl = document.getElementById("clock-seconds");
+  var clockDayEl = document.getElementById("gday");
   var DAY_CN = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
   function pad(n) { return (n < 10 ? "0" : "") + n; }
   function tick() {
     var now = InterviewForgeTime.nowParts();
-    clockMainEl.textContent = pad(now.hour) + ":" + pad(now.minute);
+    var time = pad(now.hour) + ":" + pad(now.minute);
+    var day = now.month + "月" + now.day + "日 · " + DAY_CN[now.weekday];
+    if (clockMainEl.textContent !== time) clockMainEl.textContent = time;
+    if (clockDayEl.textContent !== day) clockDayEl.textContent = day;
     clockSecondsEl.textContent = pad(now.second);
-    clockSecondsEl.classList.remove("tick");
-    void clockSecondsEl.offsetWidth;
-    clockSecondsEl.classList.add("tick");
     clockEl.setAttribute("aria-label", "当前时间 " + pad(now.hour) + "点" + pad(now.minute) + "分" + pad(now.second) + "秒");
-    document.getElementById("gday").textContent =
-      now.month + "月" + now.day + "日 · " + DAY_CN[now.weekday];
     setTimeout(tick, 1000 - (Date.now() % 1000) + 20);
   }
   function greet(d) {
