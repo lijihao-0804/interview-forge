@@ -312,6 +312,48 @@ class LeetCodeHTTPReliabilityTests(unittest.TestCase):
         self.assertEqual(card["scheduled_days"], 4)
         self.assertEqual([(row["rating_name"], row["source"]) for row in logs], [("good", "leetcode_ac")])
 
+    def test_sync_counts_updated_problems_once_when_replaying_ac_history(self):
+        history = []
+        recent = []
+        for pid, days in [(20, 4), (84, 3), (155, 3), (394, 4), (739, 4)]:
+            title = leetcode.server_runtime.PROBLEM_BY_ID[pid]["title"]
+            for day in range(days + 1):
+                submission = {
+                    "id": pid * 100 + day, "title": title, "status_display": "Accepted",
+                    "timestamp": str(1780000000 + 86400 * day), "lang": "python3",
+                    "is_pending": "Not Pending",
+                }
+                if day < days:
+                    history.append(submission)
+                else:
+                    recent.append(submission)
+        recent.append({**recent[0], "id": 100001, "status_display": "Wrong Answer"})
+        page = history.copy()
+
+        def fake_fetch(url, headers, *args, **kwargs):
+            if "problems/all" in url:
+                return {"user_name": "alice", "stat_status_pairs": []}
+            return {"submissions_dump": page, "has_next": False}
+
+        with tempfile.TemporaryDirectory() as directory, patch.dict(
+            leetcode.server_runtime._values, {"_fetch_json_with_retry": fake_fetch},
+        ):
+            db_path = Path(directory) / "learning.db"
+            credentials = {"leetcode_session": "test"}
+            leetcode.leetcode_sync(credentials, db_path=db_path)
+            page.extend(recent)
+            result = leetcode.leetcode_sync(credentials, db_path=db_path)
+            self.assertEqual(result["submissions_added"], 6)
+            self.assertEqual(result["reviews_advanced"], 23)
+            self.assertEqual(result["review_problems_updated"], 5)
+            repeat = leetcode.leetcode_sync(credentials, db_path=db_path)
+            self.assertEqual(repeat["review_problems_updated"], 0)
+            page.append({**recent[0], "id": 100002,
+                         "timestamp": str(int(recent[0]["timestamp"]) + 60)})
+            same_day = leetcode.leetcode_sync(credentials, db_path=db_path)
+            self.assertEqual(same_day["submissions_added"], 1)
+            self.assertEqual(same_day["review_problems_updated"], 0)
+
     def test_full_sync_continuation_does_not_replay_historical_ac_reviews(self):
         with tempfile.TemporaryDirectory() as directory:
             db_path = Path(directory) / "learning.db"
@@ -337,6 +379,7 @@ class LeetCodeHTTPReliabilityTests(unittest.TestCase):
 
         self.assertEqual(result["submissions_added"], 1)
         self.assertEqual(result["reviews_advanced"], 0)
+        self.assertEqual(result["review_problems_updated"], 0)
         self.assertEqual(log_count, 0)
 
 

@@ -134,6 +134,8 @@ def _record_sync_action_background_result(
             background["submissions_added"] = int(result.get("submissions_added") or 0)
             background["solved_added"] = int(result.get("solved_added") or 0)
             background["reviews_advanced"] = int(result.get("reviews_advanced") or 0)
+            if "review_problems_updated" in result:
+                background["review_problems_updated"] = int(result["review_problems_updated"])
         ActionRequestStore().update_background_result(
             user_db=db_path,
             action_id=action_id,
@@ -737,13 +739,12 @@ def leetcode_sync(
                     "WHERE status = 'ac' AND lc_id IS NOT NULL"
                 ).fetchall()
             }
-        reviews_advanced = (
-            advance_review_cards_from_leetcode_ac(
-                connection, review_candidate_pids, float(review_desired_retention)
-            )
-            if review_candidate_pids else 0
+        updated_problem_ids: set[int] = set()
+        results["reviews_advanced"] = advance_review_cards_from_leetcode_ac(
+            connection, review_candidate_pids, float(review_desired_retention),
+            updated_problem_ids=updated_problem_ids,
         )
-        results["reviews_advanced"] = reviews_advanced
+        results["review_problems_updated"] = len(updated_problem_ids)
         connection.commit()
         if progress is not None:
             progress("提交记录已写入本地数据库")

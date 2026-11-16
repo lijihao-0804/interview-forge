@@ -334,11 +334,14 @@ def advance_review_cards_from_leetcode_ac(
     connection: sqlite3.Connection,
     problem_ids: set[int] | list[int] | tuple[int, ...],
     desired_retention: float,
+    *,
+    updated_problem_ids: set[int] | None = None,
 ) -> int:
     """按每道题的全部真实 Accepted 提交（不同日期）逐次推进复习卡。
 
     每次 AC 视为一次「Good」复习（同一自然日多条 AC 只算一次），
     这样历史多次 AC 的题能累积 reps / stability，due_date 才会正确推后。
+    返回写入的复习日志条数；调用方可同时收集实际推进过的题号。
     """
     business_tz = server_runtime.BUSINESS_TZ
     advanced = 0
@@ -407,6 +410,8 @@ def advance_review_cards_from_leetcode_ac(
             ).fetchone()
             if not review_state["already_reviewed_today"]:
                 advanced += 1
+                if updated_problem_ids is not None:
+                    updated_problem_ids.add(problem_id)
     return advanced
 
 
