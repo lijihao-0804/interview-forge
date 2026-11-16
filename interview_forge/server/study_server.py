@@ -919,7 +919,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
         # /api/admin/feedback：Bug 反馈清单（管理员）；?status=open/resolved 过滤。
         if parsed.path == "/api/admin/feedback":
             params = {key: values[0] for key, values in parse_qs(parsed.query).items()}
-            self.send_json({"items": list_feedback(params.get("status", ""))})
+            self.send_json({"items": list_feedback(params.get("status", ""), viewer=user)})
             return
         # /api/daily：今日待复习 —— 到期日 <= 今天 的题目与章节；?module= 指定只筛某模块的章节。
         if parsed.path == "/api/daily":

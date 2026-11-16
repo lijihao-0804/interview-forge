@@ -312,7 +312,7 @@
         submitFeedback({
           content: content,
           contact: draft.contact,
-          page: root.location.pathname + root.location.search
+          page: currentPage()
         }, "提交反馈").then(function (result) {
           if (result.ok) {
             clearDraft();

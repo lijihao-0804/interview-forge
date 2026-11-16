@@ -49,7 +49,7 @@ def feedback_list(request: Request):
     if denied is not None:
         return denied
     try:
-        return json_response({"items": list_feedback(request.query_params.get("status", ""))})
+        return json_response({"items": list_feedback(request.query_params.get("status", ""), viewer=user)})
     except BaseException as exc:
         return _handled(exc)
 

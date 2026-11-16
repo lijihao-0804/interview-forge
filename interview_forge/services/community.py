@@ -4,11 +4,17 @@ from interview_forge.core.runtime import server_runtime
 
 import base64
 import binascii
+import html
 import json
+import re
 import threading
 import time
 from contextlib import closing
 from pathlib import Path
+
+from interview_forge.core.paths import ROOT
+from interview_forge.core.roles import effective_role
+from interview_forge.core.web_access import canonical_url_path, is_sensitive_path, target_relative_path
 
 
 _FEEDBACK_ATTEMPTS: dict[str, list[float]] = {}
@@ -55,7 +61,33 @@ def submit_feedback(content: str, contact: str, page: str, user_agent: str, user
     return {"id": cursor.lastrowid, "submitted": True}
 
 
-def list_feedback(status: str = "") -> list[dict[str, object]]:
+def _feedback_page_title(path: str, *, private_reader: bool) -> str:
+    if private_reader and path == "/api/private-archive/index.html":
+        return "AgentHub 教学档案"
+    if not path.endswith(".html") or path.startswith("/api/"):
+        return ""
+    project_book = private_reader and re.fullmatch(
+        r"/library/(?:development-history/(?:index|chapters/[a-z0-9-]+)|"
+        r"voltedu-study/(?:index|(?:story|claims|interview|notes)/[a-z0-9-]+))\.html", path
+    )
+    if is_sensitive_path(path) and not project_book:
+        return ""
+    if target_relative_path(ROOT, path) != path:
+        return ""
+    try:
+        with (ROOT / path.lstrip("/")).open("rb") as stream:
+            head = stream.read(16384).decode("utf-8", errors="replace")
+    except (OSError, ValueError):
+        return ""
+    title = re.search(r"<title\b[^>]*>(.*?)</title>", head, re.I | re.S)
+    if not title:
+        return ""
+    label = html.unescape(title[1]).split(" · Interview", 1)[0].strip()
+    chapter = re.fullmatch(r"/library/[^/]+/chapter-(\d+)\.html", path)
+    return f"第 {int(chapter[1])} 章 · {label}" if chapter else label
+
+
+def list_feedback(status: str = "", *, viewer=None) -> list[dict[str, object]]:
     runtime = server_runtime
     sql = "SELECT * FROM feedback"
     params: list[object] = []
@@ -64,7 +96,20 @@ def list_feedback(status: str = "") -> list[dict[str, object]]:
         params.append(status)
     sql += " ORDER BY id DESC LIMIT 500"
     with closing(runtime.connect_auth()) as connection:
-        return [dict(row) for row in connection.execute(sql, params)]
+        items = [dict(row) for row in connection.execute(sql, params)]
+    titles = {}
+    private_reader = effective_role(viewer) == "super_admin"
+    for item in items:
+        page = item["page"]
+        path = None
+        if page.startswith("/") and not page.startswith("//") and "\\" not in page:
+            path = canonical_url_path(page.partition("#")[0].partition("?")[0])
+            if path == "/":
+                path = "/cockpit.html"
+        if path and path not in titles:
+            titles[path] = _feedback_page_title(path, private_reader=private_reader)
+        item["page_title"] = titles.get(path, "")
+    return items
 
 
 def resolve_feedback(feedback_id: int, resolved: bool, note: str = "") -> dict[str, object]:

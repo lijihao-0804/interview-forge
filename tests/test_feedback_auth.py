@@ -3,11 +3,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sqlite3
 import threading
 import unittest
 from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
 from unittest.mock import patch
+from urllib.parse import quote
 
 from fastapi.testclient import TestClient
 from starlette.requests import Request
@@ -15,6 +17,22 @@ from starlette.requests import Request
 from interview_forge.api.app import app
 from interview_forge.api.routers.auth import feedback as feedback_route
 from interview_forge.server import study_server
+from interview_forge.services import community
+
+
+def test_feedback_list_resolves_saved_page_titles_and_keeps_original_urls():
+    connection = sqlite3.connect(":memory:")
+    connection.row_factory = sqlite3.Row
+    connection.execute("CREATE TABLE feedback(id INTEGER PRIMARY KEY, page TEXT, status TEXT)")
+    problem = quote("/books/hot100/03-题解/13-堆/0215-数组中的第K个最大元素.html")
+    pages = [problem + "?lang=python#python", "/library/acm-io/chapter-09.html#96",
+             "/cockpit.html", "", "/library/development-history/chapters/origin.html"]
+    connection.executemany("INSERT INTO feedback(page,status) VALUES (?, 'open')", [(p,) for p in pages])
+    with patch.dict(community.server_runtime._values, {"connect_auth": lambda: connection}):
+        rows = community.list_feedback("open")
+    labels = {row["page"]: row["page_title"] for row in rows}
+    assert labels == dict(zip(pages, ["215. 数组中的第K个最大元素", "第 9 章 · Python 输出与多组数据",
+                                      "学习中控台", "", ""]))
 
 USER = {"id": 7, "username": "alice", "nickname": "Alice", "lang": "python", "role": "user"}
 
