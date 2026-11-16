@@ -45,6 +45,8 @@ class PrivateArchiveTests(unittest.TestCase):
         self.stack.enter_context(patch.object(private_archive,'server_runtime',SimpleNamespace(PERMANENT_ADMIN_USERNAME='owner')))
         self.stack.enter_context(patch.dict('os.environ',{'INTERVIEW_FORGE_PRIVATE_ARCHIVE':str(self.archive), 'INTERVIEW_FORGE_PRIVATE_ARCHIVE_DIR':''}))
         self.report = self.root / 'report'
+        self.stack.enter_context(patch.object(private_archive, 'AGENTHUB_DIR', self.root / 'project-agenthub'))
+        self.stack.enter_context(patch.object(private_archive, 'VOLTEDU_DIR', self.root / 'voltedu'))
         self.stack.enter_context(patch.object(private_archive, 'REPORT_DIR', self.report))
         self.client = self.stack.enter_context(TestClient(app))
 
@@ -101,6 +103,26 @@ class PrivateArchiveTests(unittest.TestCase):
         self.assertEqual([e['url'] for e in entries], ['/api/private-archive/index.html', private_archive.REPORT_URL])
         with patch.object(private_archive, '_read_member', side_effect=FileNotFoundError):
             self.assertEqual(self.request('/api/private-archive-status', 'owner-token').json()['entries'], entries[1:])
+
+    def test_project_books_and_recent_history_take_precedence(self):
+        books = ((private_archive.AGENTHUB_DIR, '/api/private-archive/',
+                  ('index.html', 'data/recent-history.json', 'assets/hljs.js')),
+                 (private_archive.VOLTEDU_DIR, '/library/voltedu-study/',
+                  ('index.html', 'story/01-origin.html', 'media/cover.webp', 'assets/reader.css')))
+        for directory, prefix, members in books:
+            for member in members:
+                target = directory / member
+                target.parent.mkdir(exist_ok=True, parents=True)
+                target.write_bytes(b'PROJECT_FIXTURE</body>')
+                for method in ('GET', 'HEAD'):
+                    for token, status in ((None, 401), ('reader-token', 403), ('admin-token', 403), ('owner-token', 200)):
+                        with self.subTest(member=member, method=method, token=token):
+                            result = self.request(prefix+member, token, method)
+                            self.assertEqual(result.status_code, status)
+                            self.assertIn('no-store', result.headers['cache-control'])
+                            self.assertEqual(b'PROJECT_FIXTURE' in result.content, method == 'GET' and status == 200)
+        urls = [entry['url'] for entry in self.request('/api/private-archive-status', 'owner-token').json()['entries']]
+        self.assertEqual(urls, ['/api/private-archive/index.html', private_archive.VOLTEDU_URL])
 
     def test_revocation_and_role_changes_apply_on_next_request(self):
         self.assertEqual(self.request('/api/private-archive/index.html','owner-token').status_code,200)

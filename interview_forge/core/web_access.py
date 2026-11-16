@@ -89,7 +89,9 @@ def policy_key(value: str) -> str | None:
 
 
 def _report_path(key: str) -> bool:
-    return key == "/library/development-history" or key.startswith("/library/development-history/")
+    return key.startswith("/library/") and key.split("/", 3)[2] in {
+        "development-history", "agenthub", "voltedu-study",
+    }
 
 
 def is_public_get(value: str) -> bool:

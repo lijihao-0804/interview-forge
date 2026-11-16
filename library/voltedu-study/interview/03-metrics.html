@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>怎样解释 500 道题的分数，又怎样判一道电路题 · VoltEdu</title><link rel="icon" href="data:,"><link rel="stylesheet" href="../assets/reader.css"></head>
+<body><a class="skip" href="#main">跳到正文</a><header><div class="wrap bar"><a class="wordmark" href="../index.html" aria-label="VoltEdu 首页">VoltEdu</a><nav aria-label="阅读目录"><a href="../story/index.html">项目主线</a><a href="../claims/index.html">主张学习</a><a href="../interview/index.html" aria-current="location">面试追问</a><a href="../notes/index.html">材料与写法</a></nav></div></header>
+<main class="wrap reading" id="main"><article><p class="crumb"><a href="index.html">面试追问</a>　/　白板面</p>
+<h1>怎样解释 500 道题的分数，又怎样判一道电路题</h1><details class="mobiletoc"><summary>本章目录</summary><nav aria-label="本章小节"><a href="#question-12">第 12 问（模拟）简历上的两个百分比，你能从原始分数算回来吗？</a><a href="#question-13">第 13 问（模拟）BLEU-4 和 ROUGE-L 各自奖励什么样的回答？</a><a href="#question-14">第 14 问（模拟）演示里哪道题答对了，哪道题答错了？</a><a href="#question-15">第 15 问（模拟）怎么知道模型会做新题，还是碰上了熟题？</a><a href="#question-16">第 16 问（模拟）7B 微调后跑得更快，学生等第一句话也快了三倍吗？</a></nav></details><div class="prose">
+<p>简历上的 448% 和 231% 是同一组 500 道题上，两种文本相似度指标的相对变化。面试官接着问“那它到底做对了哪道题”，就得回到电路图和模型原话。下面五道模拟题用同一份实验记录回答这两层问题。</p>
+<h2 id="question-12">第 12 问（模拟）简历上的两个百分比，你能从原始分数算回来吗？</h2>
+<p>我先定分母。当时我让未做课程微调的 7B、微调后的 1.5B 和微调后的 7B 回答同样的 500 道题，论文记载的评测批大小为 4。简历用同一 7B 基座做前后对照。</p>
+<div aria-label="数据表，可左右滚动" class="tableframe" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>同组 500 题</th>
+<th style="text-align: right;">7B 微调前</th>
+<th style="text-align: right;">1.5B 微调后</th>
+<th style="text-align: right;">7B 微调后</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BLEU-4</td>
+<td style="text-align: right;">6.08</td>
+<td style="text-align: right;">23.61</td>
+<td style="text-align: right;">33.32</td>
+</tr>
+<tr>
+<td>ROUGE-1</td>
+<td style="text-align: right;">27.22</td>
+<td style="text-align: right;">49.64</td>
+<td style="text-align: right;">58.29</td>
+</tr>
+<tr>
+<td>ROUGE-2</td>
+<td style="text-align: right;">8.44</td>
+<td style="text-align: right;">21.66</td>
+<td style="text-align: right;">31.42</td>
+</tr>
+<tr>
+<td>ROUGE-L</td>
+<td style="text-align: right;">13.41</td>
+<td style="text-align: right;">34.37</td>
+<td style="text-align: right;">44.42</td>
+</tr>
+<tr>
+<td>500 题总时长（秒）</td>
+<td style="text-align: right;">1,351.35</td>
+<td style="text-align: right;">513.89</td>
+<td style="text-align: right;">426.28</td>
+</tr>
+<tr>
+<td>吞吐（题/秒）</td>
+<td style="text-align: right;">0.370</td>
+<td style="text-align: right;">0.973</td>
+<td style="text-align: right;">1.173</td>
+</tr>
+</tbody>
+</table></div>
+<p>BLEU-4 相差 <code>33.32 − 6.08 = 27.24</code> 分，相对提升 <code>27.24 ÷ 6.08 × 100% ≈ 448.03%</code>。ROUGE-L 相差 <code>44.42 − 13.41 = 31.01</code> 分，相对提升 <code>31.01 ÷ 13.41 × 100% ≈ 231.25%</code>。我会把起点和终点一起讲。BLEU-4 的起点只有 6.08，因此终值约为起点的 5.48 倍。</p>
+<p><strong>模拟追问</strong>　那微调后的 1.5B 在这个实验里起什么作用？</p>
+<p>它回答的是部署选型问题。两套训练方案跑完后，1.5B 的 BLEU-4 为 23.61，7B 为 33.32，同批题总时长 7B 也更短，我选了 7B 做本地文字问答。它们的学习率、轮数和批大小各有不同。想估计课程微调给 7B 带来的变化，我看表 3-4 中同一个规格的前后两列。</p>
+<details class="references"><summary>本节材料</summary><ul><li>论文表 3-3、表 3-4，答辩幻灯片第 11、12 页</li><li>论文表 3-2 至表 3-4</li></ul></details>
+<h2 id="question-13">第 13 问（模拟）BLEU-4 和 ROUGE-L 各自奖励什么样的回答？</h2>
+<p>BLEU-4 看生成答案里的连续片段能在参考答案里匹配多少，从一到四阶都算，同一片段的匹配次数受参考答案计数限制，过短还有长度惩罚。ROUGE-L 找能保持先后次序的最长公共子序列，中间可以跳过一些词。归档 LLaMA-Factory 的 <code>ComputeSimilarity</code> 对中文 BLEU 按字符算带平滑的句级分数，对 ROUGE 用 jieba 分词后取 F 值，逐题计分、放大到百分制再求平均。这样的分数会随术语、词序、公式写法和解答长短而变。</p>
+<p><strong>模拟追问</strong>　词一个不少，顺序换了，也能看出差别吗？</p>
+<p>白板教学例先约定四个词单元。参考步骤是 <code>先／短路／再／并联</code>，候选写成 <code>先／并联／再／短路</code>。四个单词都重合，所以 ROUGE-1 的 F 值为 1。最长公共子序列只有两个词，例如“先、再”，精确率和召回率均为 <code>2 ÷ 4</code>，ROUGE-L 的 F 值为 0.5。反过来，把一段正确推导末尾的“7.2 V”写成“7.2 A”，绝大部分文本仍可匹配，单位已经错了。要判这道题，我会另给单位单独判分。</p>
+<details class="references"><summary>本节材料</summary><ul><li>归档框架 <code>metric.py</code> 的 <code>ComputeSimilarity</code></li></ul></details>
+<h2 id="question-14">第 14 问（模拟）演示里哪道题答对了，哪道题答错了？</h2>
+<p>我先看图 4-11 的戴维南题。12 V 理想电源串接 4 Ω 和 6 Ω，待求端口跨在 6 Ω 两端。求开路电压时断开外接负载，原网络内的 6 Ω 仍接着。回路电流 <code>I = 12 ÷ (4 + 6) = 1.2 A</code>，开路电压 <code>U_th = 1.2 × 6 = 7.2 V</code>。理想电压源置零后用短路代替，两只电阻跨在相同两点上，<code>R_th = 4 × 6 ÷ (4 + 6) = 2.4 Ω</code>。本地模型给的两个数都对。</p>
+<p>再看图 4-10。问叠加定理的适用条件，本地回答记得独立电压源置零要短路、独立电流源置零要开路，却写了“不包含受控源”。对线性电路，线性受控源应保留，控制关系继续有效。这里多加的那条限制会让学生把一整类可解的题排除掉。</p>
+<p><strong>模拟追问</strong>　既然能叠加，两个独立源产生的功率也直接相加吗？</p>
+<p>我先把各独立源对电流的贡献按方向相加，再用总电流算功率。白板教学例取 1 Ω 电阻，两项同向电流分别是 1 A、2 A，总功率 <code>P = (1 + 2)² × 1 = 9 W</code>。把各自的功率相加会得 <code>1² + 2² = 5 W</code>，漏了平方展开的交叉项。这个追问能听出答题人是否真理解“线性响应”指什么。</p>
+<details class="references"><summary>本节材料</summary><ul><li>论文图 4-11，答辩幻灯片第 22 页</li><li>论文图 4-10</li></ul></details>
+<h2 id="question-15">第 15 问（模拟）怎么知道模型会做新题，还是碰上了熟题？</h2>
+<p>我会把演示题放回留样里核对。图 3-5 训练预览的第一条就是图 4-10 的叠加定理问题。<code>all.txt</code> 第 16684 行附近的选择题与图 4-11 有相同接线和数值。“在电路分析中，受控源与独立源的主要区别是什么？”这个题干在归档里完整出现过 76 次。论文记了 10% 验证比例和三组模型共用的 500 道评测题。归档缺少划分清单和逐题预测，500 题与训练、验证集各有多少重合仍未知。</p>
+<p><strong>模拟追问</strong>　给你一天重新设计盲测，你会怎样出一道有区分度的题？</p>
+<p>复盘方案里，我会请教师按电路拓扑和题意把等价变式归成题族，整族留出，等训练和调参结束再开题。教学例可以沿用同样的数字，把 6 Ω 明确改成可拆的外接负载，端口留在负载原来的位置。摘掉负载后回路电流为零，4 Ω 上压降为零，开路电压变成 12 V。把电源短路后，从端口只看到 4 Ω。谁仍答 7.2 V、2.4 Ω，谁就漏读了“外接”。正式比较时给基座和微调模型相同的提示与生成预算，逐题存两份回答。计算题核数值、单位和方向，概念题核必要条件，按题型报答对题数和总题数。</p>
+<details class="references"><summary>本节材料</summary><ul><li>论文图 3-5、图 4-10、图 4-11 及表 3-2 至表 3-4，<code>all.txt</code>、<code>training_data_stats.json</code></li></ul></details>
+<h2 id="question-16">第 16 问（模拟）7B 微调后跑得更快，学生等第一句话也快了三倍吗？</h2>
+<p>我当时量到的是整批生成。未调 7B 用 1,351.35 秒，微调后用 426.28 秒。对应吞吐为 <code>500 ÷ 1,351.35 ≈ 0.370</code> 和 <code>500 ÷ 426.28 ≈ 1.173</code> 题/秒，后者约为前者的 3.17 倍。<code>426.28 ÷ 500 ≈ 0.853</code> 秒是把整批耗时摊到一道题的值。学生按下发送到看到第一个字、听见第一句，各有自己的起止时刻。</p>
+<p><strong>模拟追问</strong>　为什么一个 7B 能比另一个 7B 早这么多跑完？</p>
+<p>两次都是 7B，每生成一个 token 都得走基座的前向计算。若微调版通常少写几段、较早发出结束符，整批时间就可能缩短。历史表里保留了总时间和吞吐，逐题生成长度与停止原因缺记录。复测时我会固定硬件、题序、批大小和解码设置，逐题记输出 token 数，分别量首 token 等待和后续每秒生成量。网页另外记用户提交、首字绘制、首音播放三个时刻，就能定位学生的等待发生在哪一步。</p>
+<details class="references"><summary>本节材料</summary><ul><li>论文表 3-3、表 3-4，<code>dashboard.html</code>、<code>llm.py</code></li></ul></details></div>
+<div class="chapterend"><div class="links"><strong>对照阅读</strong><a href="../claims/04-evaluation.html">448% 的分母是什么</a><a href="../notes/03-results.html">评测表与三道原题</a></div>
+<nav class="pager" aria-label="连续阅读"><div><small>上一章</small><a href="../interview/02-data-training.html">数据与训练追问</a></div><div><small>下一章</small><a href="../interview/04-system.html">系统、演示与答辩</a></div></nav></div></article>
+<aside class="contents"><strong>本章目录</strong><nav aria-label="本章小节"><a href="#question-12">第 12 问（模拟）简历上的两个百分比，你能从原始分数算回来吗？</a><a href="#question-13">第 13 问（模拟）BLEU-4 和 ROUGE-L 各自奖励什么样的回答？</a><a href="#question-14">第 14 问（模拟）演示里哪道题答对了，哪道题答错了？</a><a href="#question-15">第 15 问（模拟）怎么知道模型会做新题，还是碰上了熟题？</a><a href="#question-16">第 16 问（模拟）7B 微调后跑得更快，学生等第一句话也快了三倍吗？</a></nav></aside></main>
+<footer><div class="wrap"><span>李吉豪　山东大学通信工程本科毕业设计</span><a href="../notes/04-voice.html">叙事风格</a></div></footer></body></html>

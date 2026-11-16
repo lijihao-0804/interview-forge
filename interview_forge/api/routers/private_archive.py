@@ -1,9 +1,4 @@
-"""Serve an operator-supplied archive outside the public repository.
-
-Every resource (including JSON, media and JavaScript) rechecks the real session.
-Directory mode serves a separately installed site tree; ZIP mode is legacy only.
-Neither mode indexes, copies to web roots or caches content publicly.
-"""
+"""Serve the project teaching sites and older AgentHub installations to super admins."""
 from __future__ import annotations
 
 import os
@@ -54,7 +49,23 @@ def _archive_path() -> Path | None:
     return path
 
 
+AGENTHUB_DIR = ROOT / "library" / "agenthub"
+VOLTEDU_DIR = ROOT / "library" / "voltedu-study"
+VOLTEDU_URL = "/library/voltedu-study/index.html"
+
+
+def _project_file(directory: Path, path: str) -> Path:
+    target = directory / path
+    if directory.is_symlink() or not target.is_file() or not target.resolve().is_relative_to(directory.resolve()):
+        raise FileNotFoundError(path)
+    return target
+
+
 def _read_member(path: str) -> bytes:
+    if AGENTHUB_DIR.is_dir():
+        if member_type(path) is None:
+            raise FileNotFoundError(path)
+        return _project_file(AGENTHUB_DIR, path).read_bytes()
     directory = os.environ.get("INTERVIEW_FORGE_PRIVATE_ARCHIVE_DIR", "").strip()
     if directory:
         # An invalid configured directory never silently falls back to an old ZIP.
@@ -79,21 +90,37 @@ REPORT_HEADERS = {**HEADERS, "Vary": "*"}
 
 @router.api_route("/library/development-history/{path:path}", methods=["GET", "HEAD"], include_in_schema=False)
 def report_resource(request: Request, path: str):
+    return _reader_resource(request, REPORT_DIR, path)
+
+
+@router.api_route("/library/voltedu-study/{path:path}", methods=["GET", "HEAD"], include_in_schema=False)
+def voltedu_resource(request: Request, path: str):
+    return _reader_resource(request, VOLTEDU_DIR, path)
+
+
+def _reader_resource(request: Request, directory: Path, path: str):
     denied = _denied(request)
     if denied is not None:
         return denied
     if path == "assets/reader.css":
         media_type = "text/css"
-    elif path == "index.html" or re.fullmatch(r"chapters/[a-z0-9][a-z0-9-]*\.html", path):
+    elif path == "index.html":
         media_type = "text/html"
+    elif directory == REPORT_DIR and re.fullmatch(r"chapters/[a-z0-9][a-z0-9-]*\.html", path):
+        media_type = "text/html"
+    elif directory == VOLTEDU_DIR and re.fullmatch(r"(story|claims|interview|notes)/[a-z0-9][a-z0-9-]*\.html", path):
+        media_type = "text/html"
+    elif directory == VOLTEDU_DIR and re.fullmatch(r"media/[a-z0-9-]+\.webp", path):
+        media_type = "image/webp"
     else:
         return support.error_response("Not Found", 404, headers=REPORT_HEADERS)
-    target = REPORT_DIR / path
-    if not target.is_file() or not target.resolve().is_relative_to(REPORT_DIR.resolve()):
+    try:
+        target = _project_file(directory, path)
+        body = b"" if request.method == "HEAD" else target.read_bytes()
+    except FileNotFoundError:
         return support.error_response("Not Found", 404, headers=REPORT_HEADERS)
-    body = b"" if request.method == "HEAD" else target.read_bytes()
     if media_type == "text/html" and body:
-        body = body.replace(b"</body>", b'<script defer src="/assets/private-archive-shell.js?v=4"></script></body>', 1)
+        body = body.replace(b"</body>", b'<script defer src="/assets/private-archive-shell.js?v=5"></script></body>', 1)
     return Response(content=body, media_type=media_type, headers=REPORT_HEADERS)
 
 
@@ -115,6 +142,10 @@ def archive_status(request: Request):
         report = {"title": "InterviewForge 开发手记", "description": "一道题做完以后 · 项目历程、工程选择与面试追问",
                   "url": REPORT_URL}
         result["entries"] = [result["entry"], report] if available else [report]
+    if (VOLTEDU_DIR / "index.html").is_file():
+        entries = result.setdefault("entries", [result["entry"]] if available else [])
+        entries.append({"title": "VoltEdu 毕设手记", "description": "电路课程辅学、LoRA 微调、评测与面试追问",
+                        "url": VOLTEDU_URL})
     return support.json_response(result, headers=HEADERS)
 
 
@@ -132,7 +163,9 @@ def archive_resource(request: Request, path: str):
         return support.error_response("Not Found", 404, headers=HEADERS)
     except (OSError, ValueError, zipfile.BadZipFile, RuntimeError):
         return support.error_response("私有教学站尚未安装或暂时无法读取，请联系服务器管理员。", 503, headers=HEADERS)
-    if path == "index.html":
+    if path == "index.html" and AGENTHUB_DIR.is_dir():
+        body = body.replace(b"</body>", b'<script defer src="/assets/private-archive-shell.js?v=5"></script></body>', 1)
+    elif path == "index.html":
         # Leave scripts, history templates/data and animation code byte-for-byte intact.
         body = body.replace(b'./assets/hljs.js', b'/assets/vendor/highlight-11.11.1.min.js')
         body = body.replace(b'<script defer src="./assets/app.js">', b'<script defer src="/assets/private-archive-highlight.js"></script><script defer src="./assets/app.js">')

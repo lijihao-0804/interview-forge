@@ -25,6 +25,7 @@ def run(archive: Path, output: Path | None):
     with ExitStack() as stack, zipfile.ZipFile(archive) as package:
         manifest=json.loads(package.read('site/data/manifest.json'))
         stack.enter_context(patch.dict('os.environ',{'INTERVIEW_FORGE_PRIVATE_ARCHIVE':str(archive)}))
+        stack.enter_context(patch.object(private_archive, 'AGENTHUB_DIR', archive.parent / '.unused-bundled-site'))
         stack.enter_context(patch.object(private_archive,'server_runtime',SimpleNamespace(PERMANENT_ADMIN_USERNAME='qa_owner')))
         identity={'id':999999,'username':'qa_owner','role':'admin'}
         stack.enter_context(patch('interview_forge.api.support.current_user',side_effect=lambda request:identity or None))

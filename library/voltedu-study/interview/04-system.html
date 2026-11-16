@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>学生发来一道题，VoltEdu 怎样回答和讲解 · VoltEdu</title><link rel="icon" href="data:,"><link rel="stylesheet" href="../assets/reader.css"></head>
+<body><a class="skip" href="#main">跳到正文</a><header><div class="wrap bar"><a class="wordmark" href="../index.html" aria-label="VoltEdu 首页">VoltEdu</a><nav aria-label="阅读目录"><a href="../story/index.html">项目主线</a><a href="../claims/index.html">主张学习</a><a href="../interview/index.html" aria-current="location">面试追问</a><a href="../notes/index.html">材料与写法</a></nav></div></header>
+<main class="wrap reading" id="main"><article><p class="crumb"><a href="index.html">面试追问</a>　/　项目面</p>
+<h1>学生发来一道题，VoltEdu 怎样回答和讲解</h1><details class="mobiletoc"><summary>本章目录</summary><nav aria-label="本章小节"><a href="#question-17">第 17 问（答辩实问）为什么前一位同学没做前后端，你做了？</a><a href="#question-18">第 18 问（模拟）打字、按住说话、拍电路图，最后都交给了哪一个模型？</a><a href="#question-19">第 19 问（模拟）打开“流式”以后，学生先看到字，还是先听到声音？</a><a href="#question-20">第 20 问（模拟）数字人正在讲题，怎样在同一个会话里换形象？</a><a href="#question-21">第 21 问（模拟）开题时想做测评和学习计划，最后把时间花在了哪里？</a></nav></details><div class="prose">
+<p>答辩时，老师问过为什么一个微调项目还要做前后端。学生有时想停在一行算式上看推导，有时手里只有一张电路图，有时想边听边做题。这三种用法在演示界面里离得很近，后端却要分别处理文字推理、图像解题和语音播报。</p>
+<h2 id="question-17">第 17 问（答辩实问）为什么前一位同学没做前后端，你做了？</h2>
+<p>我当时解释，他的课题是从传感器数据分析人体行为，我的课题要交给学生使用。学生得有地方把题输进去，拿到能读的推导，再决定要不要听数字人讲。为了让微调出来的模型能这样用，我把课程问答接进了网页。答辩演示中，关着数字人也可以做一道文字题。</p>
+<p><strong>模拟追问</strong>　LiveTalking 本来就能聊天，能指出一处你改的代码吗？</p>
+<p>我会把两个版本的 <code>app.py</code> 都翻到 <code>human</code>。上游的聊天分支把回答送给数字人，HTTP 回复里给页面一个 <code>ok</code>。我的交付版会读本地或在线模型的设置，数字人关闭也能生成答案，最后把完整文本放进 <code>response</code> 返回。页面用 Markdown 和 KaTeX 排版，适合学生停在某一步看算式。口型模型、基础打断和 WebRTC 轨道沿用 LiveTalking，我做了课程模型接入、答案显示与朗读的处理，以及会话里的形象切换。</p>
+<details class="references"><summary>本节材料</summary><ul><li>2025 年 5 月 21 日《答辩记录》第二问，论文图 4-10、图 4-11</li><li>LiveTalking 归档与 VoltEdu 交付版的 <code>app.py</code>、<code>dashboard.html</code>、<code>formula.py</code>、<code>lipreal.py</code></li></ul></details>
+<h2 id="question-18">第 18 问（模拟）打字、按住说话、拍电路图，最后都交给了哪一个模型？</h2>
+<p>我在页面上保留了三种入口。</p>
+<div aria-label="数据表，可左右滚动" class="tableframe" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>学生的动作</th>
+<th>问题怎样到达模型</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>打字后发送</td>
+<td>文字进 <code>/human</code>。按用户设置选服务器上的本地课程 7B，或选在线文本接口，答案回到聊天框。这里的“本地”指部署在项目服务器上。</td>
+</tr>
+<tr>
+<td>按住麦克风说话</td>
+<td>支持语音识别的浏览器把中文转写到输入框，随后沿文字问答的同一条路发送。</td>
+</tr>
+<tr>
+<td>上传图题</td>
+<td>页面读出图像的 Base64 数据，发给 <code>/solve_image</code>。后端重新编码为 JPEG，连同中文解题要求交给豆包视觉接口，一次完成读图和作答，返回文字。</td>
+</tr>
+</tbody>
+</table></div>
+<p>4 月 15 日讨论过在服务器再放 OCR 的方案，当时已有文本模型和数字人争用显存。我选择独立视觉接口，把图题做成可用入口。该处理器直接把结果返回页面，文字模型开关和数字人的播报队列都在另一条请求路径上。</p>
+<p><strong>模拟追问</strong>　上传的那道回路题，视觉模型的答案对吗？</p>
+<p>图 4-13 答 <code>−5 A</code>。我会请面试官先看图 4-12 的顶部 4 V 源，左正右负，右支路电流箭头向下。取左右网孔电流 <code>i₁</code>、<code>i₂</code> 都顺时针，所求 <code>I = i₂</code>。左网孔列压降 <code>10i₁ + 2(i₁ − i₂) + 8i₂ − 6 = 0</code>，得到 <code>12i₁ + 6i₂ = 6</code>。右网孔从左向右跨过 4 V 源，压降应记正，方程是 <code>4 + 4i₂ + 2(i₂ − i₁) − 8i₂ = 0</code>，化简得 <code>i₁ + i₂ = 2</code>。联立得 <code>i₁ = −1 A</code>、<code>i₂ = 3 A</code>，实际电流沿箭头向下 3 A。这个错解出自视觉接口。复盘时我会先让它列出极性和参考方向，再核对方程。</p>
+<details class="references"><summary>本节材料</summary><ul><li>论文图 4-2、图 4-5，<code>dashboard.html</code>、<code>app.py</code>、<code>llm.py</code></li><li>4 月 15 日《过程指导记录》、<code>app.py</code> 的 <code>solve_image</code>、<code>llm.py</code> 的 <code>ArkVisionSolver</code></li><li>论文图 4-12、图 4-13，答辩幻灯片第 23 页</li></ul></details>
+<h2 id="question-19">第 19 问（模拟）打开“流式”以后，学生先看到字，还是先听到声音？</h2>
+<p>要看走哪条分支。已连数字人且使用云端流式时，<code>stream_to_voice</code> 逐块收文本，一边拼完整答案，一边攒朗读用的短句。遇到标点且累计片段去掉首尾空白后超过 6 个字符，就交给 TTS。比如带公式标记的分式 <code>\frac{12}{10}</code>，朗读处理会转成“12 除以 10”，屏幕上仍可以排成分式。页面得等 <code>/human</code> 的完整 JSON 回来才开始逐字显示，此时第一句语音可能已经在合成了。学生实际何时听见，还取决于 TTS 和媒体缓冲。</p>
+<p><strong>模拟追问</strong>　换成本地 7B，数字人连着，屏幕有答案却没声音，你先查哪里？</p>
+<p>我先查 <code>app.py</code> 的“本地、流式、已连接”组合。第 393 行等 <code>generate_from_input</code> 一次生成整段，随后有文本可返回。相邻的非流式分支还调用了 <code>markdown_and_formula_to_speech</code> 和 <code>put_msg_txt</code>，把朗读文本放进队列。这个流式分支缺了入队那一步。复盘修法是让两条本地分支共用生成后的朗读处理，再用同一道带分式的题分别开关流式，核对页面文字和第一段声音。</p>
+<details class="references"><summary>本节材料</summary><ul><li><code>llm.py</code> 的 <code>stream_to_voice</code>、<code>formula.py</code>、<code>dashboard.html</code> 的回复渲染逻辑</li><li><code>app.py</code> 第 389 至 407 行、<code>load_lora.py</code> 的 <code>generate_from_input</code></li></ul></details>
+<h2 id="question-20">第 20 问（模拟）数字人正在讲题，怎样在同一个会话里换形象？</h2>
+<p>我把读素材放在停线程之前。<code>change_avatar</code> 先按 <code>sessionid</code> 找到当前数字人，在线程池读好新形象的全身帧、脸部帧和嘴部坐标。Wav2Lip 这条路上，旧形象在读盘期间还可以工作。素材到位后，给旧的推理、渲染线程发退出信号，各最多等 1 秒，清理结果帧、音频特征和输出音频三个内部队列，替换素材再起新线程。浏览器继续用同一 WebRTC 会话。已有的轨道和浏览器缓冲可能还留有旧帧。</p>
+<p><strong>模拟追问</strong>　嘴型帧已经积压了五帧，后台会等多久？</p>
+<p>演示用的视频轨道目标是 25 帧/秒，一帧预算 <code>1 ÷ 25 = 40 ms</code>，配两个 20 ms 的音频块。交付版在视频队列长度达到 5 时让生产侧等 <code>0.04 × 队列长度 × 0.4</code> 秒。队列里恰有 5 帧，就等 80 ms，让发送端先消化一些积压。这个节流办法沿用上游，快照里的系数是 0.8，我的交付版用 0.4。学生的首音延迟要从播放时刻量。</p>
+<details class="references"><summary>本节材料</summary><ul><li><code>app.py</code> 第 203 至 235 行、<code>lipreal.py</code> 的 <code>change_avatar</code>，论文图 4-15、图 4-16</li><li>两个版本的 <code>lipreal.py</code> 渲染循环、<code>webrtc.py</code> 的媒体时间常量、论文第 3.4 节</li></ul></details>
+<h2 id="question-21">第 21 问（模拟）开题时想做测评和学习计划，最后把时间花在了哪里？</h2>
+<p>最初我想从单元小测找到薄弱点，再给学生排学习计划。三月还在补题型，4 月初在解决微调显存，4 月 10 日才把重心转到实时答疑和数字人。我给学习计划写过按章节组织样本的脚本。真正做到答辩演示的是提问、看推导、听讲解和换形象。如果面试时间只够讲一项贡献，我会选课程 LoRA，从一道有接线条件的原题讲到同组 500 题的前后对照。系统部分则演示学生怎样用上这份结果。</p>
+<p><strong>模拟追问</strong>　假设下周让两名学生同时试用，你会先改什么？</p>
+<p>这是复盘方案。我会先处理会话隔离。演示程序默认最大会话数为 1，数字人对象按 <code>sessionid</code> 查找，音色、流式和模型选择却存成进程级变量。直接放开人数，甲切回本地模型时，乙的下一题也可能换了模型。我会把偏好和当前回答编号放到各自会话下，旧回答晚到时先核对编号再播。验收用两个浏览器，分别选不同模型和音色，让甲中途打断，再听乙的声音、看乙的答案是否按自己的设置继续。</p>
+<details class="references"><summary>本节材料</summary><ul><li>《12 月 29 日周报》《3 月 16 日周报》、4 月 4 日和 10 日《过程指导记录》、<code>计划制定.py</code>、答辩幻灯片第 20 至 25 页</li><li><code>app.py</code> 的会话数和 <code>human</code>、<code>global_config.py</code>、<code>ttsreal.py</code></li></ul></details></div>
+<div class="chapterend"><div class="links"><strong>对照阅读</strong><a href="../story/04-defense.html">把模型交给学生</a><a href="../notes/03-results.html#image">评测表与三道原题</a></div>
+<nav class="pager" aria-label="连续阅读"><div><small>上一章</small><a href="../interview/03-metrics.html">评测与电路追问</a></div><div><small>下一章</small><a href="../notes/01-notes.html">按日期翻材料</a></div></nav></div></article>
+<aside class="contents"><strong>本章目录</strong><nav aria-label="本章小节"><a href="#question-17">第 17 问（答辩实问）为什么前一位同学没做前后端，你做了？</a><a href="#question-18">第 18 问（模拟）打字、按住说话、拍电路图，最后都交给了哪一个模型？</a><a href="#question-19">第 19 问（模拟）打开“流式”以后，学生先看到字，还是先听到声音？</a><a href="#question-20">第 20 问（模拟）数字人正在讲题，怎样在同一个会话里换形象？</a><a href="#question-21">第 21 问（模拟）开题时想做测评和学习计划，最后把时间花在了哪里？</a></nav></aside></main>
+<footer><div class="wrap"><span>李吉豪　山东大学通信工程本科毕业设计</span><a href="../notes/04-voice.html">叙事风格</a></div></footer></body></html>

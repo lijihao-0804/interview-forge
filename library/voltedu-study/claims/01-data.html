@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VoltEdu 的电路题库是怎样做出来的 · VoltEdu</title><link rel="icon" href="data:,"><link rel="stylesheet" href="../assets/reader.css"></head>
+<body><a class="skip" href="#main">跳到正文</a><header><div class="wrap bar"><a class="wordmark" href="../index.html" aria-label="VoltEdu 首页">VoltEdu</a><nav aria-label="阅读目录"><a href="../story/index.html">项目主线</a><a href="../claims/index.html" aria-current="location">主张学习</a><a href="../interview/index.html">面试追问</a><a href="../notes/index.html">材料与写法</a></nav></div></header>
+<main class="wrap reading" id="main"><article><p class="crumb"><a href="index.html">主张学习</a>　/　课程数据</p>
+<h1>VoltEdu 的电路题库是怎样做出来的</h1><details class="mobiletoc"><summary>本章目录</summary><nav aria-label="本章小节"><a href="#section-1">面试时可以这样讲</a><a href="#section-2">从 2,371 对概念问答到四类题</a><a href="#section-3">一道 RC 题的三个字段各管什么</a><a href="#section-4">怎样回答“到底有多少题”</a><a href="#section-5">面试追问与参考答案</a><a href="#section-6">原件材料位置</a><a href="#practice">换个条件，再试一次</a></nav></details><div class="prose">
+<p>2025 年 3 月 2 日，用 RAGFlow 问通信工程培养方案里的毕业设计学分，系统找到了原文和 10 学分这个答案，又把结论讲了好几遍。换成电路习题，学生还需要知道电容经哪条支路放电、求电压时量哪两个节点。接下来的工作从找资料转向了给模型准备这样的题目和解答。</p>
+<h2 id="section-1">面试时可以这样讲</h2>
+<blockquote>
+<p>我手里有教材、课件和知识点提纲，缺的是成套的课堂问答。我先按知识点生成概念题，发现冷门概念反复出现，就加了计算、选择和判断题，要求把接线条件写进文字。论文记下了用另一个模型筛题和改格式的流程。最后题库约 6.9 千条，其中有些答案得拿起笔验算，连选项和解析都可能互相打架。</p>
+</blockquote>
+<h2 id="section-2">从 2,371 对概念问答到四类题</h2>
+<p>3 月 9 日的周报记录了第一批 2,371 对问答。目标是每个知识点生成 30 对，提示里也要求减少重复。翻看留样，同一个“受控源和独立源有什么区别”的问法出现了 76 次。有的答案承认独立源可以按指定的时间函数变化，另一些把它写成了恒定值。于是除了补知识点，还增加了需要用条件、列方程的题。3 月 16 日周报已经列出概念、简答与计算、选择、判断四类。</p>
+<p>判断题的做法能从生成脚本 <code>main.py</code> 读出来。程序遍历实际列表中的 56 项，每项发 15 次请求，每次向 <code>deepseek-r1-250120</code> 要两题，要求有判断、有理由，涉及电路图就补上连接描述。8 个工作线程把返回的答案文本追加到 <code>true-false question.txt</code>。按提示算是 <code>56 × 15 = 840</code> 次请求、预期 <code>840 × 2 = 1,680</code> 题，留样恰有 1,680 个题干标记。论文图 3-3 记录了下一步，分批交给另一模型复核，通过的写入新文档，判错的舍去，并校正格式。</p>
+<h2 id="section-3">一道 RC 题的三个字段各管什么</h2>
+<p>留样里有一道换路题。只读 <code>instruction</code>，能看到 12 V 电源、2 kΩ 和 3 kΩ 两只电阻、1,000 μF 电容，以及开关在零时刻从 a 拨到 b。决定用哪只电阻的那句话在 <code>input</code> 里。</p>
+<div aria-label="数据表，可左右滚动" class="tableframe" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>字段</th>
+<th>这道题写了什么</th>
+<th>解题时用在哪里</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>instruction</code></td>
+<td>切换前已达稳态，求切换后的电容电压和第 2 秒的数值</td>
+<td>确定初始状态、所求物理量和时刻</td>
+</tr>
+<tr>
+<td><code>input</code></td>
+<td>a 位由电源经 2 kΩ 给电容充电，b 位由电容经 3 kΩ 放电</td>
+<td>选出切换后的放电电阻</td>
+</tr>
+<tr>
+<td><code>output</code></td>
+<td>初值 12 V，终值 0 V，时间常数 3 s，第 2 秒约 6.16 V</td>
+<td>给监督微调提供参考推导和答案</td>
+</tr>
+</tbody>
+</table></div>
+<p>按原题复算，<code>C = 0.001 F</code>，<code>τ = 3,000 Ω × 0.001 F = 3 s</code>，所以 <code>v(t) = 12e^(−t/3) V</code>（<code>t</code> 以秒计），<code>v(2) ≈ 6.16 V</code>。对汇总留样按块读取，可以识别出 219 个非空的 <code>input</code>。如果因为大多数题的这个字段为空，转换时就整列丢弃，这道题会同时露出两只电阻，却少了决定用哪一只的接线条件。</p>
+<h2 id="section-4">怎样回答“到底有多少题”</h2>
+<p>3 月 16 日周报和论文概述记生成总数 <strong>6,895</strong>，论文正文第 25 页记清洗后 <strong>6,885</strong>，图 3-5 的训练数据预览框显示 <strong>6,884</strong>。下面是对原始 TXT 留样的重新计数。计数单位写在列头，可以照着文件独立复查。</p>
+<div aria-label="数据表，可左右滚动" class="tableframe" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>原始留样</th>
+<th style="text-align: right;">行首题干标记</th>
+<th style="text-align: right;">按独立花括号切出的记录块</th>
+<th style="text-align: right;">逐块通过严格 JSON 解析</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>concept.txt</code>（概念）</td>
+<td style="text-align: right;">2,371</td>
+<td style="text-align: right;">2,371</td>
+<td style="text-align: right;">2,347</td>
+</tr>
+<tr>
+<td><code>multiple-choice question.txt</code>（选择）</td>
+<td style="text-align: right;">1,689</td>
+<td style="text-align: right;">1,677</td>
+<td style="text-align: right;">1,549</td>
+</tr>
+<tr>
+<td><code>question.txt</code>（简答与计算）</td>
+<td style="text-align: right;">1,154</td>
+<td style="text-align: right;">1,154</td>
+<td style="text-align: right;">1,102</td>
+</tr>
+<tr>
+<td><code>true-false question.txt</code>（判断）</td>
+<td style="text-align: right;">1,680</td>
+<td style="text-align: right;">1,673</td>
+<td style="text-align: right;">1,383</td>
+</tr>
+<tr>
+<td><code>all.txt</code>（上述四份的汇总）</td>
+<td style="text-align: right;"><strong>6,894</strong></td>
+<td style="text-align: right;"><strong>6,875</strong></td>
+<td style="text-align: right;"><strong>6,381</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p>汇总里有 19 块各含两道题干，因而题干数比块数多 19。494 块解析失败，其中 468 块先报非法转义。6,381 个语法有效块中，有 6,380 个具备三个字符串字段。把候选块的题干去掉首尾空格、合并连续空白、统一大小写，得到 6,686 种问法。对三个字段作同样处理再一起比，有 6,874 种记录。面试口述用“约 6.9 千条”，追问精确数时指出对应的周报、清洗段落、预览框或中间文本。</p>
+<h2 id="section-5">面试追问与参考答案</h2>
+<p><strong>问一　把三字段都解析成功作为入库条件，会放过什么？</strong></p>
+<p>参考答案　有一道 KCL 选择题，5 A 流入节点，3 A 和 2 A 流出。取第四支流出为正，<code>I₄ = 5 − 3 − 2 = 0 A</code>，该选 A。原答案却选 B，即 4 A 流入，代回后是 9 A 流入、5 A 流出。这个块能通过 JSON 解析。检查电路答案时，我会先解方程，再对照选项字母和解析最后一句。</p>
+<p><strong>问二　格式校验还值得多做哪一步？</strong></p>
+<p>参考答案（复盘建议）　把成功解析的字符串也读一遍。单个反斜杠开头的 <code>\cdot</code> 会触发非法转义，<code>\frac</code> 里的 <code>\f</code> 却会被 JSON 合法解成换页符，分式就坏了。留样中有 44 个语法有效块解码出了换页符。我会把这些块定位到原字段，校正公式，用序列化器重新写出，再看一次公式渲染。</p>
+<p><strong>问三　怎样处理那 76 道重复概念题？</strong></p>
+<p>参考答案（复盘建议）　先按题干归组，逐条核对“独立”这个词的定义，保留能解释时变独立源的答案。给同一问法和同一电路拓扑的变式分配题组编号，再整组切分训练、验证与测试。这样既能追查错标，也能回答某道测试题在训练中出现过几种写法。</p>
+<h2 id="section-6">原件材料位置</h2>
+<ul>
+<li>2025 年 3 月 2 日周报图 9 是培养方案问答。3 月 9 日周报“本周工作内容”记下第一批题和重复现象，3 月 16 日周报图 1 可看到四类文件。课程选题范围见《内容简要.txt》。</li>
+<li>《基于智能体的电类课程资源构建技术研究》正文第 6、24–27 页，图 3-1 至图 3-3 是出题与清洗，图 3-5 是训练预览。《毕业答辩演示》第 7 页和《实习简历》项目三“领域微调”可相互对读。</li>
+<li>数据集相关程序 <code>main.py</code> 第 55–96 行是判断题生成循环。中间汇总 <code>all.txt</code> 第 1,931–1,935 行与第 1,952–1,956 行可对读受控源答案，第 16,820–16,824 行是 KCL 错标，第 29,207–29,211 行是 RC 换路题。复核统计见 <code>training_data_stats.json</code>。</li>
+</ul><section class="exercise" id="practice"><h2>换个条件，再试一次</h2><p>同一个题干出现两次，两个答案各用了不同的推导。怎样分训练集和测试集？</p><details><summary>一点提示</summary><p>先决定你想考学生记住原题，还是想看他解一道新题。</p></details><details><summary>核对解法</summary><p>给两条记录同一个题族 ID，一起放进训练或一起留出。若两种推导都成立，可保留作多种参考解；有冲突的先验算。最后分别报记录数、题干数和题族数。</p></details></section></div>
+<div class="chapterend"><div class="links"><strong>对照阅读</strong><a href="../interview/02-data-training.html#question-4">数据与训练追问</a><a href="../notes/02-training-records.html#counts">对照题库与训练原图</a></div>
+<nav class="pager" aria-label="连续阅读"><div><small>上一章</small><a href="../story/04-defense.html">把模型交给学生</a></div><div><small>下一章</small><a href="../claims/02-lora.html">冻结基座以后，模型怎样学习</a></div></nav></div></article>
+<aside class="contents"><strong>本章目录</strong><nav aria-label="本章小节"><a href="#section-1">面试时可以这样讲</a><a href="#section-2">从 2,371 对概念问答到四类题</a><a href="#section-3">一道 RC 题的三个字段各管什么</a><a href="#section-4">怎样回答“到底有多少题”</a><a href="#section-5">面试追问与参考答案</a><a href="#section-6">原件材料位置</a><a href="#practice">换个条件，再试一次</a></nav></aside></main>
+<footer><div class="wrap"><span>李吉豪　山东大学通信工程本科毕业设计</span><a href="../notes/04-voice.html">叙事风格</a></div></footer></body></html>

@@ -1907,7 +1907,7 @@ def private_shelf_entry(body: str) -> str:
     anchor = '<main class="module-grid" id="moduleGrid">'
     return _replace_required(body, anchor,
         '<section id="privateTeachingShelf" class="module-grid" hidden style="display:none;margin-bottom:18px"></section>'
-        '<script src="../assets/private-archive-entry.js?v=4" defer></script>' + anchor,
+        '<script src="../assets/private-archive-entry.js?v=5" defer></script>' + anchor,
         'private shelf mount')
 
 

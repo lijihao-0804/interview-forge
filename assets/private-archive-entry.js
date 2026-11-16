@@ -55,7 +55,8 @@
       const status = await response.json();
       if (version !== generation) return;
       const entries = Array.isArray(status.entries) ? status.entries : (status.available ? [status.entry] : []);
-      const permitted = new Set(['/api/private-archive/index.html', '/library/development-history/index.html']);
+      const permitted = new Set(['/api/private-archive/index.html', '/library/development-history/index.html',
+        '/library/voltedu-study/index.html']);
       for (const entry of entries) {
         if (!entry || !permitted.delete(entry.url) || typeof entry.title !== 'string' ||
             typeof entry.description !== 'string') continue;

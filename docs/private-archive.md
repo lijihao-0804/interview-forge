@@ -6,13 +6,17 @@
 
 ### InterviewForge 开发手记
 
-报告文件直接位于 `library/development-history/`。超级管理员在书架点击「InterviewForge 开发手记」后进入 `/library/development-history/index.html`，点击篇名才请求对应的 `chapters/*.html`。更新时直接替换这一目录下的页面和样式，无需单独设置环境变量。AgentHub 继续使用其原有目录和入口。
+报告文件直接位于 `library/development-history/`。超级管理员在书架点击「InterviewForge 开发手记」后进入 `/library/development-history/index.html`，点击篇名才请求对应的 `chapters/*.html`。更新时直接替换这一目录下的页面和样式，无需单独设置环境变量。
 
 入口位于 `/library/index.html` 学习书架的动态卡片（原管理后台页头入口已移除）。只有服务端确认当前会话属于指定永久管理员（超级管理员）且教学站可用时才返回卡片信息并显示；页面、JSON、源码摘录、图片、脚本的每次直接请求都再次检查身份。普通 `admin` 角色不足以访问。
 
-## 已有 AgentHub 教学档案的安装方式
+### AgentHub 与 VoltEdu
 
-公开仓库仅保存接入代码、通用样式和 BSD 许可的 highlight.js 11.11.1。用户提供的 ZIP、解压内容及包含正文的截图**不得提交仓库或放入任何公开静态目录**。
+AgentHub 的分片站点保存在 `library/agenthub/`，原书签 `/api/private-archive/index.html` 继续指向最新版。首页、近期进展、章节、历史图和源码分片使用同一身份校验。VoltEdu 的完整阅读站保存在 `library/voltedu-study/`，入口为 `/library/voltedu-study/index.html`。两个站点都直接随项目更新。
+
+## 兼容旧部署的 AgentHub 外部附件安装方式
+
+旧版外部附件的部署步骤如下。项目中存在 `library/agenthub/` 时，服务优先读取项目版本。
 
 在已确认部署流程的服务器上，由操作者完成：
 

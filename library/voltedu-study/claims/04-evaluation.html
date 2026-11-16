@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>简历上的 448% 和 231% 是怎样算出来的 · VoltEdu</title><link rel="icon" href="data:,"><link rel="stylesheet" href="../assets/reader.css"></head>
+<body><a class="skip" href="#main">跳到正文</a><header><div class="wrap bar"><a class="wordmark" href="../index.html" aria-label="VoltEdu 首页">VoltEdu</a><nav aria-label="阅读目录"><a href="../story/index.html">项目主线</a><a href="../claims/index.html" aria-current="location">主张学习</a><a href="../interview/index.html">面试追问</a><a href="../notes/index.html">材料与写法</a></nav></div></header>
+<main class="wrap reading" id="main"><article><p class="crumb"><a href="index.html">主张学习</a>　/　离线评测</p>
+<h1>简历上的 448% 和 231% 是怎样算出来的</h1><details class="mobiletoc"><summary>本章目录</summary><nav aria-label="本章小节"><a href="#section-1">面试时可以这样讲</a><a href="#section-2">两张实验表怎样接起来读</a><a href="#section-3">打分器究竟拿什么作比较</a><a href="#section-4">426.28 秒能回答哪一种速度问题</a><a href="#section-5">面试追问与参考答案</a><a href="#section-6">原件材料位置</a><a href="#practice">换个条件，再试一次</a></nav></details><div class="prose">
+<p>VoltEdu 有两次容易讲混的比较。第一次让两个微调模型答同样的题，决定平台接哪一个。第二次保留 7B 的规模，比较做课程微调前后的回答。简历里 BLEU-4 和 ROUGE-L 的两个百分比都来自第二次，分母是未经课程微调的 7B 在同组题上的分数。</p>
+<h2 id="section-1">面试时可以这样讲</h2>
+<blockquote>
+<p>我在同一组 500 道题上比较了 7B 微调前后的生成结果，论文记录的评测批大小是 4。BLEU-4 从 6.08 到 33.32，增加 27.24 分，相对基线约提升 448%。ROUGE-L 从 13.41 到 44.42，增加 31.01 分，相对提升约 231%。这批回答在措辞和步骤顺序上更接近课程参考答案。问到电路解对了多少题，还需要逐题核算单位、数值和定理条件。</p>
+</blockquote>
+<h2 id="section-2">两张实验表怎样接起来读</h2>
+<p>论文表 3-3 比较微调 1.5B 与微调 7B，两列都已经做过课程训练。表 3-4 加入未做课程微调的 7B，沿用同一批 500 题和评测设置。两表共有的“7B 微调后”一列数值相同。下表以论文展示的精度复算，时间是整批生成并评测的用时。</p>
+<div aria-label="数据表，可左右滚动" class="tableframe" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>指标</th>
+<th style="text-align: right;">7B 基座</th>
+<th style="text-align: right;">1.5B 微调后</th>
+<th style="text-align: right;">7B 微调后</th>
+<th style="text-align: right;">7B 微调前后之差</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BLEU-4</td>
+<td style="text-align: right;">6.08</td>
+<td style="text-align: right;">23.61</td>
+<td style="text-align: right;">33.32</td>
+<td style="text-align: right;">+27.24 分</td>
+</tr>
+<tr>
+<td>ROUGE-1</td>
+<td style="text-align: right;">27.22</td>
+<td style="text-align: right;">49.64</td>
+<td style="text-align: right;">58.29</td>
+<td style="text-align: right;">+31.07 分</td>
+</tr>
+<tr>
+<td>ROUGE-2</td>
+<td style="text-align: right;">8.44</td>
+<td style="text-align: right;">21.66</td>
+<td style="text-align: right;">31.42</td>
+<td style="text-align: right;">+22.98 分</td>
+</tr>
+<tr>
+<td>ROUGE-L</td>
+<td style="text-align: right;">13.41</td>
+<td style="text-align: right;">34.37</td>
+<td style="text-align: right;">44.42</td>
+<td style="text-align: right;">+31.01 分</td>
+</tr>
+<tr>
+<td>500 题总用时</td>
+<td style="text-align: right;">1,351.35 秒</td>
+<td style="text-align: right;">513.89 秒</td>
+<td style="text-align: right;">426.28 秒</td>
+<td style="text-align: right;">−925.07 秒</td>
+</tr>
+<tr>
+<td>样本吞吐（条/秒）</td>
+<td style="text-align: right;">0.370</td>
+<td style="text-align: right;">0.973</td>
+<td style="text-align: right;">1.173</td>
+<td style="text-align: right;">+0.803</td>
+</tr>
+<tr>
+<td>评测步数/秒</td>
+<td style="text-align: right;">0.047</td>
+<td style="text-align: right;">0.123</td>
+<td style="text-align: right;">0.148</td>
+<td style="text-align: right;">+0.101</td>
+</tr>
+</tbody>
+</table></div>
+<p>用 <code>相对增幅 = (终值 − 基线) / 基线 × 100%</code>。BLEU-4 代入 <code>(33.32 − 6.08) / 6.08 ≈ 4.4803</code>，即 <strong>+448.03%</strong>，终值是基线的 <strong>5.48 倍</strong>。ROUGE-L 代入 <code>(44.42 − 13.41) / 13.41 ≈ 2.3125</code>，即 <strong>+231.25%</strong>，终值是 <strong>3.31 倍</strong>。同法算 ROUGE-1 和 ROUGE-2，分别是 +114.14% 和 +272.27%。用 1.5B 微调分数作分母，回答的会是换一套训练方案后的差异。</p>
+<h2 id="section-3">打分器究竟拿什么作比较</h2>
+<p>归档 LLaMA-Factory <code>0.9.3.dev0</code> 的 <code>ComputeSimilarity</code> 先解码预测和参考答案，再逐题评分并求平均。要解释简历的指标，可以在 <code>metric.py</code> 里顺着两条不同的切分方法读。</p>
+<div aria-label="数据表，可左右滚动" class="tableframe" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>指标</th>
+<th>归档实现的做法</th>
+<th>对电路答案意味着什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BLEU-4</td>
+<td>按<strong>字符</strong>取 1 至 4 阶连续片段，计算各阶带截断计数的匹配精确率，结合过短惩罚。调用句级 <code>sentence_bleu</code>，用 <code>method3</code> 平滑</td>
+<td>“先求开路电压”等连续表达越接近参考解，越容易匹配。很短的答复可能受长度惩罚</td>
+</tr>
+<tr>
+<td>ROUGE-1、ROUGE-2</td>
+<td>先用 <code>jieba</code> 分词，再看单词和相邻词对的重合，取兼顾精确率与召回率的 F 值</td>
+<td>多写无关解释或漏掉术语都会改变分数</td>
+</tr>
+<tr>
+<td>ROUGE-L</td>
+<td>对分词结果取最长公共子序列，可以隔词，须保持顺序，再取 F 值</td>
+<td>推导次序相似会得分，数字和单位仍须单独检查</td>
+</tr>
+</tbody>
+</table></div>
+<p>程序把每题分数乘 100，保留四位小数，再对各题取算术平均。BLEU 原论文还介绍了按整段语料累积统计的办法，复现本项目口径时应采用归档代码的句级平均。<a href="https://aclanthology.org/P02-1040/">BLEU 原论文</a> · <a href="https://aclanthology.org/W04-1013/">ROUGE 原论文</a></p>
+<p><strong>教学例。</strong> 为方便手算，预先把参考句切成“电压 / 为 / 7.2 / V”，候选句切成“电压 / 为 / 7.2 / A”。四个词中三个重合，ROUGE-1 的精确率和召回率都是 <code>3/4</code>，F 值也为 0.75，按百分制是 75 分。电压题把 V 写成 A，单位这一项应判错。这个例子使用手工分词，历史表中的数字按当时的生成评测口径报告。</p>
+<h2 id="section-4">426.28 秒能回答哪一种速度问题</h2>
+<p>直接用分母核对，<code>500 / 1,351.35 ≈ 0.370</code> 条/秒，<code>500 / 426.28 ≈ 1.173</code> 条/秒。7B 微调后整批用时缩短 <strong>68.46%</strong>，样本吞吐约为原来的 <strong>3.17 倍</strong>。一题有多少输出 token、何时遇到结束符，都会影响整批耗时。历史材料保留了总时长和吞吐，逐题输出长度与停止原因未归档。</p>
+<p>表内还有一个可用来追问的细节。以 7B 微调后为例，<code>1.173 / 0.148 ≈ 7.93</code> 条/评测步，另外两列也接近 8。正文写批大小 4。一种可能的解释是每个并行进程处理 4 条、两个进程合计约 8 条。实际进程数要从运行日志核定。用户从按下发送到看到第一个字、听见第一句语音，分别涉及生成、排队和 TTS 等环节，需要另外计时。</p>
+<h2 id="section-5">面试追问与参考答案</h2>
+<p><strong>问一　为什么不用 23.61 作 BLEU-4 的基线？</strong></p>
+<p>参考答案　23.61 属于微调后的 1.5B。用它和 33.32 比，差 9.71 分，服务的是当时选用哪套模型的问题。简历讲的是同规模 7B 适配前后，所以分母是 6.08。</p>
+<p><strong>问二　能从这些表里还原 500 道题的正确率吗？</strong></p>
+<p>参考答案　表里统计的是生成文本匹配。这两张表可以复算增幅和吞吐。答对几题要换个算法：取每题输出和独立参考解，对照数值、单位与方向来判，再数答对的题。本次归档保留的是汇总分数。</p>
+<p><strong>问三　怎样区分学会解题和学会参考答案的说法？</strong></p>
+<p>参考答案（复盘建议）　图 3-5 预览的第一题和图 4-10 的叠加定理演示是同一问法。我会把同拓扑换数值、同数值换拓扑和全新题族分开，整组留出，固定模板与解码设置，让裸基座、带明确解题提示的基座、微调 7B 回答同一批题。保留逐题输出，数值题按容差、量纲与方向评分，概念题核对必要条件，再与文本分数对读。能在这些新题上配对比较，才有“哪个模型多解对了几题”的分子和分母。</p>
+<h2 id="section-6">原件材料位置</h2>
+<ul>
+<li>《实习简历》项目三“领域微调”给出 448% 与 231%。《基于智能体的电类课程资源构建技术研究》正文第 31–32 页表 3-3、表 3-4 给出三列原始分数、500 题、批大小和计时字段。</li>
+<li>《毕业答辩演示》第 11 页是两种规模的选型，第 12 页是同一 7B 基座的前后对照。论文正文第 27 页图 3-5 和第 42 页图 4-10 可对照演示题与数据预览。</li>
+<li>框架压缩包 <code>LLaMA-Factory-main.zip</code> 的 SFT 评分文件 <code>metric.py</code>，看 <code>ComputeSimilarity</code> 第 95–134 行。<code>workflow.py</code> 的评测与预测分支给出调用入口。</li>
+</ul><section class="exercise" id="practice"><h2>换个条件，再试一次</h2><p>两道题的参考解答都是 7.2 V。甲逐字照写，末尾改成 7.2 A；乙只写正确的分压算式。你会怎样判？</p><details><summary>一点提示</summary><p>分开看文字重合、量纲和最终数值。</p></details><details><summary>核对解法</summary><p>甲保留了大段相同文字，单位却变成电流，应判解题错误。乙算式和量纲正确，可判对。若任务还考查教学解释，可以另设推导步骤分。要知道谁的 BLEU 更高，还需两段完整文本和分词方式。</p></details></section></div>
+<div class="chapterend"><div class="links"><strong>对照阅读</strong><a href="../interview/03-metrics.html#question-12">评测与电路追问</a><a href="../notes/03-results.html#scores">评测表与三道原题</a></div>
+<nav class="pager" aria-label="连续阅读"><div><small>上一章</small><a href="../claims/03-training.html">如何比较 1.5B 和 7B</a></div><div><small>下一章</small><a href="../claims/05-circuit.html">一个答案究竟对在哪里</a></div></nav></div></article>
+<aside class="contents"><strong>本章目录</strong><nav aria-label="本章小节"><a href="#section-1">面试时可以这样讲</a><a href="#section-2">两张实验表怎样接起来读</a><a href="#section-3">打分器究竟拿什么作比较</a><a href="#section-4">426.28 秒能回答哪一种速度问题</a><a href="#section-5">面试追问与参考答案</a><a href="#section-6">原件材料位置</a><a href="#practice">换个条件，再试一次</a></nav></aside></main>
+<footer><div class="wrap"><span>李吉豪　山东大学通信工程本科毕业设计</span><a href="../notes/04-voice.html">叙事风格</a></div></footer></body></html>

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>冻结了基座，VoltEdu 的 LoRA 怎样从电路答案里学习 · VoltEdu</title><link rel="icon" href="data:,"><link rel="stylesheet" href="../assets/reader.css"></head>
+<body><a class="skip" href="#main">跳到正文</a><header><div class="wrap bar"><a class="wordmark" href="../index.html" aria-label="VoltEdu 首页">VoltEdu</a><nav aria-label="阅读目录"><a href="../story/index.html">项目主线</a><a href="../claims/index.html" aria-current="location">主张学习</a><a href="../interview/index.html">面试追问</a><a href="../notes/index.html">材料与写法</a></nav></div></header>
+<main class="wrap reading" id="main"><article><p class="crumb"><a href="index.html">主张学习</a>　/　低秩适配</p>
+<h1>冻结了基座，VoltEdu 的 LoRA 怎样从电路答案里学习</h1><details class="mobiletoc"><summary>本章目录</summary><nav aria-label="本章小节"><a href="#section-1">面试时可以这样讲</a><a href="#section-2">一道题怎样变成损失</a><a href="#section-3">第一次反向传播为什么先更新 B</a><a href="#section-4">rank、alpha 和目标层分别改变什么</a><a href="#section-5">显存省在哪里，部署时能合并什么</a><a href="#section-6">面试追问与参考答案</a><a href="#section-7">原件材料位置</a><a href="#practice">换个条件，再试一次</a></nav></details><div class="prose">
+<p>2025 年 5 月 21 日答辩，有老师问到两位同学都用了 LoRA，各自训练的模型从哪里来。VoltEdu 的回答可以沿一条具体样本展开。开关接线是输入，电容如何放电是参考答案。监督微调决定模型要预测哪些词，LoRA 决定预测错了以后，哪些权重可以改。</p>
+<h2 id="section-1">面试时可以这样讲</h2>
+<blockquote>
+<p>我用大模型按电路知识点出题，再用整理后的文字问答训练公开的 DeepSeek-R1 蒸馏模型。训练时让模型根据题干、接线条件和参考解里已有的步骤，预测答案的下一个 token。基座权重冻结，误差沿计算图传到插入线性层的两个小矩阵。我的工作是做课程数据、训练和比较两套适配方案，最后把 7B 接进 VoltEdu 的文本问答。</p>
+</blockquote>
+<p>出题脚本调用 <code>deepseek-r1-250120</code>，保存的是回答文本。论文把生成方记为 671B 的 DeepSeek-R1。用于课程训练的是已发布的 <code>DeepSeek-R1-Distill-Qwen-1.5B</code> 和 <code>DeepSeek-R1-Distill-Qwen-7B</code>，其上游分别是 Qwen2.5-Math-1.5B、Qwen2.5-Math-7B。蒸馏权重由 DeepSeek 发布，VoltEdu 用参考答案做监督微调（SFT）。<a href="https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-7B#3-model-downloads">DeepSeek 官方模型卡的基座对照表</a></p>
+<h2 id="section-2">一道题怎样变成损失</h2>
+<p>以原题库的 RC 放电题为例。归档 LLaMA-Factory 的 Alpaca 转换器把 <code>instruction</code> 和非空 <code>input</code> 用换行拼为用户消息，把 <code>output</code> 放入助手消息。模型因此同时看到开关的连接关系和题干。默认 <code>train_on_prompt=False</code> 时，框架把提示正文的标签置为 <code>−100</code>，让交叉熵跳过这些位置。提示仍参与注意力计算。特殊结束标记的监督由对话模板决定。</p>
+<p>训练时，每个回答位置看到的是参考答案给出的上文，推理时则接着自己已生成的词往下写。若 <code>T</code> 是本条样本参加监督的位置，平均损失可写为 <code>L = −Σ[t∈T] ln pθ(y_t | 提示, y_&lt;t) / |T|</code>。白板举例，目标 token 的预测概率从 0.10 升到 0.50，该位置的损失就从 <code>−ln(0.10) ≈ 2.303</code> 降至 <code>−ln(0.50) ≈ 0.693</code>。</p>
+<p>梯度也从这里来。设 <code>z_j</code> 是词 j 在 softmax 前的分数，<code>p_j</code> 是其预测概率。单位置交叉熵对它的导数为 <code>p_j − 1[j 为目标词]</code>。目标词概率为 0.10 时，导数就是 −0.90，沿负梯度更新会推高该词的分数。若样本把电流单位误标成 V，这一步也会推高错标的单位。损失追随参考解，电路量纲还需另外验算。</p>
+<h2 id="section-3">第一次反向传播为什么先更新 B</h2>
+<p>标准 LoRA 的一层可写成 <code>h = W₀x + sB(Ax)</code>，其中 <code>s = α/r</code>。用列向量，原权重 <code>W₀</code> 为 <code>m × n</code>，<code>A</code> 为 <code>r × n</code>，<code>B</code> 为 <code>m × r</code>。先算 <code>Ax</code> 得到 r 个分量，再由 B 把这些分量组合成 m 维增量，故 <code>rank(BA) ≤ r</code>。原论文将 A 随机初始化、B 置零，初始增量恰为零，模型从基座原有的输出起步。<a href="https://arxiv.org/html/2106.09685#S4.SS1">LoRA 原论文第 4.1 节</a></p>
+<p>设上游传来的梯度为 <code>g = ∂L/∂h</code>。忽略 dropout，对一个样本、一层求导，得到 <code>∂L/∂B = s·g(Ax)ᵀ</code>，<code>∂L/∂A = s·(Bᵀg)xᵀ</code>。第一步 B 为零，A 的任务梯度为零。只要 <code>g</code> 和 <code>Ax</code> 都非零，B 就能更新。传向前一层的梯度仍有 <code>W₀ᵀg + sAᵀBᵀg</code>，冻结权重也能让误差通过该层。</p>
+<p><strong>教学例。</strong> 用平方误差和普通梯度下降，手算两次反向传播。取 <code>W₀ = I₂</code>、<code>r = 1</code>、<code>s = 1</code>、<code>A = (1, 0)</code>、<code>B = (0, 0)ᵀ</code>，输入 <code>x = (2, 1)ᵀ</code>，目标 <code>h* = (2, 3)ᵀ</code>，损失为 <code>L = ½‖h − h*‖²</code>。</p>
+<div aria-label="数据表，可左右滚动" class="tableframe" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>时刻</th>
+<th>前向怎么走</th>
+<th>反向或更新得到什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>初次前向</td>
+<td><code>Ax = 2</code>，旁路输出为零，<code>h = (2, 1)ᵀ</code></td>
+<td><code>L = 2</code>，<code>g = (0, −2)ᵀ</code></td>
+</tr>
+<tr>
+<td>第一步反传并更新</td>
+<td><code>∂L/∂B = (0, −4)ᵀ</code>，<code>∂L/∂A = (0, 0)</code></td>
+<td>学习率取 <code>1/8</code>，更新后 <code>B = (0, 0.5)ᵀ</code>，A 保持初值</td>
+</tr>
+<tr>
+<td>再过同一个输入</td>
+<td>旁路输出 <code>(0, 1)ᵀ</code>，新输出 <code>h = (2, 2)ᵀ</code>，<code>L = 0.5</code></td>
+<td><code>g = (0, −1)ᵀ</code>，此时 <code>∂L/∂A = (−1, −0.5)</code>，A 也收到了学习信号</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="section-4">rank、alpha 和目标层分别改变什么</h2>
+<p>教学例中若把一个线性层设成 <code>4,096 × 4,096</code>，原矩阵有 16,777,216 个参数。取 <code>r = 8</code>，A 和 B 合计 <code>r(m+n) = 65,536</code> 个参数，是该矩阵的 0.39%。取 <code>r = 16</code>，可训练参数翻倍为 131,072。若两次都用 <code>α = 16</code>，缩放 <code>α/r</code> 同时由 2 降到 1。想单独考察容量，可以把第二组改成 <code>r = 16, α = 32</code>，保持缩放为 2，再固定层、数据和更新预算。实际增量大小还取决于训练得到的 A、B。</p>
+<p>目标层决定更新落在哪里。给注意力的 Q、V 投影加旁路，可以改变查询和传递的信息。若再覆盖前馈层，就多出一批形状可能不同的矩阵。全模型可训练量要对实际选中的各层累加 <code>r(m+n)</code>。归档框架 <code>0.9.3.dev0</code> 的默认配置是 <code>r = 8</code>、<code>dropout = 0</code>、<code>target = all</code>（由框架查找适用的线性层），未填 alpha 时取 <code>2r</code>。毕设最终参数表记录了学习率、批量等七项，当次的秩、alpha 和插入层没有记下来。</p>
+<h2 id="section-5">显存省在哪里，部署时能合并什么</h2>
+<p>白板估算按名义 70 亿参数、每个权重 2 字节计，单放基座约 <strong>14 GB</strong>。若全量更新，并假设梯度也用 2 字节、Adam 两组矩用 FP32，梯度约另占 14 GB，两组矩合计约 56 GB。LoRA 冻结基座后，这部分基座梯度和优化器状态可以省下，适配器自身仍要存权重、梯度和优化器状态。训练峰值还包括激活、临时张量等，随批量和序列长度变化。这些是逐项估算，项目记录的硬件是双 RTX 4090、每卡 24 GB。</p>
+<p>两组毕设训练记录的是 <strong>LoRA 和 bf16 计算</strong>。若改做 QLoRA，典型变化是以 4 位保存冻结基座，计算时将所需权重反量化，把梯度传给适配器。改量化方式会改变基座的存储和数值误差，需要单独评测。<a href="https://arxiv.org/abs/2305.14314">QLoRA 原论文</a></p>
+<p>推理时，标准线性 LoRA 在关闭 dropout 后可把 <code>W₀ + sBA</code> 合成一份权重，从而省去额外的两次小矩阵乘法。保留独立适配器则便于给同一基座换课程。VoltEdu 的 <code>load_lora.py</code> 实际从一个本地模型目录加载分词器和因果语言模型，GPU 路径用 FP16。代码从这个目录直接读模型，线上一次请求只需用已经装好的权重做推理。</p>
+<h2 id="section-6">面试追问与参考答案</h2>
+<p><strong>问一　若同时把 A、B 都初始化为零，下一步会发生什么？</strong></p>
+<p>参考答案　从两条梯度式可见，<code>Ax = 0</code> 且 <code>Bᵀg = 0</code>，两个矩阵的任务梯度都会为零，普通梯度更新会停在原点。反过来若只把 A 置零、B 随机初始化，初始输出仍等于基座，通常先收到梯度的是 A。</p>
+<p><strong>问二　学习率和 alpha 都能让变化变大，白板上如何区分？</strong></p>
+<p>参考答案　固定 A、B 和 x，把 alpha 加倍，这次前向的旁路输出就加倍。固定参数把学习率加倍，这次前向的数值相同，变化出现在优化器的下一次更新。做秩对照时，我会同时写出 r、alpha 和缩放系数，再说明插入了哪些层。</p>
+<p><strong>问三　把 rank 减半，显存会减半吗？</strong></p>
+<p>参考答案　同一组线性层下，适配器参数量随 r 成正比。冻结基座的存储仍约占上面的 14 GB，大批量长序列还会占用激活显存。要解释一次真实的显存不足，我会先固定序列长度测每设备批量的峰值，再固定批量比较 rank，记录每次实际峰值。</p>
+<p><strong>问四　把同一个课程提示词发给基座，和训练一个适配器有什么区别？</strong></p>
+<p>参考答案　写提示词是给这次回答补充上下文，比如请模型先标端口、再求开路电压。做 SFT 时，许多参考答案的预测误差共同更新 A、B，此后加载适配器就会改变下一词的条件概率。毕设表 3-4 比较了同组题上的 7B 基座与课程微调模型。若想知道一条精心设计的提示能追回多少分，我会再加一组固定强提示的基座，保持题目和解码设置相同。</p>
+<h2 id="section-7">原件材料位置</h2>
+<ul>
+<li>2025 年 5 月 21 日《毕业答辩记录》第一问讨论了课程数据、模型归属和调参。《实习简历》项目三“领域微调”是对应的简要说法。</li>
+<li>《基于智能体的电类课程资源构建技术研究》图 2-6 给出 LoRA 框架，正文第 24–28 页含数据字段、训练预览和表 3-2，图 4-1 给出本地装载流程。<code>all.txt</code> 第 29,207–29,211 行保留 RC 原题。</li>
+<li>框架压缩包 <code>LLaMA-Factory-main.zip</code> 中，<code>env.py</code> 记版本，<code>converter.py</code>、<code>supervised.py</code> 和 <code>data_args.py</code> 分别管字段转换、标签和提示监督开关，<code>finetuning_args.py</code> 和 <code>adapter.py</code> 管适配器参数。服务侧见 <code>load_lora.py</code> 第 25–66 行。</li>
+</ul><section class="exercise" id="practice"><h2>换个条件，再试一次</h2><p>同一层取 r = 8、α = 16。把 r 改成 16，α 保持原值，经典 LoRA 的前向缩放系数怎样变？</p><details><summary>一点提示</summary><p>这里问的是 α/r 这个系数。先把两组数代进去，再想矩阵形状发生了什么变化。</p></details><details><summary>核对解法</summary><p>系数从 2 降到 1。A 的行数、B 的列数均翻倍，能表示的方向更多。训练得到的 BA 也可能变化，所以总输出还要看矩阵学成什么样。这里的 r 和 α 是白板例子。</p></details></section></div>
+<div class="chapterend"><div class="links"><strong>对照阅读</strong><a href="../interview/02-data-training.html#question-7">数据与训练追问</a><a href="../notes/02-training-records.html">对照题库与训练原图</a></div>
+<nav class="pager" aria-label="连续阅读"><div><small>上一章</small><a href="../claims/01-data.html">约 6.9 千条题是怎么来的</a></div><div><small>下一章</small><a href="../claims/03-training.html">如何比较 1.5B 和 7B</a></div></nav></div></article>
+<aside class="contents"><strong>本章目录</strong><nav aria-label="本章小节"><a href="#section-1">面试时可以这样讲</a><a href="#section-2">一道题怎样变成损失</a><a href="#section-3">第一次反向传播为什么先更新 B</a><a href="#section-4">rank、alpha 和目标层分别改变什么</a><a href="#section-5">显存省在哪里，部署时能合并什么</a><a href="#section-6">面试追问与参考答案</a><a href="#section-7">原件材料位置</a><a href="#practice">换个条件，再试一次</a></nav></aside></main>
+<footer><div class="wrap"><span>李吉豪　山东大学通信工程本科毕业设计</span><a href="../notes/04-voice.html">叙事风格</a></div></footer></body></html>

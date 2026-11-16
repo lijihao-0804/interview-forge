@@ -8,8 +8,7 @@
       .forEach(code => code.parentElement.classList.add('mermaid'));
     return enhance(root);
   };
-  const reportPage = location.pathname.startsWith('/library/development-history/');
-  const actions = document.querySelector(reportPage ? '.mast nav' : '.archive-actions');
+  const actions = document.querySelector('.mast nav, .bar nav, .archive-actions');
   if (actions) {
     const back = document.createElement('a');
     back.href = '/library/index.html'; back.className = 'forge-archive-back'; back.textContent = '← 学习书架';

@@ -31,6 +31,7 @@ def run():
         archive.unlink()  # Prove the application actually serves the extracted tree.
         stack.enter_context(patch.dict('os.environ',{'INTERVIEW_FORGE_PRIVATE_ARCHIVE_DIR':str(site),'INTERVIEW_FORGE_PRIVATE_ARCHIVE':''}))
         identity=[{'id':123,'username':'fixture_owner','role':'admin'}]
+        stack.enter_context(patch.object(private_archive, 'AGENTHUB_DIR', root / 'absent-bundled-site'))
         stack.enter_context(patch.object(private_archive,'server_runtime',SimpleNamespace(PERMANENT_ADMIN_USERNAME='fixture_owner')))
         stack.enter_context(patch('interview_forge.api.support.current_user',side_effect=lambda *_:identity[0]))
         client=stack.enter_context(TestClient(app));pw=stack.enter_context(sync_playwright())

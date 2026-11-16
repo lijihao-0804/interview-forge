@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>从一道电路题到一次 LoRA 参数更新 · VoltEdu</title><link rel="icon" href="data:,"><link rel="stylesheet" href="../assets/reader.css"></head>
+<body><a class="skip" href="#main">跳到正文</a><header><div class="wrap bar"><a class="wordmark" href="../index.html" aria-label="VoltEdu 首页">VoltEdu</a><nav aria-label="阅读目录"><a href="../story/index.html">项目主线</a><a href="../claims/index.html">主张学习</a><a href="../interview/index.html" aria-current="location">面试追问</a><a href="../notes/index.html">材料与写法</a></nav></div></header>
+<main class="wrap reading" id="main"><article><p class="crumb"><a href="index.html">面试追问</a>　/　技术面</p>
+<h1>从一道电路题到一次 LoRA 参数更新</h1><details class="mobiletoc"><summary>本章目录</summary><nav aria-label="本章小节"><a href="#question-3">第 3 问（模拟）第一批题是怎么来的，为什么又改了出题方法？</a><a href="#question-4">第 4 问（模拟）你说约 6.9 千条。具体数了什么，能给个精确数字吗？</a><a href="#question-5">第 5 问（模拟）简历上的“二次校验”，具体检查了什么？</a><a href="#question-6">第 6 问（模拟）三个字段怎样变成监督微调的信号？</a><a href="#question-7">第 7 问（模拟）你说“做了 LoRA”，前向和反向到底改了什么？</a><a href="#question-8">第 8 问（模拟）已经冻结基座，为什么移动版 3060 试训还会缺显存？</a><a href="#question-9">第 9 问（模拟）两组训练具体调了什么，为什么 7B 只放一条？</a><a href="#question-10">第 10 问（模拟）你怎样读损失曲线，什么时候会停下来查数据？</a><a href="#question-11">第 11 问（模拟）训练结束后，网页怎样调用这个本地模型？</a></nav></details><div class="prose">
+<p>题库里有一道节点电流题，解析算出了 0 A，末尾却坚持选 4 A。这对做微调的人很要紧。把这样的解答交给训练程序，模型会认真学习那个错选项。这一章的九道模拟题从出题脚本问起，一直追到损失怎么算、哪些权重在变，以及训练结果怎样进网页。</p>
+<h2 id="question-3">第 3 问（模拟）第一批题是怎么来的，为什么又改了出题方法？</h2>
+<p>我从教材和课件里列出电路知识点，让大模型按主题出题并作答。《3 月 9 日周报》记了第一批 2,371 条问答。翻看后发现，冷门概念容易反复问同一个定义，学生真要计算时，却缺少元件值和接线条件。下一轮我加了选择题、判断题和带具体电路描述的简答、计算题。遇到“如图所示”，就要求把图上的连接关系写到文字里。</p>
+<p><strong>模拟追问</strong>　拿判断题说，这个脚本一轮计划发多少次请求，留下了多少题？</p>
+<p>我会打开判断题的 <code>main.py</code>。实际主题列表有 56 项，每项发 15 次请求，每次要两题，用 8 个工作线程。模型标识是 <code>deepseek-r1-250120</code>，我给它电路专家的角色，要求在答案里给出判断和解析。脚本把返回的文本追加到文件里。按设置算是 <code>56 × 15 = 840</code> 次请求，目标 <code>840 × 2 = 1,680</code> 题。留存的 <code>true-false question.txt</code> 正好有 1,680 个题干字段。</p>
+<details class="references"><summary>本节材料</summary><ul><li>《3 月 9 日周报》《3 月 16 日周报》、论文第 3.2.1 节</li><li>数据生成脚本 <code>main.py</code> 第 55 至 96 行、<code>true-false question.txt</code></li></ul></details>
+<h2 id="question-4">第 4 问（模拟）你说约 6.9 千条。具体数了什么，能给个精确数字吗？</h2>
+<p>我会先问对方要看哪一步。生成规模在周报和论文概述里是 6,895 条。论文清洗小节写的是 6,885 条，训练界面图 3-5 左上角“数量”显示 6,884。三个数对应三个记录位置。归档保留了中间文本和预览，最后一次送训的逐题清单缺失，所以我在简历介绍里报约数。</p>
+<p><strong>模拟追问</strong>　把留存的汇总文件交给你，怎样复核这个约数？</p>
+<p>我先数 <code>instruction</code> 字段。四个分文件按概念、选择、简答与计算、判断的顺序分别有 2,371、1,689、1,154、1,680 个，加起来是 6,894，和汇总文件 <code>all.txt</code> 的题干行数一致。再把汇总文件按独占一行的花括号切块，有 19 块各挤了两道题，切出来共 6,875 块。其中 6,381 块逐块通过严格 JSON 解析，6,380 块的三个字段又都齐全且为字符串。这几个数回答的是今天怎样读这份中间文件。</p>
+<details class="references"><summary>本节材料</summary><ul><li>《3 月 16 日周报》、论文正文第 6 页、第 25 页及图 3-5</li><li><code>concept.txt</code>、<code>multiple-choice question.txt</code>、<code>question.txt</code>、<code>true-false question.txt</code>、<code>all.txt</code> 及留样统计 <code>training_data_stats.json</code></li></ul></details>
+<h2 id="question-5">第 5 问（模拟）简历上的“二次校验”，具体检查了什么？</h2>
+<p>我先用一个模型生成题和答案，再把它们分批交给另一个模型判断。论文图 3-3 画出了去向，判断正确的写入新文档，错误的丢弃，正文还写了格式校正。另有一个 <code>数据集处理.py</code>，它逐行尝试解析 JSON，遇到第一个语法错误就报告。前者评题，后者查格式。复核模型的具体型号和每道题的判定记录是归档里的缺项。</p>
+<p><strong>模拟追问</strong>　能找出一条语法完全合法、却会教错学生的留样吗？</p>
+<p>有。<code>all.txt</code> 中一道选择题给了 5 A 流入，3 A 和 2 A 流出，问第四支路电流。我取流出为正，按基尔霍夫电流定律（KCL）算 <code>I₄ = 5 − 3 − 2 = 0 A</code>，应选 A。原解析中途也算到了零，末尾却选 B，即“4 A 流入”。把 B 代回去，流入 9 A、流出 5 A。这题在中间留样里，最终送训版本缺逐题记录。复盘时我会同时核对选项字母、数值和代回方程的结果，再把冲突题交给课程教师复核。</p>
+<details class="references"><summary>本节材料</summary><ul><li>论文图 3-3、答辩幻灯片第 7 页、<code>数据集处理.py</code></li><li><code>all.txt</code> 第 16820 至 16824 行</li></ul></details>
+<h2 id="question-6">第 6 问（模拟）三个字段怎样变成监督微调的信号？</h2>
+<p>拿真实的开关放电题说。<code>instruction</code> 给 12 V 电源、2 kΩ 和 3 kΩ 两只电阻，以及 1,000 μF 的电容。<code>input</code> 补上开关在 a 位经 2 kΩ 充电至稳态，在 b 位只经 3 kΩ 放电。参考 <code>output</code> 因此从 12 V 起算，<code>τ = 3,000 Ω × 0.001 F = 3 s</code>，得 <code>v(t) = 12e^(−t/3) V</code>，两秒约 6.16 V。若把非空的 <code>input</code> 丢掉，模型就丢了选 3 kΩ 的依据。</p>
+<p><strong>模拟追问</strong>　模型也读了题干，为什么损失主要算在答案上？</p>
+<p>归档框架按 Alpaca 三字段把题干和非空补充条件拼成用户消息，把 <code>output</code> 放在助手一侧，然后套对话模板、分词并截断。按框架默认设置，题干 token 作为上下文参与前向计算，其标签通常被屏蔽。模型在每个答案位置看到前面的题目和参考答案前缀，预测下一个 token。白板教学例里，某个目标 token 的概率从 0.10 提到 0.50，它的交叉熵项 <code>−ln(p)</code> 就从约 2.30 降到 0.69。错标的 B 同样会成为预测目标，电流守恒需要在制备答案时核查。</p>
+<details class="references"><summary>本节材料</summary><ul><li><code>all.txt</code> 第 29207 至 29211 行</li><li>LLaMA-Factory 归档源码 <code>converter.py</code>、<code>supervised.py</code>、<code>data_args.py</code></li></ul></details>
+<h2 id="question-7">第 7 问（模拟）你说“做了 LoRA”，前向和反向到底改了什么？</h2>
+<p>我会画一个原有的线性层。输入是 <code>n</code> 维列向量，输出 <code>m</code> 维，原权重 <code>W₀</code> 是 <code>m × n</code>。我冻结 <code>W₀</code>，在选定的投影旁边加两块可训练矩阵，<code>A</code> 是 <code>r × n</code>，<code>B</code> 是 <code>m × r</code>。标准 LoRA 的输出是 <code>y = W₀x + (α/r)B(Ax)</code>。反向传播时，答案损失的梯度更新 A 和 B，基座权重固定。因为中间只有 <code>r</code> 维，乘积 <code>BA</code> 的秩至多为 <code>r</code>。<code>α/r</code> 调整这个增量的幅度，目标层决定在哪些位置施加它。</p>
+<p><strong>模拟追问</strong>　能用两个数演示“秩为一”吗？你当时用的秩又是多少？</p>
+<p>白板教学例取 <code>W₀</code> 为二阶单位矩阵，<code>r = α = 1</code>，<code>A = [1, 0]</code>，<code>B = [0, 2]ᵀ</code>。输入 <code>x = [3, 4]ᵀ</code>，先得 <code>Ax = 3</code>，再得增量 <code>[0, 6]ᵀ</code>，最后输出 <code>[3, 10]ᵀ</code>。换一个输入，增量仍然沿第二个坐标方向。再从训练的第一步想，常规初始化让 A 随机、B 为零，初始输出就与基座一致。第一步损失对 A 的梯度经过零矩阵 B，因此为零，B 却可以从已有的 <code>Ax</code> 得到更新。我的论文最终表列了学习率、轮数等设置，实际 <code>rank</code>、<code>alpha</code> 和目标层缺少运行配置记录。框架默认取 <code>r = 8</code>、未指定 <code>alpha</code> 时取 <code>2r</code>，白板上的 1 是为了容易手算。</p>
+<details class="references"><summary>本节材料</summary><ul><li>归档《LoRA》原论文第 4 页、毕设论文图 2-6、LLaMA-Factory 的 <code>adapter.py</code></li><li>论文表 3-2、归档《LoRA》原论文第 4 页、<code>finetuning_args.py</code></li></ul></details>
+<h2 id="question-8">第 8 问（模拟）已经冻结基座，为什么移动版 3060 试训还会缺显存？</h2>
+<p>LoRA 省掉了给冻结权重保存梯度和优化器状态的开销。做前向仍要读基座，做反向仍要用中间激活。按 70 亿参数、每个 2 字节粗算，单放这一份权重就约 14 GB，长题干和长解析还会增加激活占用。4 月 4 日指导记录写了本机试训遇到的显存问题，论文记录的开发环境是两块各 24 GB 的 4090。</p>
+<p><strong>模拟追问</strong>　挑一个投影层来算，可训练参数从多少减到多少？</p>
+<p>白板教学例用 <code>4,096 × 4,096</code> 的层、<code>r = 8</code>。全矩阵有 <code>4,096² = 16,777,216</code> 个权重，两块低秩矩阵共有 <code>8 × (4,096 + 4,096) = 65,536</code> 个，相当于这一个矩阵的约 0.39%。全模型要对实际挂适配器的各层求和，峰值显存还取决于序列长度和批大小。若连基座本身都难以放入，另一种方案是用 QLoRA 将冻结权重量化存储。本次论文记载的训练方案是 LoRA，计算精度为 bf16。</p>
+<details class="references"><summary>本节材料</summary><ul><li>4 月 4 日《过程指导记录》、论文正文第 23 页和表 3-2</li><li>归档《LoRA》原论文、论文表 3-2</li></ul></details>
+<h2 id="question-9">第 9 问（模拟）两组训练具体调了什么，为什么 7B 只放一条？</h2>
+<p>1.5B 先试，我按能装进显存的批大小训练，轮数取 5。到 7B 时，每批压到 1 条，把轮数拉到 8，初始学习率提高，后段用余弦调度把步长降下来。两组都给题干和回答合计留了 2,048 token 的长度预算。遇到很长的解析，截断可能恰好截掉最后的结论或单位。</p>
+<div aria-label="数据表，可左右滚动" class="tableframe" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>最终设置</th>
+<th>1.5B</th>
+<th>7B</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>学习率与调度</td>
+<td><code>2e-5</code>，恒定</td>
+<td><code>5e-4</code>，余弦下降</td>
+</tr>
+<tr>
+<td>训练轮数、表中训练批大小</td>
+<td>5 轮，每批 4 条</td>
+<td>8 轮，每批 1 条</td>
+</tr>
+<tr>
+<td>计算精度、截断长度</td>
+<td>bf16，2,048 token</td>
+<td>bf16，2,048 token</td>
+</tr>
+<tr>
+<td>验证比例</td>
+<td>10%</td>
+<td>10%</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>模拟追问</strong>　每批 1 条就等于每看一道题更新一次参数吗？</p>
+<p>要看累积步数和参与数据并行的进程数。等大微批的情况下，<code>每次更新的样本数 = 每设备微批大小 × 梯度累积步数 × 数据并行进程数</code>。教学例假设单设备每次装 1 条，累积 8 次，1 个进程就会合计 8 条再更新。图 3-4 是调参界面，两次最终运行的累积步数、并行进程数都缺运行日志。能确定的是表中批大小 4 和 1，以及 7B 配置的初始学习率为另一组的 <code>5e-4 ÷ 2e-5 = 25</code> 倍。</p>
+<details class="references"><summary>本节材料</summary><ul><li>论文表 3-2、答辩幻灯片第 8 页</li><li>论文图 3-4、表 3-1、表 3-2</li></ul></details>
+<h2 id="question-10">第 10 问（模拟）你怎样读损失曲线，什么时候会停下来查数据？</h2>
+<p>我先看训练损失有没有往下走，再看验证损失是否跟得上。1.5B 的训练曲线前段降得快，论文把末段描述为约 0.85，验证从约 1.24 降到 0.91。7B 的训练末段在 0.60 左右，验证在 0.67 左右。两组在各自的验证数据上都更容易预测参考解答。两组的基座、学习率、调度、训练轮数和批大小都变了，最后我用整套方案对 500 题的生成结果选模型。</p>
+<p><strong>模拟追问</strong>　要是继续加大秩，训练损失还在降，怎么判断值不值得？</p>
+<p>我的复盘方案是固定 7B 基座、训练与验证题族、目标层、训练 token 预算和学习率调度。先用相同的 <code>α/r</code> 比较两档秩，再看未见拓扑上的数值、方向和单位。假如较大秩多耗显存，新题却仍把受控源关掉，我会先翻这类题的参考解答，看同一处错误是否在训练答案里反复出现。</p>
+<details class="references"><summary>本节材料</summary><ul><li>论文图 3-6 至图 3-9、表 3-3</li></ul></details>
+<h2 id="question-11">第 11 问（模拟）训练结束后，网页怎样调用这个本地模型？</h2>
+<p>从训练原理讲，标准 LoRA 的线性增量可以折回基座，<code>W = W₀ + (α/r)BA</code>。看实际交付的 <code>load_lora.py</code>，服务启动时从配置的模型目录读配置、分词器和因果语言模型，在 GPU 上按 FP16 装载并缓存。收到 <code>/human</code> 的本地文字请求，程序把题干编码，把同步的 <code>generate</code> 交给执行器线程，生成完再解码。留存的是这个加载入口、训练曲线和演示，导出时怎样保存权重缺少当次命令和适配器文件。</p>
+<p><strong>模拟追问</strong>　学生贴了一个很长的题干，训练时的 2,048 token 在这里还适用吗？</p>
+<p>服务代码给分词和生成都设了 <code>max_length=1024</code>，生成上限按输入加输出的总长度算。教学例里，如果编码后的题干已占 900 token，最多还剩 <code>1,024 − 900 = 124</code> 个新 token。还有个细节，代码解码整段后用字符串替换去掉题干，解答里若原样引用题目，那一处也会被删。复盘时我会显式设输出预算，按输入 token 数切出新增部分，再解码给学生看。</p>
+<details class="references"><summary>本节材料</summary><ul><li>论文图 4-1、<code>load_lora.py</code> 第 25 至 120 行、<code>app.py</code> 的 <code>human</code></li><li><code>load_lora.py</code> 第 85 至 116 行、论文表 3-2</li></ul></details></div>
+<div class="chapterend"><div class="links"><strong>对照阅读</strong><a href="../claims/02-lora.html">冻结基座以后，模型怎样学习</a><a href="../notes/02-training-records.html">对照题库与训练原图</a></div>
+<nav class="pager" aria-label="连续阅读"><div><small>上一章</small><a href="../interview/01-opening.html">项目介绍与个人贡献</a></div><div><small>下一章</small><a href="../interview/03-metrics.html">评测与电路追问</a></div></nav></div></article>
+<aside class="contents"><strong>本章目录</strong><nav aria-label="本章小节"><a href="#question-3">第 3 问（模拟）第一批题是怎么来的，为什么又改了出题方法？</a><a href="#question-4">第 4 问（模拟）你说约 6.9 千条。具体数了什么，能给个精确数字吗？</a><a href="#question-5">第 5 问（模拟）简历上的“二次校验”，具体检查了什么？</a><a href="#question-6">第 6 问（模拟）三个字段怎样变成监督微调的信号？</a><a href="#question-7">第 7 问（模拟）你说“做了 LoRA”，前向和反向到底改了什么？</a><a href="#question-8">第 8 问（模拟）已经冻结基座，为什么移动版 3060 试训还会缺显存？</a><a href="#question-9">第 9 问（模拟）两组训练具体调了什么，为什么 7B 只放一条？</a><a href="#question-10">第 10 问（模拟）你怎样读损失曲线，什么时候会停下来查数据？</a><a href="#question-11">第 11 问（模拟）训练结束后，网页怎样调用这个本地模型？</a></nav></aside></main>
+<footer><div class="wrap"><span>李吉豪　山东大学通信工程本科毕业设计</span><a href="../notes/04-voice.html">叙事风格</a></div></footer></body></html>

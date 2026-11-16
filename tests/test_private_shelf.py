@@ -10,7 +10,7 @@ def test_public_shelf_has_empty_mount_and_no_private_metadata():
     soup = BeautifulSoup(page, 'html.parser')
     host = soup.select_one('#privateTeachingShelf')
     assert host is not None and host.has_attr('hidden') and not host.contents
-    assert soup.select_one('script[src="../assets/private-archive-entry.js?v=4"]')
+    assert soup.select_one('script[src="../assets/private-archive-entry.js?v=5"]')
     assert not soup.select('#moduleGrid #privateTeachingShelf')
     assert 'AgentHub 教学档案' not in page
     assert '/api/private-archive/index.html' not in page

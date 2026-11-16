@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>把评测表和模型的原话放在一起 · VoltEdu</title><link rel="icon" href="data:,"><link rel="stylesheet" href="../assets/reader.css"></head>
+<body><a class="skip" href="#main">跳到正文</a><header><div class="wrap bar"><a class="wordmark" href="../index.html" aria-label="VoltEdu 首页">VoltEdu</a><nav aria-label="阅读目录"><a href="../story/index.html">项目主线</a><a href="../claims/index.html">主张学习</a><a href="../interview/index.html">面试追问</a><a href="../notes/index.html" aria-current="location">材料与写法</a></nav></div></header>
+<main class="wrap reading" id="main"><article><p class="crumb"><a href="index.html">材料与写法</a>　/　论文第三、四章</p>
+<h1>把评测表和模型的原话放在一起</h1><details class="mobiletoc"><summary>本章目录</summary><nav aria-label="本章小节"><a href="#scores">同一批题上，分数变了多少</a><a href="#superposition">一道题，两个互相抵触的条件</a><a href="#divider">戴维南例题里的两个数</a><a href="#image">同一个网页，还有一条图题路径</a></nav></details><div class="prose">
+<p>论文表 3-4 记录了 7B 微调前后在同一批 500 道题上的结果。往后翻到第四章，就能看到模型怎样回答一道具体的电路题。</p>
+<h2 id="scores">同一批题上，分数变了多少</h2>
+<div aria-label="数据表，可左右滚动" class="tableframe" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>模型</th>
+<th style="text-align: right;">BLEU-4</th>
+<th style="text-align: right;">ROUGE-1</th>
+<th style="text-align: right;">ROUGE-2</th>
+<th style="text-align: right;">ROUGE-L</th>
+<th style="text-align: right;">500 题总用时</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>7B 基线</td>
+<td style="text-align: right;">6.08</td>
+<td style="text-align: right;">27.22</td>
+<td style="text-align: right;">8.44</td>
+<td style="text-align: right;">13.41</td>
+<td style="text-align: right;">1,351.35 秒</td>
+</tr>
+<tr>
+<td>1.5B 课程微调</td>
+<td style="text-align: right;">23.61</td>
+<td style="text-align: right;">49.64</td>
+<td style="text-align: right;">21.66</td>
+<td style="text-align: right;">34.37</td>
+<td style="text-align: right;">513.89 秒</td>
+</tr>
+<tr>
+<td>7B 课程微调</td>
+<td style="text-align: right;">33.32</td>
+<td style="text-align: right;">58.29</td>
+<td style="text-align: right;">31.42</td>
+<td style="text-align: right;">44.42</td>
+<td style="text-align: right;">426.28 秒</td>
+</tr>
+</tbody>
+</table></div>
+<p>原件在论文正文第 30–32 页，表 3-3 和表 3-4，答辩 PPT 第 11–12 页。表中的对照单位是整批 500 道题。BLEU-4 增加 27.24 分，以 6.08 为分母，相对提升约 448%。若把微调后 7B 的 426.28 秒除以 500，得到摊到每题约 0.85 秒；这次批处理允许多条样本并行。学生在网页上等第一句话，需要另行计时。</p>
+<p>归档的 <code>LLaMA-Factory-main.zip</code> 里有 <code>src/llamafactory/train/sft/metric.py</code>。其中 <code>ComputeSimilarity</code> 按字符计算带平滑的句级 BLEU，中文 ROUGE 先用 jieba 分词，再取 F 值。逐题得分汇总后，才有表中的模型分数。500 道题的逐题预测未随归档保存，本页数字取自论文表格。</p>
+<h2 id="superposition">一道题，两个互相抵触的条件</h2>
+<figure><a aria-label="查看原尺寸图像" href="../media/superposition.webp"><img alt="论文图 4-10，本地模型对叠加定理的实际回答。" height="420" loading="lazy" src="../media/superposition.webp" width="801"/></a><figcaption>论文图 4-10，本地模型对叠加定理的实际回答。</figcaption></figure>
+<p>看回复的第一条，再看末尾“受控源处理方式”。模型先写了电路里要排除受控源，后面又写受控源要保留。正确做法是依次让独立源单独作用，保留线性受控源和它的控制关系。判这道题，最省事的方法是圈出这两句话，请学生用同一张含受控源的电路解释它们。题干也出现在<a href="02-training-records.html#preview">训练界面的第一条样本</a>。</p>
+<h2 id="divider">戴维南例题里的两个数</h2>
+<figure><a aria-label="查看原尺寸图像" href="../media/divider.webp"><img alt="论文图 4-11，本地模型写出了开路电压和等效电阻。" height="330" loading="lazy" src="../media/divider.webp" width="804"/></a><figcaption>论文图 4-11，本地模型写出了开路电压和等效电阻。</figcaption></figure>
+<p>端口跨在 6 Ω 两端，断开外接负载后，4 Ω 和 6 Ω 仍串联在 12 V 电源上。电流 1.2 A，端口电压 7.2 V。把理想电压源短路后从同一对端口看进去，两只电阻并联，等效电阻 2.4 Ω。留存题库汇总第 16,684 行有同拓扑、同数值的选择题。如果要设计一道新考题，可以保留电源和两只电阻，改问跨在 4 Ω 上的端口，此时开路电压变为 4.8 V。</p>
+<h2 id="image">同一个网页，还有一条图题路径</h2>
+<figure><a aria-label="查看原尺寸图像" href="../media/circuit.webp"><img alt="论文图 4-12 所用图题，4 V 源左正右负，右支路电流箭头向下。" height="359" loading="lazy" src="../media/circuit.webp" width="667"/></a><figcaption>论文图 4-12 所用图题，4 V 源左正右负，右支路电流箭头向下。</figcaption></figure>
+<p>这道题由独立视觉接口回答，论文图 4-13 的返回值为 −5 A。沿图中箭头重算，右侧网孔电流为 3 A。把底节点定为零，右上端电位是 12 V，中上端是 16 V，受控源顶端是 24 V。中上节点满足 <code>(16−6)/10 + (16−24)/2 + 3 = 0</code>。完整列式见<a href="../claims/05-circuit.html">电路例题</a>。</p>
+<p>查项目代码时，文字问答看 <code>app.py</code> 的 <code>/human</code> 与 <code>load_lora.py</code>，图题看 <code>/solve_image</code> 和 <code>llm.py</code>。想看学生如何实际使用，原始《项目介绍.mp4》约 01:32 是提问，01:54 出现文字回答，02:37 数字人和聊天框同时在画面里。</p>
+<figure><a aria-label="查看原尺寸图像" href="../media/demo.webp"><img alt="《项目介绍.mp4》约 02:37 的画面。数字人已连接，学生可以一边听，一边看右侧保留的推导。" height="645" loading="lazy" src="../media/demo.webp" width="1050"/></a><figcaption>《项目介绍.mp4》约 02:37 的画面。数字人已连接，学生可以一边听，一边看右侧保留的推导。</figcaption></figure></div>
+<div class="chapterend"><div class="links"><strong>对照阅读</strong><a href="../claims/04-evaluation.html">448% 的分母是什么</a><a href="../claims/05-circuit.html">一个答案究竟对在哪里</a></div>
+<nav class="pager" aria-label="连续阅读"><div><small>上一章</small><a href="../notes/02-training-records.html">对照题库与训练原图</a></div><div><small>下一章</small><a href="../notes/04-voice.html">把毕设讲出自己的语气</a></div></nav></div></article>
+<aside class="contents"><strong>本章目录</strong><nav aria-label="本章小节"><a href="#scores">同一批题上，分数变了多少</a><a href="#superposition">一道题，两个互相抵触的条件</a><a href="#divider">戴维南例题里的两个数</a><a href="#image">同一个网页，还有一条图题路径</a></nav></aside></main>
+<footer><div class="wrap"><span>李吉豪　山东大学通信工程本科毕业设计</span><a href="../notes/04-voice.html">叙事风格</a></div></footer></body></html>

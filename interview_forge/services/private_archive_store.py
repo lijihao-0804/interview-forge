@@ -12,7 +12,7 @@ _TYPES = {'.html':'text/html', '.css':'text/css', '.js':'text/javascript',
           '.json':'application/json', '.webp':'image/webp', '.png':'image/png',
           '.jpg':'image/jpeg', '.svg':'image/svg+xml', '.woff2':'font/woff2'}
 _DATA = {'manifest.json', 'diagrams.json', 'history-data.json', 'history-sample.json',
-         'history-templates.json', 'notes.json', 'search-index.json', 'visuals.json'}
+         'history-templates.json', 'notes.json', 'search-index.json', 'visuals.json', 'recent-history.json'}
 
 
 def member_type(member: str) -> str | None:

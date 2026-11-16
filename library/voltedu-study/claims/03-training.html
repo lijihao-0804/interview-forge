@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VoltEdu 怎样从两套 LoRA 配置中选出 7B · VoltEdu</title><link rel="icon" href="data:,"><link rel="stylesheet" href="../assets/reader.css"></head>
+<body><a class="skip" href="#main">跳到正文</a><header><div class="wrap bar"><a class="wordmark" href="../index.html" aria-label="VoltEdu 首页">VoltEdu</a><nav aria-label="阅读目录"><a href="../story/index.html">项目主线</a><a href="../claims/index.html" aria-current="location">主张学习</a><a href="../interview/index.html">面试追问</a><a href="../notes/index.html">材料与写法</a></nav></div></header>
+<main class="wrap reading" id="main"><article><p class="crumb"><a href="index.html">主张学习</a>　/　训练取舍</p>
+<h1>VoltEdu 怎样从两套 LoRA 配置中选出 7B</h1><details class="mobiletoc"><summary>本章目录</summary><nav aria-label="本章小节"><a href="#section-1">面试时可以这样讲</a><a href="#section-2">论文表 3-2 里实际填了什么</a><a href="#section-3">看曲线时，先确定横轴和比较对象</a><a href="#section-4">批量和长度怎样影响训练</a><a href="#section-5">哪些数是默认值，哪些数属于这次训练</a><a href="#section-6">面试追问与参考答案</a><a href="#section-7">原件材料位置</a><a href="#practice">换个条件，再试一次</a></nav></details><div class="prose">
+<p>4 月 4 日的指导记录提到，移动版 RTX 3060 试训时显存不足，先跑出的损失曲线也不理想。论文图 3-6 和图 3-8 的训练记录分别标着 4 月 4 日和 4 月 6 日。到 4 月 10 日，几轮调参已基本完成，讨论转向实时数字人。两套训练方案都留下了曲线，最终接到 VoltEdu 网页的是 7B。</p>
+<h2 id="section-1">面试时可以这样讲</h2>
+<blockquote>
+<p>我先试了 1.5B，观察训练和验证损失，再在 4090 开发环境里调 7B。两组都用 bf16，截断长度都是 2,048 token。1.5B 每批 4 条、训 5 轮，7B 把每批减到 1 条、训 8 轮，同时换了学习率和调度器。最后我用同样的 500 道题比较两套方案，7B 的文本匹配分数更高，这一批题的总用时也更短，所以选它作为服务端的本地文本模型。</p>
+</blockquote>
+<h2 id="section-2">论文表 3-2 里实际填了什么</h2>
+<p>两列对应 DeepSeek 发布的 <code>DeepSeek-R1-Distill-Qwen-1.5B</code> 和 <code>DeepSeek-R1-Distill-Qwen-7B</code>，训练任务都是电路问答的监督微调，方法都是 LoRA。这里的“基座”指开始课程训练时的蒸馏权重。官方模型卡列出了各自的 Qwen2.5-Math 来源。<a href="https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-7B#3-model-downloads">DeepSeek 官方模型卡</a></p>
+<p>更早的试验解释了为什么把文本问答放到服务器。2 月 18 日的假期记录里，笔记本上的 8B 在戴维南定理上答偏了，14B 能解释基本原理，当时观察到的速度约为每秒两三个 token。随后才有了针对课程数据训练小模型、把可用模型接入网页的选择。</p>
+<div aria-label="数据表，可左右滚动" class="tableframe" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>表 3-2 最终参数</th>
+<th style="text-align: right;">1.5B</th>
+<th style="text-align: right;">7B</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>初始学习率</td>
+<td style="text-align: right;"><code>2e-5</code></td>
+<td style="text-align: right;"><code>5e-4</code></td>
+</tr>
+<tr>
+<td>训练轮数</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">8</td>
+</tr>
+<tr>
+<td>计算精度</td>
+<td style="text-align: right;">bf16</td>
+<td style="text-align: right;">bf16</td>
+</tr>
+<tr>
+<td>截断长度</td>
+<td style="text-align: right;">2,048 token</td>
+<td style="text-align: right;">2,048 token</td>
+</tr>
+<tr>
+<td>训练批大小</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">1</td>
+</tr>
+<tr>
+<td>验证集比例</td>
+<td style="text-align: right;">10%</td>
+<td style="text-align: right;">10%</td>
+</tr>
+<tr>
+<td>学习率调度</td>
+<td style="text-align: right;">constant</td>
+<td style="text-align: right;">cosine</td>
+</tr>
+</tbody>
+</table></div>
+<p>1.5B 的配置把学习率固定在 <code>2e-5</code>，论文记载训练批量 4 是当时试出的显存可承受值。7B 的初始学习率是前者的 <code>5e-4 / 2e-5 = 25</code> 倍，同时用了更多轮数与余弦下降调度。较大的起始值和后段逐渐减小的步幅是两项不同的选择。每次更新的实际学习率还要看调度进度与预热设置，归档保留了调度器名称。</p>
+<h2 id="section-3">看曲线时，先确定横轴和比较对象</h2>
+<div aria-label="数据表，可左右滚动" class="tableframe" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>当时观察的量</th>
+<th>1.5B，图 3-6、图 3-7</th>
+<th>7B，图 3-8、图 3-9</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>训练损失</td>
+<td>前段降得快，后段仍有波动，正文把末段描述为约 0.85</td>
+<td>曲线后段约 0.6，后期下降趋缓</td>
+</tr>
+<tr>
+<td>验证损失</td>
+<td>约从 1.24 降至 0.91</td>
+<td>末段约 0.67，趋于平缓</td>
+</tr>
+<tr>
+<td>横轴</td>
+<td>训练曲线接近 1,000 个 step</td>
+<td>训练曲线超过 3,000 个 step</td>
+</tr>
+</tbody>
+</table></div>
+<figure><a aria-label="查看原尺寸图像" href="../media/loss.webp"><img alt="图 3-6 至图 3-9。上排是 1.5B，下排是 7B；横轴记录各自的训练步数。" height="1000" loading="lazy" src="../media/loss.webp" width="1280"/></a><figcaption>图 3-6 至图 3-9。上排是 1.5B，下排是 7B；横轴记录各自的训练步数。</figcaption></figure>
+<p>训练时看的是参考答案 token 的预测损失。验证曲线用来观察留作验证的那部分数据，7B 在末段仍有训练与验证损失的间距。为网页选择本地文本后端时，又看了两者生成完整回答的表现。表 3-3 中，微调 1.5B 与 7B 的 BLEU-4 分别为 23.61 和 33.32，500 题总用时分别为 513.89 秒和 426.28 秒。这样选出的是两套已调方案中更合适的一套。对规模、训练轮数、学习率各自的贡献，要另做控制变量实验。</p>
+<h2 id="section-4">批量和长度怎样影响训练</h2>
+<p><strong>每设备批量决定一次前向要装多少条。</strong> 先等样本跑完前向、反向，再用梯度累积凑足一次参数更新。对标准数据并行的完整更新，可按 <code>有效批量 = 每设备批量 × 累积次数 × 数据并行进程数</code> 估算。教学例中，如果每卡 1 条、累积 8 次、两卡各处理不同样本，一次更新覆盖 16 条。单卡同样设置覆盖 8 条。论文记录的开发机是双 RTX 4090，每卡 24 GB。标准数据并行每卡保存一份模型，两次实训的累积次数和并行进程数未归档。</p>
+<p><strong>长度限制作用在模板编码之后。</strong> 题干、接线描述、回答和角色标记共同占用 2,048 token 预算。教学例中，编码好的提示和回答若合计 2,150 token，至少有 102 个位置需要裁掉。归档的预处理器会为源和目标分配可用长度，再分别截取前段。针对带长推导的计算题，复盘时应解码截断后的监督标签，看最后的数值、单位和结束位置是否还在。</p>
+<p><strong>训练长度和网页生成长度各有用处。</strong> 服务端 <code>load_lora.py</code> 把单条问题编码后交给 <code>generate</code>，实际传入 <code>max_length = 1024</code>，约束输入与生成的总长。举例，输入占 800 个 token，就最多再生成 224 个。学生在网页看到长推导提前结束时，可以先查这条调用。</p>
+<h2 id="section-5">哪些数是默认值，哪些数属于这次训练</h2>
+<div aria-label="数据表，可左右滚动" class="tableframe" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>数字出自哪里</th>
+<th>具体可读到什么</th>
+<th>面试时用它回答什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>论文表 3-2、答辩第 8 页</td>
+<td>上表七项，两份材料一致</td>
+<td>报告本次两套最终训练设置</td>
+</tr>
+<tr>
+<td>论文图 3-4 的调参界面</td>
+<td>当时界面显示 3.0 轮、梯度累积 8、批量 4、cosine</td>
+<td>说明界面怎样区分单卡批量和累积次数</td>
+</tr>
+<tr>
+<td>归档框架 <code>LLaMA-Factory-main.zip</code></td>
+<td><code>env.py</code> 的版本为 <code>0.9.3.dev0</code>。默认秩 8、alpha 未指定时取两倍秩、dropout 为 0</td>
+<td>解释框架如何补齐未指定的参数</td>
+</tr>
+<tr>
+<td>框架随附的 <code>llama3_lora_sft.yaml</code> 示例</td>
+<td>Llama 3 8B、学习率 <code>1e-4</code>、3 轮、梯度累积 8，用示例数据</td>
+<td>说明一份完整训练配置长什么样</td>
+</tr>
+</tbody>
+</table></div>
+<p>源码包标明了框架版本，两次训练的完整环境清单未归档。要恢复当时的实验，还差运行专属配置、基座修订号与适配器权重。优化器、预热、随机种子和目标层等具体取值要从那次运行读取。论文正文第 31–32 页另记<strong>评测批大小为 4</strong>，计算简历分数时用的是这一口径。</p>
+<h2 id="section-6">面试追问与参考答案</h2>
+<p><strong>问一　既然 7B 的初始学习率高了 25 倍，每一步都比 1.5B 大 25 倍吗？</strong></p>
+<p>参考答案　25 是表中两个初始值的比。7B 随训练进度按 cosine 调低学习率，1.5B 用 constant。参数实际改动还要乘上优化器给出的更新方向与幅度。要重建某一步，得有当步学习率和优化器状态。</p>
+<p><strong>问二　多跑几轮，怎样判断该停？</strong></p>
+<p>参考答案（复盘建议）　用同一验证划分记录各 checkpoint 的有效回答 token 损失，再看预先选定的数值题与条件题。如果训练损失继续下降，而验证损失持续回升或按题型评分变差，就保留较早的 checkpoint。把最后的 500 题与日常选轮次的验证集分别管理，留好样本编号。</p>
+<p><strong>问三　如果预算只够补跑一次，你会改变什么？</strong></p>
+<p>参考答案（复盘建议）　先固定 7B 的数据划分、目标层、有效批量、起始学习率、总更新步数和种子，把 cosine 改为 constant。同题比较验证曲线和逐题结果，可以追问“后段衰减对这一套配置有没有帮助”。若要回答模型规模的问题，则应让两种规模各在相同的调参预算下训练，再对同一盲测集评分。</p>
+<h2 id="section-7">原件材料位置</h2>
+<ul>
+<li>2025 年 2 月 18 日假期工作记录图 2、图 3 是笔记本试答。《毕业设计过程指导记录》4 月 4 日、4 月 10 日两条记录了试训和调参。论文《基于智能体的电类课程资源构建技术研究》正文第 23 页记硬件，第 26–30 页图 3-4、表 3-2、图 3-6 至图 3-9 记界面、最终参数和损失曲线。</li>
+<li>《毕业答辩演示》第 8–11 页依次给出两组参数、两组曲线和后端选型。论文表 3-3 对应两套微调方案，表 3-4 对应同规模 7B 前后比较。</li>
+<li>框架包 <code>LLaMA-Factory-main.zip</code> 中的 <code>env.py</code>、<code>finetuning_args.py</code>、<code>supervised.py</code> 和 <code>llama3_lora_sft.yaml</code> 可核对版本、默认、截断和示例。VoltEdu 程序 <code>load_lora.py</code> 第 83–103 行是上线后的生成长度设置。</li>
+</ul><section class="exercise" id="practice"><h2>换个条件，再试一次</h2><p>假设两卡数据并行、每卡 batch 1、梯度累积 4 次，更新一次参数会用多少条样本？</p><details><summary>一点提示</summary><p>先算一个微批里两块卡合起来多少条，再乘累积次数。</p></details><details><summary>核对解法</summary><p>两卡各 1 条，每个微批共 2 条；累积 4 次是 8 条。这里假设每个微批都装满。回到毕设表 3-2，7B 的训练 batch 写的是 1；要从这项还原有效批量，还需当次并行进程数和累积步数。</p></details></section></div>
+<div class="chapterend"><div class="links"><strong>对照阅读</strong><a href="../interview/02-data-training.html#question-9">数据与训练追问</a><a href="../notes/02-training-records.html#curves">对照题库与训练原图</a></div>
+<nav class="pager" aria-label="连续阅读"><div><small>上一章</small><a href="../claims/02-lora.html">冻结基座以后，模型怎样学习</a></div><div><small>下一章</small><a href="../claims/04-evaluation.html">448% 的分母是什么</a></div></nav></div></article>
+<aside class="contents"><strong>本章目录</strong><nav aria-label="本章小节"><a href="#section-1">面试时可以这样讲</a><a href="#section-2">论文表 3-2 里实际填了什么</a><a href="#section-3">看曲线时，先确定横轴和比较对象</a><a href="#section-4">批量和长度怎样影响训练</a><a href="#section-5">哪些数是默认值，哪些数属于这次训练</a><a href="#section-6">面试追问与参考答案</a><a href="#section-7">原件材料位置</a><a href="#practice">换个条件，再试一次</a></nav></aside></main>
+<footer><div class="wrap"><span>李吉豪　山东大学通信工程本科毕业设计</span><a href="../notes/04-voice.html">叙事风格</a></div></footer></body></html>

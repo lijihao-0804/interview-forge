@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>用电路样题做 LoRA 微调，为什么最后选了 7B · VoltEdu</title><link rel="icon" href="data:,"><link rel="stylesheet" href="../assets/reader.css"></head>
+<body><a class="skip" href="#main">跳到正文</a><header><div class="wrap bar"><a class="wordmark" href="../index.html" aria-label="VoltEdu 首页">VoltEdu</a><nav aria-label="阅读目录"><a href="../story/index.html" aria-current="location">项目主线</a><a href="../claims/index.html">主张学习</a><a href="../interview/index.html">面试追问</a><a href="../notes/index.html">材料与写法</a></nav></div></header>
+<main class="wrap reading" id="main"><article><p class="crumb"><a href="index.html">项目主线</a>　/　2025 年 3–4 月</p>
+<h1>用电路样题做 LoRA 微调，为什么最后选了 7B</h1><details class="mobiletoc"><summary>本章目录</summary><nav aria-label="本章小节"><a href="#section-1">3 月 9 日，第一批 2,371 条问答暴露了重样的问题</a><a href="#section-2">3 月中旬，把课程智能体的设想落到题干里</a><a href="#section-3">从一条开关放电题看模型学到了什么</a><a href="#section-4">4 月初，用两套训练配置比较课程回答</a><a href="#section-5">同一组 500 题回答了两个不同的问题</a></nav></details><div class="prose">
+<p>电路教材里有定义、图和例题，训练课程助教还需要知道学生会怎样问、答案要解释到哪一步。2025 年 3 月，我先让模型按知识点出题。翻看第一批结果，问两个概念有什么区别的题随处可见，给一组元件和接线、让学生动手算的题却很少。要让模型学会讲解这样的题，我得先给它一份能照着电路验算的参考答案。</p>
+<h2 id="section-1">3 月 9 日，第一批 2,371 条问答暴露了重样的问题</h2>
+<p>我从《电路分析基础》和课件列出知识点，包括基尔霍夫定律、叠加定理、受控源和一阶电路，再通过火山引擎调用 DeepSeek，要求每个知识点生成 30 对问答。程序用线程池发请求，把返回的题干和答案写入文本。3 月 9 日周报记下 2,371 对。图 1、图 2 是先后两批知识点，图 5 则把几乎相同的问法摆在了一起。</p>
+<p>复盘时重新统计留样，“在电路分析中，受控源与独立源的主要区别是什么？”这个题干出现了 76 次。当时已经在提示词里要求减少重复，多个并发请求仍会围绕一个小主题想出相同的问题。于是我开始要求出题时给具体条件，把题型扩到概念、简答、选择和判断。归档的判断题脚本对每个主题发 15 次请求，每次要两题，题干给参数或接线描述，答案同时给判断和理由。</p>
+<details class="references"><summary>本节材料</summary><ul><li>3 月 9 日周报图 1–6，《内容简要.txt》</li><li>3 月 9 日周报“有大量雷同”，判断题生成脚本 main.py，留样统计 training_data_stats.json</li></ul></details>
+<h2 id="section-2">3 月中旬，把课程智能体的设想落到题干里</h2>
+<p>3 月 11 日北邮“码上初发”培训展示了《通信原理》课程智能体。图上，学生的问题可以交给大模型，也可以去检索历年答疑、习题与课件，仿真和实验另有入口。3 月 16 日我把这张图放进周报，设想用课程微调配合检索，图片先考虑 OCR，仿真放在基本功能之后。</p>
+<p>同周还有一次做界面的试验。为部署 OpenManus，我迁移了虚拟环境，清理旧环境时误删了刚迁好的新环境。重新部署后，它能生成可运行的简单聊天页，追加界面修改要求时却交出了 README，预期的画面效果仍没有实现。准备给 VoltEdu 训练用的四类电路问答，则已经各自有了文件。</p>
+<p>3 月 16 日周报记的是生成了 <strong>6,895 对</strong>，数据准备完成，微调测试进度自评为 25%。论文图 3-3 记录了第二个模型分批核对答案、剔除错误和修正格式的流程，正文在清洗后记 <strong>6,885 条</strong>。训练界面的图 3-5 显示 <strong>6,884 条</strong>。因此项目规模写作约 6.9 千条。今天按记录块重数中间留样 all.txt 得到 6,875 块，其中 6,381 块能直接按 JSON 解析。周报、清洗说明、界面预览和中间文本各自保留了一个阶段的数字。</p>
+<details class="references"><summary>本节材料</summary><ul><li>3 月 11 日《码上初发》培训材料“通信原理 Agent”，3 月 16 日周报图 2</li><li>3 月 16 日周报“构建数据集”“openmanus 项目”，图 1、图 5–7</li><li>3 月 16 日周报“构建数据集”，论文第 3.2.2 节、图 3-3、图 3-5，留样统计 training_data_stats.json</li></ul></details>
+<h2 id="section-3">从一条开关放电题看模型学到了什么</h2>
+<p>留样里有一道开关换位后求电容电压的题。<code>instruction</code> 给出 12 V 电源、2 kΩ 和 3 kΩ 两个电阻、1,000 μF 电容，问换位 2 秒后电容还有多少电压。<code>input</code> 交代接线条件，开关在 a 位时电源经第一个电阻给电容充电，在 b 位时电容经第二个电阻放电。<code>output</code> 从切换前已达稳态开始解题，初值为 12 V，放电时间常数是 <code>τ = 3,000 Ω × 0.001 F = 3 s</code>，所以 <code>v(2 s) = 12e^(−2/3) V ≈ 6.16 V</code>。选哪只电阻，就取决于那句补充条件。</p>
+<p>LLaMA-Factory 按对话模板把题干和补充条件拼成用户的提问，把参考解答放在助手回复的位置。监督微调时，模型逐个预测回复里的 token，预测与参考解答之间的损失用来更新参数。这道题的监督信息包括“开关切到 b 后经哪个电阻放电”、算式和单位。题库里还留有寒假问过的戴维南定理的一道选择题，题干直接写明 4 Ω 与 6 Ω 串联、端口跨在 6 Ω 两端，因此它的 <code>input</code> 可以留空。</p>
+<details class="references"><summary>本节材料</summary><ul><li>问答留样 all.txt 第 29207–29211 行</li><li>LLaMA-Factory 数据转换脚本 converter.py、监督样本处理脚本 supervised.py，论文图 3-5，all.txt 第 16684–16686 行</li></ul></details>
+<h2 id="section-4">4 月初，用两套训练配置比较课程回答</h2>
+<p>出题时调用大模型，正式训练则从公开的 DeepSeek-R1 蒸馏模型 1.5B 和 7B 开始。移动版 3060 上试训遇到了显存不足，初步损失曲线的收敛也不理想。4 月 4 日指导时讨论了改用 4090 训练 7B，论文列出的开发环境为两张各 24 GB 的 4090。LoRA 把选定层的基座权重冻结，用两个小矩阵表示低秩增量，常见写法是 <code>ΔW = (α/r)BA</code>。每道题的答案参与计算损失，用来更新这两个矩阵。这样省下了基座参数的梯度和优化器状态，基座本身仍要装进显存。</p>
+<p>两组都采用 bf16，序列截断长度为 2,048 token，留 10% 作验证。1.5B 用固定学习率 <code>2 × 10⁻⁵</code>、5 轮、训练批量 4。7B 用初始学习率 <code>5 × 10⁻⁴</code>、余弦调度、8 轮，训练批量降到 1。两组损失曲线的运行日期分别是 4 月 4 日和 6 日，末段验证损失约为 0.91 和 0.67。训练集用于更新参数，验证曲线用来看调参后预测参考答案的表现。选平台用哪个模型，还要让两者实际各答一遍同样的题。</p>
+<details class="references"><summary>本节材料</summary><ul><li>《过程指导记录》第 3 次，论文第 2.2.1 节图 2-6、第 3.1 节</li><li>论文表 3-2、图 3-6 至图 3-9，答辩演示稿第 8–10 页</li></ul></details>
+<h2 id="section-5">同一组 500 题回答了两个不同的问题</h2>
+<p>论文把测试批量定为 4，对三个模型使用相同的 500 道题和测试设置。BLEU-4 衡量回答与参考解答中连续短片段的重合，ROUGE-L 衡量保持原有顺序的最长公共子序列。两项都是文本分数。</p>
+<div aria-label="数据表，可左右滚动" class="tableframe" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>模型</th>
+<th style="text-align: right;">BLEU-4</th>
+<th style="text-align: right;">ROUGE-L</th>
+<th style="text-align: right;">500 题总用时</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>7B 基座，课程微调前</td>
+<td style="text-align: right;">6.08</td>
+<td style="text-align: right;">13.41</td>
+<td style="text-align: right;">1,351.35 秒</td>
+</tr>
+<tr>
+<td>1.5B，课程微调后</td>
+<td style="text-align: right;">23.61</td>
+<td style="text-align: right;">34.37</td>
+<td style="text-align: right;">513.89 秒</td>
+</tr>
+<tr>
+<td>7B，课程微调后</td>
+<td style="text-align: right;">33.32</td>
+<td style="text-align: right;">44.42</td>
+<td style="text-align: right;">426.28 秒</td>
+</tr>
+</tbody>
+</table></div>
+<p>先看两套已经调好的模型，7B 的答案和参考解答更接近，整组用时也更短，于是 VoltEdu 选它作为服务端的本地文本模型。再看同一 7B 基座的前后变化，BLEU-4 增加 27.24 分，<code>(33.32 − 6.08) / 6.08 ≈ 448%</code>。ROUGE-L 增加 31.01 分，<code>(44.42 − 13.41) / 13.41 ≈ 231%</code>。这就是简历里两个相对提升数字的分母和来历。</p>
+<p><strong>复盘建议。</strong> 归档里可以逐行找到课程样题，论文保留的是 500 题的汇总成绩。如果重做，我会给每题留编号，把接线相同、只换数值或问法的题放在同一组，再按组划分训练、验证和测试。放电题另按“是否选对放电电阻、时间常数和单位是否正确”逐题判分，和文本指标一起保存。这样再遇到一个 6.16 V，就能追到它来自哪道题、哪一步推导。</p>
+<details class="references"><summary>本节材料</summary><ul><li>论文表 3-3、表 3-4，答辩演示稿第 11–12 页</li><li>《实习简历》“领域微调”，论文表 3-3、表 3-4</li></ul></details></div>
+<div class="chapterend"><div class="links"><strong>对照阅读</strong><a href="../claims/03-training.html">如何比较 1.5B 和 7B</a><a href="../notes/02-training-records.html#curves">对照题库与训练原图</a></div>
+<nav class="pager" aria-label="连续阅读"><div><small>上一章</small><a href="../story/02-prototype.html">数字人和检索原型</a></div><div><small>下一章</small><a href="../story/04-defense.html">把模型交给学生</a></div></nav></div></article>
+<aside class="contents"><strong>本章目录</strong><nav aria-label="本章小节"><a href="#section-1">3 月 9 日，第一批 2,371 条问答暴露了重样的问题</a><a href="#section-2">3 月中旬，把课程智能体的设想落到题干里</a><a href="#section-3">从一条开关放电题看模型学到了什么</a><a href="#section-4">4 月初，用两套训练配置比较课程回答</a><a href="#section-5">同一组 500 题回答了两个不同的问题</a></nav></aside></main>
+<footer><div class="wrap"><span>李吉豪　山东大学通信工程本科毕业设计</span><a href="../notes/04-voice.html">叙事风格</a></div></footer></body></html>
