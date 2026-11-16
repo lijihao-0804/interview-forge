@@ -262,6 +262,38 @@
 <li>空间复杂度：<code>O(m·n)</code>。</li>
 </ul>
 <p>初始扫描处理每个格子一次；BFS 中每个橘子至多入队、出队一次，deque 操作为 O(1)，总时间 O(m·n)。队列最坏 O(m·n)。</p>
+<h3 id="directions">补充写法：用 directions 逐层传播</h3>
+<p>先把所有腐烂橘子放进队列。每分钟只处理这一层的橘子，用 <code>directions</code> 算出四个邻居的坐标。发现新鲜橘子就立即标记为腐烂，再把它排进下一层。</p>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">deque</span>
+
+
+<span class="k">class</span> <span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">orangesRotting</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">grid</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]])</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="n">rows</span><span class="p">,</span> <span class="n">cols</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">grid</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">grid</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">directions</span> <span class="o">=</span> <span class="p">((</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="n">queue</span> <span class="o">=</span> <span class="n">deque</span><span class="p">()</span>
+        <span class="n">fresh</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">rows</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">cols</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">grid</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">c</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                    <span class="n">queue</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">r</span><span class="p">,</span> <span class="n">c</span><span class="p">))</span>
+                <span class="k">elif</span> <span class="n">grid</span><span class="p">[</span><span class="n">r</span><span class="p">][</span><span class="n">c</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">fresh</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="n">minutes</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">while</span> <span class="n">fresh</span> <span class="ow">and</span> <span class="n">queue</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">queue</span><span class="p">)):</span>
+                <span class="n">r</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="n">queue</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span>
+                <span class="k">for</span> <span class="n">dr</span><span class="p">,</span> <span class="n">dc</span> <span class="ow">in</span> <span class="n">directions</span><span class="p">:</span>
+                    <span class="n">nr</span><span class="p">,</span> <span class="n">nc</span> <span class="o">=</span> <span class="n">r</span> <span class="o">+</span> <span class="n">dr</span><span class="p">,</span> <span class="n">c</span> <span class="o">+</span> <span class="n">dc</span>
+                    <span class="k">if</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">nr</span> <span class="o">&lt;</span> <span class="n">rows</span> <span class="ow">and</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">nc</span> <span class="o">&lt;</span> <span class="n">cols</span> <span class="ow">and</span> <span class="n">grid</span><span class="p">[</span><span class="n">nr</span><span class="p">][</span><span class="n">nc</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                        <span class="n">grid</span><span class="p">[</span><span class="n">nr</span><span class="p">][</span><span class="n">nc</span><span class="p">]</span> <span class="o">=</span> <span class="mi">2</span>
+                        <span class="n">fresh</span> <span class="o">-=</span> <span class="mi">1</span>
+                        <span class="n">queue</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">nr</span><span class="p">,</span> <span class="n">nc</span><span class="p">))</span>
+            <span class="n">minutes</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="o">-</span><span class="mi">1</span> <span class="k">if</span> <span class="n">fresh</span> <span class="k">else</span> <span class="n">minutes</span>
+</code></pre></div>
+<p><code>[2, 1, 1]</code> 需要两分钟：中间的橘子第一分钟变坏，第二分钟才能传到最右边。时间 <code>O(mn)</code>，队列最坏占用 <code>O(mn)</code> 空间。</p>
 </section>
 <h2 id="_9">力扣原题</h2>
 <p><a href="https://leetcode.cn/problems/rotting-oranges/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
@@ -397,6 +429,7 @@
 <li><a data-lang="python" data-lang-scope="true" href="#python_1">Python 实现</a></li>
 <li><a data-lang="python" data-lang-scope="true" href="#_7">层边界对应分钟</a></li>
 <li><a data-lang="python" data-lang-scope="true" href="#_8">复杂度</a></li>
+<li><a data-lang="python" data-lang-scope="true" href="#directions">补充写法：用 directions 逐层传播</a></li>
 </ul>
 </li>
 <li><a href="#_9">力扣原题</a></li>
@@ -409,7 +442,7 @@
 <footer class="site-footer">Interview Forge · 在线学习站</footer>
 </div>
 <script defer="" src="../../../../assets/site.js?v=20261112-python-teaching"></script>
-<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-page-context.js?v=1"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-page-context.js?v=2"></script>
 <script data-interviewforge-ai="" defer="" src="../../../../assets/ai-launcher.js?v=4"></script>
 <script>
 (function () {

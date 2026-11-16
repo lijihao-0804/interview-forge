@@ -436,6 +436,8 @@ def render_python_problem_panel(item: dict[str, Any]) -> str:
 - 空间复杂度：`{str(item['space'])}`。
 
 {str(item['complexity_reason']).strip()}"""
+    if item.get("alternative_markdown"):
+        markdown += "\n\n" + item["alternative_markdown"].strip()
     return language_panel("python", markdown)
 
 

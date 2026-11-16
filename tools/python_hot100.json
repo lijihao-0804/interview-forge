@@ -2899,7 +2899,8 @@
         "恢复旧 Java 先讲上下界陷阱、再说明中序等价条件的推导。",
         "旧 Python 收集整棵中序数组，主解改为显式栈逐项比较，避免 O(n) 答案数组并守住深链回归。",
         "用错误 BST 的完整中序状态展示跨层约束为何会暴露。"
-      ]
+      ],
+      "alternative_markdown": "### 补充解法：用上下界验证整棵子树\n\n栈里同时保存节点和祖先留给它的开区间。走到左孩子，父节点的值成为新的上界；走到右孩子，它成为新的下界。比如根是 `5`，右孩子是 `8`，`8` 的左孩子是 `4`：这个 `4` 要落在 `(5, 8)` 内，所以整棵树不合法。\n\n```python\nclass Solution:\n    def isValidBST(self, root):\n        stack = [(root, float(\"-inf\"), float(\"inf\"))]\n        while stack:\n            node, low, high = stack.pop()\n            if node is None:\n                continue\n            if not low < node.val < high:\n                return False\n            stack.append((node.right, node.val, high))\n            stack.append((node.left, low, node.val))\n        return True\n```\n\n严格不等式也会拦住重复值。每个节点访问一次，时间 `O(n)`；栈里只需保存沿途待查的分支，额外空间 `O(h)`，`h` 为树高。"
     },
     "230": {
       "title": "二叉搜索树中第 K 小的元素",
@@ -3440,7 +3441,8 @@
         "保留旧 Java 的扫描雷达和扩展整座岛的直觉。",
         "采用旧 Python 的独立 visited 矩阵与 BFS，不通过修改输入来避免副作用。",
         "补充 40×40 全陆岛仍不使用递归，并纠正连通分量计数描述。"
-      ]
+      ],
+      "alternative_markdown": "### 补充写法：用 directions 枚举四个邻居\n\n`directions` 保存行、列的偏移量。每次从队列取出陆地 `(r, c)`，沿四个方向找相邻的陆地。这里直接把已入队的 `\"1\"` 改成 `\"0\"`；需要保留输入网格时，可沿用前面的 `visited` 写法。\n\n```python\nfrom collections import deque\n\n\nclass Solution:\n    def numIslands(self, grid: list[list[str]]) -> int:\n        rows, cols = len(grid), len(grid[0])\n        directions = ((-1, 0), (1, 0), (0, -1), (0, 1))\n        islands = 0\n        for row in range(rows):\n            for col in range(cols):\n                if grid[row][col] != \"1\":\n                    continue\n                islands += 1\n                grid[row][col] = \"0\"\n                queue = deque([(row, col)])\n                while queue:\n                    r, c = queue.popleft()\n                    for dr, dc in directions:\n                        nr, nc = r + dr, c + dc\n                        if 0 <= nr < rows and 0 <= nc < cols and grid[nr][nc] == \"1\":\n                            grid[nr][nc] = \"0\"\n                            queue.append((nr, nc))\n        return islands\n```\n\n只沿上下左右扩展，对角相接的两块陆地仍属于两座岛。时间 `O(mn)`，队列最坏占用 `O(mn)` 空间。"
     },
     "994": {
       "title": "腐烂的橘子",
@@ -3508,7 +3510,8 @@
         "采用旧 Python 的 deque 分层实现，保持无新鲜橘子返回 0 的行为。",
         "补充最后一层感染后因 fresh 为 0 不多算一分钟的具体状态。",
         "独立验收补正标准示例的新鲜橘子数为 6，并新增四分钟回归。"
-      ]
+      ],
+      "alternative_markdown": "### 补充写法：用 directions 逐层传播\n\n先把所有腐烂橘子放进队列。每分钟只处理这一层的橘子，用 `directions` 算出四个邻居的坐标。发现新鲜橘子就立即标记为腐烂，再把它排进下一层。\n\n```python\nfrom collections import deque\n\n\nclass Solution:\n    def orangesRotting(self, grid: list[list[int]]) -> int:\n        rows, cols = len(grid), len(grid[0])\n        directions = ((-1, 0), (1, 0), (0, -1), (0, 1))\n        queue = deque()\n        fresh = 0\n        for r in range(rows):\n            for c in range(cols):\n                if grid[r][c] == 2:\n                    queue.append((r, c))\n                elif grid[r][c] == 1:\n                    fresh += 1\n\n        minutes = 0\n        while fresh and queue:\n            for _ in range(len(queue)):\n                r, c = queue.popleft()\n                for dr, dc in directions:\n                    nr, nc = r + dr, c + dc\n                    if 0 <= nr < rows and 0 <= nc < cols and grid[nr][nc] == 1:\n                        grid[nr][nc] = 2\n                        fresh -= 1\n                        queue.append((nr, nc))\n            minutes += 1\n        return -1 if fresh else minutes\n```\n\n`[2, 1, 1]` 需要两分钟：中间的橘子第一分钟变坏，第二分钟才能传到最右边。时间 `O(mn)`，队列最坏占用 `O(mn)` 空间。"
     },
     "207": {
       "title": "课程表",
@@ -5113,7 +5116,8 @@
         "沿用旧 Java 的选秀直觉、快排划分与 `n-k` 目标下标推导。",
         "恢复旧 Python 的随机快速选择主解，替换当前容量 k 最小堆；算法按实际的双向双指针交换命名。",
         "明确平均 O(n)、最坏 O(n²)、额外 O(1) 空间和输入会被原地修改，并用重复值回归检查。"
-      ]
+      ],
+      "alternative_markdown": "### 补充解法：用小顶堆保留前 k 大\n\n从前 `k` 个数建堆，堆顶就是这批数中最小的一个。后面遇到更大的数，就让它替换堆顶。以 `[3,2,1,5,6,4]`、`k = 2` 为例，读到 `5`、`6` 后，堆里留下 `5` 和 `6`；最后的 `4` 进不了堆，答案就是 `5`。重复值各占一个位置。\n\n```python\nfrom heapq import heapify, heapreplace\n\n\nclass Solution:\n    def findKthLargest(self, nums: list[int], k: int) -> int:\n        heap = nums[:k]\n        heapify(heap)\n        for i in range(k, len(nums)):\n            if nums[i] > heap[0]:\n                heapreplace(heap, nums[i])\n        return heap[0]\n```\n\n建堆用时 `O(k)`，余下每个数比较一次，需要替换时最多用 `O(log k)`。额外空间 `O(k)`。这个写法适合边读边保留前 `k` 大；题面要求线性时间时，可用前文的随机快速选择，平均用时 `O(n)`。"
     },
     "347": {
       "title": "前 K 个高频元素",

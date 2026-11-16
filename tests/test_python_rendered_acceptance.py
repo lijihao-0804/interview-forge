@@ -30,7 +30,7 @@ class TreeNode:
 
 
 @functools.cache
-def implementation(problem_id):
+def implementation(problem_id, variant=0):
     paths = list((ROOT / "books/hot100/03-题解").rglob(f"{problem_id:04d}-*.html"))
     assert len(paths) == 1
     soup = BeautifulSoup(paths[0].read_text(encoding="utf-8"), "html.parser")
@@ -44,13 +44,33 @@ def implementation(problem_id):
         name in code for name in ("class Solution", "class LRUCache", "class Trie", "class MedianFinder", "class MinStack")
     )]
     assert candidates, f"No executable Python implementation published for {problem_id}"
-    code = candidates[0]
+    code = candidates[variant]
     ast.parse(code)
     # The judge provides node types; every other dependency must be imported by
     # the published implementation itself. Broad pre-imports hid missing imports.
     namespace = judge_namespace()
     exec(compile(code, str(paths[0]), "exec"), namespace)  # noqa: S102 - trusted repository artifact under test
     return namespace
+
+
+def test_additional_python_solutions_on_published_pages():
+    heap = implementation(215, 1)["Solution"]()
+    for nums in ([5], [3, 2, 1, 5, 6, 4], [-4, -2, -2, -7]):
+        for k, expected in enumerate(sorted(nums, reverse=True), 1):
+            assert heap.findKthLargest(nums.copy(), k) == expected
+
+    bst = implementation(98, 1)["Solution"]()
+    assert bst.isValidBST(TreeNode(5, TreeNode(2), TreeNode(8, TreeNode(6))))
+    assert not bst.isValidBST(TreeNode(5, None, TreeNode(8, TreeNode(4))))
+    assert not bst.isValidBST(TreeNode(5, TreeNode(5)))
+
+    islands = implementation(200, 1)["Solution"]()
+    assert islands.numIslands([list("10"), list("01")]) == 2
+    assert islands.numIslands([list("111"), list("011")]) == 1
+    oranges = implementation(994, 1)["Solution"]()
+    assert oranges.orangesRotting([[2, 1, 1, 1, 2]]) == 2
+    assert oranges.orangesRotting([[2, 0, 1]]) == -1
+    assert oranges.orangesRotting([[0, 2]]) == 0
 
 
 def solve(problem_id, method, *args):
