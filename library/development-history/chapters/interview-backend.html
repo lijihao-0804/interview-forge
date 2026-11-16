@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>后端追问：两次评分和一次慢请求 · InterviewForge</title><meta name="description" content="沿着一次写入和一组压测，交代条件与观察结果。">
+<link rel="icon" href="data:,"><link rel="stylesheet" href="../assets/reader.css"></head>
+<body><a class="skip" href="#main">跳到正文</a><header class="mast"><div class="mast-inner"><a class="brand" href="../index.html">InterviewForge<span>开发手记</span></a><nav aria-label="报告栏目"><a href="../index.html#route">主线</a><a href="../index.html#lessons">主张学习</a><a href="../index.html#interview">面试</a><a href="../index.html#notes">资料</a></nav></div></header>
+<main class="reading shell" id="main"><article><div class="crumb"><a href="../index.html">总目录</a> / <a href="../index.html#interview">面试追问</a></div>
+<h1>后端追问：两次评分和一次慢请求</h1><details class="mobile-toc"><summary>本篇小节</summary><nav aria-label="跳到小节"><a href="#section-1">我们两个人打开同一道题，服务端怎样找到各自的进度？</a><a href="#section-2">两个标签页同时评分，怎样避免复习轮数长两次？</a><a href="#section-3">10 月 3 日测出三秒多的 P95，你怎样定位等候发生在哪里？</a><a href="#section-4">要回答“多少人能同时刷题”，这次测量还差什么？</a><a href="#section-5">回到项目</a></nav></details>
+<p class="lead">一名学员同时打开两个标签页，对同一道题点了两次评分。另一次排查里，压测打到 150 个虚拟用户，连健康检查都要等几秒。回答这两件事时，要指出等候发生在哪里，以及当时怎样量到它。</p>
+
+<h2 id="section-1">我们两个人打开同一道题，服务端怎样找到各自的进度？</h2>
+<p>我会沿着评分请求看。普通读者可以打开公共题页，点评分时浏览器发出 <code>POST /api/complete</code>。FastAPI 从会话认出账号，再用已认证的用户名选择个人 SQLite 文件。客户端只需提交题号和评分。个人 API 对未登录请求返回 401。管理接口还要检查角色。两个账号即使都提交第 739 题，也各自在自己的库里写。</p>
+<p>这套结构适合单机上的按人读写。不同用户的学习写操作分布在不同文件，认证和站点设置仍共用一个库。如果要做跨账号统计，就得处理多份库，这也是这项选择的代价。</p>
+
+<h2 id="section-2">两个标签页同时评分，怎样避免复习轮数长两次？</h2>
+<p>我把“今天评过没有”的检查放在写事务里。<code>complete_round</code> 先执行 <code>BEGIN IMMEDIATE</code>，取得这个库的写锁，再按北京时间查题目的记录。第一个手动评分写入卡片和评分日志。第二个请求等锁释放，看到已有结果，就返回相同的到期日。这一天的复习轮数仍是一轮。</p>
+<p>我还会把这两次操作的顺序调过来测。上午力扣通过后自动记为“良好”，下午本人点“忘了”，系统用旧日志保存的评分前状态重算，并把当天那条日志改成手动评分。反过来，先手动评过，之后到的自动评分会沿用已有结果。</p>
+<details><summary>写入由一个 worker 处理，下次刷首页时换了 worker，缓存怎么办？</summary><p>在单机共享模式里，每个 worker 都会比对用户库主文件和 WAL 日志文件的标识、大小与时间戳。文件签名变了就重新取仪表盘，重建过程中签名又变就跳过这次缓存写入。测试让一个进程先读到缓存，另起进程修改数据库，再回到第一个进程读，断言两次拿到的签名不同。</p></details>
+
+<h2 id="section-3">10 月 3 日测出三秒多的 P95，你怎样定位等候发生在哪里？</h2>
+<p>当时测的是同一台服务器回环地址上的 <code>/api/health</code>。我把服务版本、虚拟用户总数 150、测试窗口约六秒都固定，给发压客户端的连接分配函数计时。用一个 HTTP 连接池时，每秒 190.9 次请求，P95 是 3389 毫秒，池分配累计占了 5.047 秒。只把客户端换成六个池，每秒到了 703.1 次，P95 降到 620 毫秒。两组请求由同一套服务处理，这个对照定位到了发压工具本身的一处瓶颈。</p>
+
+<h2 id="section-4">要回答“多少人能同时刷题”，这次测量还差什么？</h2>
+<p>修正脚本后又跑了一组阶梯测试。150 个虚拟用户那一档，健康检查每秒 824.7 次，P95 为 443 毫秒，错误数为零。这个端点很轻，整档约六秒，发压进程也接近吃满一个核。要评估刷题高峰，我会在独立发压机上混合登录后的面板读取、评分写入，预热后延长采样，同时观察数据库锁等待、服务端 CPU 和客户端排队。这样才能给业务负载定一个有条件的容量范围。</p>
+
+<section class="sources"><h2 id="section-5">回到项目</h2><ul>
+<li>从账号定位到评分日志。<code>interview_forge/api/support.py</code>、<code>interview_forge/services/study.py</code>、<code>tests/test_study_server_hardening.py</code>。</li>
+<li>跨进程写入后的缓存检查。<code>interview_forge/runtime/shared.py</code>、<code>tests/test_shared_workers.py</code>，<code>406b8210</code>。</li>
+<li>两次实验分别保存在 <code>benchmarks/results/2026-10-03/client-pool-vps-2026-10-03.json</code> 和 <code>benchmarks/results/2026-10-03/corrected-ramp-vps-2026-10-03.json</code>，<code>145a5c1d</code>。</li>
+</ul><p><a href="origin.html">回顾账号和学习库的来历</a>，或<a href="review.html">跟一条评分日志走完事务</a>。</p></section>
+<nav class="pager" aria-label="翻篇"><a href="interview-product.html">上一篇 · 用《每日温度》讲清项目和取舍</a><a href="interview-agent.html">下一篇 · 助手怎样找回原话、修改计划</a></nav></article>
+<nav class="toc" aria-label="本篇小节"><p>本篇小节</p><a href="#section-1">我们两个人打开同一道题，服务端怎样找到各自的进度？</a><a href="#section-2">两个标签页同时评分，怎样避免复习轮数长两次？</a><a href="#section-3">10 月 3 日测出三秒多的 P95，你怎样定位等候发生在哪里？</a><a href="#section-4">要回答“多少人能同时刷题”，这次测量还差什么？</a><a href="#section-5">回到项目</a></nav></main>
+<footer class="foot"><div class="shell">InterviewForge 项目开发与面试报告 · 整理于 2026 年 11 月 16 日 · Git 基线 <code>90b41de9</code></div></footer></body></html>

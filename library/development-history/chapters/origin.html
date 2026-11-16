@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>从离线题库到个人学习记录 · InterviewForge</title><meta name="description" content="为什么一套已经能读的题解，后来需要了账号和数据库？">
+<link rel="icon" href="data:,"><link rel="stylesheet" href="../assets/reader.css"></head>
+<body><a class="skip" href="#main">跳到正文</a><header class="mast"><div class="mast-inner"><a class="brand" href="../index.html">InterviewForge<span>开发手记</span></a><nav aria-label="报告栏目"><a href="../index.html#route">主线</a><a href="../index.html#lessons">主张学习</a><a href="../index.html#interview">面试</a><a href="../index.html#notes">资料</a></nav></div></header>
+<main class="reading shell" id="main"><article><div class="crumb"><a href="../index.html">总目录</a> / <a href="../index.html#route">项目主线</a></div>
+<h1>从离线题库到个人学习记录</h1><details class="mobile-toc"><summary>本篇小节</summary><nav aria-label="跳到小节"><a href="#section-1">第一次发布，第二天就有事可做</a><a href="#section-2">改一份源稿，读者拿到同一版</a><a href="#section-3">第二个学习者来了，进度该落到谁名下</a><a href="#section-4">点了同步，换个进程也要查得到</a><a href="#section-5">一条记录怎样串起整座站</a><a href="#section-6">回到项目</a></nav></details>
+<p class="lead">两个人打开同一道题，看到的推导相同，各自的下次复习日期可能差一周。InterviewForge 最初只服务一台电脑上的学习者。后来多了第二个人、第二台电脑，项目要回答两个问题。题解里的错字改了，怎样让大家读到新版？一个人昨天做过的题，下次登录时该到哪里找？</p>
+<h2 id="section-1">第一次发布，第二天就有事可做</h2>
+<p>2026 年 8 月 30 日的首个提交 <code>b27beda0</code> 已经收进 100 道 Hot 100 题解和 29 个书架模块，共 541 章。双击启动脚本就能在本机打开站点。选一道题，看它如何从直觉走到 Java 实现，点“完成一轮”，学习事件随即写入本机 SQLite。第一轮题目隔一天到期，第二天打开面板，会从待复习里再见到它。书架章节另有一组间隔，第一轮是三天。</p>
+<h2 id="section-2">改一份源稿，读者拿到同一版</h2>
+<p>改完一处题解，读者应该在正文和搜索结果里看到同一版。目录也要和生成的页面对得上。9 月 1 日的 <code>97989efd</code> 给构建过程加了增量缓存。程序比对源文件的内容哈希，也核对输出清单。一个章节源稿没变、对应页面还在，就跳过这一页。同一页意外丢了，再次构建便会补上。搜索索引和总目录涉及全书，每次仍会重新生成。这样，改错字和改全站模板可以走同一个构建入口。</p>
+<h2 id="section-3">第二个学习者来了，进度该落到谁名下</h2>
+<p>9 月 5 日的 <code>27d469f9</code> 加入登录和每用户独立的学习库。两个人可以阅读同一份 HTML，各自的完成记录随当前会话落到自己的数据库。9 月 11 日的 <code>37541cd3</code> 把请求处理交给 FastAPI。路由接到完成请求，服务端根据已登录用户选择数据库，学习服务再计算轮次并写入。后来给题解增补 Python 推导，也能沿用这套记录方式。</p>
+<h2 id="section-4">点了同步，换个进程也要查得到</h2>
+<p>站点改用同一台主机上的多个工作进程后，一次力扣同步可能由甲进程启动，下一次查询却交给乙进程。10 月 2 日的 <code>406b8210</code> 用操作系统文件锁协调同一账号的同步，把任务状态保存到共享 SQLite。用户刷新页面，接手查询的进程也知道那次同步走到了哪里。</p>
+<p>看到 11 月 15 日的版本，可以从两处核对这条路径。书架清单已经列出 49 个模块、880 个章节入口，游客也能打开公开题解。登录后再回到同一页，评分和复习日期才有了具体的归属。页面可以交给不同的人读，每个人还有一份能带到下一次学习的记录。</p>
+<h2 id="section-5">一条记录怎样串起整座站</h2>
+<p>昨天你用 Python 做过一道题，今天打开网站，公共题页仍然讲同一道题。变化发生在你的账号里：提交和手动评分留下了学习事实，复习卡给出下次日期。此时问助手“今天为什么轮到这道题”，它才有当前问题和学习数据可以用来解释。若再要求把题加入明日计划，服务端会先给你一张可以确认的操作卡。</p>
+<p>用这条链就能讲清项目分工：构建器负责大家读到的教材，学习服务负责每个人的记录与日期，助手围绕已有记录回答问题并提出操作。继续读<a href="practice.html">一次练习怎样留下记录</a>，再读<a href="action.html">一次对话怎样发起操作</a>。</p>
+<section class="sources"><h2 id="section-6">回到项目</h2><ul>
+<li><code>git show b27beda0:README.md</code> 收录首版内容规模、学习记录和两类初始复习间隔。</li>
+<li><code>scripts/build/build_cache.py</code> 中的 <code>needs_rebuild</code> 核对源文件哈希和输出是否存在。<code>library/manifest.json</code> 给出当前书架清单。</li>
+<li><code>interview_forge/api/support.py</code> 的 <code>user_db</code> 根据已认证用户定位学习库。<code>interview_forge/runtime/shared.py</code> 保存跨进程可查询的同步状态。</li>
+</ul></section>
+<nav class="pager" aria-label="翻篇"><a href="../index.html">返回总目录</a><a href="practice.html">下一篇 · 读完题解，怎样接着练</a></nav></article>
+<nav class="toc" aria-label="本篇小节"><p>本篇小节</p><a href="#section-1">第一次发布，第二天就有事可做</a><a href="#section-2">改一份源稿，读者拿到同一版</a><a href="#section-3">第二个学习者来了，进度该落到谁名下</a><a href="#section-4">点了同步，换个进程也要查得到</a><a href="#section-5">一条记录怎样串起整座站</a><a href="#section-6">回到项目</a></nav></main>
+<footer class="foot"><div class="shell">InterviewForge 项目开发与面试报告 · 整理于 2026 年 11 月 16 日 · Git 基线 <code>90b41de9</code></div></footer></body></html>

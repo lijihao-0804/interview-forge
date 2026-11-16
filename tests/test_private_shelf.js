@@ -27,6 +27,11 @@ function reply(status=200,body=metadata) {
 }
 (async()=>{
   reply();await flush();assert.equal(host.hidden,false);
+  const report = {title:'SECOND_FIXTURE',description:'fixture',url:'/library/development-history/index.html'};
+  events.focus();reply(200,{...metadata,entries:[metadata.entry,report]});await flush();
+  assert.equal(host.children.length,2);
+  events.focus();reply(200,{available:false,entries:[report]});await flush();
+  assert.equal(host.children.length,1);
   events.focus();assert.equal(host.hidden,true);assert.equal(host.children.length,0);
   events['interviewforge:auth-change']({detail:{status:'checking'}});
   reply();await flush();assert.equal(host.children.length,0,'late privileged response must not resurrect a card');
@@ -50,7 +55,7 @@ const workerEvents={};
 vm.runInNewContext(fs.readFileSync('service-worker.js','utf8'),{
   URL,self:{location:{origin:'https://fixture.invalid'},addEventListener:(name,fn)=>workerEvents[name]=fn}
 });
-for(const path of ['/api/private-archive-status','/api/private-archive/index.html','/api/private-archive/assets/media/test.png']) {
+for(const path of ['/api/private-archive-status','/api/private-archive/index.html','/api/private-archive/assets/media/test.png','/library/development-history/chapters/review.html']) {
   let intercepted=false;
   workerEvents.fetch({request:{url:'https://fixture.invalid'+path,method:'GET',mode:'navigate'},respondWith:()=>{intercepted=true;}});
   assert.equal(intercepted,false);

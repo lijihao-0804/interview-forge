@@ -1,7 +1,7 @@
 /* Hot 100 学习站缓存兜底（在线优先；动态 API 一律走网络） */
 // Bump with every deploy that changes shell/runtime assets. Navigation is
 // network-first below, so clients can self-upgrade without manual cache clear.
-const VERSION = "hot100-v34-20261115-private-shelf";
+const VERSION = "hot100-v35-20261116-study-report";
 const STATIC_PREFIX = ["/cockpit.html", "/index.html", "/pages/", "/assets/", "/library/assets/", "/library/", "/00-总览/", "/01-基础/", "/02-专题/", "/03-题解/", "/04-模板/", "/05-可视化/", "/maintenance.html", "/guide.html", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
@@ -31,13 +31,14 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (event.request.method !== "GET" || url.origin !== self.location.origin) return;
   if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/data/") || url.pathname.startsWith("/tools/")) return;
+  if (url.pathname.startsWith("/library/development-history/")) return;
   const isNavigation = event.request.mode === "navigate";
   const isStatic = isNavigation || STATIC_PREFIX.some((prefix) => url.pathname.startsWith(prefix)) || url.pathname === "/" || url.pathname.endsWith("/index.html");
   if (!isStatic) return;
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        if (response.ok) {
+        if (response.ok && !/private|no-store/i.test(response.headers.get("Cache-Control") || "")) {
           const clone = response.clone();
           caches.open(VERSION).then((cache) => cache.put(event.request, clone));
         }

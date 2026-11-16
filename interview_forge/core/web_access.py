@@ -88,9 +88,13 @@ def policy_key(value: str) -> str | None:
     return canonical.casefold() if canonical is not None else None
 
 
+def _report_path(key: str) -> bool:
+    return key == "/library/development-history" or key.startswith("/library/development-history/")
+
+
 def is_public_get(value: str) -> bool:
     key = policy_key(value)
-    if key is None or is_admin_path(key):
+    if key is None or _report_path(key) or is_admin_path(key):
         return False
     return key in PUBLIC_FILES or key.startswith(PUBLIC_PREFIXES)
 
@@ -105,7 +109,8 @@ def is_admin_path(value: str) -> bool:
 def is_sensitive_path(value: str) -> bool:
     """Allow only the reviewed web surface; everything else fails closed."""
     key = policy_key(value)
-    if key is None:
+    # Report members are served by the dedicated super-admin route.
+    if key is None or _report_path(key):
         return True
     segments = [segment for segment in key.split("/") if segment]
     if any(segment.startswith(".") for segment in segments):

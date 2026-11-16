@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>流式回答何时才排成表格 · InterviewForge</title><meta name="description" content="从未写完的表格，追到一千个片段的调度测试。">
+<link rel="icon" href="data:,"><link rel="stylesheet" href="../assets/reader.css"></head>
+<body><a class="skip" href="#main">跳到正文</a><header class="mast"><div class="mast-inner"><a class="brand" href="../index.html">InterviewForge<span>开发手记</span></a><nav aria-label="报告栏目"><a href="../index.html#route">主线</a><a href="../index.html#lessons">主张学习</a><a href="../index.html#interview">面试</a><a href="../index.html#notes">资料</a></nav></div></header>
+<main class="reading shell" id="main"><article><div class="crumb"><a href="../index.html">总目录</a> / <a href="../index.html#lessons">主张学习</a></div>
+<h1>流式回答何时才排成表格</h1><details class="mobile-toc"><summary>本篇小节</summary><nav aria-label="跳到小节"><a href="#section-1">一张还没写完的表格</a><a href="#section-2">让文字、滚动和排版各按自己的节奏走</a><a href="#section-3">给调度器一个可以重复的场景</a><a href="#section-4">回到项目</a></nav></details>
+<p class="lead">聊天回答越写越长时，读者最先察觉到的往往是滚动不跟手。前端把“马上看到新文字”和“看到排版完整的答案”放到两个时刻，才有余地把这两件事都做好。</p>
+<h2 id="section-1">一张还没写完的表格</h2>
+<p>假设模型在回答里输出 Markdown 表格。第一小段发来了表头，过几段才有分隔线，最后才是数据行。如果每收到一小段就把累计全文交给解析器，再换掉整个气泡，前面的段落会被一遍遍扫描。回答分成 n 个等长片段时，解析器读到的累计长度依次是 1、2，一直到 n 个片段。重复工作就藏在这个加法里。</p>
+<h2 id="section-2">让文字、滚动和排版各按自己的节奏走</h2>
+<ol><li>收到文字增量时先追加到气泡的原文缓冲。约 100 毫秒的调度把密集到达的片段合成一次纯文本预览，未完成的代码块也可以直接读。</li><li>页面单独调度滚动。读者停在底部时跟随新文字。如果已经向上翻去读某一段，就保留当前位置。</li><li>收到结束事件后，用完整原文做 Markdown 排版。此时表格和代码块的边界已经齐全，预览可以换成正式答案。</li></ol>
+<p>读者先看到文字。最后一段数据到齐，表格才排好。预览也仍会写入累计文本。换来的好处是，模型切得再碎，也不至于让每个片段都触发一次全文排版。</p>
+<h2 id="section-3">给调度器一个可以重复的场景</h2>
+<p>项目的 Node 测试从正式前端脚本取出调度函数，在同一个同步循环内送入 1,000 个片段，其中混有表格、列表和代码。此次复跑记录到 1 次预览刷新。结束后，测试还检查了最终 HTML 是否真的含有表格和代码块，以及关闭自动跟随后滚动位置是否保持。真实对话的片段分散到达时，刷新次数会随到达节奏变化。</p>
+<details><summary>面试官追问：如果改成每帧渲染完整 Markdown 呢？</summary><p>可以少渲染几次，但每次仍要解析全文。项目把动画帧留给滚动。正文先按时间合并成纯文本，结束时再解析一次。回答这题时，我会分别指出调度频率和每次调度做的工作。</p></details>
+<section class="sources"><h2 id="section-4">回到项目</h2><ul><li>前端 <code>assets/ai-assistant.js</code>，按 <code>scheduleStreamRender</code>、<code>finalizeAssistant</code>、<code>scheduleScrollBottom</code> 三处读。</li><li>复跑 <code>node tests/test_ai_assistant_streaming.js</code>。提交 <code>d02a6e78</code> 调整流式渲染，旧复盘见 <code>docs/面试准备/04-连续追问与故障复盘.md</code>。</li></ul></section>
+<nav class="pager" aria-label="翻篇"><a href="recovery.html">上一篇 · 刷新之后，怎样找回同一次回答</a><a href="interview-product.html">下一篇 · 用《每日温度》讲清项目和取舍</a></nav></article>
+<nav class="toc" aria-label="本篇小节"><p>本篇小节</p><a href="#section-1">一张还没写完的表格</a><a href="#section-2">让文字、滚动和排版各按自己的节奏走</a><a href="#section-3">给调度器一个可以重复的场景</a><a href="#section-4">回到项目</a></nav></main>
+<footer class="foot"><div class="shell">InterviewForge 项目开发与面试报告 · 整理于 2026 年 11 月 16 日 · Git 基线 <code>90b41de9</code></div></footer></body></html>

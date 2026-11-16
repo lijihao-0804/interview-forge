@@ -1,5 +1,5 @@
 """Real session cookies and zip fixtures exercise the private content boundary."""
-from contextlib import ExitStack
+from contextlib import ExitStack, closing
 from datetime import timedelta, timezone
 from pathlib import Path
 import sqlite3
@@ -28,7 +28,7 @@ class PrivateArchiveTests(unittest.TestCase):
                                   'assets/media/image.webp':'private-image'}.items():
                 z.writestr('site/' + name, content)
         self.db = self.root / 'auth.db'
-        with self.connect() as db:
+        with closing(self.connect()) as db, db:
             db.executescript('''CREATE TABLE users(id INTEGER,username TEXT,role TEXT,is_active INTEGER,ai_daily_limit INTEGER,nickname TEXT,lang TEXT,last_seen TEXT,email TEXT);
             CREATE TABLE sessions(token TEXT,user_id INTEGER,expires_at TEXT);''')
             for i,(name,role,active,expiry) in enumerate([
@@ -44,6 +44,8 @@ class PrivateArchiveTests(unittest.TestCase):
         self.stack.enter_context(patch('interview_forge.runtime.shared.enabled',return_value=False))
         self.stack.enter_context(patch.object(private_archive,'server_runtime',SimpleNamespace(PERMANENT_ADMIN_USERNAME='owner')))
         self.stack.enter_context(patch.dict('os.environ',{'INTERVIEW_FORGE_PRIVATE_ARCHIVE':str(self.archive), 'INTERVIEW_FORGE_PRIVATE_ARCHIVE_DIR':''}))
+        self.report = self.root / 'report'
+        self.stack.enter_context(patch.object(private_archive, 'REPORT_DIR', self.report))
         self.client = self.stack.enter_context(TestClient(app))
 
     def connect(self):
@@ -78,11 +80,33 @@ class PrivateArchiveTests(unittest.TestCase):
             self.assertEqual(self.request('/api/private-archive-status', 'owner-token').json(),
                              {'available': False, 'url': '/api/private-archive/index.html'})
 
+    def test_report_uses_same_roles_for_every_member(self):
+        for path in ('index.html', 'assets/reader.css', 'chapters/review.html'):
+            target = self.report / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text('REPORT_FIXTURE', encoding='utf-8')
+            for method in ('GET', 'HEAD'):
+                for token, status in ((None, 401), ('reader-token', 403), ('admin-token', 403), ('owner-token', 200)):
+                    with self.subTest(path=path, method=method, token=token):
+                        result = self.request('/library/development-history/'+path, token, method)
+                        self.assertEqual(result.status_code, status)
+                        self.assertIn('no-store', result.headers['cache-control'])
+                        if status == 200 and method == 'GET':
+                            self.assertIn('REPORT_FIXTURE', result.text)
+                            self.assertEqual(result.headers['vary'], '*')
+                        else:
+                            self.assertNotIn('REPORT_FIXTURE', result.text)
+        self.assertEqual(self.request('/library/development-history/extra.js', 'owner-token').status_code, 404)
+        entries = self.request('/api/private-archive-status', 'owner-token').json()['entries']
+        self.assertEqual([e['url'] for e in entries], ['/api/private-archive/index.html', private_archive.REPORT_URL])
+        with patch.object(private_archive, '_read_member', side_effect=FileNotFoundError):
+            self.assertEqual(self.request('/api/private-archive-status', 'owner-token').json()['entries'], entries[1:])
+
     def test_revocation_and_role_changes_apply_on_next_request(self):
         self.assertEqual(self.request('/api/private-archive/index.html','owner-token').status_code,200)
-        with self.connect() as db:db.execute("UPDATE users SET role='user' WHERE username='owner'")
+        with closing(self.connect()) as db, db:db.execute("UPDATE users SET role='user' WHERE username='owner'")
         self.assertEqual(self.request('/api/private-archive/index.html','owner-token').status_code,403)
-        with self.connect() as db:db.execute("DELETE FROM sessions")
+        with closing(self.connect()) as db, db:db.execute("DELETE FROM sessions")
         self.assertEqual(self.request('/api/private-archive/data/history-data.json','owner-token').status_code,401)
 
     def test_missing_configuration_and_public_repo_paths_fail_closed(self):

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>助手怎样找回原话、修改计划 · InterviewForge</title><meta name="description" content="练习解释模型提出的操作、引文出处和中断后的处理。">
+<link rel="icon" href="data:,"><link rel="stylesheet" href="../assets/reader.css"></head>
+<body><a class="skip" href="#main">跳到正文</a><header class="mast"><div class="mast-inner"><a class="brand" href="../index.html">InterviewForge<span>开发手记</span></a><nav aria-label="报告栏目"><a href="../index.html#route">主线</a><a href="../index.html#lessons">主张学习</a><a href="../index.html#interview">面试</a><a href="../index.html#notes">资料</a></nav></div></header>
+<main class="reading shell" id="main"><article><div class="crumb"><a href="../index.html">总目录</a> / <a href="../index.html#interview">面试追问</a></div>
+<h1>助手怎样找回原话、修改计划</h1><details class="mobile-toc"><summary>本篇小节</summary><nav aria-label="跳到小节"><a href="#section-1">上周的约定夹在几百条消息里，这一轮你给模型看什么？</a><a href="#section-2">用户只记得大意，最像的那条恰好在转述同事。你会把话归给谁？</a><a href="#section-3">怎样测出改进来自找得更全，还是来自最后答得更准？</a><a href="#section-4">用户接着说“把这道题加进明天的计划”，什么时候才真的写入？</a><a href="#section-5">回到项目</a></nav></details>
+<p class="lead">用户在一段很长的对话里问“我上次是怎么要求你给提示的？”找回约定后，他又想把这题留到明天练。前一句要找到谁说过什么，后一句会改变学习计划。</p>
+
+<h2 id="section-1">上周的约定夹在几百条消息里，这一轮你给模型看什么？</h2>
+<p>我先保留用户此刻的完整问题。组装上下文时，服务端在当前账号、当前会话里读取本轮之前的历史正文，一次最多取 256 条，再按话题和预算选择相关问答。长段可以摘出约定，连同原消息编号一起留在摘要里。原消息还在 SQLite，要查原话时可以调用 <code>recall_chat_history</code> 往前找。</p>
+<p>有个测试把“必须先让我自己回答，再给提示”放在一段长话中间，又把近期上下文预算压小。断言同时检查这句话和它的来源编号。如果只留下“用户喜欢提示”，把“先自己回答”丢掉，下一轮助手就可能过早揭晓答案。</p>
+
+<h2 id="section-2">用户只记得大意，最像的那条恰好在转述同事。你会把话归给谁？</h2>
+<p>我会先查候选，再查引文。检索工具可以把用户的描述按词面和语义找回相近片段，核对阶段还要看上下文。例如用户发了一条会议笔记，正文写着“同事提议……”，发送笔记的人和提出建议的人就得分开。只有材料能确定发言人，回答才按用户要求署名。出现两套同样成立的安排时，把相应原句和各自的出处都列出来。</p>
+<p>每张来源卡都能回到这段会话里的消息。后端用消息编号、字符偏移、片段长度和 SHA-256 复核引文，读者点开看到的就是原记录里的文字。找到了相似内容、引文逐字对得上、人物归属正确，是三个需要分别检查的结果。</p>
+
+<h2 id="section-3">怎样测出改进来自找得更全，还是来自最后答得更准？</h2>
+<p>11 月 14 日的公网盲测，每题每版都用独立会话，里面有 1280 条合成消息，模型为托管的 DeepSeek Flash。九道新题中有七道有原话可引，改造前后这七道都找全了目标消息。把原话、人物、可打开的来源和该拒答的情况一起评分，严格正确数从 6/9 到 8/9，平均耗时从 12.19 秒到 20.26 秒。有一道题两次找回了相关记录，最终回答却漏说提案是否获批。我会把“提案是否获批”单列为验收项，逐字引用和答清提案状态分别打分。</p>
+
+<h2 id="section-4">用户接着说“把这道题加进明天的计划”，什么时候才真的写入？</h2>
+<p>模型可以提出题号，服务端校验参数并先存待确认操作，页面显示确认卡。用户点击后，后端对同一条尚未过期的 <code>pending</code> 记录做条件更新，抢到的请求才调用加入明日计划的业务函数。两个标签页同时确认，后到的一方读已有状态。实际处理用的题号来自已保存的操作。</p>
+<details><summary>如果卡片刚出现就断网，刷新后还要重新发一遍吗？</summary><p>页面用原来的 <code>client_request_id</code> 查这次提问。如果回答已经完成，页面会读回回答和待确认卡。如果这一轮中断时已保存待确认操作，页面也会恢复已有状态。只有回答尚未提交、也没有保存操作或记忆，服务端才按原扣额业务日退回站内额度，允许用同一标识重试。这一层负责恢复提问，点确认时另有操作编号负责领取执行。</p></details>
+
+<section class="sources"><h2 id="section-5">回到项目</h2><ul>
+<li>历史窗口和原文来源。<code>interview_forge/ai/chat/context_builder.py</code>、<code>interview_forge/ai/chat/history_sources.py</code>、<code>tests/test_chat_context_compaction.py</code>。</li>
+<li>盲题、每组耗时与剩余错例。<code>scripts/benchmarks/semantic_history/multiple-and-conditional-quotes.md</code>，实现 <code>a85818fe</code>，实测记录 <code>ec96d15c</code>。</li>
+<li>确认和重试。<code>interview_forge/ai/actions/store.py</code>、<code>tests/test_ai_actions.py</code>、<code>docs/AI-CHAT-REQUEST-RECOVERY.md</code>，恢复机制 <code>4ce3e62e</code>。</li>
+</ul><p><a href="history.html">核对盲题结果</a>，或<a href="recovery.html">沿同一标识复盘断线</a>。</p></section>
+<nav class="pager" aria-label="翻篇"><a href="interview-backend.html">上一篇 · 后端追问：两次评分和一次慢请求</a><a href="style.html">下一篇 · 这份报告怎样讲项目</a></nav></article>
+<nav class="toc" aria-label="本篇小节"><p>本篇小节</p><a href="#section-1">上周的约定夹在几百条消息里，这一轮你给模型看什么？</a><a href="#section-2">用户只记得大意，最像的那条恰好在转述同事。你会把话归给谁？</a><a href="#section-3">怎样测出改进来自找得更全，还是来自最后答得更准？</a><a href="#section-4">用户接着说“把这道题加进明天的计划”，什么时候才真的写入？</a><a href="#section-5">回到项目</a></nav></main>
+<footer class="foot"><div class="shell">InterviewForge 项目开发与面试报告 · 整理于 2026 年 11 月 16 日 · Git 基线 <code>90b41de9</code></div></footer></body></html>

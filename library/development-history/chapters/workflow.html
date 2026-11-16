@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>沿 Git 重走一次开发与合并 · InterviewForge</title><meta name="description" content="把阶段、修改理由和真实合并顺序放在同一条时间线上。">
+<link rel="icon" href="data:,"><link rel="stylesheet" href="../assets/reader.css"></head>
+<body><a class="skip" href="#main">跳到正文</a><header class="mast"><div class="mast-inner"><a class="brand" href="../index.html">InterviewForge<span>开发手记</span></a><nav aria-label="报告栏目"><a href="../index.html#route">主线</a><a href="../index.html#lessons">主张学习</a><a href="../index.html#interview">面试</a><a href="../index.html#notes">资料</a></nav></div></header>
+<main class="reading shell" id="main"><article><div class="crumb"><a href="../index.html">总目录</a> / <a href="../index.html#route">项目主线</a></div>
+<h1>沿 Git 重走一次开发与合并</h1><details class="mobile-toc"><summary>本篇小节</summary><nav aria-label="跳到小节"><a href="#section-1">从首版翻到一处能重现的题解修订</a><a href="#section-2">助手接进来之后，项目多了哪条主线</a><a href="#section-3">11 月 15 日，主分支实际接收了什么</a><a href="#section-4">移动一张卡片，要让旧页面也做对</a><a href="#section-5">回到项目</a></nav></details>
+<p class="lead">2026 年 11 月 15 日，主分支先后并入五个拉取请求（PR）。最后一个把一张教学卡片从管理后台移到学习书架。沿 Git 的父提交往回读，可以找到入口此前放在哪里、哪个分支完成搬迁，以及用户身份改变时，前端怎样处理刚刚返回的旧结果。</p>
+<h2 id="section-1">从首版翻到一处能重现的题解修订</h2>
+<p>8 月 30 日的 <code>b27beda0</code> 是本地学习站的首个提交。9 月 5 日的 <code>27d469f9</code> 引入多用户，9 月 11 日的 <code>37541cd3</code> 将后端迁到 FastAPI。随站点一同演进的还有题解本身。看 10 月 9 日的第 105 题，<code>8f94a9ef</code> 先补全由前序、中序遍历重建二叉树的推导，<code>84b075ad</code> 加上样例和树形图，随后 <code>7acc3f9c</code> 调小了图。</p>
+<p>10 月 10 日的 <code>41258b5f</code> 再往前一步，把内容补回生成题页所依赖的专题源稿，并为五道题加上回归检查。以第 105 题为例，检查会从源稿和生成页分别数出两个示例，查看图片，再核对左子树大小的推导仍在。今后修改题面拆分逻辑，即使所有链接都能打开，丢掉一组样例也会被发现。</p>
+<h2 id="section-2">助手接进来之后，项目多了哪条主线</h2>
+<p>9 月 12 日，<code>d778f727</code> 让聊天可以边生成边显示并保存会话，<code>8fe1f979</code> 接入学习资料。紧随其后的 <code>3792ecaf</code> 加入操作确认。从这里起，用户既能问为什么要复习，也能要求助手发起同步。模型提出的动作、用户按下的确认、后台实际执行的结果，需要分别记录。<a href="action.html">跟一次确认操作</a>。</p>
+<p>到 11 月 14 日，这条链积累了两个新问题。聊天太长时，<code>38bda964</code> 给省略的材料保留回读路径。只记得大意时，<code>87e79105</code> 帮助手找到能打开的原话。网络掉线则沿另一条线处理：<code>4ce3e62e</code> 按原请求标识找回确认和答案。历史引用查的是旧消息，断线恢复查的是一次发送已留下的结果。<a href="history.html">读引文实测</a>，或<a href="recovery.html">读断线案例</a>。</p>
+<h2 id="section-3">11 月 15 日，主分支实际接收了什么</h2>
+<ol>
+<li>PR #1 的合并点 <code>17fddea2</code> 接入学习入口、题目搜索工作区和受保护页面的链接检查。PR #2 的 <code>f4683243</code> 随后调整首页操作，并支持从独立目录读取教学档案。</li>
+<li>PR #4 的 <code>3b6977e5</code> 保留共享 Python 教学内容和游客阅读行为。PR #5 的 <code>79ed3296</code> 随后合入账号找回、角色分级等变更。</li>
+<li>PR #6 从 <code>79ed3296</code> 出发，在 <code>f1c4a210</code> 完成书架入口改动，再由 <code>90b41de9</code> 合回主分支。这是本报告核对的 HEAD。</li>
+</ol>
+<h2 id="section-4">移动一张卡片，要让旧页面也做对</h2>
+<p>公开书架是生成好的 HTML。若直接把教学卡片写进去，每位读者得到的文件都会带上它的名字。<code>f1c4a210</code> 改了书架生成器，先留一个空位置。浏览器向服务端查询，只有当前会话持有所需权限、教学目录可用时，才收到名称与链接并绘制卡片。打开档案里的单个资源时，服务端还会重新核对会话。</p>
+<p>假设书架刚发出权限查询，用户就在另一个标签页退出了。旧查询此时才返回成功，页面该显示什么？页面一旦收到身份变化就清空旧卡片，用请求的代次识别晚到的应答。前端测试刻意在收到身份变更通知后才送回上一次查询的成功应答，检查卡片仍为空。构建测试另外打开生成的书架，检查初始位置为空、旧后台入口已经移除。把两个测试连起来读，既能知道新页面应有什么，也能知道浏览器从历史返回时该重新查什么。</p>
+<details><summary>如何区分功能提交与合并提交？</summary><p>在仓库根运行 <code>git show -s --format=%p 90b41de9</code>，依次得到 <code>79ed3296</code> 和 <code>f1c4a210</code>。前者是合并前的主线，后者是功能分支的末端。<code>git diff f1c4a210 90b41de9</code> 的输出为空，两者保存了相同的文件内容。</p></details>
+<section class="sources"><h2 id="section-5">回到项目</h2><ul>
+<li><code>git log --first-parent --oneline 131f3595..90b41de9</code> 只沿主线查看这五个合并点。</li>
+<li><code>git show 41258b5f -- tests/test_problem_leetcode_links.py</code> 可查看五道题的示例数量及图片检查。</li>
+<li><code>assets/private-archive-entry.js</code> 更新书架卡片。<code>tests/test_private_shelf.js</code> 和 <code>tests/test_private_shelf.py</code> 分别核对浏览器行为与生成的页面。</li>
+</ul></section>
+<nav class="pager" aria-label="翻篇"><a href="practice.html">上一篇 · 读完题解，怎样接着练</a><a href="content.html">下一篇 · 换一种语言，题解也要重新讲</a></nav></article>
+<nav class="toc" aria-label="本篇小节"><p>本篇小节</p><a href="#section-1">从首版翻到一处能重现的题解修订</a><a href="#section-2">助手接进来之后，项目多了哪条主线</a><a href="#section-3">11 月 15 日，主分支实际接收了什么</a><a href="#section-4">移动一张卡片，要让旧页面也做对</a><a href="#section-5">回到项目</a></nav></main>
+<footer class="foot"><div class="shell">InterviewForge 项目开发与面试报告 · 整理于 2026 年 11 月 16 日 · Git 基线 <code>90b41de9</code></div></footer></body></html>

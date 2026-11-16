@@ -8,7 +8,8 @@
       .forEach(code => code.parentElement.classList.add('mermaid'));
     return enhance(root);
   };
-  const actions = document.querySelector('.archive-actions');
+  const reportPage = location.pathname.startsWith('/library/development-history/');
+  const actions = document.querySelector(reportPage ? '.mast nav' : '.archive-actions');
   if (actions) {
     const back = document.createElement('a');
     back.href = '/library/index.html'; back.className = 'forge-archive-back'; back.textContent = '← 学习书架';
@@ -20,7 +21,7 @@
     .then(response => {
       if (response.status === 401 || response.status === 403) {
         document.body.replaceChildren();
-        location.replace('/pages/login.html?next=' + encodeURIComponent('/api/private-archive/index.html'));
+        location.replace('/pages/login.html?next=' + encodeURIComponent(location.pathname + location.search + location.hash));
       }
     }).catch(() => {});
   addEventListener('focus', check);

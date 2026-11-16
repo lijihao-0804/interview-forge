@@ -7,6 +7,7 @@ Neither mode indexes, copies to web roots or caches content publicly.
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 import stat
 import zipfile
@@ -69,6 +70,33 @@ def _read_member(path: str) -> bytes:
         return package.read(info)
 
 
+REPORT_DIR = ROOT / "library" / "development-history"
+REPORT_URL = "/library/development-history/index.html"
+# Older service workers may attempt to cache every successful /library/ response.
+# Vary: * prevents even those workers from putting a private response in CacheStorage.
+REPORT_HEADERS = {**HEADERS, "Vary": "*"}
+
+
+@router.api_route("/library/development-history/{path:path}", methods=["GET", "HEAD"], include_in_schema=False)
+def report_resource(request: Request, path: str):
+    denied = _denied(request)
+    if denied is not None:
+        return denied
+    if path == "assets/reader.css":
+        media_type = "text/css"
+    elif path == "index.html" or re.fullmatch(r"chapters/[a-z0-9][a-z0-9-]*\.html", path):
+        media_type = "text/html"
+    else:
+        return support.error_response("Not Found", 404, headers=REPORT_HEADERS)
+    target = REPORT_DIR / path
+    if not target.is_file() or not target.resolve().is_relative_to(REPORT_DIR.resolve()):
+        return support.error_response("Not Found", 404, headers=REPORT_HEADERS)
+    body = b"" if request.method == "HEAD" else target.read_bytes()
+    if media_type == "text/html" and body:
+        body = body.replace(b"</body>", b'<script defer src="/assets/private-archive-shell.js?v=4"></script></body>', 1)
+    return Response(content=body, media_type=media_type, headers=REPORT_HEADERS)
+
+
 @router.get("/api/private-archive-status")
 def archive_status(request: Request):
     denied = _denied(request)
@@ -83,6 +111,10 @@ def archive_status(request: Request):
     if available:
         result["entry"] = {"title": "AgentHub 教学档案", "description": "专属教学资料 · 仅超级管理员可见",
                            "url": "/api/private-archive/index.html"}
+    if (REPORT_DIR / "index.html").is_file():
+        report = {"title": "InterviewForge 开发手记", "description": "一道题做完以后 · 项目历程、工程选择与面试追问",
+                  "url": REPORT_URL}
+        result["entries"] = [result["entry"], report] if available else [report]
     return support.json_response(result, headers=HEADERS)
 
 
