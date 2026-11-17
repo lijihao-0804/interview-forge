@@ -16,6 +16,9 @@
 <li>模型输出被截断了，怎么让用户根本感觉不到？</li>
 </ul>
 <p>文章依旧硬核到底，发车！</p>
+<blockquote>
+<p><strong>本站编排说明</strong>　本篇收录为《图解 Claude Code》第 22 章。下文的一至七是作者在这篇文章内划分的小节；6.1 是第六节里的第一小节。原站将本篇归在「源码解析」。<a href="https://xiaolinnote.com/claudecode/" target="_blank" rel="noopener noreferrer">查看原站专栏目录</a></p>
+</blockquote>
 <h3 id="claude-code">一、敲完回车，Claude Code 内部到底发生了什么？</h3>
 <p>我们先从一个最朴素的场景开始。</p>
 <p>你在终端打开 Claude Code，敲一句「帮我修复这个 bug」，然后回车。30 秒后，Claude 给你返回了修复方案，并且把代码也改好了。</p>
@@ -31,15 +34,15 @@
 <p><strong>这个不停「调模型 → 看结果 → 决定下一步」的循环，就叫主循环（Query Loop），是整个 Agent 的「心脏」。</strong></p>
 <p><img loading="lazy" decoding="async" width="1672" height="941" alt="Agent 心脏示意图" src="assets/bd89a9bf03-91835ebefdd8c7e2e00b4171.webp" /></p>
 <p><em>Agent 心脏示意图</em></p>
-<p>理解到这一层还不够。主循环这个东西，你们听上去会觉得很简单：</p>
-<div class="codehilite"><pre><code>while (true) {
-  调模型()
-  if (模型说要用工具) {
-    执行工具()
-  } else {
-    break
-  }
-}
+<p>理解到这一层还不够。只看最简单的情况，每一轮先调模型，再决定执行工具还是退出。下面是省略异常处理的伪代码：</p>
+<div class="codehilite" data-lang="typescript"><pre><code class="language-typescript"><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="kc">true</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">调模型</span><span class="p">()</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">模型说要用工具</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">执行工具</span><span class="p">()</span>
+<span class="w">  </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">break</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
 </code></pre></div>
 <p>如果真这么写，能跑通一个 demo，但在真实生产环境里会被千锤百炼出无数个 bug：</p>
 <ul>
@@ -101,7 +104,7 @@
 <p><em>水龙头 vs 水桶类比图</em></p>
 <p>普通的 <code>async</code> 函数，就像让你接一桶水。你打开水龙头之后，必须等水接满了，整桶端走，才能用。对应到 Agent 上，就是「你问一句，等几十秒模型把完整答案吐完，你才能看到结果」。</p>
 <p>异步生成器就是水龙头本身。模型每吐出一个字符、每跑完一个工具，立刻就能流出来给你看。</p>
-<p>这就是为什么你在 Claude Code 里敲完回车，能立刻看到模型一个字一个字地在打字，而不是干等几十秒突然蹦出一大段文字。这种「边干边吐」的能力，不仅是用户体感，更是后面第五章会讲到的「流式 + 并行工具执行」的前提条件。</p>
+<p>这就是为什么你在 Claude Code 里敲完回车，能立刻看到模型一个字一个字地在打字，而不是干等几十秒突然蹦出一大段文字。这种「边干边吐」的能力，不仅是用户体感，更是<a href="#query-loop-streaming">本篇第五节「流式与并行工具执行」</a>的前提条件。</p>
 <p><img loading="lazy" decoding="async" width="1536" height="1024" alt="事件接力流水线示意图" src="assets/e6b1130f82-6c2041a73a84d5d58d7268c6.webp" /></p>
 <p><em>事件接力流水线示意图</em></p>
 <p>异步生成器的语法长什么样？我们看一眼源码（来自 <code>query.ts</code>），里面有两个关键标记：</p>
@@ -115,7 +118,7 @@
 <p><img loading="lazy" decoding="async" width="1672" height="941" alt="四层职责对照表" src="assets/8067b1da11-cbac7dc863db6d73e460cb07.webp" /></p>
 <p><em>四层职责对照表</em></p>
 <p>四层调用链解释完了，我们终于可以走进最里面那间屋子，看看主循环转一圈到底干了啥。</p>
-<h3 id="_1">三、主循环转一圈，到底跑了哪些动作？</h3>
+<h3 id="_1"><a id="query-loop-steps"></a>三、主循环转一圈，到底跑了哪些动作？</h3>
 <p><code>queryLoop</code> 这个函数有近 1500 行，但骨架就是一个 <code>while (true)</code>。每一轮迭代，按顺序做五件事。</p>
 <p><img loading="lazy" decoding="async" width="1672" height="941" alt="主循环五步流程图" src="assets/c8ca04a5dd-fb96cb7772504b38cd62e5c3.webp" /></p>
 <p><em>主循环五步流程图</em></p>
@@ -156,7 +159,7 @@
 <span class="w">  </span><span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div>
-<p>伪代码里这个 <code>state</code> 对象就是第六章要展开讲的「跨轮状态对象」，这里先记个脸熟。</p>
+<p>伪代码里这个 <code>state</code> 对象就是<a href="#query-loop-state">本篇 6.1 小节「跨轮状态对象」</a>要展开讲的内容，这里先记个脸熟。</p>
 <p>下面我把每一步拆开讲。</p>
 <p><strong>第一步：准备消息。</strong></p>
 <p>每一轮开始，主循环要拿到「截至目前的完整对话历史」，准备喂给模型。这里有个细节很容易被想当然：消息历史不是每轮开头都主动压一遍的，而是<strong>被动触发</strong>。主循环先按原样把消息发出去，<strong>只有 API 返回 <code>prompt_too_long</code>（413）拒收</strong>了，才补救压缩一次再重试这一轮。如果压完还是塞不下，就老老实实退出。</p>
@@ -181,20 +184,20 @@
 <p>主循环一边收，一边干两件事：把文字块往上抛出去（让用户能即时看到模型在打字），把 <code>tool_use</code> 块攒起来准备等会儿执行。</p>
 <p><strong>第三步：判断继续还是结束。</strong></p>
 <p>模型流完之后，主循环要回答一个最核心的问题：<strong>这一轮对话结束了，还是要继续？</strong></p>
-<p>这是整个主循环的「决策点」，我下一章专门讲。</p>
+<p>这是整个主循环的「决策点」，详见<a href="#query-loop-decision">本篇第四节「继续调用工具还是停下来」</a>。</p>
 <p><strong>第四步：执行所有 tool_use。</strong></p>
-<p>如果判断要继续，就把模型这一轮要求的所有工具调用都跑掉，拿到每个工具的执行结果。Claude Code 在这一步有一个非常骚的「流式并行」设计，第五章细讲。</p>
+<p>如果判断要继续，就把模型这一轮要求的所有工具调用都跑掉，拿到每个工具的执行结果。Claude Code 在这一步有一个非常骚的「流式并行」设计，详见<a href="#query-loop-streaming">本篇第五节「流式与并行工具执行」</a>。</p>
 <p><strong>第五步：塞回结果，进下一轮。</strong></p>
-<p>所有工具结果跑完了，把它们当作「user 角色的消息」塞回消息历史里，更新一下「跨轮要带的状态对象」（这个状态对象第六章会专门讲），然后 <code>continue</code> 回到 <code>while</code> 头部。</p>
+<p>所有工具结果跑完了，把它们当作「user 角色的消息」塞回消息历史里，更新一下「跨轮要带的状态对象」（见<a href="#query-loop-state">本篇 6.1 小节「跨轮状态对象」</a>），然后 <code>continue</code> 回到 <code>while</code> 头部。</p>
 <p><img loading="lazy" decoding="async" width="1672" height="941" alt="五步骨架环形图" src="assets/e3f26b1836-49a6b33ba489b844fe7b7b39.webp" /></p>
 <p><em>五步骨架环形图</em></p>
 <p>注意一个细节：每跑一轮，消息历史都会变长（assistant 的回复 + 工具结果）。如果主循环跑了 20 轮，那第 20 轮发给模型的消息历史里，就有前 19 轮所有的对话和工具结果。</p>
 <p>这也是为什么压缩机制要存在：消息历史会像滚雪球一样越滚越大，不压就会爆炸。</p>
 <p><img loading="lazy" decoding="async" width="1672" height="941" alt="一轮迭代消息累积示意图" src="assets/b529e0b37f-95415ff2345a30a9f547783b.webp" /></p>
 <p><em>一轮迭代消息累积示意图</em></p>
-<p>主循环的骨架就这样。但「骨架」不等于「细节」，真正考验工程功力的是后面三章要讲的东西。</p>
-<h3 id="agent">四、Agent 怎么知道「该用工具」还是「该停下来」？</h3>
-<p>承接上一章的「决策点」，主循环第三步那个判断到底怎么做的？</p>
+<p>主循环的骨架就这样。但「骨架」不等于「细节」，真正考验工程功力的是接下来的三个细节：<a href="#query-loop-decision">何时结束循环</a>、<a href="#query-loop-streaming">何时启动工具</a>、<a href="#query-loop-recovery">出错后如何恢复</a>。</p>
+<h3 id="agent"><a id="query-loop-decision"></a>四、Agent 怎么知道「该用工具」还是「该停下来」？</h3>
+<p>承接<a href="#query-loop-steps">本篇第三节</a>的「决策点」，主循环第三步那个判断到底怎么做的？</p>
 <p>我跟你说，这个判断简单到出乎你的意料：<strong>就看模型返回里有没有 <code>tool_use</code> 块</strong>。</p>
 <p>主循环内部用一个布尔变量记录「这一轮要不要继续」，这个变量在源码里叫 <code>needsFollowUp</code>（直译就是「需要后续动作」）。判断逻辑就一条：</p>
 <ul>
@@ -242,9 +245,9 @@
 <p><img loading="lazy" decoding="async" width="1672" height="941" alt="主循环工程量冰山图" src="assets/594550b309-3a0f5b94ac9aa2c54c2b0dca.webp" /></p>
 <p><em>主循环工程量冰山图</em></p>
 <p>这才是「主循环」三个字背后真正的工程量。</p>
-<h3 id="_2">五、模型还在吐字、工具就开跑了？这怎么做到的？</h3>
+<h3 id="_2"><a id="query-loop-streaming"></a>五、模型还在吐字、工具就开跑了？这怎么做到的？</h3>
 <p>讲完决策，我们看主循环第四步：执行工具。</p>
-<p>这一步是 Claude Code 整个主循环里最骚的设计，我必须单独开一章来讲。</p>
+<p>这一步是 Claude Code 整个主循环里最骚的设计，这一节就来拆解它是怎么实现的。</p>
 <p>我们先想想朴素做法是什么样的。</p>
 <p><img loading="lazy" decoding="async" width="1672" height="941" alt="朴素串行 vs 流式并行时间线" src="assets/286696c789-6e99d4809e0c3e2a3daaf551.webp" /></p>
 <p><em>朴素串行 vs 流式并行时间线</em></p>
@@ -289,11 +292,11 @@
 <p>讲到这里，我想抛出一个延伸思考：<strong>Claude Code 让 Agent 跑得快的秘密，不在于模型多聪明，而在于工程上把每一段空闲时间都榨干</strong>。</p>
 <p>这种「流式 + 并行」的设计，是把模型生成时间和工具执行时间高度重叠，最大化利用每一秒。</p>
 <p>这才是真正的工程功力。</p>
-<h3 id="_3">六、出错的时候，主循环凭什么让你毫无察觉？</h3>
-<p>前面五章把主循环的正常路径讲完了。但回到开头那个问题，你按下回车后那 30 秒里，主循环转的可不只是「调模型 + 跑工具」这么干净。</p>
+<h3 id="_3"><a id="query-loop-recovery"></a>六、出错的时候，主循环凭什么让你毫无察觉？</h3>
+<p>到<a href="#query-loop-streaming">本篇第五节</a>为止，我们讲完了主循环的正常路径。但回到开头那个问题，你按下回车后那 30 秒里，主循环转的可不只是「调模型 + 跑工具」这么干净。</p>
 <p>中间随便一个意外：网络抖一下、你按一次 Ctrl+C、模型一口气想说太多话，都可能让对话卡死、报错或者结果残缺。</p>
-<p>Claude Code 之所以让你<strong>感觉不到这些意外</strong>，是因为主循环里藏了一堆兜底机制。这一章就挑三个最关键的细节讲讲：你看不见的部分，主循环都帮你处理了什么。</p>
-<h4 id="61">6.1 跨轮状态对象：为什么不能用「全局变量」糊弄？</h4>
+<p>Claude Code 之所以让你<strong>感觉不到这些意外</strong>，是因为主循环里藏了一堆兜底机制。这一节就挑三个最关键的细节讲讲：你看不见的部分，主循环都帮你处理了什么。</p>
+<h4 id="61"><a id="query-loop-state"></a>6.1 跨轮状态对象：为什么不能用「全局变量」糊弄？</h4>
 <p>我们先想一个朴素问题：主循环是个 <code>while (true)</code>，那「这一轮发生了什么」要怎么传给下一轮？</p>
 <p>最朴素的做法是用闭包变量或者全局变量，比如「重试次数」就放一个外部变量，每轮 +1。能跑，但调试起来是噩梦：你看到代码继续循环了，根本不知道是因为哪个标志位被改了。</p>
 <p>Claude Code 的做法是把所有跨轮要传的字段，<strong>全部打包到一个状态对象里</strong>，每一轮迭代开头读出来，结尾构造一个新的写回去。这个状态对象在源码里叫 <code>State</code>。</p>
@@ -317,7 +320,7 @@
 <h4 id="62">6.2 工具跑挂之后，对话凭什么还能继续？</h4>
 <p>这是一个 Anthropic API 的「冷知识」，没踩过坑的人根本想不到。</p>
 <p>我先把这条 API 协议规矩说清楚：</p>
-<p>第三章我们讲过，模型回话时会吐出 <code>tool_use</code> 块（工具调用请求）。工具跑完之后，要把执行结果以另一种格式塞回消息历史，这种「工具执行结果」叫 <code>tool_result</code> 块。</p>
+<p><a href="#query-loop-steps">本篇第三节</a>讲过，模型回话时会吐出 <code>tool_use</code> 块（工具调用请求）。工具跑完之后，要把执行结果以另一种格式塞回消息历史，这种「工具执行结果」叫 <code>tool_result</code> 块。</p>
 <p><strong>API 协议有一条死规定：每个 <code>tool_use</code> 块，必须有一个对应的 <code>tool_result</code> 块跟它配对。如果消息历史里有个孤零零的 <code>tool_use</code> 没人接，下一轮请求直接被 API 拒收，报错说「工具调用 ID 对不上」。</strong></p>
 <p>正常情况下没问题，工具跑完就有结果，配对很自然。但出错的时候呢？</p>
 <p>比如：模型刚吐完 <code>tool_use</code> 块，网络突然断了，工具根本没开始跑；或者工具跑到一半，用户按了 Ctrl+C；或者模型出了问题，主循环临时切换到备用模型（这种切换机制叫「模型降级」），前一个模型吐出的 <code>tool_use</code> 就没机会执行了。</p>
