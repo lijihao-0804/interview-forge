@@ -203,7 +203,9 @@ readerVisualFrames.forEach((frame) => {
     label.className = 'flb-label';
     label.textContent = '题解语言';
     bar.appendChild(label);
-    Object.keys(LANG_NAMES).forEach((lang) => {
+    const main = document.querySelector('.markdown-body');
+    const allowed = main?.dataset.solutionLanguages?.split(/\s+/) || Object.keys(LANG_NAMES);
+    allowed.filter((lang) => SUPPORTED.has(lang)).forEach((lang) => {
       const chip = document.createElement('button');
       chip.type = 'button';
       chip.className = 'forge-lang-chip';
@@ -212,7 +214,6 @@ readerVisualFrames.forEach((frame) => {
       chip.addEventListener('click', () => setLang(lang, true));
       bar.appendChild(chip);
     });
-    const main = document.querySelector('.markdown-body');
     if (main && main.parentNode) main.parentNode.insertBefore(bar, main);
     return bar;
   }

@@ -161,6 +161,9 @@ LIBRARY_MODULES = [
      "about": "用四篇学习笔记串起项目配置、任务执行、工具循环与跨会话记忆，每篇附小林原文。"},
     {"id": "agent-mianjing", "title": "Agent 面经", "category": "公司面经", "source": "agent面经/《Agent 面经》.md",
      "about": "大模型与 AI Agent 面试笔记合集：LLM 基础、Transformer、微调、Prompt、RAG、Agent 架构、Function Calling/MCP、记忆与 Multi-Agent。"},
+    {"id": "hot200-extra", "title": "Hot 200 补充 100 题", "category": "后端与算法题",
+     "source": "hot200-extra/README.md", "unit": "题",
+     "about": "按力扣「精选算法 200 题」的展示顺序，收录第 101–200 位。100 道题均在本站 Hot 100 之外，17 道可对照企业高频题解。本站可直接阅读 Java、Python 实现，力扣原题标为会员题。"},
     {"id": "company-topics", "title": "企业高频算法题库", "category": "企业题库",
      "source": "company-topics/企业高频题库.md",
      "about": "按公司汇总互联网技术岗考察的 LeetCode 题目热度（LeetcodeTop / CodeTop 面经整理），只列 Hot 100 之外的增量题：字节、阿里、腾讯、美团、百度、快手、Shopee、微软、猿辅导、Amazon 共 10 家，覆盖算法/后端/前端/客户端/数据/测试岗位。"},
@@ -219,6 +222,7 @@ MODULE_ORDER = [
     "devops",
     # 算法刷题
     "hot100",
+    "hot200-extra",
     # 校招冲刺
     "interview-sprint",
     # AI 主线

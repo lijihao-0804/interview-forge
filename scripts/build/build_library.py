@@ -75,7 +75,7 @@ if str(_PROJECT_ROOT) not in sys.path:
 # pygments：代码高亮着色，与高亮函数配合产出带 data-lang 的 codehilite 结构。
 import markdown
 from interview_forge.core.paths import ROOT as HOT100_ROOT
-from scripts.build import build_cache, exam_shelf
+from scripts.build import build_cache, build_hot200_extra, exam_shelf
 from scripts.build.asset_version import ASSET_VERSION
 from pygments import highlight as pygments_highlight
 from pygments.formatters import HtmlFormatter
@@ -1463,6 +1463,7 @@ const grid=document.getElementById('chapterGrid');
 const empty=document.getElementById('empty');
 const search=document.getElementById('search');
 const topic=document.getElementById('topic');
+const difficulty=document.getElementById('difficulty');
 const status=document.getElementById('status');
 const toast=document.getElementById('toast');
 const topicWrap=document.getElementById('topicWrap');
@@ -1542,7 +1543,8 @@ function renderCards(){
     const matchesText=!query||text.includes(query);
     const matchesTopic=!hasTopics||!topic.value||c.category===topic.value;
     const matchesStatus=!status.value||(status.value==='new'&&rounds===0)||(status.value==='once'&&rounds===1)||(status.value==='repeat'&&rounds>=2)||(status.value==='due'&&isDue);
-    return matchesText&&matchesTopic&&matchesStatus;
+    const matchesDifficulty=!difficulty||!difficulty.value||c.difficulty===difficulty.value;
+    return matchesText&&matchesTopic&&matchesStatus&&matchesDifficulty;
   });
   grid.innerHTML=list.map(c=>{
     const info=contentInfo(c.id);const rounds=Number(info.rounds||0);
@@ -1554,7 +1556,7 @@ function renderCards(){
     const personalStatus=personal?`<span class="round-count">${rounds} 轮</span>${dueBadge}`:'<span class="guest-read-note">公开阅读</span>';
     const actions=personal
       ?`<div class="card-actions"><span class="last-study">最近：${localTime(info.last_activity_at)}</span><button class="round-button" type="button" data-chapter="${esc(c.id)}" ${state.online?'':'disabled'}>完成一轮</button></div>`
-      :`<div class="card-actions"><span class="last-study">游客可阅读全文并运行示例查看；登录后记录轮次与复习。</span><a class="round-button" href="${guestAuth.authHref('../../pages/login.html')}">登录后记录</a></div>`;
+      :`<div class="card-actions"><span class="last-study">登录后可记录学习轮次与复习。</span><a class="round-button" href="${guestAuth.authHref('../../pages/login.html')}">登录后记录</a></div>`;
     return `<article class="chapter-card ${personal&&rounds?'studied':''}"><div class="card-head"><h2><a href="${esc(c.href)}" target="_blank" rel="noopener noreferrer">${esc(c.title)}</a></h2>${personalStatus}</div>${meta.length?`<div class="meta">${meta.join('')}</div>`:''}${actions}</article>`;
   }).join('');
   empty.hidden=list.length!==0;
@@ -1630,7 +1632,7 @@ async function refresh(){
   updateStats();renderDue();renderCards();
 }
 search.addEventListener('input',renderCards);
-[topic,status].forEach(control=>control.addEventListener('change',renderCards));
+[topic,status,difficulty].filter(Boolean).forEach(control=>control.addEventListener('change',renderCards));
 if(serverRetry)serverRetry.addEventListener('click',refresh);
 let moduleSessionKey='';
 function activateModuleSession(session){
@@ -1676,6 +1678,12 @@ def module_index_page(module: dict[str, object], page_chapters: list[dict[str, o
         .replace("__CHAPTERS_JSON__", chapters_json)
         .replace("__TOPICS_JSON__", topics_json)
     )
+    source_note = build_hot200_extra.DIRECTORY_SOURCE if module_id == build_hot200_extra.MODULE_ID else ""
+    difficulty_filter = ""
+    if any(c.get("difficulty") for c in page_chapters):
+        difficulty_filter = ('<div class="field"><label for="difficulty">难度</label><select id="difficulty">'
+                             '<option value="">全部难度</option><option>简单</option><option>中等</option>'
+                             '<option>困难</option></select></div>')
     about = html.escape(str(module.get("about") or ""))
     # 简介来源优先级：登记表人工文案 > module_about 自动提取 > 兜底文案
     # (后者在 build() 组装模块 dict 时决定)；HTML 转义后放入模块页，防注入。
@@ -1684,7 +1692,7 @@ def module_index_page(module: dict[str, object], page_chapters: list[dict[str, o
   <div>
     <h1>{html.escape(str(module['title']))}</h1>
     <div class="module-sub">{html.escape(str(module['category']))} · {count} {unit} · 支持多轮学习记录</div>
-    <div class="module-about">{about}</div>
+    <div class="module-about">{about}</div>{source_note}
     <div id="connection" class="connection">正在确认账号状态</div>
   </div>
   <div class="module-stats">
@@ -1700,7 +1708,7 @@ def module_index_page(module: dict[str, object], page_chapters: list[dict[str, o
 <section class="module-controls" aria-label="筛选章节">
   <div class="field"><label for="search">搜索</label><input id="search" type="search" placeholder="标题、方法或简介" autocomplete="off"></div>
   <div class="field" id="topicWrap"><label for="topic">专题</label><select id="topic"><option value="">全部专题</option></select></div>
-  <div class="field auth-private"><label for="status">学习轮次</label><select id="status"><option value="">全部轮次</option><option value="due">待复习</option><option value="new">尚未完成</option><option value="once">完成 1 轮</option><option value="repeat">完成 2 轮以上</option></select></div>
+  {difficulty_filter}<div class="field auth-private"><label for="status">学习轮次</label><select id="status"><option value="">全部轮次</option><option value="due">待复习</option><option value="new">尚未完成</option><option value="once">完成 1 轮</option><option value="repeat">完成 2 轮以上</option></select></div>
 </section>
 <section class="chapter-grid" id="chapterGrid"></section>
 <div id="empty" class="empty" hidden>没有匹配的内容，请调整搜索词或筛选条件。</div>
@@ -1964,7 +1972,7 @@ def shelf_reading_entry(body: str) -> str:
     return body + '<script src="../assets/shelf-reading.js?v=1"></script>'
 
 
-def build() -> None:
+def prepare_library_assets() -> None:
     # 第 0 步：固定资产落盘。library.css / library-mermaid.js 只 strip 首尾空白再写
     # (与常量内容逐字节一致，便于 check 脚本比对)；版本号 ?v= 在页面引用处统一。
     OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
@@ -1978,9 +1986,6 @@ def build() -> None:
         )
     except ImportError:
         pass
-    # 增量构建缓存：脚本自身哈希或资源版本变化时整体失效（详见 build_cache）。
-    cache = build_cache.load_cache(HOT100_ROOT)
-    cache = build_cache.invalidate_on_tool_change(cache, Path(__file__).resolve())
     (OUTPUT_ROOT / "assets").mkdir(parents=True, exist_ok=True)
     (OUTPUT_ROOT / "assets" / "library.css").write_text(LIBRARY_CSS.strip() + "\n", encoding="utf-8")
     (OUTPUT_ROOT / "assets" / "library-mermaid.js").write_text(MERMAID_JS.strip() + "\n", encoding="utf-8")
@@ -2004,49 +2009,77 @@ def build() -> None:
     if not mermaid_source.exists():
         raise FileNotFoundError(f"缺少 Mermaid 源运行库：{mermaid_source}")
     shutil.copy2(mermaid_source, mermaid_vendor)
-    # 模块列表以 Hot 100 模块打头(数据流第 1 步的“登记”对它是程序生成)：
-    # 它没有源笔记，url 直接指向 Interview Forge首页；routes 先并入它的题目映射。
-    hot100_module, hot100_routes = build_hot100_module()
-    modules: list[dict[str, object]] = []
-    routes: dict[str, dict[str, str]] = dict(hot100_routes)
-    # Hot 100 章节的搜索条目：题解页由 build_hot100 维护，这里没有可清洗的正文，
-    # 索引用 方法(method) + 难度(difficulty) 作为检索字段——搜“滑动窗口”能命中
-    # 对应题解，再经 module_title / url 跳转到题解页。
-    search_entries: list[dict[str, object]] = [
-        {
-            "id": str(chapter["id"]),
-            "module_id": "hot100",
-            "kind": "question",
-            "module_title": "Hot 100 算法刷题精讲",
-            "title": str(chapter["title"]),
-            "url": str(chapter["url"]),
-            "text": f"{chapter.get('method', '')} {chapter.get('difficulty', '')}",
-        }
-        for chapter in hot100_module["chapters"]
-    ]
+
+
+def build(hot200_only: bool = False) -> None:
+    # 增量构建缓存：脚本自身哈希或资源版本变化时整体失效（详见 build_cache）。
+    cache = build_cache.load_cache(HOT100_ROOT)
+    cache = build_cache.invalidate_on_tool_change(cache, Path(__file__).resolve())
+    if hot200_only:
+        # Preserve unrelated release content, including independently generated banks.
+        manifest = json.loads((OUTPUT_ROOT / "manifest.json").read_text(encoding="utf-8"))
+        old_index = json.loads((OUTPUT_ROOT / "search-index.json").read_text(encoding="utf-8"))
+        modules = [m for m in manifest["modules"] if m["id"] != build_hot200_extra.MODULE_ID]
+        routes = {url: target for url, target in manifest["routes"].items()
+                  if target["module_id"] != build_hot200_extra.MODULE_ID}
+        search_entries = [e for e in old_index if e["module_id"] != build_hot200_extra.MODULE_ID]
+    else:
+        prepare_library_assets()
+        # 模块列表以 Hot 100 模块打头(数据流第 1 步的“登记”对它是程序生成)：
+        # 它没有源笔记，url 直接指向 Interview Forge首页；routes 先并入它的题目映射。
+        hot100_module, hot100_routes = build_hot100_module()
+        modules = [hot100_module]
+        routes: dict[str, dict[str, str]] = dict(hot100_routes)
+        # Hot 100 章节的搜索条目：题解页由 build_hot100 维护，这里没有可清洗的正文，
+        # 索引用 方法(method) + 难度(difficulty) 作为检索字段——搜“滑动窗口”能命中
+        # 对应题解，再经 module_title / url 跳转到题解页。
+        search_entries: list[dict[str, object]] = [
+            {
+                "id": str(chapter["id"]),
+                "module_id": "hot100",
+                "kind": "question",
+                "module_title": "Hot 100 算法刷题精讲",
+                "title": str(chapter["title"]),
+                "url": str(chapter["url"]),
+                "text": f"{chapter.get('method', '')} {chapter.get('difficulty', '')}",
+            }
+            for chapter in hot100_module["chapters"]
+        ]
     expected_chapter_pages: set[Path] = set()
     # source_modules：把登记表里的相对路径源笔记解析成“绝对路径 → 模块 id”映射，
     # rewrite_local_links 靠它把“指向其他课程 .md 的链接”改写为对应模块首页。
     source_modules = {(NOTES_ROOT / definition["source"]).resolve(): str(definition["id"]) for definition in LIBRARY_MODULES}
     # 逐个课程模块：读源(utf-8-sig 兼容带 BOM 的源文件)→ 拆章 → 建模块目录。
     for definition in LIBRARY_MODULES:
+        if hot200_only and definition["id"] != build_hot200_extra.MODULE_ID:
+            continue
         source = NOTES_ROOT / definition["source"]
         text = source.read_text(encoding="utf-8-sig")
         # split_chapters 返回 (书名, 章节列表)；模块显示名优先用登记表 title，
         # 源里的一级标题只作登记表为空时的兜底(见下方模块 dict 组装处)。
-        book_title, raw_chapters = split_chapters(text, definition["title"])
+        is_hot200 = definition["id"] == build_hot200_extra.MODULE_ID
+        if is_hot200:
+            raw_chapters, src_sha, updated_at = build_hot200_extra.load_chapters(
+                HOT100_ROOT, (p["id"] for p in PROBLEMS)
+            )
+            book_title = definition["title"]
+        else:
+            book_title, raw_chapters = split_chapters(text, definition["title"])
+            src_sha = build_cache.file_sha256(source)
+            updated_at = source.stat().st_mtime
         # 章节页展示的“最后更新”：取源笔记文件的修改时间（内容真实变更时才前进）
-        book_updated = datetime.fromtimestamp(source.stat().st_mtime).strftime("%Y-%m-%d")
+        book_updated = datetime.fromtimestamp(updated_at).strftime("%Y-%m-%d")
         module_dir = OUTPUT_ROOT / definition["id"]
         assets_dir = module_dir / "assets"
         module_dir.mkdir(parents=True, exist_ok=True)
+        if is_hot200:
+            shutil.copy2(source.parent / "LICENSE-walkccc.txt", module_dir / "LICENSE-walkccc.txt")
         # chapters 是“书架侧”章节数据(id/标题/链接/intro)，后续喂给模块页 JS 与
         # manifest；章节页文件名统一 chapter-NN.html，章节 id 统一 “模块id:NN”。
         chapters: list[dict[str, object]] = []
         # 增量构建：整本书源哈希未变且该书全部章节输出都在 → 跳过章节正文渲染
         # （元数据、搜索索引仍照常收集）；需要渲染时该书所有章节并行渲染。
         rel_source = source.relative_to(HOT100_ROOT).as_posix()
-        src_sha = build_cache.file_sha256(source)
         book_outputs = [
             f"library/{definition['id']}/chapter-{index:02d}.html"
             for index in range(1, len(raw_chapters) + 1)
@@ -2055,11 +2088,12 @@ def build() -> None:
         need_render = build_cache.needs_rebuild(cache, "book:" + rel_source, src_sha, book_outputs, HOT100_ROOT)
         prepared_map: dict[str, str] = {}
         for index, raw_chapter in enumerate(raw_chapters, 1):
-            chapter_id = f"{definition['id']}:{index:02d}"
+            chapter_id = raw_chapter.get("content_id") or f"{definition['id']}:{index:02d}"
             # 章节正文流水线：净化+互链改写 → Markdown 渲染 → 演示内嵌 → 拼章节页模板。
-            prepared_map[chapter_id] = normalize_chapter_markdown(
-                rewrite_local_links(raw_chapter["body"], source, assets_dir, source_modules)
-            )
+            body = raw_chapter["body"]
+            if not is_hot200:
+                body = rewrite_local_links(body, source, assets_dir, source_modules)
+            prepared_map[chapter_id] = normalize_chapter_markdown(body)
         contents_map: dict[str, str] = {}
         if need_render and prepared_map:
             jobs = list(prepared_map.items())
@@ -2075,7 +2109,7 @@ def build() -> None:
                     contents_map[chapter_id] = content
             build_cache.mark_built(cache, "book:" + rel_source, src_sha, book_outputs)
         for index, raw_chapter in enumerate(raw_chapters, 1):
-            chapter_id = f"{definition['id']}:{index:02d}"
+            chapter_id = raw_chapter.get("content_id") or f"{definition['id']}:{index:02d}"
             filename = f"chapter-{index:02d}.html"
             # 章节元数据进模块 chapters：id/标题/相对链接/intro(章节摘要)，
             # 供模块首页 JS 渲染卡片、筛选与搜索（不依赖章节正文渲染结果）。
@@ -2086,6 +2120,7 @@ def build() -> None:
                 "title": raw_chapter["title"],
                 "url": f"{definition['id']}/{filename}",
                 "intro": chapter_summary(raw_chapter["body"]),
+                **{k: raw_chapter[k] for k in ("category", "difficulty") if k in raw_chapter},
             })
             search_entries.append({
                 "id": chapter_id,
@@ -2093,11 +2128,15 @@ def build() -> None:
                 "module_title": definition["title"] or book_title,
                 "title": raw_chapter["title"],
                 "url": f"{definition['id']}/{filename}",
-                "text": clean_search_text(raw_chapter["body"]),
+                "text": clean_search_text(raw_chapter["body"] if not is_hot200 else
+                                          f'{raw_chapter["category"]} {raw_chapter["difficulty"]}\n{raw_chapter["body"]}'),
+                **({"kind": "question"} if is_hot200 else {}),
             })
             content = contents_map.get(chapter_id)
             if content is None:
                 continue  # 增量跳过：该章输出已存在且源未变
+            if is_hot200:
+                content = build_hot200_extra.reader_content(content, raw_chapter)
             chapter_style_version = (
                 LIBRARY_DIAGRAM_STYLE_VERSION
                 if 'class="mermaid-diagram"' in content
@@ -2646,6 +2685,9 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
                     '@media(max-width:560px){.reader-body .codehilite{contain-intrinsic-size:auto 520px;}}'
                     '</style>'
                 )
+            if is_hot200:
+                long_chapter_head += '<link rel="stylesheet" href="../../assets/hot200.css">'
+                chapter_scripts += '<script src="../../assets/site.js?v=hot200-bilingual" defer></script>'
             (module_dir / filename).write_text(
                 document(
                     f'{raw_chapter["title"]} · InterviewForge',
@@ -2678,10 +2720,10 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
         ]
         module_page = module_index_page(module, page_chapters)
         (module_dir / "index.html").write_text(document(f'{module["title"]} · InterviewForge', module_page, "../assets/library.css"), encoding="utf-8")
-    removed_chapter_pages = _cleanup_stale_chapter_pages(expected_chapter_pages)
-    if removed_chapter_pages:
-        print(f"Removed stale library chapter pages: {removed_chapter_pages}")
-    modules.append(hot100_module)
+    if not hot200_only:
+        removed_chapter_pages = _cleanup_stale_chapter_pages(expected_chapter_pages)
+        if removed_chapter_pages:
+            print(f"Removed stale library chapter pages: {removed_chapter_pages}")
     # 按显式学习顺序表重排模块卡片与分类按钮；未登记的新模块追加到末尾。
     module_order = MODULE_ORDER + [
         str(module["id"]) for module in modules if str(module["id"]) not in MODULE_ORDER
@@ -2696,7 +2738,8 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
     (OUTPUT_ROOT / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     # 搜索资产：search-index.json 用紧凑分隔符(去掉多余空格)减小体积；
     # search.html 全文搜索页(见 search_page 的客户端评分说明)。
-    search_entries.extend(public_question_entries())
+    if not hot200_only:
+        search_entries.extend(public_question_entries())
     (OUTPUT_ROOT / "search-index.json").write_text(
         json.dumps(search_entries, ensure_ascii=False, separators=(",", ":")), encoding="utf-8"
     )
@@ -2878,4 +2921,7 @@ def build_bookshelf(modules: list[dict[str, object]]) -> None:
 # 从 build_hot100.py 进入则先重建 Hot 100 站，再 subprocess 调本文件重建书架，
 # 之后 build_html_site.py 重建可视化等页面——三者在构建链上严格串行。
 if __name__ == "__main__":
-    build()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--hot200-only", action="store_true", help="仅重建 Hot 200 补充题和书架索引")
+    build(hot200_only=parser.parse_args().hot200_only)

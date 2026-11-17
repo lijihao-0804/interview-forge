@@ -378,6 +378,7 @@ html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--panel-so
         <a class="hero-cta" href="#problemGrid">开始刷题 →</a>
         <button class="lc-button" id="leetcodeSyncBtn" data-online-action type="button" disabled>一键同步</button>
         <a class="hero-route" href="books/hot100/00-总览/01-学习路线.html" data-navigation-policy="same-tab">查看学习路线</a>
+        <a class="hero-route" href="library/hot200-extra/index.html" data-navigation-policy="same-tab">练 Hot 200 补充题 →</a>
       </div>
     </div>
     <a class="example" href="books/hot100/03-题解/01-哈希表/0001-两数之和.html" data-navigation-policy="user-preference" aria-label="查看两数之和题解。数组 2、7、11、15 中，2 与 7 的和等于目标值 9。">
