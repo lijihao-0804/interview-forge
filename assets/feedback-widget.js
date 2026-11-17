@@ -223,7 +223,7 @@
       "font-size:17px;line-height:36px;text-align:center;cursor:pointer;user-select:none;transition:transform .15s,bottom .15s,opacity .15s}" +
       "#forge-fb-btn:hover{transform:scale(1.1);background:#eeedff}#forge-fb-btn:disabled{opacity:.58;cursor:wait;transform:none}" +
       "#forge-fb-panel{position:fixed;right:16px;bottom:calc(var(--forge-auth-reserve,76px) + 52px + env(safe-area-inset-bottom));z-index:10000;width:min(320px,calc(100vw - 32px));" +
-      "background:#fff;border:1px solid #dfe4ee;border-radius:14px;padding:16px;box-shadow:0 16px 44px rgba(33,45,73,.22);" +
+      "background:#fff;border:1px solid #dfe4ee;border-radius:14px;padding:16px;box-shadow:0 16px 44px rgba(33,45,73,.22);box-sizing:border-box;max-height:calc(100dvh - var(--forge-auth-reserve,76px) - 76px);overflow:auto;" +
       "font:14px/1.6 -apple-system,'Segoe UI','Microsoft YaHei',sans-serif;color:#182235}" +
       "#forge-fb-panel h3{margin:0 0 4px;font-size:15px}" +
       "#forge-fb-panel .fap-page{font-size:11px;color:#66748a;margin-bottom:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
@@ -237,6 +237,7 @@
       "#forge-fb-panel .fap-close{background:transparent;color:#66748a}" +
       "#forge-fb-panel .fap-hint{font-size:12px;color:#66748a;margin-top:6px;min-height:16px}" +
       "#forge-fb-panel .fap-hint.err{color:#b3372f}#forge-fb-panel .fap-hint.ok{color:#157a52}" +
+      "#forge-fb-panel summary{cursor:pointer;color:#4543bd}#forge-fb-panel .fap-replies p{border-top:1px solid #dfe4ee;padding-top:8px;white-space:pre-wrap;overflow-wrap:anywhere}" +
       ".forge-feedback-auth-mask{position:fixed;inset:0;z-index:10020;display:grid;place-items:center;padding:20px;background:rgba(12,18,30,.52);backdrop-filter:blur(3px)}" +
       ".forge-feedback-auth-dialog{width:min(100%,430px);padding:23px;border:1px solid var(--line,#dfe4ee);border-radius:16px;color:var(--text,#182235);background:var(--panel,#fff);box-shadow:0 24px 70px rgba(10,14,22,.28);font:14px/1.65 -apple-system,'Segoe UI','Microsoft YaHei',sans-serif}" +
       ".forge-feedback-auth-dialog h2{margin:0;font-size:20px}.forge-feedback-auth-dialog p{margin:10px 0 0;color:var(--muted,#66748a)}" +
@@ -273,8 +274,33 @@
     function setSending(sending) {
       if (!panel) return;
       var send = panel.querySelector(".fap-send");
+      btn.disabled = sending;
+      panel.querySelector(".fap-close").disabled = sending;
+      panel.querySelector("#fb-content").readOnly = sending;
+      panel.querySelector("#fb-contact").readOnly = sending;
       send.disabled = Boolean(sending);
       send.textContent = sending ? "提交中…" : "提交反馈";
+    }
+
+    function showReplies(details) {
+      if (!details.open) return;
+      var list = details.querySelector(".fap-replies");
+      list.textContent = "正在读取…";
+      root.fetch("/api/feedback/replies", { credentials: "same-origin", cache: "no-store" })
+        .then(function (response) {
+          if (!response.ok) throw new Error();
+          return response.json();
+        }).then(function (data) {
+          list.textContent = data.items.length ? "" : "暂时没有回复。";
+          data.items.forEach(function (item) {
+            var entry = document.createElement("p");
+            var reply = document.createElement("strong");
+            entry.textContent = item.content + "\n";
+            reply.textContent = "回复：" + item.resolved_note;
+            entry.appendChild(reply);
+            list.appendChild(entry);
+          });
+        }).catch(function () { list.textContent = "读取失败，可收起后重新打开。"; });
     }
 
     function openPanel() {
@@ -288,11 +314,19 @@
         '<input id="fb-contact" placeholder="联系方式（选填：QQ / 微信 / 邮箱）" autocomplete="off">' +
         '<div class="fap-actions"><button class="fap-close" type="button">取消</button>' +
         '<button class="fap-send" type="button">提交反馈</button></div>' +
-        '<div class="fap-hint" id="fb-hint"></div>';
+        '<div class="fap-hint" id="fb-hint" role="status"></div>' +
+        '<details><summary>查看我的反馈回复</summary><div class="fap-replies" aria-live="polite"></div></details>';
       document.body.appendChild(panel);
       var page = panel.querySelector(".fap-page");
+      var sourcePage = currentPage();
+      var title = document.title;
+      if (root.location.pathname === "/api/private-archive/index.html") {
+        try { title = root.InterviewForgeAI.getPageContext().title || title; } catch (_) { }
+      }
       page.title = root.location.href;
-      page.textContent = "页面：" + root.location.pathname;
+      page.textContent = "页面：" + (title || sourcePage);
+      var details = panel.querySelector("details");
+      details.ontoggle = function () { showReplies(details); };
       panel.querySelector("#fb-content").value = draft.content;
       panel.querySelector("#fb-contact").value = draft.contact;
       panel.querySelector(".fap-close").onclick = closePanel;
@@ -312,15 +346,22 @@
         submitFeedback({
           content: content,
           contact: draft.contact,
-          page: currentPage()
+          page: sourcePage
         }, "提交反馈").then(function (result) {
           if (result.ok) {
             clearDraft();
-            setHint("已提交，感谢反馈！我们会尽快处理。", "ok");
             setSending(false);
-            setTimeout(closePanel, 1500);
+            var submittedPanel = panel;
+            panel.querySelector("#fb-content").value = "";
+            panel.querySelector("#fb-contact").value = "";
+            panel.querySelector("#fb-content").readOnly = true;
+            panel.querySelector("#fb-contact").readOnly = true;
+            panel.querySelector(".fap-send").disabled = true;
+            setHint("已提交，可在这里查看回复。", "ok");
+            setTimeout(function () { if (panel === submittedPanel) closePanel(); }, 1500);
             return;
           }
+          setSending(false);
           if (result.status === 401) {
             setHint("登录后提交反馈；已保留填写内容，登录返回后可重新提交。", "err");
             return;
@@ -328,21 +369,20 @@
           var message = String(result.data && result.data.error || "提交失败，请稍后再试")
             .replace(/[\u0000-\u001f\u007f]+/g, " ").trim().slice(0, 240);
           setHint(message || "提交失败，请稍后再试", "err");
-          setSending(false);
         }).catch(function (error) {
+          setSending(false);
           if (isAuthRequired(error)) {
             setHint("登录后提交反馈；已保留填写内容，登录返回后可重新提交。", "err");
             return;
           }
           setHint("网络错误，请稍后再试", "err");
-          setSending(false);
         });
       };
     }
 
     btn.onclick = function () {
-      if (panel) { closePanel(); return; }
       if (btn.disabled) return;
+      if (panel) { closePanel(); return; }
       btn.disabled = true;
       requireAuthenticated("提交反馈").then(function () {
         btn.disabled = false;

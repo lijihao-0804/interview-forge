@@ -11,6 +11,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import Response
 
 from interview_forge.api import support
+from interview_forge.api.routers.static import private_reader_widget_tags
 from interview_forge.core.paths import ROOT
 from interview_forge.core.runtime import server_runtime
 from interview_forge.core.roles import effective_role
@@ -88,6 +89,13 @@ REPORT_URL = "/library/development-history/index.html"
 REPORT_HEADERS = {**HEADERS, "Vary": "*"}
 
 
+def _integrate_reader(request: Request, body: bytes) -> bytes:
+    embedded = request.query_params.get("embedded") == "1" or request.headers.get("sec-fetch-dest") == "iframe"
+    widgets = b"" if embedded else private_reader_widget_tags(body)
+    shell = b'<script defer src="/assets/private-archive-shell.js?v=6"></script>'
+    return body.replace(b"</body>", widgets + shell + b"</body>", 1)
+
+
 @router.api_route("/library/development-history/{path:path}", methods=["GET", "HEAD"], include_in_schema=False)
 def report_resource(request: Request, path: str):
     return _reader_resource(request, REPORT_DIR, path)
@@ -120,7 +128,7 @@ def _reader_resource(request: Request, directory: Path, path: str):
     except FileNotFoundError:
         return support.error_response("Not Found", 404, headers=REPORT_HEADERS)
     if media_type == "text/html" and body:
-        body = body.replace(b"</body>", b'<script defer src="/assets/private-archive-shell.js?v=5"></script></body>', 1)
+        body = _integrate_reader(request, body)
     return Response(content=body, media_type=media_type, headers=REPORT_HEADERS)
 
 
@@ -163,13 +171,12 @@ def archive_resource(request: Request, path: str):
         return support.error_response("Not Found", 404, headers=HEADERS)
     except (OSError, ValueError, zipfile.BadZipFile, RuntimeError):
         return support.error_response("私有教学站尚未安装或暂时无法读取，请联系服务器管理员。", 503, headers=HEADERS)
-    if path == "index.html" and AGENTHUB_DIR.is_dir():
-        body = body.replace(b"</body>", b'<script defer src="/assets/private-archive-shell.js?v=5"></script></body>', 1)
-    elif path == "index.html":
+    if path == "index.html" and not AGENTHUB_DIR.is_dir():
         # Leave scripts, history templates/data and animation code byte-for-byte intact.
         body = body.replace(b'./assets/hljs.js', b'/assets/vendor/highlight-11.11.1.min.js')
         body = body.replace(b'<script defer src="./assets/app.js">', b'<script defer src="/assets/private-archive-highlight.js"></script><script defer src="./assets/app.js">')
         body = body.replace(b"</head>", b'<link rel="stylesheet" href="/assets/private-archive-theme.css?v=1"></head>', 1)
-        body = body.replace(b"</body>", b'<script src="/assets/private-archive-shell.js?v=2" defer></script></body>', 1)
+    if path == "index.html":
+        body = _integrate_reader(request, body)
     return Response(content=b"" if request.method == "HEAD" else body,
                     media_type=media_type, headers=HEADERS)

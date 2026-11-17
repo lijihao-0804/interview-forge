@@ -514,12 +514,18 @@ function languageLabel(key){
   if(key==='unknown')return '未注明语言';
   return solutionLanguages.get(key)||key.charAt(0).toUpperCase()+key.slice(1);
 }
+let preferredProgressLanguage='';
+function rememberProgressLanguage(){
+  preferredProgressLanguage=progressLanguage.value;
+  if(dashboardSessionKey){
+    try{localStorage.setItem('forge-progress-language:'+dashboardSessionKey,preferredProgressLanguage)}catch(_error){}
+  }
+}
 function updateProgressLanguages(){
-  const selected=progressLanguage.value;
   const extra=Object.keys(state.data.language_summary||{}).filter(key=>!solutionLanguages.has(key)).sort();
   while(progressLanguage.options.length>solutionLanguages.size+1)progressLanguage.remove(progressLanguage.options.length-1);
   extra.forEach(key=>progressLanguage.add(new Option(languageLabel(key),key)));
-  progressLanguage.value=selected;
+  progressLanguage.value=preferredProgressLanguage;
   if(progressLanguage.selectedIndex<0)progressLanguage.selectedIndex=0;
 }
 const difficulty=document.getElementById('difficulty');
@@ -1038,7 +1044,7 @@ function renderCards(){
     const submissionLine=stats.submits
       ?`AC ${stats.ac_submits||0} / 提交 ${stats.submits}（${Math.round((stats.ac_submits||0)/stats.submits*100)}%） · 最近提交 ${localTime(stats.last_submitted_at)}`
       :lang?'尚无该语言提交':`最近：${localTime(info.last_activity_at)}`;
-    const nextDue=personal&&info.next_due?` · 本题复习 ${String(info.next_due).slice(5)}`:'';
+    const nextDue=personal&&info.next_due?` · 本题复习 ${esc(info.next_due)}`:'';
     const placeholder=manualMark?'':'selected';
     const pinnedTomorrow=!!state.pinnedTomorrow[String(problem.id)];
     const roundText=lang&&!stats.submits?'未做':rounds+' 轮';
@@ -1049,7 +1055,7 @@ function renderCards(){
     const activity=personal?`<div class="card-actions"><span class="last-study">${submissionLine}${nextDue}</span>${actions}</div>`:'';
     return `<article class="card ${personal?'':'public'} ${personal&&rounds?'studied':''} ${personal&&isDue?'due':''} ${personal&&overdue?'overdue':''}">
       <div class="card-head">
-        <h3><a href="${esc(note)}" data-problem-id="${problem.id}" data-navigation-policy="user-preference" target="_blank" rel="noopener noreferrer"><span class="problem-number">#${problem.id}</span> ${esc(problem.title)}</a></h3>
+        <h3><a href="${esc(note)}" data-problem-id="${problem.id}" data-navigation-policy="user-preference" target="_blank" rel="noopener noreferrer"><span class="problem-number">${problem.id}.</span> ${esc(problem.title)}</a></h3>
         ${personalStatus}
       </div>
       <div class="meta"><span class="pill">${esc(problem.category)}</span><span class="difficulty-${problem.difficulty}">${problem.difficulty}</span></div>
@@ -1441,12 +1447,13 @@ search.addEventListener('input',()=>{
   clearTimeout(searchRenderTimer);
   searchRenderTimer=setTimeout(renderCards,150);
 });
+progressLanguage.addEventListener('change',rememberProgressLanguage);
 [category,difficulty,sortOrder,status,progressLanguage].forEach(control=>control.addEventListener('change',renderCards));
 window.addEventListener('storage',event=>{
   if(dashboardSessionKey&&event.key==='forge-hot100-progress-updated:'+dashboardSessionKey)refresh();
 });
 
-// Public filters live in the URL; private progress filters stay in memory.
+// Public filters live in the URL; the language filter is stored separately for each account.
 function readCatalogLocation(){
   const params=new URLSearchParams(location.search);
   search.value=params.get('q')||'';
@@ -1464,6 +1471,7 @@ function syncCatalogLocation(){
 }
 function resetCatalog(){
   search.value='';category.value='';difficulty.value='';status.value='';progressLanguage.value='';sortOrder.value='topic';
+  rememberProgressLanguage();
   visibleLimit=PAGE_SIZE;renderCards();search.focus({preventScroll:true});
 }
 function setCatalogView(compact){
@@ -1544,6 +1552,10 @@ function activateAuthSession(session){
     ++refreshSerial;
     state.online=false;
     status.value='';
+    preferredProgressLanguage='';
+    if(key){
+      try{preferredProgressLanguage=localStorage.getItem('forge-progress-language:'+key)||''}catch(_error){}
+    }
     progressLanguage.selectedIndex=0;
     state.pinnedTomorrow={};
   }

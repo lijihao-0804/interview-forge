@@ -4,10 +4,12 @@ from __future__ import annotations
 import asyncio
 import json
 import sqlite3
+import tempfile
 import threading
 import unittest
 from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
+from pathlib import Path
 from unittest.mock import patch
 from urllib.parse import quote
 
@@ -35,6 +37,51 @@ def test_feedback_list_resolves_saved_page_titles_and_keeps_original_urls():
                                       "学习中控台", "", ""]))
 
 USER = {"id": 7, "username": "alice", "nickname": "Alice", "lang": "python", "role": "user"}
+
+
+def test_agenthub_feedback_shows_book_and_chapter_for_private_reader():
+    connection = sqlite3.connect(":memory:")
+    connection.row_factory = sqlite3.Row
+    connection.execute("CREATE TABLE feedback(id INTEGER PRIMARY KEY, page TEXT, status TEXT)")
+    page = "/api/private-archive/index.html#view=learn&chapter=start&depth=intro"
+    connection.execute("INSERT INTO feedback(page,status) VALUES (?, 'open')", (page,))
+    with patch.dict(community.server_runtime._values, {"connect_auth": lambda: connection,
+                                                       "PERMANENT_ADMIN_USERNAME": "owner"}):
+        row, = community.list_feedback(viewer={"role": "admin", "is_active": 1, "username": "owner"})
+    assert row["page"] == page and row["page_title"] == "AgentHub 教学档案 · 先看一次客服退款：全链路架构全景"
+
+
+def test_replies_are_visible_to_the_submitter_only():
+    with tempfile.TemporaryDirectory() as directory:
+        def connect():
+            db = sqlite3.connect(Path(directory) / "feedback.db", isolation_level=None)
+            db.row_factory = sqlite3.Row
+            return db
+
+        db = connect()
+        db.executescript("""
+            CREATE TABLE users(id INTEGER PRIMARY KEY,username TEXT,created_at TEXT);
+            CREATE TABLE feedback(id INTEGER PRIMARY KEY,username TEXT,created_at TEXT,content TEXT,
+                status TEXT,resolved_note TEXT,resolved_at TEXT,reply_user_id INTEGER);
+            INSERT INTO users VALUES(7,'alice','2026-03-02'),(8,'bob','2026-03-01');
+            INSERT INTO feedback VALUES(1,'alice','2026-03-03','问题','open','',NULL,NULL),
+                (2,'alice','2026-03-01','旧账号的反馈','open','',NULL,NULL),
+                (3,'alice','2026-03-03','旧记录','resolved','内部备注','2026-03-04',NULL);
+        """)
+        db.close()
+        with patch.dict(community.server_runtime._values, {"connect_auth": connect}), TestClient(app) as client:
+            for fid in (1, 2):
+                community.resolve_feedback(fid, True, "已补充示例")
+            assert community.feedback_replies(8) == []
+            with patch("interview_forge.api.support.current_user", return_value=None):
+                assert client.get("/api/feedback/replies").status_code == 401
+            with patch("interview_forge.api.support.current_user", return_value=USER):
+                response = client.get("/api/feedback/replies?user_id=8")
+                assert response.status_code == 200
+                assert "no-store" in response.headers["Cache-Control"]
+                assert [(r["id"], r["resolved_note"]) for r in response.json()["items"]] == [(1, "已补充示例")]
+            community.resolve_feedback(1, False)
+            assert community.feedback_replies(7) == []
 
 
 class FeedbackAuthTests(unittest.TestCase):
@@ -137,7 +184,7 @@ class FeedbackAuthTests(unittest.TestCase):
             thread.join(timeout=5)
 
     def test_server_injects_the_new_feedback_script_version(self) -> None:
-        self.assertIn("/assets/feedback-widget.js?v=4", study_server.StudyHandler.WIDGET_SCRIPTS)
+        self.assertIn("/assets/feedback-widget.js?v=5", study_server.StudyHandler.WIDGET_SCRIPTS)
         self.assertNotIn("/assets/feedback-widget.js?v=3", study_server.StudyHandler.WIDGET_SCRIPTS)
 
 

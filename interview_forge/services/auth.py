@@ -280,6 +280,7 @@ def connect_auth() -> sqlite3.Connection:
                     "ALTER TABLE users ADD COLUMN last_seen TEXT",
                     "ALTER TABLE users ADD COLUMN ai_daily_limit INTEGER CHECK (ai_daily_limit IS NULL OR (ai_daily_limit >= 0 AND ai_daily_limit <= 100))",
                     "ALTER TABLE feedback ADD COLUMN username TEXT NOT NULL DEFAULT ''",
+                    "ALTER TABLE feedback ADD COLUMN reply_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL",
                     "ALTER TABLE registration_send_attempts ADD COLUMN domain_hash TEXT NOT NULL DEFAULT ''",
                     "ALTER TABLE registration_send_attempts ADD COLUMN purpose TEXT NOT NULL DEFAULT 'register'",
                     "ALTER TABLE registration_email_codes ADD COLUMN purpose TEXT NOT NULL DEFAULT 'register'",

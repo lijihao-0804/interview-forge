@@ -5117,7 +5117,7 @@
         "恢复旧 Python 的随机快速选择主解，替换当前容量 k 最小堆；算法按实际的双向双指针交换命名。",
         "明确平均 O(n)、最坏 O(n²)、额外 O(1) 空间和输入会被原地修改，并用重复值回归检查。"
       ],
-      "alternative_markdown": "### 补充解法：用小顶堆保留前 k 大\n\n从前 `k` 个数建堆，堆顶就是这批数中最小的一个。后面遇到更大的数，就让它替换堆顶。以 `[3,2,1,5,6,4]`、`k = 2` 为例，读到 `5`、`6` 后，堆里留下 `5` 和 `6`；最后的 `4` 进不了堆，答案就是 `5`。重复值各占一个位置。\n\n```python\nfrom heapq import heapify, heapreplace\n\n\nclass Solution:\n    def findKthLargest(self, nums: list[int], k: int) -> int:\n        heap = nums[:k]\n        heapify(heap)\n        for i in range(k, len(nums)):\n            if nums[i] > heap[0]:\n                heapreplace(heap, nums[i])\n        return heap[0]\n```\n\n建堆用时 `O(k)`，余下每个数比较一次，需要替换时最多用 `O(log k)`。额外空间 `O(k)`。这个写法适合边读边保留前 `k` 大；题面要求线性时间时，可用前文的随机快速选择，平均用时 `O(n)`。"
+      "alternative_markdown": "### 补充解法：用小顶堆保留前 k 大\n\n从前 `k` 个数建堆，堆顶就是这批数中最小的一个。后面遇到更大的数，就让它替换堆顶。以 `[3,2,1,5,6,4]`、`k = 2` 为例，读到 `5`、`6` 后，堆里留下 `5` 和 `6`；最后的 `4` 进不了堆，答案就是 `5`。重复值各占一个位置。\n\n```python\nfrom heapq import heapify, heapreplace\n\n\nclass Solution:\n    def findKthLargest(self, nums: list[int], k: int) -> int:\n        heap = nums[:k]\n        heapify(heap)\n        for i in range(k, len(nums)):\n            if nums[i] > heap[0]:\n                heapreplace(heap, nums[i])\n        return heap[0]\n```\n\n建堆用时 `O(k)`，余下每个数比较一次，需要替换时最多用 `O(log k)`。额外空间 `O(k)`。这个写法适合边读边保留前 `k` 大；题面要求线性时间时，可用前文的随机快速选择，平均用时 `O(n)`。\n\n### 直接遍历剩余的数值\n\n`nums[:k]` 是已经入堆的前 `k` 个数。建堆后只需处理从下标 `k` 开始的值。写成 `for num in nums[k:]` 也能得到正确结果，但列表切片会复制余下的 `n - k` 个元素引用。下面用同一个迭代器先取前 `k` 个值，再从它停下的位置逐个读取余下的值。\n\n```python\nfrom heapq import heapify, heapreplace\nfrom itertools import islice\n\n\nclass Solution:\n    def findKthLargest(self, nums: list[int], k: int) -> int:\n        values = iter(nums)\n        heap = list(islice(values, k))\n        heapify(heap)\n        for num in values:\n            if num > heap[0]:\n                heapreplace(heap, num)\n        return heap[0]\n```\n\n当 `k == len(nums)` 时，建堆恰好用完所有值，堆顶就是整个数组的最小值。这个版本的额外空间仍为 `O(k)`。"
     },
     "347": {
       "title": "前 K 个高频元素",
@@ -5181,7 +5181,8 @@
         "沿用旧 Java 的 VIP 候选池直觉和“堆按频次而不是数字比较”的具体说明。",
         "恢复旧 Python 的 O(n log k) 小顶堆主解，替换当前频次桶实现；旧来源清楚可用，算法未换。",
         "移除局部变量类型注解，补充 `[1,1,1,2,2,3]` 的堆状态和同频元组比较细节。"
-      ]
+      ],
+      "alternative_markdown": "### 补充解法：先建堆，再按频次替换堆顶\n\n第 215 题按数值保留前 `k` 大，这里按出现频次保留前 `k` 个数字。`Counter(nums).items()` 给出 `(数字, 频次)`，把它换成 `(频次, 数字)`，小顶堆就会把候选中最低的频次放在堆顶。\n\n```python\nfrom collections import Counter\nfrom heapq import heapify, heapreplace\nfrom itertools import islice\n\n\nclass Solution:\n    def topKFrequent(self, nums: list[int], k: int) -> list[int]:\n        items = ((freq, num) for num, freq in Counter(nums).items())\n        heap = list(islice(items, k))\n        heapify(heap)\n        for freq, num in items:\n            if freq > heap[0][0]:\n                heapreplace(heap, (freq, num))\n        return [num for freq, num in heap]\n```\n\n例如 `nums = [4, 7, 7, 9, 9, 9]`、`k = 2`，先用 `(1, 4)`、`(2, 7)` 建堆。下一项 `(3, 9)` 的频次 3 大于堆顶的 1，于是一次替换就留下了 7 和 9。频次相等时可以保留原候选，因为题目保证前 `k` 个元素的集合唯一。答案允许任意顺序，因此直接从堆中取出数字即可。\n\n设数组长度为 `n`，不同数字有 `m` 个。计数平均用时 `O(n)`，建堆用时 `O(k)`，其余 `m - k` 项各比较一次，每次实际替换最多花 `O(log k)`。总时间为 `O(n + (m - k) log k)`，额外空间为 `O(m)`，其中堆始终只有 `k` 项。"
     },
     "295": {
       "title": "数据流的中位数",

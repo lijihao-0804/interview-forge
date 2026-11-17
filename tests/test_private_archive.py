@@ -131,6 +131,25 @@ class PrivateArchiveTests(unittest.TestCase):
         with closing(self.connect()) as db, db:db.execute("DELETE FROM sessions")
         self.assertEqual(self.request('/api/private-archive/data/history-data.json','owner-token').status_code,401)
 
+    def test_reader_widgets_only_on_top_level_html(self):
+        urls = ['/api/private-archive/index.html']
+        for directory, prefix, chapter in (
+            (self.report, '/library/development-history/', 'chapters/origin.html'),
+            (private_archive.VOLTEDU_DIR, '/library/voltedu-study/', 'story/origin.html'),
+        ):
+            for name in ('index.html', chapter):
+                file = directory / name
+                file.parent.mkdir(parents=True, exist_ok=True)
+                file.write_bytes(b'<html><body>reader</body></html>')
+                urls.append(prefix + name)
+        for url in urls:
+            with self.subTest(url=url):
+                page = self.request(url, 'owner-token')
+                for asset in ('ai-launcher.js', 'ai-page-context.js', 'feedback-widget.js', 'auth-widget.js'):
+                    self.assertEqual(page.text.count(asset), 1)
+                    self.assertNotIn(asset, self.request(url + '?embedded=1', 'owner-token').text)
+                self.assertNotIn('feedback-widget.js', self.request(url, 'admin-token').text)
+
     def test_missing_configuration_and_public_repo_paths_fail_closed(self):
         for location in ['',str(private_archive.ROOT/'index.html'),'relative.zip']:
             with patch.dict('os.environ',{'INTERVIEW_FORGE_PRIVATE_ARCHIVE':location}):

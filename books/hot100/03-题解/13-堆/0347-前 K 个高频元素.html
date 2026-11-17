@@ -242,8 +242,27 @@
 <li>空间复杂度：<code>O(n)</code>。</li>
 </ul>
 <p>统计频次遍历 n 个元素；最坏有 n 个不同数字，每次最多进行一次容量 k 的堆调整，因此时间 O(n log k)。频次字典和结果保存不同数字，堆保存 k 项，总空间 O(n)。</p>
+<h3 id="_9">补充解法：先建堆，再按频次替换堆顶</h3>
+<p>第 215 题按数值保留前 <code>k</code> 大，这里按出现频次保留前 <code>k</code> 个数字。<code>Counter(nums).items()</code> 给出 <code>(数字, 频次)</code>，把它换成 <code>(频次, 数字)</code>，小顶堆就会把候选中最低的频次放在堆顶。</p>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">Counter</span>
+<span class="kn">from</span> <span class="nn">heapq</span> <span class="kn">import</span> <span class="n">heapify</span><span class="p">,</span> <span class="n">heapreplace</span>
+<span class="kn">from</span> <span class="nn">itertools</span> <span class="kn">import</span> <span class="n">islice</span>
+
+
+<span class="k">class</span> <span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">topKFrequent</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nums</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="n">k</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
+        <span class="n">items</span> <span class="o">=</span> <span class="p">((</span><span class="n">freq</span><span class="p">,</span> <span class="n">num</span><span class="p">)</span> <span class="k">for</span> <span class="n">num</span><span class="p">,</span> <span class="n">freq</span> <span class="ow">in</span> <span class="n">Counter</span><span class="p">(</span><span class="n">nums</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+        <span class="n">heap</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">islice</span><span class="p">(</span><span class="n">items</span><span class="p">,</span> <span class="n">k</span><span class="p">))</span>
+        <span class="n">heapify</span><span class="p">(</span><span class="n">heap</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">freq</span><span class="p">,</span> <span class="n">num</span> <span class="ow">in</span> <span class="n">items</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">freq</span> <span class="o">&gt;</span> <span class="n">heap</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="n">heapreplace</span><span class="p">(</span><span class="n">heap</span><span class="p">,</span> <span class="p">(</span><span class="n">freq</span><span class="p">,</span> <span class="n">num</span><span class="p">))</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">num</span> <span class="k">for</span> <span class="n">freq</span><span class="p">,</span> <span class="n">num</span> <span class="ow">in</span> <span class="n">heap</span><span class="p">]</span>
+</code></pre></div>
+<p>例如 <code>nums = [4, 7, 7, 9, 9, 9]</code>、<code>k = 2</code>，先用 <code>(1, 4)</code>、<code>(2, 7)</code> 建堆。下一项 <code>(3, 9)</code> 的频次 3 大于堆顶的 1，于是一次替换就留下了 7 和 9。频次相等时可以保留原候选，因为题目保证前 <code>k</code> 个元素的集合唯一。答案允许任意顺序，因此直接从堆中取出数字即可。</p>
+<p>设数组长度为 <code>n</code>，不同数字有 <code>m</code> 个。计数平均用时 <code>O(n)</code>，建堆用时 <code>O(k)</code>，其余 <code>m - k</code> 项各比较一次，每次实际替换最多花 <code>O(log k)</code>。总时间为 <code>O(n + (m - k) log k)</code>，额外空间为 <code>O(m)</code>，其中堆始终只有 <code>k</code> 项。</p>
 </section>
-<h2 id="_9">力扣原题</h2>
+<h2 id="_10">力扣原题</h2>
 <p><a href="https://leetcode.cn/problems/top-k-frequent-elements/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
 <section class="language-panel cpp-solution-panel" data-lang="cpp" data-lang-scope="true">
 <h2 id="c">C++ 实现</h2>
@@ -352,9 +371,10 @@
 <li><a data-lang="python" data-lang-scope="true" href="#heapq">字典与 heapq 的实际配合</a></li>
 <li><a data-lang="python" data-lang-scope="true" href="#_7">边界与复杂度</a></li>
 <li><a data-lang="python" data-lang-scope="true" href="#_8">复杂度</a></li>
+<li><a data-lang="python" data-lang-scope="true" href="#_9">补充解法：先建堆，再按频次替换堆顶</a></li>
 </ul>
 </li>
-<li><a href="#_9">力扣原题</a></li>
+<li><a href="#_10">力扣原题</a></li>
 <li><a data-lang="cpp" data-lang-scope="true" href="#c">C++ 实现</a></li>
 <li><a data-lang="go" data-lang-scope="true" href="#go">Go 实现</a></li>
 </ul>
@@ -363,7 +383,7 @@
 <footer class="site-footer">Interview Forge · 在线学习站</footer>
 </div>
 <script defer="" src="../../../../assets/site.js?v=20261112-python-teaching"></script>
-<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-page-context.js?v=1"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-page-context.js?v=2"></script>
 <script data-interviewforge-ai="" defer="" src="../../../../assets/ai-launcher.js?v=4"></script>
 <script>
 (function () {

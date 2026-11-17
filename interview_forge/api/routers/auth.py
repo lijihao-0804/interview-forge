@@ -18,7 +18,7 @@ from interview_forge.services.auth import (
     auth_login, change_own_password, create_session, destroy_session,
 )
 from interview_forge.services.community import (
-    feedback_rate_limit_ok, feedback_rate_limit_record, get_avatar, get_profile,
+    feedback_rate_limit_ok, feedback_rate_limit_record, feedback_replies, get_avatar, get_profile,
     set_profile, submit_feedback,
 )
 from interview_forge.services.registration import (
@@ -296,6 +296,14 @@ def avatar(request: Request, username: str):
         return Response(content=blob, media_type=mime, headers={"Cache-Control": "max-age=60"})
     except (ValueError, TypeError):
         return error_response("未设置头像", 404)
+
+
+@router.get("/api/feedback/replies")
+def my_feedback_replies(request: Request):
+    user, denied = require_user(request)
+    if denied is not None:
+        return denied
+    return json_response({"items": feedback_replies(int(user["id"]))}, headers={"Cache-Control": "private, no-store"})
 
 
 @router.post("/api/feedback")

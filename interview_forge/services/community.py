@@ -11,6 +11,7 @@ import threading
 import time
 from contextlib import closing
 from pathlib import Path
+from urllib.parse import parse_qs
 
 from interview_forge.core.paths import ROOT
 from interview_forge.core.roles import effective_role
@@ -98,6 +99,7 @@ def list_feedback(status: str = "", *, viewer=None) -> list[dict[str, object]]:
     with closing(runtime.connect_auth()) as connection:
         items = [dict(row) for row in connection.execute(sql, params)]
     titles = {}
+    agenthub_chapters = None
     private_reader = effective_role(viewer) == "super_admin"
     for item in items:
         page = item["page"]
@@ -109,17 +111,40 @@ def list_feedback(status: str = "", *, viewer=None) -> list[dict[str, object]]:
         if path and path not in titles:
             titles[path] = _feedback_page_title(path, private_reader=private_reader)
         item["page_title"] = titles.get(path, "")
+        if private_reader and path == "/api/private-archive/index.html":
+            chapter = parse_qs(page.partition("#")[2]).get("chapter", [""])[0]
+            if chapter:
+                if agenthub_chapters is None:
+                    try:
+                        manifest = json.loads((ROOT / "library/agenthub/data/manifest.json").read_text(encoding="utf-8"))
+                        agenthub_chapters = {entry["id"]: entry["title"] for key in ("chapters", "originals")
+                                             for entry in manifest.get(key, [])}
+                    except (OSError, ValueError, KeyError, TypeError):
+                        agenthub_chapters = {}
+                if chapter in agenthub_chapters:
+                    item["page_title"] += " · " + agenthub_chapters[chapter]
     return items
+
+
+def feedback_replies(user_id: int) -> list[dict[str, object]]:
+    with closing(server_runtime.connect_auth()) as connection:
+        return [dict(row) for row in connection.execute(
+            "SELECT id, content, resolved_note, resolved_at FROM feedback "
+            "WHERE reply_user_id = ? AND status = 'resolved' AND resolved_note <> '' "
+            "ORDER BY resolved_at DESC, id DESC LIMIT 50", (user_id,)
+        )]
 
 
 def resolve_feedback(feedback_id: int, resolved: bool, note: str = "") -> dict[str, object]:
     runtime = server_runtime
-    if resolved and not note.strip():
-        note = ""
+    reply = note.strip()[:300] if resolved else ""
     with closing(runtime.connect_auth()) as connection:
         cursor = connection.execute(
-            "UPDATE feedback SET status = ?, resolved_at = ?, resolved_note = ? WHERE id = ?",
-            ("resolved" if resolved else "open", runtime.now_iso() if resolved else None, note[:300], feedback_id),
+            "UPDATE feedback SET status = ?, resolved_at = ?, resolved_note = ?, "
+            "reply_user_id = CASE WHEN ? <> '' THEN (SELECT u.id FROM users AS u "
+            "WHERE u.username = feedback.username AND julianday(u.created_at) <= julianday(feedback.created_at)) END "
+            "WHERE id = ?",
+            ("resolved" if resolved else "open", runtime.now_iso() if resolved else None, reply, reply, feedback_id),
         )
         if cursor.rowcount != 1:
             raise ValueError("反馈不存在")

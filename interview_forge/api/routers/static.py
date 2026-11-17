@@ -33,7 +33,7 @@ _WIDGET_SCRIPTS = (
     "/assets/time-utils.js?v=2",
     "/assets/navigation-policy.js?v=2",
     "/assets/role-display.js?v=1", "/assets/auth-widget.js?v=8",
-    "/assets/feedback-widget.js?v=4",
+    "/assets/feedback-widget.js?v=5",
     "/assets/theme-toggle.js?v=2",
     "/assets/ai-page-context.js?v=2",
     "/assets/ai-launcher.js?v=4",
@@ -120,6 +120,27 @@ def _security_headers(path: str) -> dict[str, str]:
     }
 
 
+def _widget_tags(body: bytes, scripts, styles) -> bytes:
+    style_html = b"" if b"ai-launcher.css" in body else "".join(
+        f'<link rel="stylesheet" data-interviewforge-ai href="{style}">'
+        for style in styles
+    ).encode()
+    script_html = "".join(
+        f'<script src="{script}" defer data-interviewforge-ai></script>'
+        for script in scripts
+        if script.rsplit("/", 1)[-1].split("?", 1)[0].encode() not in body
+    ).encode()
+    return style_html + script_html
+
+
+def private_reader_widget_tags(body: bytes) -> bytes:
+    # Project books own their navigation and theme, including the AgentHub SPA.
+    scripts = (s for s in _WIDGET_SCRIPTS if not s.startswith(
+        ("/assets/navigation-policy.", "/assets/theme-toggle.")
+    ))
+    return _widget_tags(body, scripts, _WIDGET_STYLES)
+
+
 def _inject_html(path: str, body: bytes, *, embedded: bool = False) -> bytes:
     # Previously generated chapters embed v1. Nginx caches versioned JS as
     # immutable, so serve the current collector even before a chapter rebuild.
@@ -155,16 +176,7 @@ def _inject_html(path: str, body: bytes, *, embedded: bool = False) -> bytes:
         # matched keyword there too (no reading-position resume on those pages).
         scripts = scripts + ("/assets/search-target.js?v=1",)
     styles = () if path in _AI_LAUNCHER_SKIP or navigation_only else _WIDGET_STYLES
-    style_html = b"" if b"ai-launcher.css" in body else "".join(
-        f'<link rel="stylesheet" data-interviewforge-ai href="{style}">'
-        for style in styles
-    ).encode()
-    script_html = "".join(
-        f'<script src="{script}" defer data-interviewforge-ai></script>'
-        for script in scripts
-        if script.rsplit("/", 1)[-1].split("?", 1)[0].encode() not in body
-    ).encode()
-    widget = style_html + script_html
+    widget = _widget_tags(body, scripts, styles)
     icon_html = b""
     if b"rel=\"icon\"" not in body and b"rel='icon'" not in body:
         icon_html = (

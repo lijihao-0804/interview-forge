@@ -15,7 +15,7 @@ from interview_forge.ai.chat.context_blocks import ContextBlock
 
 _ALLOWED_FIELDS = frozenset({
     "path", "title", "page_type", "problem_id", "content_id",
-    "heading", "selected_text",
+    "heading", "selected_text", "chapter_excerpt",
 })
 _PAGE_TYPES = frozenset({
     "problem", "library/chapter", "cockpit", "history", "leetcode",
@@ -48,6 +48,7 @@ class PageContext:
     content_id: str | None = None
     heading: str | None = None
     selected_text: str | None = None
+    chapter_excerpt: str | None = None
 
     @classmethod
     def from_payload(cls, value: Any) -> "PageContext | None":
@@ -74,6 +75,7 @@ class PageContext:
             content_id=_bounded_text(value.get("content_id"), field="content_id", limit=200),
             heading=_bounded_text(value.get("heading"), field="heading", limit=300),
             selected_text=_bounded_text(value.get("selected_text"), field="selected_text", limit=2000),
+            chapter_excerpt=_bounded_text(value.get("chapter_excerpt"), field="chapter_excerpt", limit=1200),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -100,6 +102,8 @@ class PageContextProvider:
         if normalized.heading:
             lines.append(f"当前章节：{normalized.heading}")
         identity = "\n".join(lines)
+        if normalized.chapter_excerpt:
+            lines.append(f"当前阅读区域节选：{normalized.chapter_excerpt}")
         variants: list[str] = []
         if normalized.selected_text:
             quote = normalized.selected_text
@@ -107,6 +111,7 @@ class PageContextProvider:
             for edge in (180, 56):
                 if len(quote) > edge * 2:
                     variants.append(f"{identity}\n用户选中文本（节选）：{quote[:edge]} […] {quote[-edge:]}")
+        if normalized.selected_text or normalized.chapter_excerpt:
             variants.append(identity)
         variants.append(f"当前页面：{normalized.title}" + (f"（题号 {normalized.problem_id}）" if normalized.problem_id else ""))
         return ContextBlock(
