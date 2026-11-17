@@ -1,0 +1,928 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>高级分析与结论 · 就业数据台</title><script src="../assets/theme-init.js"></script><link rel="stylesheet" href="../assets/app.css"><style>main{width:calc(100% - 32px);max-width:1200px;margin:28px auto}.panel{padding:36px}p,li{max-width:90ch;line-height:1.95}table{display:block;overflow:auto;margin:22px 0}h2{margin-top:34px}@media(max-width:600px){.panel{padding:22px 17px}h1{font-size:28px}}</style></head><body><main><p><a href="../index.html#view=research">返回就业数据台</a></p><article class="panel prose"><h1>高级分析与结论 v3</h1>
+<p>生成时间：2026-11-17T23:25:17+08:00。数据来源：本地 v2 合并集及其统计汇总。</p>
+<h2>范围与口径</h2>
+<ul>
+<li>输入 28,344 条；职位层分析纳入 28,342 条具体职位，排除 2 条分领域毕业生招聘池。</li>
+<li>资格文本可分析 28,142 条；条件为 <code>requirements_available=true</code> 且资格文本非空。职位总数和资格分母分开报告。</li>
+<li>四方向按 <code>title_direction</code> 标签严格分组。19条“强化学习阶段待核”保留为敏感性口径，不自动并入核心后训练。</li>
+<li>技能频率使用 <code>skills_in_requirement</code>；学历使用 <code>education_mentions</code>；经验明确度用资格文本扫描年限/应届/不限标记，并另列规范经验字段覆盖。</li>
+<li>职位加权让每条职位等权；公司均权先计算公司内比例，再对每方向至少有5条可分析资格的公司取简单平均。</li>
+<li>城市采用固定中英文别名命中 <code>city</code>；多城市职位可命中多个城市。技能对仅报告同一资格文本共现至少20条的组合，lift按独立边际期望定义，不作因果解释。</li>
+</ul>
+<p>本数据是多个雇主公开列表与存档记录的并集，收集范围、页面筛选和公司覆盖并不一致。因此下列比例只描述本地职位文本，不能当作全国市场份额、HC缺口或录用概率。</p>
+<h2>四方向概览</h2>
+<table>
+<thead>
+<tr>
+<th>方向</th>
+<th style="text-align: right;">具体职位 n / 全集</th>
+<th style="text-align: right;">资格可分析 n / 职位</th>
+<th>公司数</th>
+<th>头部雇主（职位加权）</th>
+<th style="text-align: right;">前三雇主份额</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AI应用/Agent开发</td>
+<td style="text-align: right;">736/28,342 (2.6%)</td>
+<td style="text-align: right;">733/736 (99.6%)</td>
+<td>15</td>
+<td>字节跳动 368/736 (50.0%)</td>
+<td style="text-align: right;">83.4%</td>
+</tr>
+<tr>
+<td>Agent算法或交叉研究</td>
+<td style="text-align: right;">246/28,342 (0.9%)</td>
+<td style="text-align: right;">246/246 (100.0%)</td>
+<td>10</td>
+<td>字节跳动 112/246 (45.5%)</td>
+<td style="text-align: right;">78.5%</td>
+</tr>
+<tr>
+<td>AI Infra</td>
+<td style="text-align: right;">518/28,342 (1.8%)</td>
+<td style="text-align: right;">516/518 (99.6%)</td>
+<td>17</td>
+<td>字节跳动 156/518 (30.1%)</td>
+<td style="text-align: right;">67.0%</td>
+</tr>
+<tr>
+<td>后训练</td>
+<td style="text-align: right;">37/28,342 (0.1%)</td>
+<td style="text-align: right;">37/37 (100.0%)</td>
+<td>6</td>
+<td>腾讯 14/37 (37.8%)</td>
+<td style="text-align: right;">83.8%</td>
+</tr>
+</tbody>
+</table>
+<h2>后训练正文信号敏感性</h2>
+<p>生成式语境扫描池为 4,681 条具体职位；职责词线索 836/4,681 (17.9%)，资格词线索 923/4,681 (19.7%)。职责/资格文本的纯并集为 1,254/4,681 (26.8%)。
+按v2正文候选清单口径，再纳入严格标题为后训练的职位后共 1,257/4,681 (26.9%)；其中 3 条仅因标题入列。职责线索有 803 条落在严格后训练标题组之外。
+这些词线索不代表职位主责，也不能相加为招聘名额；它们可能来自Infra训练平台支持、Agent算法交叉职责或优先经历。</p>
+<h2>职位加权与公司均权技能对照</h2>
+<table>
+<thead>
+<tr>
+<th>方向</th>
+<th>技能</th>
+<th style="text-align: right;">职位加权 n/分母</th>
+<th style="text-align: right;">职位加权率</th>
+<th style="text-align: right;">公司均权率</th>
+<th style="text-align: right;">纳入公司数</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AI应用/Agent开发</td>
+<td>Agent</td>
+<td style="text-align: right;">601/733</td>
+<td style="text-align: right;">82.0%</td>
+<td style="text-align: right;">75.4%</td>
+<td style="text-align: right;">10</td>
+</tr>
+<tr>
+<td>AI应用/Agent开发</td>
+<td>RAG</td>
+<td style="text-align: right;">286/733</td>
+<td style="text-align: right;">39.0%</td>
+<td style="text-align: right;">37.4%</td>
+<td style="text-align: right;">10</td>
+</tr>
+<tr>
+<td>AI应用/Agent开发</td>
+<td>Python</td>
+<td style="text-align: right;">414/733</td>
+<td style="text-align: right;">56.5%</td>
+<td style="text-align: right;">60.8%</td>
+<td style="text-align: right;">10</td>
+</tr>
+<tr>
+<td>AI应用/Agent开发</td>
+<td>Java</td>
+<td style="text-align: right;">334/733</td>
+<td style="text-align: right;">45.6%</td>
+<td style="text-align: right;">37.6%</td>
+<td style="text-align: right;">10</td>
+</tr>
+<tr>
+<td>AI应用/Agent开发</td>
+<td>PyTorch</td>
+<td style="text-align: right;">41/733</td>
+<td style="text-align: right;">5.6%</td>
+<td style="text-align: right;">8.1%</td>
+<td style="text-align: right;">10</td>
+</tr>
+<tr>
+<td>AI应用/Agent开发</td>
+<td>RL/对齐</td>
+<td style="text-align: right;">90/733</td>
+<td style="text-align: right;">12.3%</td>
+<td style="text-align: right;">9.2%</td>
+<td style="text-align: right;">10</td>
+</tr>
+<tr>
+<td>AI应用/Agent开发</td>
+<td>GPU</td>
+<td style="text-align: right;">16/733</td>
+<td style="text-align: right;">2.2%</td>
+<td style="text-align: right;">10.0%</td>
+<td style="text-align: right;">10</td>
+</tr>
+<tr>
+<td>AI应用/Agent开发</td>
+<td>CUDA/Triton</td>
+<td style="text-align: right;">10/733</td>
+<td style="text-align: right;">1.4%</td>
+<td style="text-align: right;">4.3%</td>
+<td style="text-align: right;">10</td>
+</tr>
+<tr>
+<td>AI应用/Agent开发</td>
+<td>分布式系统</td>
+<td style="text-align: right;">170/733</td>
+<td style="text-align: right;">23.2%</td>
+<td style="text-align: right;">18.0%</td>
+<td style="text-align: right;">10</td>
+</tr>
+<tr>
+<td>AI应用/Agent开发</td>
+<td>NCCL/RDMA</td>
+<td style="text-align: right;">4/733</td>
+<td style="text-align: right;">0.6%</td>
+<td style="text-align: right;">1.4%</td>
+<td style="text-align: right;">10</td>
+</tr>
+<tr>
+<td>AI应用/Agent开发</td>
+<td>SFT/微调</td>
+<td style="text-align: right;">87/733</td>
+<td style="text-align: right;">11.9%</td>
+<td style="text-align: right;">14.4%</td>
+<td style="text-align: right;">10</td>
+</tr>
+<tr>
+<td>AI应用/Agent开发</td>
+<td>评测</td>
+<td style="text-align: right;">192/733</td>
+<td style="text-align: right;">26.2%</td>
+<td style="text-align: right;">30.8%</td>
+<td style="text-align: right;">10</td>
+</tr>
+<tr>
+<td>Agent算法或交叉研究</td>
+<td>Agent</td>
+<td style="text-align: right;">186/246</td>
+<td style="text-align: right;">75.6%</td>
+<td style="text-align: right;">77.1%</td>
+<td style="text-align: right;">6</td>
+</tr>
+<tr>
+<td>Agent算法或交叉研究</td>
+<td>RAG</td>
+<td style="text-align: right;">60/246</td>
+<td style="text-align: right;">24.4%</td>
+<td style="text-align: right;">21.2%</td>
+<td style="text-align: right;">6</td>
+</tr>
+<tr>
+<td>Agent算法或交叉研究</td>
+<td>Python</td>
+<td style="text-align: right;">116/246</td>
+<td style="text-align: right;">47.1%</td>
+<td style="text-align: right;">40.7%</td>
+<td style="text-align: right;">6</td>
+</tr>
+<tr>
+<td>Agent算法或交叉研究</td>
+<td>Java</td>
+<td style="text-align: right;">15/246</td>
+<td style="text-align: right;">6.1%</td>
+<td style="text-align: right;">10.5%</td>
+<td style="text-align: right;">6</td>
+</tr>
+<tr>
+<td>Agent算法或交叉研究</td>
+<td>PyTorch</td>
+<td style="text-align: right;">90/246</td>
+<td style="text-align: right;">36.6%</td>
+<td style="text-align: right;">36.3%</td>
+<td style="text-align: right;">6</td>
+</tr>
+<tr>
+<td>Agent算法或交叉研究</td>
+<td>RL/对齐</td>
+<td style="text-align: right;">157/246</td>
+<td style="text-align: right;">63.8%</td>
+<td style="text-align: right;">58.8%</td>
+<td style="text-align: right;">6</td>
+</tr>
+<tr>
+<td>Agent算法或交叉研究</td>
+<td>GPU</td>
+<td style="text-align: right;">7/246</td>
+<td style="text-align: right;">2.9%</td>
+<td style="text-align: right;">0.9%</td>
+<td style="text-align: right;">6</td>
+</tr>
+<tr>
+<td>Agent算法或交叉研究</td>
+<td>CUDA/Triton</td>
+<td style="text-align: right;">1/246</td>
+<td style="text-align: right;">0.4%</td>
+<td style="text-align: right;">0.0%</td>
+<td style="text-align: right;">6</td>
+</tr>
+<tr>
+<td>Agent算法或交叉研究</td>
+<td>分布式系统</td>
+<td style="text-align: right;">24/246</td>
+<td style="text-align: right;">9.8%</td>
+<td style="text-align: right;">8.2%</td>
+<td style="text-align: right;">6</td>
+</tr>
+<tr>
+<td>Agent算法或交叉研究</td>
+<td>NCCL/RDMA</td>
+<td style="text-align: right;">0/246</td>
+<td style="text-align: right;">0.0%</td>
+<td style="text-align: right;">0.0%</td>
+<td style="text-align: right;">6</td>
+</tr>
+<tr>
+<td>Agent算法或交叉研究</td>
+<td>SFT/微调</td>
+<td style="text-align: right;">113/246</td>
+<td style="text-align: right;">45.9%</td>
+<td style="text-align: right;">44.3%</td>
+<td style="text-align: right;">6</td>
+</tr>
+<tr>
+<td>Agent算法或交叉研究</td>
+<td>评测</td>
+<td style="text-align: right;">83/246</td>
+<td style="text-align: right;">33.7%</td>
+<td style="text-align: right;">22.4%</td>
+<td style="text-align: right;">6</td>
+</tr>
+<tr>
+<td>AI Infra</td>
+<td>Agent</td>
+<td style="text-align: right;">111/516</td>
+<td style="text-align: right;">21.5%</td>
+<td style="text-align: right;">19.7%</td>
+<td style="text-align: right;">12</td>
+</tr>
+<tr>
+<td>AI Infra</td>
+<td>RAG</td>
+<td style="text-align: right;">33/516</td>
+<td style="text-align: right;">6.4%</td>
+<td style="text-align: right;">4.6%</td>
+<td style="text-align: right;">12</td>
+</tr>
+<tr>
+<td>AI Infra</td>
+<td>Python</td>
+<td style="text-align: right;">345/516</td>
+<td style="text-align: right;">66.9%</td>
+<td style="text-align: right;">63.6%</td>
+<td style="text-align: right;">12</td>
+</tr>
+<tr>
+<td>AI Infra</td>
+<td>Java</td>
+<td style="text-align: right;">82/516</td>
+<td style="text-align: right;">15.9%</td>
+<td style="text-align: right;">14.9%</td>
+<td style="text-align: right;">12</td>
+</tr>
+<tr>
+<td>AI Infra</td>
+<td>PyTorch</td>
+<td style="text-align: right;">177/516</td>
+<td style="text-align: right;">34.3%</td>
+<td style="text-align: right;">31.3%</td>
+<td style="text-align: right;">12</td>
+</tr>
+<tr>
+<td>AI Infra</td>
+<td>RL/对齐</td>
+<td style="text-align: right;">58/516</td>
+<td style="text-align: right;">11.2%</td>
+<td style="text-align: right;">8.2%</td>
+<td style="text-align: right;">12</td>
+</tr>
+<tr>
+<td>AI Infra</td>
+<td>GPU</td>
+<td style="text-align: right;">248/516</td>
+<td style="text-align: right;">48.1%</td>
+<td style="text-align: right;">55.9%</td>
+<td style="text-align: right;">12</td>
+</tr>
+<tr>
+<td>AI Infra</td>
+<td>CUDA/Triton</td>
+<td style="text-align: right;">180/516</td>
+<td style="text-align: right;">34.9%</td>
+<td style="text-align: right;">41.6%</td>
+<td style="text-align: right;">12</td>
+</tr>
+<tr>
+<td>AI Infra</td>
+<td>分布式系统</td>
+<td style="text-align: right;">230/516</td>
+<td style="text-align: right;">44.6%</td>
+<td style="text-align: right;">46.5%</td>
+<td style="text-align: right;">12</td>
+</tr>
+<tr>
+<td>AI Infra</td>
+<td>NCCL/RDMA</td>
+<td style="text-align: right;">72/516</td>
+<td style="text-align: right;">13.9%</td>
+<td style="text-align: right;">11.6%</td>
+<td style="text-align: right;">12</td>
+</tr>
+<tr>
+<td>AI Infra</td>
+<td>SFT/微调</td>
+<td style="text-align: right;">20/516</td>
+<td style="text-align: right;">3.9%</td>
+<td style="text-align: right;">4.6%</td>
+<td style="text-align: right;">12</td>
+</tr>
+<tr>
+<td>AI Infra</td>
+<td>评测</td>
+<td style="text-align: right;">54/516</td>
+<td style="text-align: right;">10.5%</td>
+<td style="text-align: right;">9.2%</td>
+<td style="text-align: right;">12</td>
+</tr>
+<tr>
+<td>后训练</td>
+<td>Agent</td>
+<td style="text-align: right;">15/37</td>
+<td style="text-align: right;">40.5%</td>
+<td style="text-align: right;">35.2%</td>
+<td style="text-align: right;">3</td>
+</tr>
+<tr>
+<td>后训练</td>
+<td>RAG</td>
+<td style="text-align: right;">4/37</td>
+<td style="text-align: right;">10.8%</td>
+<td style="text-align: right;">9.9%</td>
+<td style="text-align: right;">3</td>
+</tr>
+<tr>
+<td>后训练</td>
+<td>Python</td>
+<td style="text-align: right;">24/37</td>
+<td style="text-align: right;">64.9%</td>
+<td style="text-align: right;">48.4%</td>
+<td style="text-align: right;">3</td>
+</tr>
+<tr>
+<td>后训练</td>
+<td>Java</td>
+<td style="text-align: right;">1/37</td>
+<td style="text-align: right;">2.7%</td>
+<td style="text-align: right;">2.4%</td>
+<td style="text-align: right;">3</td>
+</tr>
+<tr>
+<td>后训练</td>
+<td>PyTorch</td>
+<td style="text-align: right;">21/37</td>
+<td style="text-align: right;">56.8%</td>
+<td style="text-align: right;">48.3%</td>
+<td style="text-align: right;">3</td>
+</tr>
+<tr>
+<td>后训练</td>
+<td>RL/对齐</td>
+<td style="text-align: right;">34/37</td>
+<td style="text-align: right;">91.9%</td>
+<td style="text-align: right;">95.2%</td>
+<td style="text-align: right;">3</td>
+</tr>
+<tr>
+<td>后训练</td>
+<td>GPU</td>
+<td style="text-align: right;">1/37</td>
+<td style="text-align: right;">2.7%</td>
+<td style="text-align: right;">2.4%</td>
+<td style="text-align: right;">3</td>
+</tr>
+<tr>
+<td>后训练</td>
+<td>CUDA/Triton</td>
+<td style="text-align: right;">3/37</td>
+<td style="text-align: right;">8.1%</td>
+<td style="text-align: right;">20.0%</td>
+<td style="text-align: right;">3</td>
+</tr>
+<tr>
+<td>后训练</td>
+<td>分布式系统</td>
+<td style="text-align: right;">23/37</td>
+<td style="text-align: right;">62.2%</td>
+<td style="text-align: right;">60.5%</td>
+<td style="text-align: right;">3</td>
+</tr>
+<tr>
+<td>后训练</td>
+<td>NCCL/RDMA</td>
+<td style="text-align: right;">4/37</td>
+<td style="text-align: right;">10.8%</td>
+<td style="text-align: right;">20.0%</td>
+<td style="text-align: right;">3</td>
+</tr>
+<tr>
+<td>后训练</td>
+<td>SFT/微调</td>
+<td style="text-align: right;">17/37</td>
+<td style="text-align: right;">46.0%</td>
+<td style="text-align: right;">37.2%</td>
+<td style="text-align: right;">3</td>
+</tr>
+<tr>
+<td>后训练</td>
+<td>评测</td>
+<td style="text-align: right;">14/37</td>
+<td style="text-align: right;">37.8%</td>
+<td style="text-align: right;">30.1%</td>
+<td style="text-align: right;">3</td>
+</tr>
+</tbody>
+</table>
+<p>公司均权率仅在该方向可分析资格数≥5的公司之间取平均；表中公司数就是均权分母。</p>
+<h2>学历、经验与地域对比</h2>
+<table>
+<thead>
+<tr>
+<th>方向</th>
+<th style="text-align: right;">资格分母</th>
+<th style="text-align: right;">本科提及</th>
+<th style="text-align: right;">硕士提及</th>
+<th style="text-align: right;">博士提及</th>
+<th style="text-align: right;">年限词</th>
+<th style="text-align: right;">不限/应届</th>
+<th style="text-align: right;">规范经验字段非未知</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AI应用/Agent开发</td>
+<td style="text-align: right;">733</td>
+<td style="text-align: right;">435/733 (59.4%)</td>
+<td style="text-align: right;">48/733 (6.5%)</td>
+<td style="text-align: right;">20/733 (2.7%)</td>
+<td style="text-align: right;">307/733 (41.9%)</td>
+<td style="text-align: right;">4/733 (0.6%)</td>
+<td style="text-align: right;">267/733 (36.4%)</td>
+</tr>
+<tr>
+<td>Agent算法或交叉研究</td>
+<td style="text-align: right;">246</td>
+<td style="text-align: right;">67/246 (27.2%)</td>
+<td style="text-align: right;">78/246 (31.7%)</td>
+<td style="text-align: right;">23/246 (9.3%)</td>
+<td style="text-align: right;">60/246 (24.4%)</td>
+<td style="text-align: right;">4/246 (1.6%)</td>
+<td style="text-align: right;">70/246 (28.5%)</td>
+</tr>
+<tr>
+<td>AI Infra</td>
+<td style="text-align: right;">516</td>
+<td style="text-align: right;">215/516 (41.7%)</td>
+<td style="text-align: right;">105/516 (20.4%)</td>
+<td style="text-align: right;">45/516 (8.7%)</td>
+<td style="text-align: right;">188/516 (36.4%)</td>
+<td style="text-align: right;">1/516 (0.2%)</td>
+<td style="text-align: right;">201/516 (39.0%)</td>
+</tr>
+<tr>
+<td>后训练</td>
+<td style="text-align: right;">37</td>
+<td style="text-align: right;">7/37 (18.9%)</td>
+<td style="text-align: right;">21/37 (56.8%)</td>
+<td style="text-align: right;">3/37 (8.1%)</td>
+<td style="text-align: right;">7/37 (18.9%)</td>
+<td style="text-align: right;">0/37 (0.0%)</td>
+<td style="text-align: right;">26/37 (70.3%)</td>
+</tr>
+</tbody>
+</table>
+<p>学历词层级可重叠；年限/应届标记扫描不等于必需条件解析。</p>
+<h2>技能共现</h2>
+<h3>AI应用/Agent开发</h3>
+<table>
+<thead>
+<tr>
+<th>组合</th>
+<th style="text-align: right;">共现 n/分母</th>
+<th style="text-align: right;">Support</th>
+<th style="text-align: right;">边际 nA/nB</th>
+<th style="text-align: right;">Lift</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PyTorch + TensorFlow</td>
+<td style="text-align: right;">30/733</td>
+<td style="text-align: right;">4.1%</td>
+<td style="text-align: right;">41/31</td>
+<td style="text-align: right;">17.30</td>
+</tr>
+<tr>
+<td>MySQL/PostgreSQL + Redis</td>
+<td style="text-align: right;">50/733</td>
+<td style="text-align: right;">6.8%</td>
+<td style="text-align: right;">74/52</td>
+<td style="text-align: right;">9.52</td>
+</tr>
+<tr>
+<td>MySQL/PostgreSQL + SQL</td>
+<td style="text-align: right;">74/733</td>
+<td style="text-align: right;">10.1%</td>
+<td style="text-align: right;">74/111</td>
+<td style="text-align: right;">6.60</td>
+</tr>
+<tr>
+<td>Redis + SQL</td>
+<td style="text-align: right;">51/733</td>
+<td style="text-align: right;">7.0%</td>
+<td style="text-align: right;">52/111</td>
+<td style="text-align: right;">6.48</td>
+</tr>
+<tr>
+<td>Node.js + React/Vue</td>
+<td style="text-align: right;">21/733</td>
+<td style="text-align: right;">2.9%</td>
+<td style="text-align: right;">52/46</td>
+<td style="text-align: right;">6.43</td>
+</tr>
+<tr>
+<td>RL/对齐 + SFT/微调</td>
+<td style="text-align: right;">51/733</td>
+<td style="text-align: right;">7.0%</td>
+<td style="text-align: right;">90/87</td>
+<td style="text-align: right;">4.77</td>
+</tr>
+<tr>
+<td>JavaScript/TypeScript + Node.js</td>
+<td style="text-align: right;">51/733</td>
+<td style="text-align: right;">7.0%</td>
+<td style="text-align: right;">153/52</td>
+<td style="text-align: right;">4.70</td>
+</tr>
+<tr>
+<td>Kafka/MQ + Redis</td>
+<td style="text-align: right;">27/733</td>
+<td style="text-align: right;">3.7%</td>
+<td style="text-align: right;">88/52</td>
+<td style="text-align: right;">4.33</td>
+</tr>
+</tbody>
+</table>
+<h3>Agent算法或交叉研究</h3>
+<table>
+<thead>
+<tr>
+<th>组合</th>
+<th style="text-align: right;">共现 n/分母</th>
+<th style="text-align: right;">Support</th>
+<th style="text-align: right;">边际 nA/nB</th>
+<th style="text-align: right;">Lift</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PyTorch + TensorFlow</td>
+<td style="text-align: right;">46/246</td>
+<td style="text-align: right;">18.7%</td>
+<td style="text-align: right;">90/46</td>
+<td style="text-align: right;">2.73</td>
+</tr>
+<tr>
+<td>RAG + 工具调用</td>
+<td style="text-align: right;">32/246</td>
+<td style="text-align: right;">13.0%</td>
+<td style="text-align: right;">60/61</td>
+<td style="text-align: right;">2.15</td>
+</tr>
+<tr>
+<td>Linux + Python</td>
+<td style="text-align: right;">28/246</td>
+<td style="text-align: right;">11.4%</td>
+<td style="text-align: right;">28/116</td>
+<td style="text-align: right;">2.12</td>
+</tr>
+<tr>
+<td>C++ + Python</td>
+<td style="text-align: right;">52/246</td>
+<td style="text-align: right;">21.1%</td>
+<td style="text-align: right;">53/116</td>
+<td style="text-align: right;">2.08</td>
+</tr>
+<tr>
+<td>工具调用 + 评测</td>
+<td style="text-align: right;">34/246</td>
+<td style="text-align: right;">13.8%</td>
+<td style="text-align: right;">61/83</td>
+<td style="text-align: right;">1.65</td>
+</tr>
+<tr>
+<td>C++ + PyTorch</td>
+<td style="text-align: right;">31/246</td>
+<td style="text-align: right;">12.6%</td>
+<td style="text-align: right;">53/90</td>
+<td style="text-align: right;">1.60</td>
+</tr>
+<tr>
+<td>RAG + 评测</td>
+<td style="text-align: right;">31/246</td>
+<td style="text-align: right;">12.6%</td>
+<td style="text-align: right;">60/83</td>
+<td style="text-align: right;">1.53</td>
+</tr>
+<tr>
+<td>RL/对齐 + SFT/微调</td>
+<td style="text-align: right;">103/246</td>
+<td style="text-align: right;">41.9%</td>
+<td style="text-align: right;">157/113</td>
+<td style="text-align: right;">1.43</td>
+</tr>
+</tbody>
+</table>
+<h3>AI Infra</h3>
+<table>
+<thead>
+<tr>
+<th>组合</th>
+<th style="text-align: right;">共现 n/分母</th>
+<th style="text-align: right;">Support</th>
+<th style="text-align: right;">边际 nA/nB</th>
+<th style="text-align: right;">Lift</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Agent + 工具调用</td>
+<td style="text-align: right;">25/516</td>
+<td style="text-align: right;">4.8%</td>
+<td style="text-align: right;">111/25</td>
+<td style="text-align: right;">4.65</td>
+</tr>
+<tr>
+<td>Agent + MCP</td>
+<td style="text-align: right;">24/516</td>
+<td style="text-align: right;">4.7%</td>
+<td style="text-align: right;">111/24</td>
+<td style="text-align: right;">4.65</td>
+</tr>
+<tr>
+<td>Agent + RAG</td>
+<td style="text-align: right;">31/516</td>
+<td style="text-align: right;">6.0%</td>
+<td style="text-align: right;">111/33</td>
+<td style="text-align: right;">4.37</td>
+</tr>
+<tr>
+<td>Agent + 安全</td>
+<td style="text-align: right;">23/516</td>
+<td style="text-align: right;">4.5%</td>
+<td style="text-align: right;">111/27</td>
+<td style="text-align: right;">3.96</td>
+</tr>
+<tr>
+<td>Go + 微服务</td>
+<td style="text-align: right;">22/516</td>
+<td style="text-align: right;">4.3%</td>
+<td style="text-align: right;">142/25</td>
+<td style="text-align: right;">3.20</td>
+</tr>
+<tr>
+<td>Go + MCP</td>
+<td style="text-align: right;">21/516</td>
+<td style="text-align: right;">4.1%</td>
+<td style="text-align: right;">142/24</td>
+<td style="text-align: right;">3.18</td>
+</tr>
+<tr>
+<td>PyTorch + TensorFlow</td>
+<td style="text-align: right;">81/516</td>
+<td style="text-align: right;">15.7%</td>
+<td style="text-align: right;">177/82</td>
+<td style="text-align: right;">2.88</td>
+</tr>
+<tr>
+<td>Go + Java</td>
+<td style="text-align: right;">65/516</td>
+<td style="text-align: right;">12.6%</td>
+<td style="text-align: right;">142/82</td>
+<td style="text-align: right;">2.88</td>
+</tr>
+</tbody>
+</table>
+<h3>后训练</h3>
+<table>
+<thead>
+<tr>
+<th>组合</th>
+<th style="text-align: right;">共现 n/分母</th>
+<th style="text-align: right;">Support</th>
+<th style="text-align: right;">边际 nA/nB</th>
+<th style="text-align: right;">Lift</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PyTorch + RL/对齐</td>
+<td style="text-align: right;">21/37</td>
+<td style="text-align: right;">56.8%</td>
+<td style="text-align: right;">21/34</td>
+<td style="text-align: right;">1.09</td>
+</tr>
+<tr>
+<td>Python + RL/对齐</td>
+<td style="text-align: right;">22/37</td>
+<td style="text-align: right;">59.5%</td>
+<td style="text-align: right;">24/34</td>
+<td style="text-align: right;">1.00</td>
+</tr>
+<tr>
+<td>RL/对齐 + 分布式系统</td>
+<td style="text-align: right;">20/37</td>
+<td style="text-align: right;">54.0%</td>
+<td style="text-align: right;">34/23</td>
+<td style="text-align: right;">0.95</td>
+</tr>
+</tbody>
+</table>
+<p>Lift = (同帖共现率)/(两个技能边际率乘积)。高于1表示在样本资格文本中比独立边际期望更常一起出现；共享模板或技术类别会产生关联，不能推出技能之间的因果关系。</p>
+<h2>对照组</h2>
+<table>
+<thead>
+<tr>
+<th>对照组</th>
+<th style="text-align: right;">具体职位</th>
+<th style="text-align: right;">资格可分析</th>
+<th>高频技能（n/资格分母）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>普通开发对照</td>
+<td style="text-align: right;">4,323</td>
+<td style="text-align: right;">4,270</td>
+<td>C++ 1,272/4,270 (29.8%)；Java 1,205/4,270 (28.2%)；Python 1,197/4,270 (28.0%)；性能优化 1,119/4,270 (26.2%)；数据库/缓存 964/4,270 (22.6%)</td>
+</tr>
+<tr>
+<td>算法/研究对照</td>
+<td style="text-align: right;">1,050</td>
+<td style="text-align: right;">1,047</td>
+<td>Python 565/1,047 (54.0%)；C++ 464/1,047 (44.3%)；PyTorch 382/1,047 (36.5%)；TensorFlow 280/1,047 (26.7%)；RL/对齐 234/1,047 (22.4%)</td>
+</tr>
+<tr>
+<td>硬件/嵌入式对照</td>
+<td style="text-align: right;">979</td>
+<td style="text-align: right;">964</td>
+<td>Python 220/964 (22.8%)；C语言 206/964 (21.4%)；C++ 181/964 (18.8%)；SoC/ASIC/RISC-V 177/964 (18.4%)；嵌入式/RTOS 173/964 (17.9%)</td>
+</tr>
+<tr>
+<td>非技术职能对照</td>
+<td style="text-align: right;">12,819</td>
+<td style="text-align: right;">12,742</td>
+<td>英语 2,392/12,742 (18.8%)；Agent 1,123/12,742 (8.8%)；SQL 1,070/12,742 (8.4%)；评测 988/12,742 (7.8%)；安全 635/12,742 (5.0%)</td>
+</tr>
+</tbody>
+</table>
+<p>对照组用于展示文本差异，不与四方向的职位权重混合。普通开发、算法和硬件对照排除了相应AI方向标签；非技术组按职能族定义。</p>
+<h2>可核查结论与行动建议</h2>
+<h3>1. 四个目标方向在样本中有不同的正文可分析覆盖率</h3>
+<p><strong>证据</strong>
+- 四方向具体职位记录合计 1,537/28,342 条；其中资格文本可分析 1,532/1,537 条。
+- 方向为标题规则分类，岗位记录来源范围和企业截面并不一致。</p>
+<p><strong>解释：</strong> 后续技能、学历、经验百分比只代表可分析的资格文本，不应按全部岗位记录作分母。</p>
+<p><strong>行动：</strong> 先按方向和资格可用标记筛选，再比较技术栈；对未拆出资格文本的岗位回看原始正文。</p>
+<p><strong>局限：</strong> 方向由标题规则推断；样本不覆盖统一雇主集合，也不是全国招聘市场份额。</p>
+<h3>2. 职位加权结果受头部雇主集中度影响</h3>
+<p><strong>证据</strong>
+- AI应用/Agent开发方向中，字节跳动占 368/736 条 (50.0%)，该方向前三雇主合计占 83.4%。</p>
+<p><strong>解释：</strong> 职位加权率回答的是‘本次收集到的职位文本中有多少提到某技能’，不是典型公司的要求；单一雇主模板会显著影响比例。</p>
+<p><strong>行动：</strong> 阅读方向技能时同时查看 company_equal 率；求职者可用目标公司组内的要求做准备清单。</p>
+<p><strong>局限：</strong> 每家公司的职位数反映本次公开列表与采集范围，不等于HC或公司招聘强度。</p>
+<h3>3. 应用/Agent岗位常同时要求后端工程基础与检索、智能体能力</h3>
+<p><strong>证据</strong>
+- Agent 601/733 (82.0%)
+- RAG 286/733 (39.0%)
+- Python 414/733 (56.5%)
+- Java 334/733 (45.6%)
+- 工具调用 190/733 (25.9%)
+- 评测 192/733 (26.2%)</p>
+<p><strong>解释：</strong> 该方向的文本信号不是单一框架栈；Agent/RAG与Python、Java等通用工程语言并行出现。</p>
+<p><strong>行动：</strong> 准备可演示的Agent端到端项目，同时覆盖服务端、数据接入、工具调用与评测；简历按项目交付拆解。</p>
+<p><strong>局限：</strong> 技能词由词典匹配；提及不等于必需熟练，也不反映真实工作占比。</p>
+<h3>4. Agent算法岗位更偏模型实验，应用岗位更偏系统落地</h3>
+<p><strong>证据</strong>
+- PyTorch: Agent算法 90/246 (36.6%)；应用/Agent 41/733 (5.6%)
+- RL/对齐: Agent算法 157/246 (63.8%)；应用/Agent 90/733 (12.3%)
+- 评测: Agent算法 83/246 (33.7%)；应用/Agent 192/733 (26.2%)
+- Python: Agent算法 116/246 (47.1%)；应用/Agent 414/733 (56.5%)
+- C++: Agent算法 53/246 (21.5%)；应用/Agent 163/733 (22.2%)
+- GPU: Agent算法 7/246 (2.9%)；应用/Agent 16/733 (2.2%)</p>
+<p><strong>解释：</strong> 两个方向有技术交集，但资格文本的重心不同；算法/研究方向更适合用模型训练、实验与论文/复现实绩说明能力，应用方向更适合强调可运行系统和业务链路。</p>
+<p><strong>行动：</strong> 求职材料分两版组织：算法版展示实验设计、对照与结果；应用版展示服务、数据/工具编排、上线质量和用户任务完成。</p>
+<p><strong>局限：</strong> 标题分组存在交叉；文本词项不能替代具体团队岗位说明。</p>
+<h3>5. AI Infra职位的区分点集中在计算栈与系统性能</h3>
+<p><strong>证据</strong>
+- GPU 248/516 (48.1%)
+- CUDA/Triton 180/516 (34.9%)
+- 分布式系统 230/516 (44.6%)
+- 性能优化 307/516 (59.5%)
+- NCCL/RDMA 72/516 (13.9%)
+- TVM/MLIR/XLA/LLVM 72/516 (13.9%)
+- vLLM/SGLang/TensorRT 163/516 (31.6%)</p>
+<p><strong>解释：</strong> 相比应用工程，GPU、通信/分布式和编译/内核工具在Infra资格文本里更常见；这支持按系统层级而非‘会不会某个大模型’来准备。</p>
+<p><strong>行动：</strong> 将个人项目分成推理/训练框架、GPU算子/编译、集群通信/调度、性能基准四类，并量化吞吐、时延、显存或稳定性结果。</p>
+<p><strong>局限：</strong> 同一方向含平台开发、性能工程、集群系统等不同职能；聚合比例会掩盖岗位差异。</p>
+<h3>6. 后训练标题组较小，但正文训练线索范围更广</h3>
+<p><strong>证据</strong>
+- 严格标题主分类为 37/28342 条具体职位，覆盖 6 家公司。
+- 生成式语境扫描池 4,681 条中，职责词线索 836/4,681；资格词线索 923/4,681。
+- 职责/资格文本纯并集 1,254/4,681；v2候选并集计入严格标题行后为 1,257/4,681，其中 3 条只由严格标题入列。
+- 职责线索中有 803 条不在严格‘后训练’标题组；另把 19 条‘强化学习阶段待核’标题并入时，标题敏感性样本为 56 条职位、资格可分析 56 条。
+- RL/对齐 34/37 (91.9%)
+- PyTorch 21/37 (56.8%)
+- SFT/微调 17/37 (46.0%)
+- DeepSpeed/Megatron/FSDP 17/37 (46.0%)
+- 分布式系统 23/37 (62.2%)</p>
+<p><strong>解释：</strong> 37条是严格标题主分类，不是后训练工作线索的完整边界；职责与要求命中说明训练相关内容分散在算法、Agent或Infra职位文本中。</p>
+<p><strong>行动：</strong> 筛选岗位时用职责描述确认具体环节，再准备SFT/偏好优化/RL、评测与训练数据工程证据；标题和正文线索分开核验。</p>
+<p><strong>局限：</strong> 职责/资格词命中只表示文本线索；可指Infra训练平台支持、Agent算法交叉或优先经验，不能直接认定职位主责为后训练，也不能当作HC。 词项命中依赖固定正则；生成式语境筛选和严格标题分类也会漏掉未出现这些词的岗位。</p>
+<h3>7. 学历词提及率可区分研究型与工程型文本，但不等于硬门槛</h3>
+<p><strong>证据</strong>
+- AI应用/Agent开发: 硕士提及 48/733 (6.5%)；博士提及 20/733 (2.7%)
+- Agent算法或交叉研究: 硕士提及 78/246 (31.7%)；博士提及 23/246 (9.3%)
+- AI Infra: 硕士提及 105/516 (20.4%)；博士提及 45/516 (8.7%)
+- 后训练: 硕士提及 21/37 (56.8%)；博士提及 3/37 (8.1%)</p>
+<p><strong>解释：</strong> 不同方向的学历表达习惯不同；研究型描述更可能出现硕博词，工程方向经常依赖经验与系统能力。</p>
+<p><strong>行动：</strong> 如果目标组的硕博提及率较高，准备研究/实验/论文材料；如果文本常以经验技能表达，则优先补交付证据并逐岗核对学历要求。</p>
+<p><strong>局限：</strong> education_mentions 是要求文本词级提及；不能区分最低学历、可替代学位或优先条件。</p>
+<h3>8. 经验年限明确性需要与结构化字段覆盖分开读</h3>
+<p><strong>证据</strong>
+- AI应用/Agent开发: 年限词 307/733 (41.9%)；明确不限/应届 4/733 (0.6%)；规范经验字段非未知 267/733 (36.4%)
+- Agent算法或交叉研究: 年限词 60/246 (24.4%)；明确不限/应届 4/246 (1.6%)；规范经验字段非未知 70/246 (28.5%)
+- AI Infra: 年限词 188/516 (36.4%)；明确不限/应届 1/516 (0.2%)；规范经验字段非未知 201/516 (39.0%)
+- 后训练: 年限词 7/37 (18.9%)；明确不限/应届 0/37 (0.0%)；规范经验字段非未知 26/37 (70.3%)</p>
+<p><strong>解释：</strong> 年限词扫描与结构化经验字段是两种信息通道；不同方向中一方的覆盖率可高可低，二者不能互相替代，也不能据此推断缺少经验要求。</p>
+<p><strong>行动：</strong> 针对目标方向准备能对应年限门槛的项目年限/责任范围证明；面对未量化岗位，突出能力证据而非自行推断年限。</p>
+<p><strong>局限：</strong> 规则扫描会漏掉隐含经验表述，也会把必需与优先年限一并计入；不是最低年限解析器。</p>
+<h3>9. 职位加权与公司均权会给出不同的典型技能图景</h3>
+<p><strong>证据</strong>
+- AI应用/Agent开发 GPU: 职位加权 16/733 (2.2%)；公司均权 10.0%（10家公司，每家资格样本至少5条）
+- Agent算法或交叉研究 Python: 职位加权 116/246 (47.1%)；公司均权 40.7%（6家公司，每家资格样本至少5条）
+- AI Infra GPU: 职位加权 248/516 (48.1%)；公司均权 55.9%（12家公司，每家资格样本至少5条）
+- 后训练 Python: 职位加权 24/37 (64.9%)；公司均权 48.4%（3家公司，每家资格样本至少5条）</p>
+<p><strong>解释：</strong> 职位加权按每条公开职位贡献一次；公司均权将符合门槛的每家公司贡献设为相同，弱化头部企业重复/大量发布的影响。</p>
+<p><strong>行动：</strong> 制定个人学习优先级时，把两种口径都列入；若技能只在职位加权率高，先核对是否由少数公司驱动。</p>
+<p><strong>局限：</strong> 公司均权仅纳入每个方向有至少5条可分析要求的公司；不代表按员工数、业务规模或真实HC加权。</p>
+<h3>10. 大城市职位集中明显，且地理字段仍有待核比例</h3>
+<p><strong>证据</strong>
+- AI应用/Agent开发: 北京 273/736 (37.1%)
+- Agent算法或交叉研究: 北京 138/246 (56.1%)
+- AI Infra: 北京 261/518 (50.4%)
+- 后训练: 北京 25/37 (67.6%)</p>
+<p><strong>解释：</strong> 地点提及显示本次公开职位文本更多落在头部城市；多地点岗位会重复计入城市扫描，地域待核字段则留在独立类别。</p>
+<p><strong>行动：</strong> 先按可接受城市/远程条件筛选目标岗位，再比较方向技能；多城市岗位逐条确认团队实际办公地点。</p>
+<p><strong>局限：</strong> 城市别名扫描不覆盖全部城市/远程语义；多地点百分比不互斥，地理分类来自源字段解析。</p>
+<h3>11. 高共现表示同帖关联，不等于必须成套掌握</h3>
+<p><strong>证据</strong>
+- AI应用/Agent开发: PyTorch + TensorFlow 共现 30/733 (4.1%)，lift=17.30
+- Agent算法或交叉研究: PyTorch + TensorFlow 共现 46/246 (18.7%)，lift=2.73
+- AI Infra: Agent + 工具调用 共现 25/516 (4.8%)，lift=4.65
+- 后训练: PyTorch + RL/对齐 共现 21/37 (56.8%)，lift=1.09</p>
+<p><strong>解释：</strong> 同一资格文本里的共提只说明文本关联；技能可能是并列、至少掌握一种或优先条件，lift衡量相对独立频率的共现增强程度。</p>
+<p><strong>行动：</strong> 先核对完整JD中的并列、任选、优先等逻辑，再决定是否把技能组合成项目；共现不能推出必需的成套组合或学习先后顺序。</p>
+<p><strong>局限：</strong> 仅保留同方向support≥20的技能对；模板复用、词典覆盖和职位重叠会影响共现，不能推断因果、强制组合或技术先后关系。</p>
+<h3>12. 普通开发、算法与硬件对照能避免把所有技术要求混成一类</h3>
+<p><strong>证据</strong>
+- 普通开发对照 (4,270条资格文本): Python 1,197/4,270 (28.0%)；Java 1,205/4,270 (28.2%)；C++ 1,272/4,270 (29.8%)
+- 算法/研究对照 (1,047条资格文本): Python 565/1,047 (54.0%)；Java 111/1,047 (10.6%)；C++ 464/1,047 (44.3%)
+- 硬件/嵌入式对照 (964条资格文本): Python 220/964 (22.8%)；C++ 181/964 (18.8%)；GPU 59/964 (6.1%)
+- 非技术职能对照 (12,742条资格文本): Python 553/12,742 (4.3%)；GPU 127/12,742 (1.0%)；SQL 1,070/12,742 (8.4%)</p>
+<p><strong>解释：</strong> 对照组说明基础工程语言与模型/硬件专门技能的出现背景不同；求职者可以基于目标岗位族组合，而非只按AI标签准备。</p>
+<p><strong>行动：</strong> 普通开发强调系统设计、语言与数据服务；算法/研究强调实验与模型框架；硬件岗位强调芯片/嵌入式验证与软硬协同。</p>
+<p><strong>局限：</strong> 对照组按job_family与title_direction规则筛选，存在分类错误；非技术组由预设职能集合构成。</p>
+<h2>数据使用边界</h2>
+<ul>
+<li>本分析没有重新联网，使用本地已归档职位文本。公开招聘条目不证明仍有实际HC、预算、用人优先级或HR确认。</li>
+<li>技能提及、教育词、年限词和共现依赖归档文本及词典/标题规则；通用招聘模板、免责声明和分类错误可能影响命中。</li>
+<li>不把收集样本解释为全国岗位总量、市场份额、技能因果关系或个人录用概率。</li>
+</ul></article></main></body></html>

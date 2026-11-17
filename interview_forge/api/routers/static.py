@@ -145,6 +145,17 @@ def private_reader_widget_tags(body: bytes) -> bytes:
 
 
 def _inject_html(path: str, body: bytes, *, embedded: bool = False) -> bytes:
+    if path.startswith("/library/ai-employment-research/"):
+        # Keep the standalone application's theme and Worker lifecycle intact.
+        # Inject at delivery time so the supplied package hashes remain valid.
+        navigation = (
+            '<nav aria-label="Interview Forge 学习书架" style="padding:8px 16px;'
+            'font:14px system-ui;text-align:right">'
+            '<a href="/library/index.html" style="color:inherit">← 返回学习书架</a></nav>'
+        ).encode("utf-8")
+        start = body.find(b"<body")
+        end = body.find(b">", start) if start >= 0 else -1
+        return body[:end + 1] + navigation + body[end + 1:] if end >= 0 else body
     # Previously generated chapters embed v1. Nginx caches versioned JS as
     # immutable, so serve the current collector even before a chapter rebuild.
     body = body.replace(b'/ai-page-context.js?v=1"', b'/ai-page-context.js?v=2"')
@@ -260,7 +271,10 @@ def static_path(request: Request, path: str):
         if headers["ETag"] in (request.headers.get("if-none-match") or ""):
             return Response(status_code=304, headers=headers)
         return Response(content=body, media_type="text/html", headers=headers)
-    return FileResponse(target, headers=_security_headers(decoded))
+    media_type = None
+    if decoded.startswith("/library/ai-employment-research/"):
+        media_type = {".mjs": "text/javascript", ".json": "application/json", ".gz": "application/gzip"}.get(target.suffix.lower())
+    return FileResponse(target, media_type=media_type, headers=_security_headers(decoded))
 
 
 @router.api_route("/{path:path}", methods=["POST", "PUT", "PATCH", "DELETE", "OPTIONS"], include_in_schema=False)
