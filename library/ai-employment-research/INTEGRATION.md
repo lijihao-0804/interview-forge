@@ -68,6 +68,30 @@ python tools/verify_data.py
 
 第一个命令默认直接读取本包的gzip语料，不依赖原项目；重新生成JSON和Markdown供复核，不覆盖当前已审读的结论文案。目录扩展的后训练线索可用 `posttrainingSignal: 'duty' | 'requirement' | 'either' | 'candidate'` 选择。前三种是文本命中；candidate还并入严格标题组，不能解释成已确认的后训练主责。
 
-## 上线前检查
+## v4 数据扩展
+
+保留旧目录和详情接口，新增`data/technology-index.json`（可有gzip镜像）。Worker将分段技术ID映射为展示名称后参与筛选与聚合；`technologies`数组的值与`facets.technologies`保持一致，不能把旧`skills`合并标签当原子词。具体筛选字段以`engine.mjs`的`DEFAULT_FILTERS`为准。技术需求表的CSV导出应覆盖全部匹配词项，不能只导出当前页。
+
+分期索引为`data/snapshot-registry.json`。路径相对于该登记簿目录；历史文件必须随包保留完整，不要由SPA兜底返回HTML。登记簿、当期原文、技术词典和提取版本共同定义一次观测及处理。当前只有一个真实采集截面，前端显示基线并说明等待下期，不绘制虚构涨跌。下一期通过`tools/snapshot_registry.py`注册和比较，详细命令见`MAINTENANCE.md`。
+
+维护者可直接在交接包运行原子技术重算和跨期分析；联网采集器参考冻结在`maintenance/source_project/`，应复制到每期独立工作目录再适配/验证。不要把在线采集日志、个人浏览器会话或凭据放进静态网站。
+
+可选SQLite索引也支持原子技术：`python tools/build_sqlite.py --output jobs.sqlite`会自动读取同目录的`data/technology-index.json`，可用`--technology-index`显式指定。新增`technology_terms`和`job_technologies(job_id,technology_id,field)`，字段取requirement/duty/fulltext/preferred；旧`job_skills`继续保留合并标签。工具核对源语料哈希，创建新数据库，不覆盖旧库。例：
+
+```sql
+SELECT t.name, COUNT(DISTINCT jt.job_id) AS mentions,
+       (SELECT COUNT(*) FROM jobs WHERE requirements_available=1) AS denominator
+FROM job_technologies AS jt
+JOIN technology_terms AS t ON t.id=jt.technology_id
+JOIN jobs AS j ON j.id=jt.job_id
+WHERE jt.field='requirement' AND j.requirements_available=1
+GROUP BY t.id, t.name ORDER BY mentions DESC;
+```
+
+SQLite是派生索引，原始字段和分期证据仍以压缩语料/登记簿为准。源码中使用参数化SQL；接网站API时继续按请求参数绑定查询，城市精确标签可从catalog或冻结city-tags映射按id关联。
+
+界面中的“当前筛选”图表与固定研究判断分开。不要在城市筛选后改写固定结论中的已审读分母；更新采集截面后需重算并审读`editorial.json`，而非只替换顶部日期。技术提及率也不能解释成全部雇主统一的必备门槛。
+
+## 上线前检查（含v4）
 
 检查子目录资源与Worker无404、技能AND/OR结果、筛选CSV全量行数、长数字ID文本保护、全文分片、元数据缺口、手机横向溢出、明暗模式和键盘操作。已有验收记录位于 `reports/`。本包不含任何自动发布/上传动作；挂站由目标项目执行者按其发布流程完成。

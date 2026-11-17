@@ -1,4 +1,4 @@
-# Employment Data Bundle v3 schema
+# Employment Data Bundle v4 schema
 
 This package is an offline export of the 2026-11-17 Asia/Shanghai snapshot. It is independent of the workspace’s v2 evidence and report files.
 
@@ -91,3 +91,27 @@ with gzip.open("前端交接包_就业数据台/data/corpus.ndjson.gz", "rt", en
 固定研究结论与高级JSON分析排除2条已识别招聘池，职位分母为28342、要求分母28142；前端默认保留全部28344记录/28144可用要求，可勾选“排除已识别招聘池”对齐。四个目标方向的分母不受这2条影响。
 
 城市标签用于检索与覆盖计数，不是标准地理编码；原始地点仍保留，极少数地名别名/行政后缀可能分列。多地标签不应相加为去重岗位数。
+
+## 原子技术扩展与原文证据
+
+`data/technology-index.json` 与目录按 `id` 精确一一关联，不改写 `skills_in_requirement` 的旧含义。顶层 `dictionary_version` 标识冻结词典；`terms` 含 `id/name/category/aliases`；`jobs[id]` 的 `requirement/duty/fulltext` 是去重的技术ID数组。不同技术独立计数，别名归一到同一ID。读取时先通过terms把ID映射为展示名称，不应把原子ID当旧技能标签。
+
+资格段提及率的分母严格取 `requirements_available == true`，即使全文存在也不能替代这个标记。职责和全文以已存正文为分母；字段提及不能自动解释成必备。显式优先字段、资格中的“或/至少一种”、否定上下文需读原文证据。
+
+`data/technology/` 保存提取器产出的词典、证据引用与候选队列。证据位置相对于其声明的源字段，不能拿全文offset去切资格段；重新格式化文本后应重提取证据。未审核候选不进入正式技术索引。
+
+索引另含`snapshot_date`、`source_corpus_sha256`、`dictionary_sha256`、`extractor_version/extractor_sha256`和`parser_version`。源语料哈希绑定实际输入文件字节；词典哈希为UTF-8、sort_keys、无多余空格的规范JSON SHA256，独立文件字节哈希另见manifest。提取代码hash同时锁定词典guard的实现。分期注册核对日期、语料绑定和岗位ID集合，比较时要求规则身份一致；两期的原文语料hash自然可以不同。
+
+证据为`technology_evidence_v4.ndjson.gz`，按岗位保存`field/offset_start/offset_end_exclusive/matched_alias/snippet`。偏移是Python Unicode code point索引，左闭右开；JavaScript需要先用`Array.from(text)`转为字符数组再按这些偏移切分，不能直接用UTF-16字符串slice。每个词在每字段最多保存前两个命中片段，并另记该字段总出现次数，完整原文不截断。索引统计按岗位是否提及去重，不按出现次数累加。
+
+## 分期、处理版本与可比性
+
+`data/snapshot-registry.json`登记真实观测期；每期的manifest/summary/corpus和技术索引位于`data/snapshots/<snapshot_id>/`并有SHA256。注册不可覆盖，不可把今日重新计算包装成今日新增采集。
+
+每期保留采集日期、来源与范围、公司、完成度和失败、解析器及词典版本。`retrieved_at`、官网`posted_date`和处理时间分别保留。岗位跨期使用公司与原始source_job_id匹配；首次看到不是首次发布，未重现不是下架，原文哈希变化也不必然代表任职技能变化。
+
+`data/processing-registry.json`按词典版本登记完整处理文件，`data/processing_versions/<version>/`冻结词典与提取脚本，文件SHA与规范词典SHA均保留。当前`data/technology/`是便于使用的索引/证据副本；未来更新它时，已登记的历史处理版本仍须保留。
+
+跨期工具会输出整体、共同公司、共同职位的技术提及数、可用资格分母和百分点差，并保留同岗技术新增/移除。词典版本不同禁止直接比较；应使用同一版本重提取历史原文，再登记可比较的处理产物。具体命令和范围限制见`MAINTENANCE.md`。
+
+原子技术总表与默认比较使用全部记录口径，包含已标记的2条毕业生招聘池；原子统计JSON另列具体职位口径。高级研究原有结论排除这2条，不能混用分母。需要调整记录类型、城市规则或解析范围时，用明确范围的派生登记簿保存新产物并保留原始归档。

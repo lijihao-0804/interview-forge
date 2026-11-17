@@ -1,0 +1,161 @@
+{
+  "contract_version": "4.0.0",
+  "schema_version": "employment-snapshot-contract-v4",
+  "status": "normative",
+  "path_policy": {
+    "registry_root": "Directory containing longitudinal/registry.json; all registered artifact paths are relative to this root.",
+    "no_external_artifact_paths": true,
+    "upstream_paths": "May appear only as non-clickable provenance strings with path_is_linkable=false.",
+    "immutable_snapshot_dates": true,
+    "synthetic_fixtures_allowed_in_real_registry": false
+  },
+  "metadata_input": {
+    "required": {
+      "snapshot_date": "YYYY-MM-DD; observed collection date, not registration date.",
+      "parser_version": "Stable parser/normalizer identifier; include source code SHA256 in parser_provenance when available.",
+      "scope": "Object describing company channels, portal pages, region, job types, queries, page range and known limits.",
+      "collection_completeness": "Object; must allow unknown/partial and must not infer complete from observed row count.",
+      "expected_counts": "Optional object checked against corpus scan: record_count, body_count, requirements_available_count."
+    },
+    "optional": {
+      "timezone": "Defaults to Asia/Shanghai.",
+      "legacy_skill_dictionary_version": "Required for legacy skills fallback comparisons.",
+      "legacy_skill_dictionary_sha256": "Required with legacy_skill_dictionary_version.",
+      "technology_extractor_version": "Required with a technology index unless the index itself carries extractor_version.",
+      "technology_extractor_sha256": "Optional source extractor code SHA256; must match extractor_sha256 in the index when both exist.",
+      "technology_dictionary_sha256": "Optional source dictionary SHA256; must match dictionary_sha256 in index when both exist.",
+      "technology_rules_sha256": "Optional matching/rule implementation SHA256; checked across snapshots.",
+      "technology_parser_sha256": "Optional technology parser SHA256; checked across snapshots.",
+      "technology_index_parser_version": "Optional exact technology-index parser version, checked when available.",
+      "source_corpus_sha256": "If present, must equal input source file bytes.",
+      "city_catalog_sha256": "If present, must equal --city-catalog input bytes.",
+      "city_catalog_source_name": "Non-clickable provenance source name only.",
+      "company_scope": "List of company names intended to be covered.",
+      "parser_provenance": "Version strings and/or source file names and hashes; source paths are not links.",
+      "failures": "Observed source/API/pagination/detail failures with scope and resolution status.",
+      "upstream_provenance": "Source names, hashes, sizes, and path_is_linkable=false; no absolute output links.",
+      "synthetic_fixture": "Must be false or omitted for real registration."
+    }
+  },
+  "technology_index": {
+    "required": {
+      "dictionary_version": "Non-empty immutable taxonomy version.",
+      "terms": "Array of objects with unique id and name; category and aliases may also be retained.",
+      "jobs": "Object keyed by normalized corpus id. Its key set must exactly equal corpus id set.",
+      "jobs_entry": "Each value has requirement, duty, and fulltext arrays of unique term IDs."
+    },
+    "optional_fingerprints": {
+      "dictionary_sha256": "64-character SHA256 checked across snapshots.",
+      "rules_sha256": "64-character SHA256 checked across snapshots.",
+      "extractor_sha256": "64-character SHA256 checked across snapshots.",
+      "parser_sha256": "64-character SHA256 checked across snapshots.",
+      "extractor_version": "Exact extractor version checked across snapshots.",
+      "parser_version": "Exact index parser version checked across snapshots.",
+      "snapshot_date": "If present, must equal the registered snapshot date.",
+      "source_corpus_sha256": "If present, must equal source corpus input bytes before gzip conversion."
+    },
+    "comparison_default": "jobs[id].requirement; matched-job comparison uses stable key (company, source_job_id) and finds vectors by each snapshot's corpus id."
+  },
+  "corpus_ndjson_record": {
+    "preservation": "The source corpus is archived byte-for-byte when already gzip; plain NDJSON is deterministically gzipped. Original row fields, full text, source_job_id, text_sha256, and per-source values are preserved.",
+    "identity_fields": ["id", "company", "source_job_id", "job_code_raw", "source_internal_id", "source_job_id_note"],
+    "source_and_location_fields": ["source_type", "source_file", "url", "url_kind", "url_route_key", "source_url_resolution", "source_occurrences", "city", "city_source", "country", "geography"],
+    "job_description_fields": ["title", "category_original", "job_family", "title_direction", "experience", "degree_raw", "education_mentions", "posted_date", "salary", "description", "requirements", "requirements_analysis", "requirements_analysis_note", "bonus_source", "full_text"],
+    "availability_and_hash_fields": ["record_kind", "detail_status", "archive_status", "archive_key", "detail_shard", "requirements_available", "requirements_parse_status", "body_chars", "requirement_chars", "requirement_raw_chars", "text_sha256"],
+    "derived_analysis_fields": ["skills_in_requirement", "skills_in_responsibility", "historical_skill_features", "specific_ability_groups", "action_clauses", "ai_signal", "clarity_score", "clarity_candidate", "clarity_components", "clarity_reasons", "clarity_review", "reviewed_clarity", "review_reason", "legacy_only", "summary"],
+    "missingness": "Unknown, absent, inaccessible, list-only and unparsed are distinct from explicit empty/zero values. A skill mention is not a hard eligibility requirement."
+  },
+  "city_tags_archive": {
+    "schema_version": "employment-city-tags-v1",
+    "fields": {
+      "source_catalog_sha256": "SHA256 of catalog used to derive the mapping.",
+      "source_catalog_record_count": "Catalog row count checked against corpus ids.",
+      "derivation": "Description of original city-tags method.",
+      "by_job_id": "Object mapping corpus id to exact city_tags array; empty array means unknown/unmatched, not remote."
+    },
+    "note": "Only the id-to-city_tags mapping is archived. Historical tags are reused during re-extraction; never recompute from future catalogs."
+  },
+  "registry": {
+    "schema_version": "employment-snapshot-registry-v4",
+    "fields": {
+      "contract_version": "4.0.0",
+      "generated_at": "Registry update timestamp.",
+      "snapshot_count": "Number of registered dates.",
+      "snapshots": "Object keyed by observed snapshot date."
+    },
+    "snapshot_entry": {
+      "snapshot_date": "Observed snapshot date.",
+      "is_baseline": "True only when registered into an empty registry.",
+      "synthetic_fixture": "Always false for registered records.",
+      "manifest": "{path, sha256}; path is relative to registry root.",
+      "summary": "{path, sha256}; path is relative to registry root.",
+      "corpus": "{path, sha256, bytes, source_sha256, source_encoding}; sha256 is archived corpus hash.",
+      "technology_index": "Null or archived index reference and taxonomy fingerprints.",
+      "city_tags": "Null or archived id-to-city-tags mapping reference and source catalog hash.",
+      "record_count": "Validated normalized corpus record count.",
+      "company_count": "Number of company names in observed records.",
+      "parser_version": "Declared parser identifier.",
+      "technology_dictionary_version": "Declared technology taxonomy version or null.",
+      "legacy_skill_dictionary_version": "Legacy skill version or null."
+    }
+  },
+  "snapshot_manifest": {
+    "schema_version": "employment-snapshot-manifest-v4",
+    "required_fields": [
+      "snapshot_date", "timezone", "registered_at", "is_baseline", "synthetic_fixture",
+      "registered_period_count_at_creation", "parser_version", "scope", "collection_completeness",
+      "failures", "company_scope", "upstream_provenance", "registration_metadata", "source_corpus", "corpus_stats", "files"
+    ],
+    "files": "Map of artifact role to relative path, bytes and SHA256; all paths resolve inside the archive directory.",
+    "corpus_stats": [
+      "counts", "company_counts", "source_type_counts", "archive_status_counts",
+      "requirements_parse_status_counts", "retrieved_at_min", "retrieved_at_max"
+    ],
+    "failures": "Never normalize missing pages, failed details, unknown fields or omitted jobs to zero or closed."
+  },
+  "single_snapshot_summary": {
+    "schema_version": "employment-snapshot-summary-v4",
+    "fields": {
+      "snapshot_date": "Observed date.",
+      "summary_scope": "single_snapshot.",
+      "registered_period_count_at_creation": "Registry size at write time; not a trend measure.",
+      "trend_available": false,
+      "counts": "Single-period body, independent requirements and source-coverage counts.",
+      "company_counts": "Observed normalized record counts, not total vacancies/HC.",
+      "skill_baseline": "Single-period n/q counts using the selected dictionary; a skill mention is not a mandatory gate."
+    }
+  },
+  "comparison_report": {
+    "schema_version": "employment-snapshot-comparison-v4",
+    "matching_key": ["company", "source_job_id"],
+    "filters": {
+      "company_exact": "Exact, repeatable company filter.",
+      "city_tags_exact": "Exact match against that snapshot's frozen city_tags; legacy fallback is exact source city value only.",
+      "direction_contains": "Case-insensitive substring over title_direction, job_family, title."
+    },
+    "job_changes": {
+      "newly_observed_in_selected_scope": "Present only in current selected observation scope; does not mean a newly opened vacancy.",
+      "not_reappeared_in_selected_scope": "Present only in prior selected observation scope; does not mean the posting was closed.",
+      "matched_job_changes": "Per matched key: full text hash, qualification segment hash, and requirement term additions/removals."
+    },
+    "populations": {
+      "full_sample": "Each period's own selected records; denominator can vary.",
+      "common_companies": "Only companies observed in both periods; job composition and denominator can still vary.",
+      "common_matched_jobs": "Matched company+source ID cohort; skill n is the intersection with requirement vectors available in both periods."
+    },
+    "skill_metric": {
+      "n": "Comparable job records with a readable requirement skill vector.",
+      "q": "Records in n whose requirement vector contains this term.",
+      "prevalence": "q/n; not a measure of hiring demand or hard eligibility.",
+      "change_percentage_points": "100 * (rate_after - rate_before)."
+    },
+    "comparison_gates": [
+      "Same-period comparison is rejected.",
+      "Parser version must match.",
+      "Technology dictionary version and canonical terms hash must match.",
+      "Any declared dictionary/rule/extractor/parser fingerprint or extractor/parser version must match.",
+      "If technology index has snapshot_date or source_corpus_sha256, those values must match the snapshot date/source bytes.",
+      "Legacy fallback requires both matching legacy skill dictionary version and SHA256."
+    ]
+  }
+}
