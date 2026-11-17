@@ -145,7 +145,7 @@ def private_reader_widget_tags(body: bytes) -> bytes:
 
 
 def _inject_html(path: str, body: bytes, *, embedded: bool = False) -> bytes:
-    if path.startswith("/library/ai-employment-research/"):
+    if path.startswith(("/library/ai-employment-research/", "/library/communications-research/")):
         # Keep the standalone application's theme and Worker lifecycle intact.
         # Inject at delivery time so the supplied package hashes remain valid.
         navigation = (
@@ -153,6 +153,9 @@ def _inject_html(path: str, body: bytes, *, embedded: bool = False) -> bytes:
             'font:14px system-ui;text-align:right">'
             '<a href="/library/index.html" style="color:inherit">← 返回学习书架</a></nav>'
         ).encode("utf-8")
+        if path.startswith("/library/communications-research/"):
+            body = body.replace(b'href="data/communications.sqlite"', b'href="data/communications.sqlite.zip"')
+            body = body.replace("SQLite分析数据库</a>".encode(), "SQLite分析数据库（ZIP）</a>".encode())
         start = body.find(b"<body")
         end = body.find(b">", start) if start >= 0 else -1
         return body[:end + 1] + navigation + body[end + 1:] if end >= 0 else body
@@ -272,7 +275,7 @@ def static_path(request: Request, path: str):
             return Response(status_code=304, headers=headers)
         return Response(content=body, media_type="text/html", headers=headers)
     media_type = None
-    if decoded.startswith("/library/ai-employment-research/"):
+    if decoded.startswith(("/library/ai-employment-research/", "/library/communications-research/")):
         media_type = {".mjs": "text/javascript", ".json": "application/json", ".gz": "application/gzip"}.get(target.suffix.lower())
     return FileResponse(target, media_type=media_type, headers=_security_headers(decoded))
 

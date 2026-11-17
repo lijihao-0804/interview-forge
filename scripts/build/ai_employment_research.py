@@ -1,6 +1,7 @@
-"""Register the independently delivered public employment research application."""
+"""Register the independently delivered public employment research books."""
 
 MODULE_ID = "ai-employment-research"
+COMMUNICATIONS_MODULE_ID = "communications-research"
 TITLE = "AI 就业调研 · 就业数据台"
 URL = f"{MODULE_ID}/index.html"
 ABOUT = (
@@ -10,33 +11,55 @@ ABOUT = (
 )
 
 
-def register(modules, routes, search_entries):
-    """Refresh one shelf entry without rendering or changing the supplied package."""
-    content_id = f"{MODULE_ID}:workspace"
-    chapter = {
-        "id": content_id,
-        "title": "就业数据台 · 岗位探索与研究结论",
-        "url": URL,
-        "intro": ABOUT,
-    }
-    modules[:] = [module for module in modules if module["id"] != MODULE_ID]
-    modules.append({
+RESEARCH_BOOKS = (
+    {
         "id": MODULE_ID,
         "title": TITLE,
-        "category": "岗位与进阶",
+        "chapter_title": "就业数据台 · 岗位探索与研究结论",
+        "url": URL,
         "about": ABOUT,
-        "url": URL,
-        "chapter_count": 1,
-        "unit": "研究入口",
-        "chapters": [chapter],
-    })
-    routes[f"/library/{URL}"] = {"module_id": MODULE_ID, "content_id": content_id}
-    search_entries[:] = [entry for entry in search_entries if entry.get("module_id") != MODULE_ID]
-    search_entries.append({
-        "id": content_id,
-        "module_id": MODULE_ID,
-        "module_title": TITLE,
-        "title": chapter["title"],
-        "url": URL,
-        "text": ABOUT + " 市场总览 岗位探索 路线对比 研究结论 数据口径 AI Agent AI Infra 后训练 技能矩阵 职位 JD 城市 学历 技术词典 LangChain LangGraph 期次档案",
-    })
+        "keywords": "市场总览 岗位探索 路线对比 研究结论 数据口径 AI Agent AI Infra 后训练 技能矩阵 职位 JD 城市 学历 技术词典 LangChain LangGraph 期次档案",
+    },
+    {
+        "id": COMMUNICATIONS_MODULE_ID,
+        "title": "通信工程就业调研",
+        "chapter_title": "通信工程就业数据台 · 岗位与技术需求",
+        "url": f"{COMMUNICATIONS_MODULE_ID}/index.html",
+        "about": "2,367 条通信专业相关记录，按母集团、城市、学历和职业筛选，查看专业证据、完整 JD 与技术需求。含 AI 就业调研主语料中的 1,203 条记录。",
+        "keywords": "通信工程 通信专业 母集团 招聘单位 所有制 城市 学历 学生入口 招聘状态 专业证据 技术词典 MATLAB HFSS SQLite 岗位 JD",
+    },
+)
+
+
+def register(modules, routes, search_entries):
+    """Refresh shelf entries while preserving each supplied package."""
+    for book in RESEARCH_BOOKS:
+        module_id = book["id"]
+        content_id = f"{module_id}:workspace"
+        chapter = {
+            "id": content_id,
+            "title": book["chapter_title"],
+            "url": book["url"],
+            "intro": book["about"],
+        }
+        modules[:] = [module for module in modules if module["id"] != module_id]
+        modules.append({
+            "id": module_id,
+            "title": book["title"],
+            "category": "岗位与进阶",
+            "about": book["about"],
+            "url": book["url"],
+            "chapter_count": 1,
+            "unit": "研究入口",
+            "chapters": [chapter],
+        })
+        routes[f"/library/{book['url']}"] = {"module_id": module_id, "content_id": content_id}
+        search_entries[:] = [entry for entry in search_entries if entry.get("module_id") != module_id]
+        search_entries.append({
+            "id": content_id,
+            "module_id": module_id,
+            "module_title": book["title"],
+            "title": chapter["title"],
+            "url": book["url"],
+            "text": book["about"] + " " + book["keywords"],
+        })
