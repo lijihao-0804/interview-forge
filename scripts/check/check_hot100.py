@@ -39,6 +39,7 @@ from pathlib import Path
 from urllib.parse import unquote
 
 from bs4 import BeautifulSoup
+from scripts.build.ai_employment_research import MODULE_ID as EMPLOYMENT_RESEARCH_MODULE
 from scripts.build.build_html_site import VISUAL_EMBEDS
 from scripts.build.build_hot100 import LEETCODE_SLUGS, PROBLEMS
 from scripts.build.library_catalog import LIBRARY_MODULES
@@ -709,8 +710,9 @@ else:
         for public_doc in (ROOT / "README.md", ROOT / "guide.html"):
             if public_doc.exists() and expected_catalog_label not in public_doc.read_text(encoding="utf-8", errors="replace"):
                 errors.append(f"公开文档书架数量与 manifest 不一致：{public_doc.relative_to(ROOT)}")
-        if len(library_modules) != len(LIBRARY_MODULES) + 1:
-            errors.append(f"学习书架模块数量异常：{len(library_modules)}（应为 {len(LIBRARY_MODULES) + 1}）")
+        expected_modules = {"hot100", EMPLOYMENT_RESEARCH_MODULE} | {module["id"] for module in LIBRARY_MODULES}
+        if len(library_modules) != len(expected_modules) or {module["id"] for module in library_modules} != expected_modules:
+            errors.append(f"学习书架模块登记异常：{len(library_modules)}（应为 {len(expected_modules)}）")
         # 逐模块逐章节做“文件存在 + 路由存在 + 路由文件存在”三连查；
         # matching_routes 用列表推导按 module_id/content_id 配对过滤 routes。
         for module in library_modules:

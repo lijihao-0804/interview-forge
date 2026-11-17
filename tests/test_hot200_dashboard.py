@@ -8,6 +8,7 @@ from datetime import datetime
 from unittest.mock import Mock, patch
 
 from fastapi.testclient import TestClient
+
 from interview_forge.api.app import app
 from interview_forge.core.runtime import server_runtime as rt
 from interview_forge.services import hot200
@@ -37,22 +38,22 @@ def test_hot200_rounds_and_sync_keep_banks_separate(tmp_path):
         {"user_name": "test", "stat_status_pairs": []},
         {
             "submissions_dump": [
-                dict(
-                    id=2011,
-                    is_pending="Not Pending",
-                    title=hot200.catalog()[pid]["title"],
-                    timestamp=str(ts),
-                    status_display="Accepted",
-                    lang="python3",
-                ),
-                dict(
-                    id=2012,
-                    is_pending="Not Pending",
-                    title="两数之和",
-                    timestamp=str(ts),
-                    status_display="Accepted",
-                    lang="python3",
-                ),
+                {
+                    "id": 2011,
+                    "is_pending": "Not Pending",
+                    "title": hot200.catalog()[pid]["title"],
+                    "timestamp": str(ts),
+                    "status_display": "Accepted",
+                    "lang": "python3",
+                },
+                {
+                    "id": 2012,
+                    "is_pending": "Not Pending",
+                    "title": "两数之和",
+                    "timestamp": str(ts),
+                    "status_display": "Accepted",
+                    "lang": "python3",
+                },
             ]
         },
     ]
@@ -83,10 +84,10 @@ def test_hot200_rounds_and_sync_keep_banks_separate(tmp_path):
         boot["pinnedTomorrow"] == {"186": True}
         and boot["dashboard"]["summary"]["completed_problems"] == 1
     )
-    assert set(
+    assert {
         item["id"]
         for item in hot200.mock(db, {"scope": "unseen", "count": 20})["problems"]
-    ) <= set(hot200.catalog()) - {pid}
+    } <= set(hot200.catalog()) - {pid}
     assert pid in [item["id"] for item in hot200.plan(db, False)["items"]]
     exported = json.loads(hot200.export(db, "records")[0])
     assert len(exported["submissions"]) == 1 and all(

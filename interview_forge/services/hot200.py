@@ -21,14 +21,14 @@ MODULE = "hot200-extra"
 def catalog():
     raw = json.loads((ROOT / "data/hot200-extra.json").read_text(encoding="utf-8"))
     return {
-        p["id"]: dict(
-            id=p["id"],
-            slug=p["slug"],
-            title=p["title"],
-            category=p["topic"],
-            difficulty=p["difficulty"],
-            note=f"/library/{MODULE}/chapter-{i:02d}.html",
-        )
+        p["id"]: {
+            "id": p["id"],
+            "slug": p["slug"],
+            "title": p["title"],
+            "category": p["topic"],
+            "difficulty": p["difficulty"],
+            "note": f"/library/{MODULE}/chapter-{i:02d}.html",
+        }
         for i, p in enumerate(raw, 1)
     }
 
@@ -182,16 +182,16 @@ def snapshot(db):
         dates = [e["studied_at"] for e in ev] + [s["submitted_at"] for s in sub]
         rounds = len(days)
         ac = sum(s["status"] == "ac" for s in sub)
-        info[str(pid)] = dict(
-            rounds=rounds,
-            submits=len(sub),
-            ac_submits=ac,
-            by_language=dict(groups),
-            mark=marks.get(key, ""),
-            last_submitted_at=sub[-1]["submitted_at"] if sub else None,
-            last_activity_at=max(dates, default=None),
-            next_due=due.get(key),
-        )
+        info[str(pid)] = {
+            "rounds": rounds,
+            "submits": len(sub),
+            "ac_submits": ac,
+            "by_language": dict(groups),
+            "mark": marks.get(key, ""),
+            "last_submitted_at": sub[-1]["submitted_at"] if sub else None,
+            "last_activity_at": max(dates, default=None),
+            "next_due": due.get(key),
+        }
         if len(sub) >= 3 and ac * 2 < len(sub):
             weak[str(pid)] = True
         if due.get(key) and due[key] <= today.isoformat():
@@ -204,82 +204,82 @@ def snapshot(db):
     for i in range((today - start).days + 1):
         d = (start + timedelta(days=i)).isoformat()
         activity.append(
-            dict(
-                date=d,
-                viewed=len(daily_views[d]),
-                rounds=daily_rounds[d],
-                submits=daily_subs[d],
-                newly_solved=daily_new[d],
-            )
+            {
+                "date": d,
+                "viewed": len(daily_views[d]),
+                "rounds": daily_rounds[d],
+                "submits": daily_subs[d],
+                "newly_solved": daily_new[d],
+            }
         )
     streak = 0
     anchor = today if daily_rounds[ds] else today - timedelta(days=1)
     while daily_rounds[(anchor - timedelta(days=streak)).isoformat()]:
         streak += 1
     values = list(info.values())
-    stat = dict(
-        today_viewed=len(daily_views[ds]),
-        today_rounds=daily_rounds[ds],
-        completed_problems=sum(v["rounds"] > 0 for v in values),
-        total_rounds=min(v["rounds"] for v in values),
-        daily_goal=int(goal[0]) if goal else 3,
-        streak=streak,
-    )
+    stat = {
+        "today_viewed": len(daily_views[ds]),
+        "today_rounds": daily_rounds[ds],
+        "completed_problems": sum(v["rounds"] > 0 for v in values),
+        "total_rounds": min(v["rounds"] for v in values),
+        "daily_goal": int(goal[0]) if goal else 3,
+        "streak": streak,
+    }
     forecast = [
-        dict(
-            date=(today + timedelta(days=i)).isoformat(),
-            count=list(due.values()).count((today + timedelta(days=i)).isoformat()),
-        )
+        {
+            "date": (today + timedelta(days=i)).isoformat(),
+            "count": list(due.values()).count((today + timedelta(days=i)).isoformat()),
+        }
         for i in range(1, 8)
     ]
     over = sum(p["due_date"] < ds for p in due_items)
-    daily = dict(
-        today=ds,
-        problems=due_items,
-        contents=[],
-        summary=dict(
-            due=len(due_items),
-            overdue=over,
-            problems=len(due_items),
-            overdue_problems=over,
-            contents=0,
-            upcoming_review=dict(
-                days=forecast, total=sum(x["count"] for x in forecast)
-            ),
-        ),
-    )
-    subs = dict(
-        today_ac=sum(
+    daily = {
+        "today": ds,
+        "problems": due_items,
+        "contents": [],
+        "summary": {
+            "due": len(due_items),
+            "overdue": over,
+            "problems": len(due_items),
+            "overdue_problems": over,
+            "contents": 0,
+            "upcoming_review": {
+                "days": forecast, "total": sum(x["count"] for x in forecast)
+            },
+        },
+    }
+    subs = {
+        "today_ac": sum(
             s["status"] == "ac" and s["submitted_at"][:10] == ds
             for group in attempts.values()
             for s in group
         ),
-        today_submits=daily_subs[ds],
-        total_ac=sum(v["ac_submits"] for v in values),
-        solved_ac=sum(bool(v["ac_submits"]) for v in values),
-    )
-    return dict(
-        dashboard=dict(
-            summary=stat,
-            activity=activity,
-            problems=info,
-            marks={
+        "today_submits": daily_subs[ds],
+        "total_ac": sum(v["ac_submits"] for v in values),
+        "solved_ac": sum(bool(v["ac_submits"]) for v in values),
+    }
+    return {
+        "dashboard": {
+            "summary": stat,
+            "activity": activity,
+            "problems": info,
+            "marks": {
                 str(p): marks[content_key(p)] for p in raw if content_key(p) in marks
             },
-            submissions=dict(summary=subs, auto_weak=weak),
-            language_summary={
-                k: dict(
-                    completed_problems=sum(v > 0 for v in vs),
-                    total_rounds=min(vs) if len(vs) == len(raw) else 0,
-                )
+            "submissions": {"summary": subs, "auto_weak": weak},
+            "language_summary": {
+                k: {
+                    "completed_problems": sum(v > 0 for v in vs),
+                    "total_rounds": min(vs) if len(vs) == len(raw) else 0,
+                }
                 for k, vs in lang_counts.items()
             },
-        ),
-        daily=daily,
-        settings={},
-        pinnedTomorrow={str(p): True for p in raw if pins.get(content_key(p), "") > ds},
-        pinnedToday=[p for p in raw if pins.get(content_key(p)) == ds],
-    )
+        },
+        "daily": daily,
+        "settings": {},
+        "pinnedTomorrow": {str(p): True for p in raw if pins.get(content_key(p), "") > ds},
+        "pinnedToday": [p for p in raw if pins.get(content_key(p)) == ds],
+    }
 
 
 def progress(db, pid):
@@ -356,9 +356,9 @@ def mock(db, params):
     n = min(len(pool), max(1, min(int(params.get("count", 5)), 20)))
     if not n and params.get("preview") != "1":
         raise ValueError("没有匹配的题目")
-    return dict(
-        scope_pool=len(pool), count=n, problems=random.sample(pool, n), scope=scope
-    )
+    return {
+        "scope_pool": len(pool), "count": n, "problems": random.sample(pool, n), "scope": scope
+    }
 
 
 def export(db, kind):
@@ -414,8 +414,8 @@ def export(db, kind):
                 encoding="utf-8-sig"
             )
 
-            def para(heading):
-                match = re.search(rf"^### {heading}\s*\n+([^\n]+)", source, re.M)
+            def para(heading, source=source):
+                match = re.search(rf"^### {heading}\s*\n+([^\n]+)", source, re.MULTILINE)
                 return match[1].strip() if match else ""
 
             w.writerow(

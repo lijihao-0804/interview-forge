@@ -4,7 +4,6 @@ from urllib.parse import unquote
 
 from bs4 import BeautifulSoup
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 

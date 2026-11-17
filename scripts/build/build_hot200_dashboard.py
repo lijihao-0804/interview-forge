@@ -2,6 +2,7 @@
 
 import json
 import re
+
 from scripts.build.asset_version import ASSET_VERSION
 
 
@@ -13,24 +14,24 @@ def render_dashboard(root):
             encoding="utf-8-sig"
         )
 
-        def paragraph(heading):
-            match = re.search(rf"^### {heading}\s*\n+([^\n]+)", source, re.M)
+        def paragraph(heading, source=source, problem_id=p["id"]):
+            match = re.search(rf"^### {heading}\s*\n+([^\n]+)", source, re.MULTILINE)
             if not match:
-                raise ValueError(f"LC {p['id']}: missing {heading}")
+                raise ValueError(f"LC {problem_id}: missing {heading}")
             return match[1].strip().replace("`", "")
 
         method = re.split(r"(?<=[。！？])", paragraph("思路"), maxsplit=1)[0]
         problems.append(
-            dict(
-                id=p["id"],
-                title=p["title"],
-                category=p["topic"],
-                difficulty=p["difficulty"],
-                method=method,
-                complexity=paragraph("复杂度"),
-                original=f"https://leetcode.cn/problems/{p['slug']}/",
-                note=f"chapter-{i:02d}.html",
-            )
+            {
+                "id": p["id"],
+                "title": p["title"],
+                "category": p["topic"],
+                "difficulty": p["difficulty"],
+                "method": method,
+                "complexity": paragraph("复杂度"),
+                "original": f"https://leetcode.cn/problems/{p['slug']}/",
+                "note": f"chapter-{i:02d}.html",
+            }
         )
     page = (root / "tools/templates/dashboard.tpl").read_text(encoding="utf-8")
     page = page.replace(

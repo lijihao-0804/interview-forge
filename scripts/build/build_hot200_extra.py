@@ -7,9 +7,8 @@ import re
 from pathlib import Path
 from urllib.parse import quote
 
-
 MODULE_ID = "hot200-extra"
-FENCE = re.compile(r"^```([\w+#-]*)[^\S\n]*\n(.*?)^```[ \t]*$", re.M | re.S)
+FENCE = re.compile(r"^```([\w+#-]*)[^\S\n]*\n(.*?)^```[ \t]*$", re.MULTILINE | re.DOTALL)
 
 
 def sections(markdown):
@@ -39,12 +38,12 @@ def prepare_body(markdown, problem, existing_path):
         sources += f' · [本站企业高频题解](../../{href})'
     intro = [
         f"# {problem['id']}. {problem['title']}",
-        "| 题目信息 | 内容 |\n| --- | --- |\n"
+        ("| 题目信息 | 内容 |\n| --- | --- |\n"
         f"| 难度 | {problem['difficulty']} |\n| 专题 | {problem['topic']} |\n"
-        f"| 题单位置 | 第 {problem['position']} 位 |",
+        f"| 题单位置 | 第 {problem['position']} 位 |"),
     ]
     for language in ("Java", "Python"):
-        method = re.search(r"^#### (.+)$", parts[language], re.M)
+        method = re.search(r"^#### (.+)$", parts[language], re.MULTILINE)
         if not method:
             raise ValueError(f"LC {problem['id']}: missing {language} method heading")
         intro.append(
