@@ -332,6 +332,13 @@ def build_readme(image_count: int) -> None:
             "- `tujie-agent/`：图解 Agent",
             "- `tujie-claude-code/`：图解 Claude Code",
             "",
+            "## 本站配套学习笔记",
+            "",
+            "- [AI 编程面试题](<coding/《AI 编程面试题》.md>)，14 篇案例与面试练习。",
+            "- [图解 Codex](<tujie-codex/《图解 Codex》.md>)，4 篇工程实践笔记。",
+            "",
+            "这两本按小林原站目录编排，每篇附原文链接，由书架合编脚本生成合集。",
+            "",
         ]
     )
     (OUT_DIR / "README.md").write_text("\n".join(lines), encoding="utf-8")

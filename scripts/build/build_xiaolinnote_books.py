@@ -15,6 +15,8 @@ SERIES = [
     ("langchain", "LangChain 框架面试题"),
     ("tujie-agent", "图解 Agent"),
     ("tujie-claude-code", "图解 Claude Code"),
+    ("coding", "AI 编程面试题"),
+    ("tujie-codex", "图解 Codex"),
 ]
 
 
