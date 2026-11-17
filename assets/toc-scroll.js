@@ -1,92 +1,108 @@
-/* Keep the current item visible in every library TOC rail.
- * The chapter pages already highlight the current section; this only handles
- * scrolling the rail so the active item sits near the vertical center. */
-(function () {
-  'use strict';
+/* Keep a chapter index aligned with the article's own scroll container. */
+(() => {
+  "use strict";
 
-  function centerRail(rail, selector) {
-    if (!rail || !rail.clientHeight) return;
-    var current = null;
-    // A direct #section URL is the most precise target; prefer it over the
-    // IntersectionObserver's active item, which may still be one heading behind
-    // while the browser finishes scrolling.
-    if (location.hash) {
-      try {
-        current = rail.querySelector('.toc a[href="' + location.hash + '"]');
-      } catch (_) {}
+  function reveal(rail, link) {
+    if (!link || !rail.clientHeight || rail.scrollHeight <= rail.clientHeight) return;
+    const bounds = rail.getBoundingClientRect();
+    const item = link.getBoundingClientRect();
+    const margin = Math.min(40, rail.clientHeight / 6);
+    if (item.height && (item.top < bounds.top + margin || item.bottom > bounds.bottom - margin)) {
+      rail.scrollTop += item.top - bounds.top - (rail.clientHeight - item.height) / 2;
     }
-    if (!current) current = rail.querySelector(selector);
-    if (!current && rail.querySelector('.toc')) {
-      // No active class yet: pick the last heading whose top is above the
-      // reading midpoint, so the rail has a sensible current item immediately.
-      var links = rail.querySelectorAll('.toc a[href^="#"]');
-      var best = null;
-      var midpoint = window.innerHeight * 0.4;
-      Array.prototype.forEach.call(links, function (link) {
-        var id = (link.getAttribute('href') || '').slice(1);
-        var heading = id && document.getElementById(id);
-        if (!heading) return;
-        var top = heading.getBoundingClientRect().top;
-        if (top <= midpoint) best = link;
+  }
+
+  document.querySelectorAll(".shelf-topic-links").forEach(rail => {
+    reveal(rail, rail.querySelector(".shelf-topic-link.current"));
+  });
+
+  function track(rail) {
+    const scroller = rail.closest("#bookScroll");
+    const scrollTarget = scroller || window;
+    const mobileLinks = document.querySelectorAll(".mobile-toc a[href^='#'], .mobiletoc a[href^='#']");
+    let sections = [];
+    let frame = 0;
+    let activeId = "";
+    let clicked = null;
+
+    function schedule() {
+      if (!frame) frame = requestAnimationFrame(update);
+    }
+
+    function rebuild() {
+      sections = [];
+      for (const link of rail.querySelectorAll("a[href^='#']")) {
+        let id = link.hash.slice(1);
+        try { id = decodeURIComponent(id); } catch (_) {}
+        const heading = document.getElementById(id);
+        if (heading) sections.push({ link, heading });
+      }
+      activeId = "";
+      clicked = null;
+      schedule();
+    }
+
+    function update() {
+      frame = 0;
+      if (!sections.length) return;
+      const top = scroller ? scroller.getBoundingClientRect().top : 0;
+      const height = scroller ? scroller.clientHeight : window.innerHeight;
+      const position = scroller ? scroller.scrollTop : window.scrollY;
+      const limit = (scroller || document.scrollingElement).scrollHeight - height;
+      const line = top + Math.min(100, height * 0.18);
+      let current = null;
+      for (const section of sections) {
+        const rect = section.heading.getBoundingClientRect();
+        if (!rect.height) continue;
+        if (!current || rect.top <= line || (limit > 0 && position >= limit - 2)) current = section;
+      }
+      if (clicked && clicked.position === position) current = clicked.section;
+      else clicked = null;
+      if (!current) return;
+      const id = current.heading.id;
+      const changed = activeId !== id;
+      activeId = id;
+      for (const {link, heading} of sections) {
+        const active = heading.id === id;
+        // Generated chapters also update this class from an intersection observer.
+        if (link.classList.contains("active") !== active) link.classList.toggle("active", active);
+        if (changed) {
+          if (active) link.setAttribute("aria-current", "location");
+          else link.removeAttribute("aria-current");
+        }
+      }
+      if (changed) {
+        for (const link of mobileLinks) {
+          if (link.hash === current.link.hash) link.setAttribute("aria-current", "location");
+          else link.removeAttribute("aria-current");
+        }
+        reveal(rail, current.link);
+      }
+    }
+
+    rail.addEventListener("click", event => {
+      const link = event.target.closest("a");
+      const section = sections.find(entry => entry.link === link);
+      if (!section || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      requestAnimationFrame(() => {
+        if (!section.heading.isConnected) return;
+        clicked = {section, position: scroller ? scroller.scrollTop : window.scrollY};
+        schedule();
       });
-      current = best;
-    }
-    if (!current) return;
-    var railRect = rail.getBoundingClientRect();
-    var currentRect = current.getBoundingClientRect();
-    if (currentRect.height === 0 && currentRect.width === 0) return;
-    var target = rail.scrollTop + (currentRect.top - railRect.top)
-      - rail.clientHeight / 2 + currentRect.height / 2;
-    rail.scrollTop = Math.max(0, target);
-  }
-
-  function centerAll() {
-    document.querySelectorAll('.shelf-topic-links').forEach(function (rail) {
-      centerRail(rail, '.shelf-topic-link.current');
     });
-    document.querySelectorAll('.sol-rail-right, .sol-rail-left').forEach(function (rail) {
-      centerRail(rail, '.toc a.active');
-    });
+    new MutationObserver(changes => {
+      // AgentHub replaces its outline on chapter and reading-mode changes.
+      if (changes.some(change => change.type === "childList")) rebuild();
+      else schedule();
+    }).observe(rail, {childList: true, subtree: true, attributes: true, attributeFilter: ["class"]});
+    scrollTarget.addEventListener("scroll", schedule, {passive: true});
+    window.addEventListener("resize", () => { activeId = ""; schedule(); });
+    window.addEventListener("pageshow", schedule);
+    window.addEventListener("hashchange", schedule);
+    const article = document.querySelector("#chapterArticle,main article,article.markdown-body");
+    if (article && window.ResizeObserver) new ResizeObserver(schedule).observe(article);
+    rebuild();
   }
 
-  function syncHashActive() {
-    if (!location.hash) return;
-    document.querySelectorAll('.sol-rail-right, .sol-rail-left').forEach(function (rail) {
-      var link = null;
-      try {
-        link = rail.querySelector('.toc a[href="' + location.hash + '"]');
-      } catch (_) {}
-      if (!link || link.classList.contains('active')) return;
-      rail.querySelectorAll('.toc a.active').forEach(function (old) { old.classList.remove('active'); });
-      link.classList.add('active');
-    });
-  }
-
-  function schedule() {
-    syncHashActive();
-    setTimeout(centerAll, 0);
-    setTimeout(centerAll, 80);
-    setTimeout(centerAll, 300);
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', schedule);
-  } else {
-    schedule();
-  }
-  window.addEventListener('load', schedule);
-  window.addEventListener('hashchange', schedule);
-
-  // The chapter page's IntersectionObserver changes the active class while
-  // reading. Listen to scroll + rAF instead of observing class mutations, so
-  // this helper can never create a MutationObserver feedback loop.
-  var scrollFrame = 0;
-  function onScroll() {
-    if (scrollFrame) return;
-    scrollFrame = requestAnimationFrame(function () {
-      scrollFrame = 0;
-      centerAll();
-    });
-  }
-  window.addEventListener('scroll', onScroll, { passive: true });
+  document.querySelectorAll("#chapterToc, main.reading > .toc, main.reading > .contents, .sol-rail-right:has(.toc), .sol-rail-left:has(.toc)").forEach(track);
 })();

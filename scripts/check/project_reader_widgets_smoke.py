@@ -9,6 +9,48 @@ from interview_forge.api.routers import private_archive
 from tests.test_private_archive import PrivateArchiveTests
 
 
+def check_outline(page, path, selector, origin='http://localhost'):
+    page.goto(origin + path)
+    rail = page.locator(selector)
+    if selector == '#chapterToc':
+        page.locator('#readingLayout').select_option('compact')
+    links = rail.locator('a[href^="#"]')
+    expect(links.first).to_be_visible()
+    indices = links.evaluate_all("""links => links.flatMap((a, i) => {
+        const target = document.getElementById(decodeURIComponent(a.hash.slice(1)));
+        return target?.getBoundingClientRect().height && a.getClientRects().length ? [i] : [];
+    })""")
+    second = links.nth(indices[1])
+    second.click()
+    expect(second).to_have_attribute('aria-current', 'location')
+    bookmark = page.url
+    middle = links.nth(indices[len(indices) // 2])
+    middle.evaluate("""link => {
+        const target = document.getElementById(decodeURIComponent(link.hash.slice(1)));
+        const root = link.closest('#bookScroll');
+        const line = (root?.getBoundingClientRect().top || 0) + Math.min(100, (root?.clientHeight || innerHeight) * 0.18);
+        (root || document.scrollingElement).scrollTop += target.getBoundingClientRect().top - line + 2;
+    }""")
+    expect(middle).to_have_attribute('aria-current', 'location')
+    # Wheel/keyboard scrolling leaves the address at the last clicked bookmark.
+    def scroll_to(where):
+        rail.evaluate("""(rail, end) => {
+            const root = rail.closest('#bookScroll') || document.scrollingElement;
+            root.scrollTop = end ? root.scrollHeight : 0;
+        }""", where)
+    scroll_to(True)
+    expect(links.nth(indices[-1])).to_have_attribute('aria-current', 'location')
+    assert rail.evaluate("""rail => {
+        const current = rail.querySelector('a[aria-current="location"]').getBoundingClientRect();
+        const box = rail.getBoundingClientRect();
+        return current.bottom <= Math.min(innerHeight, box.bottom) + 2 && current.top >= box.top - 2;
+    }""")
+    scroll_to(False)
+    expect(links.nth(indices[0])).to_have_attribute('aria-current', 'location')
+    expect(rail.locator('a[aria-current]')).to_have_count(1)
+    assert page.url == bookmark
+
+
 def run():
     with ExitStack() as stack:
         fixture = PrivateArchiveTests()
@@ -85,6 +127,16 @@ def run():
         page.locator(".if-ai-drawer-actions button").click()
         page.locator("#forge-fb-btn").click()
         expect(page.locator("#fb-content")).to_be_visible()
+        page.set_viewport_size({"width": 1500, "height": 460})
+        for path, selector in (
+            ('/library/development-history/chapters/origin.html', 'nav.toc'),
+            ('/library/voltedu-study/interview/02-data-training.html', 'aside.contents'),
+            ('/api/private-archive/index.html#view=learn&chapter=start&depth=deep', '#chapterToc'),
+            ('/library/acm-io/chapter-09.html', '.sol-rail-right'),
+            ('/books/hot100/03-题解/13-堆/0215-数组中的第K个最大元素.html', '.sol-rail-right'),
+        ):
+            check_outline(page, path, selector)
+            print(path, 'outline click, scroll, visibility and backward reading OK')
 
 
 if __name__ == '__main__':

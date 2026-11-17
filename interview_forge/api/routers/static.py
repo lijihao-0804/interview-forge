@@ -29,6 +29,7 @@ from interview_forge.services.study import record_content_view, record_view
 router = APIRouter()
 
 _WIDGET_STYLES = ("/assets/ai-launcher.css?v=5",)
+_TOC_SCRIPT = "/assets/toc-scroll.js?v=9"
 _WIDGET_SCRIPTS = (
     "/assets/time-utils.js?v=2",
     "/assets/navigation-policy.js?v=2",
@@ -140,7 +141,7 @@ def private_reader_widget_tags(body: bytes) -> bytes:
                     for s in _WIDGET_SCRIPTS if s.startswith((
                         "/assets/auth-widget.", "/assets/feedback-widget.", "/assets/ai-",
                     )))
-    return _widget_tags(body, scripts, _WIDGET_STYLES)
+    return _widget_tags(body, (*scripts, _TOC_SCRIPT), _WIDGET_STYLES)
 
 
 def _inject_html(path: str, body: bytes, *, embedded: bool = False) -> bytes:
@@ -170,13 +171,15 @@ def _inject_html(path: str, body: bytes, *, embedded: bool = False) -> bytes:
         scripts = scripts + ("/assets/practice-bridge.js?v=5",)
     if path.startswith("/library/"):
         scripts = scripts + (
-            "/assets/toc-scroll.js?v=8",
+            _TOC_SCRIPT,
             "/assets/search-target.js?v=1",
         )
     elif path.startswith("/books/"):
         # Search results also cover Hot 100 / AI Exam pages; highlight the
         # matched keyword there too (no reading-position resume on those pages).
         scripts = scripts + ("/assets/search-target.js?v=1",)
+        if b"sol-rail-right" in body:
+            scripts += (_TOC_SCRIPT,)
     styles = () if path in _AI_LAUNCHER_SKIP or navigation_only else _WIDGET_STYLES
     widget = _widget_tags(body, scripts, styles)
     icon_html = b""
