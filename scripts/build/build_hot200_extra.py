@@ -1,61 +1,80 @@
-"""Prepare the Hot 200 supplement for the regular library chapter renderer."""
+"""Build supplement solutions with the Hot 100 reader and interactive example kit."""
 
 import hashlib
 import html
 import json
 import re
+from pathlib import Path
 from urllib.parse import quote
 
 
 MODULE_ID = "hot200-extra"
-LIST_URL = "https://leetcode.cn/problem-list/qg88wci/"
 FENCE = re.compile(r"^```([\w+#-]*)[^\S\n]*\n(.*?)^```[ \t]*$", re.M | re.S)
-IMPLEMENTATION_HEADING = re.compile(
-    r"(?im)^#{2,6}\s+(?:Java(?!Script)|Python|C\+\+|Go|C|Rust|JavaScript)\b[^\n]*\n*\Z"
-)
+
+
+def sections(markdown):
+    """Split authoring sections without mistaking comments inside code for headings."""
+    result = {}
+    lines = []
+    heading = ""
+    fence = False
+    for line in markdown.splitlines():
+        if line.startswith("```"):
+            fence = not fence
+        if not fence and line.startswith("### "):
+            result[heading] = "\n".join(lines).strip()
+            heading, lines = line[4:].strip(), []
+        else:
+            lines.append(line)
+    result[heading] = "\n".join(lines).strip()
+    return result
 
 
 def prepare_body(markdown, problem, existing_path):
-    """Keep explanatory prose and the two actual implementations, with source links."""
-    markdown = re.sub(r"\]\(/(?:books|library)/hot200-extra/LICENSE-walkccc\.txt\)",
-                      "](LICENSE-walkccc.txt)", markdown)
-    # Authored source citations are site-root links; chapters also work via file://.
-    markdown = markdown.replace("](/books/company-solutions/", "](../../books/company-solutions/")
-    markdown, _, attribution = markdown.partition("\n### 来源\n")
-    code = {}
-    parts = []
-    cursor = 0
-    for match in FENCE.finditer(markdown):
-        before = markdown[cursor:match.start()]
-        lang = match[1].lower()
-        if lang in {"java", "python", "cpp", "go", "c", "rust", "javascript"}:
-            before = IMPLEMENTATION_HEADING.sub("", before)
-            if lang in {"java", "python"}:
-                if lang in code or not match[2].strip():
-                    raise ValueError(f"LC {problem['id']}: ambiguous or empty {lang} solution")
-                code[lang] = match.group()
-            parts.append(before)
-        else:
-            parts.extend([before, match.group()])
-        cursor = match.end()
-    if set(code) != {"java", "python"}:
-        raise ValueError(f"LC {problem['id']}: both Java and Python implementations are required")
-    parts.append(markdown[cursor:])
-    prose = re.sub(r"(?m)^# [^\n]+\n", "", "".join(parts), count=1).strip()
-    prose, _, complexity = prose.partition("\n### 复杂度\n")
-    panels = []
-    for lang, label in (("java", "Java"), ("python", "Python")):
-        panels.append(f'<section class="language-panel" data-lang="{lang}" markdown="1">\n\n'
-                      f'### {label} 实现\n\n{code[lang]}\n\n</section>')
-    original = f"https://leetcode.cn/problems/{problem['slug']}/"
-    sources = [attribution.strip()] if attribution.strip() else []
-    if original not in attribution:
-        sources.append(f'[力扣原题 · {problem["title"]}]({original})')
-    if existing_path and "../../books/company-solutions/" not in attribution:
+    parts = sections(markdown)
+    sources = parts["来源"].replace("](/library/hot200-extra/", "](").replace(
+        "](/books/company-solutions/", "](../../books/company-solutions/")
+    if existing_path and "../../books/company-solutions/" not in sources:
         href = quote(existing_path.with_suffix(".html").as_posix(), safe="/")
-        sources.append(f'<a href="../../{href}">本站企业高频题解</a>')
-    return "\n\n".join([prose.strip(), "## 参考实现", *panels, "### 复杂度", complexity.strip(),
-                       "## 题目来源", "\n\n".join(sources)])
+        sources += f' · [本站企业高频题解](../../{href})'
+    intro = [
+        f"# {problem['id']}. {problem['title']}",
+        "| 题目信息 | 内容 |\n| --- | --- |\n"
+        f"| 难度 | {problem['difficulty']} |\n| 专题 | {problem['topic']} |\n"
+        f"| 题单位置 | 第 {problem['position']} 位 |",
+    ]
+    for language in ("Java", "Python"):
+        method = re.search(r"^#### (.+)$", parts[language], re.M)
+        if not method:
+            raise ValueError(f"LC {problem['id']}: missing {language} method heading")
+        intro.append(
+            f'<div class="meta-badges problem-meta" data-lang-scope="true" data-lang="{language.lower()}">'
+            f'<span class="mb"><span class="mb-k">{language} 主方法</span><b>{html.escape(method[1].replace(chr(96), ""))}</b></span>'
+            f'<span class="mb"><span class="mb-k">复杂度</span><b>{html.escape(parts["复杂度"].splitlines()[0].replace(chr(96), ""))}</b></span></div>'
+        )
+    intro.extend(["## 题目与约束", parts["题意"], parts["输入与约束"], "### 示例", parts["示例"],
+                  f"[🔗 前往力扣原题验证 →](https://leetcode.cn/problems/{problem['slug']}/)"])
+    for language in ("Java", "Python"):
+        lang = language.lower()
+        text = parts[language]
+        fences = list(FENCE.finditer(text))
+        if len(fences) != 1 or fences[0][1].lower() != lang:
+            raise ValueError(f"LC {problem['id']}: expected one {language} implementation")
+        code = fences[0]
+        before = text[:code.start()].strip()
+        after = text[code.end():].strip()
+        if not before:
+            raise ValueError(f"LC {problem['id']}: missing {language} derivation")
+        intro.extend([
+            f'<section class="language-panel {lang}-solution-panel" data-lang="{lang}" markdown="1">',
+            f"## {language} 完整推导", "### 核心不变量", parts["核心不变量"],
+            "### 思路推导", parts["思路"], before,
+            f"### {language} 实现", code.group(), after,
+            "### 复杂度", parts["复杂度"], "### 易错点", parts["边界检查"],
+            "### 面试追问", parts["面试追问"], "</section>",
+        ])
+    intro.extend(["## 力扣原题", sources])
+    return "\n\n".join(filter(None, intro)), parts["示例"]
 
 
 def load_chapters(root, hot100_ids):
@@ -83,27 +102,62 @@ def load_chapters(root, hot100_ids):
         source = root / f"books/hot200-extra/solutions/{number}.md"
         if company and not company.with_suffix(".html").is_file():
             raise FileNotFoundError(company.with_suffix(".html"))
-        body = prepare_body(source.read_text(encoding="utf-8-sig"), entry,
+        body, example = prepare_body(source.read_text(encoding="utf-8-sig"), entry,
                             company.relative_to(root) if company else None)
+        trace_path = root / f"books/hot200-extra/traces/{number}.json"
+        trace = json.loads(trace_path.read_text(encoding="utf-8"))
+        if not isinstance(trace, list) or len(trace) < 3 or not all(
+            isinstance(frame, dict)
+            and all(isinstance(frame.get(k), str) and frame[k].strip() for k in ("label", "state", "why"))
+            and isinstance(frame.get("cells"), list) and frame["cells"]
+            and all(isinstance(cell, str) and cell.strip() for cell in frame["cells"])
+            for frame in trace
+        ):
+            raise ValueError(f"LC {number}: incomplete example trace")
         chapters.append({
             "title": f"LC {number} · {entry['title']}", "body": body, "category": entry["topic"],
             "difficulty": entry["difficulty"], "position": entry["position"],
+            "trace": trace, "example": example, "number": number,
             "content_id": f"{MODULE_ID}:{number:04d}",
         })
         modified = max(modified, source.stat().st_mtime)
-    digest = hashlib.sha256(json.dumps(chapters, ensure_ascii=False).encode()).hexdigest()
-    return chapters, digest, modified
+    digest = hashlib.sha256(json.dumps(chapters, ensure_ascii=False).encode())
+    for renderer in (Path(__file__), Path(__file__).with_name("build_html_site.py")):
+        digest.update(renderer.read_text(encoding="utf-8").encode())
+    return chapters, digest.hexdigest(), modified
 
 
-def reader_content(content, chapter):
-    meta = (f'原题单第 {chapter["position"]} 题 · {html.escape(chapter["category"])}'
-            f' · {html.escape(chapter["difficulty"])}')
-    return (f'<p class="problem-meta">{meta}</p><div class="markdown-body" '
-            f'data-solution-languages="java python">{content}</div>')
+def render_problem(root, module_dir, chapters, index):
+    from scripts.build.build_html_site import SolutionCollectionPage, render_markdown
 
-
-DIRECTORY_SOURCE = (
-    '<p><a href="../../index.html">← Hot 100 题目面板</a>'
-    f' · <a href="{LIST_URL}">力扣精选算法 200 题 · 官方题单</a>'
-    ' · <a href="LICENSE-walkccc.txt">参考代码许可</a></p>'
-)
+    chapter = chapters[index]
+    number = chapter["number"]
+    source = root / f"books/hot200-extra/solutions/{number}.md"
+    filename = f"chapter-{index + 1:02d}.html"
+    demo_dir = module_dir / "demos"
+    demo_dir.mkdir(exist_ok=True)
+    demo_name = f"{number}.html"
+    payload = json.dumps({"no": str(number), "title": chapter["title"].split(" · ", 1)[1], "tag": chapter["category"],
+                          "example": chapter["example"], "frames": chapter["trace"]}, ensure_ascii=False)
+    payload = payload.replace("<", "\\u003c")
+    demo = (
+        '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        f'<title>{html.escape(chapter["title"])} · 交互演示</title></head><body>'
+        '<div id="app"></div><script type="application/json" id="problemExample">'
+        + payload + '</script><script src="../../../books/hot100/05-可视化/assets/demo-kit.js"></script>'
+        '<script src="../../../assets/hot200-example.js"></script></body></html>'
+    )
+    (demo_dir / demo_name).write_text(demo, encoding="utf-8")
+    siblings = [(f"chapter-{j + 1:02d}.html", other["title"], j == index)
+                for j, other in enumerate(chapters) if other["category"] == chapter["category"]]
+    nav = ['<a href="index.html">返回题目面板</a>']
+    for step, label in ((-1, "上一题"), (1, "下一题")):
+        j = index + step
+        if 0 <= j < len(chapters):
+            nav.append(f'<a href="chapter-{j+1:02d}.html">{label} · {html.escape(chapters[j]["title"])}</a>')
+    controls = '<!--bottom-nav--><div class="problem-nav">' + "".join(nav) + '</div><!--/bottom-nav-->'
+    collection = SolutionCollectionPage(MODULE_ID, "Hot 200 面板", chapter["category"], number,
+                                        chapter["content_id"], "java python", siblings, f"demos/{demo_name}?embed=1")
+    render_markdown(source, output=module_dir / filename, raw=chapter["body"] + "\n\n" + controls,
+                    collection=collection)

@@ -1678,7 +1678,6 @@ def module_index_page(module: dict[str, object], page_chapters: list[dict[str, o
         .replace("__CHAPTERS_JSON__", chapters_json)
         .replace("__TOPICS_JSON__", topics_json)
     )
-    source_note = build_hot200_extra.DIRECTORY_SOURCE if module_id == build_hot200_extra.MODULE_ID else ""
     difficulty_filter = ""
     if any(c.get("difficulty") for c in page_chapters):
         difficulty_filter = ('<div class="field"><label for="difficulty">难度</label><select id="difficulty">'
@@ -1692,7 +1691,7 @@ def module_index_page(module: dict[str, object], page_chapters: list[dict[str, o
   <div>
     <h1>{html.escape(str(module['title']))}</h1>
     <div class="module-sub">{html.escape(str(module['category']))} · {count} {unit} · 支持多轮学习记录</div>
-    <div class="module-about">{about}</div>{source_note}
+    <div class="module-about">{about}</div>
     <div id="connection" class="connection">正在确认账号状态</div>
   </div>
   <div class="module-stats">
@@ -2084,6 +2083,8 @@ def build(hot200_only: bool = False) -> None:
             f"library/{definition['id']}/chapter-{index:02d}.html"
             for index in range(1, len(raw_chapters) + 1)
         ]
+        if is_hot200:
+            book_outputs.extend(f"library/{definition['id']}/demos/{c['number']}.html" for c in raw_chapters)
         expected_chapter_pages.update(module_dir / f"chapter-{index:02d}.html" for index in range(1, len(raw_chapters) + 1))
         need_render = build_cache.needs_rebuild(cache, "book:" + rel_source, src_sha, book_outputs, HOT100_ROOT)
         prepared_map: dict[str, str] = {}
@@ -2095,7 +2096,7 @@ def build(hot200_only: bool = False) -> None:
                 body = rewrite_local_links(body, source, assets_dir, source_modules)
             prepared_map[chapter_id] = normalize_chapter_markdown(body)
         contents_map: dict[str, str] = {}
-        if need_render and prepared_map:
+        if need_render and prepared_map and not is_hot200:
             jobs = list(prepared_map.items())
             try:
                 with ProcessPoolExecutor(max_workers=PARALLEL_WORKERS) as pool:
@@ -2132,11 +2133,13 @@ def build(hot200_only: bool = False) -> None:
                                           f'{raw_chapter["category"]} {raw_chapter["difficulty"]}\n{raw_chapter["body"]}'),
                 **({"kind": "question"} if is_hot200 else {}),
             })
+            if is_hot200:
+                if need_render:
+                    build_hot200_extra.render_problem(HOT100_ROOT, module_dir, raw_chapters, index - 1)
+                continue
             content = contents_map.get(chapter_id)
             if content is None:
                 continue  # 增量跳过：该章输出已存在且源未变
-            if is_hot200:
-                content = build_hot200_extra.reader_content(content, raw_chapter)
             chapter_style_version = (
                 LIBRARY_DIAGRAM_STYLE_VERSION
                 if 'class="mermaid-diagram"' in content
@@ -2685,9 +2688,6 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
                     '@media(max-width:560px){.reader-body .codehilite{contain-intrinsic-size:auto 520px;}}'
                     '</style>'
                 )
-            if is_hot200:
-                long_chapter_head += '<link rel="stylesheet" href="../../assets/hot200.css">'
-                chapter_scripts += '<script src="../../assets/site.js?v=hot200-bilingual" defer></script>'
             (module_dir / filename).write_text(
                 document(
                     f'{raw_chapter["title"]} · InterviewForge',
@@ -2718,12 +2718,21 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
             {**chapter, "href": f"chapter-{index:02d}.html"}
             for index, chapter in enumerate(chapters, 1)
         ]
-        module_page = module_index_page(module, page_chapters)
-        (module_dir / "index.html").write_text(document(f'{module["title"]} · InterviewForge', module_page, "../assets/library.css"), encoding="utf-8")
+        if is_hot200:
+            from scripts.build.build_hot200_dashboard import render_dashboard
+            dashboard = render_dashboard(HOT100_ROOT)
+            if need_render:
+                build_cache.mark_built(cache, "book:" + rel_source, src_sha, book_outputs)
+        else:
+            module_page = module_index_page(module, page_chapters)
+            dashboard = document(f'{module["title"]} · InterviewForge', module_page, "../assets/library.css")
+        (module_dir / "index.html").write_text(dashboard, encoding="utf-8")
     if not hot200_only:
         removed_chapter_pages = _cleanup_stale_chapter_pages(expected_chapter_pages)
         if removed_chapter_pages:
             print(f"Removed stale library chapter pages: {removed_chapter_pages}")
+    from scripts.build.ai_employment_research import register as register_employment_research
+    register_employment_research(modules, routes, search_entries)
     # 按显式学习顺序表重排模块卡片与分类按钮；未登记的新模块追加到末尾。
     module_order = MODULE_ORDER + [
         str(module["id"]) for module in modules if str(module["id"]) not in MODULE_ORDER

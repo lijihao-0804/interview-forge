@@ -4,6 +4,11 @@
   var panel = document.getElementById("solutionProgress");
   if (!panel) return;
   var problemId = Number(panel.getAttribute("data-problem-id"));
+  var moduleId = panel.dataset.moduleId || "hot100";
+  var supplement = moduleId === "hot200-extra";
+  var targetType = supplement ? "content" : "problem";
+  var targetId = panel.dataset.contentId || String(problemId);
+  var progressPath = (supplement ? "/api/hot200-extra/problem/" : "/api/problem/") + problemId + "/progress";
   var summary = document.getElementById("solutionProgressSummary");
   var due = document.getElementById("solutionProgressDue");
   var markSelect = document.getElementById("solutionProgressMark");
@@ -60,7 +65,7 @@
       var state = stats.rounds ? stats.rounds + " 轮" : (stats.submits ? "0 轮（已尝试）" : "未做");
       var counts = stats.submits ? " · AC " + stats.ac_submits + " / 提交 " + stats.submits : "";
       summary.textContent = label + " " + state + counts + " · 全语言 " + rounds + " 轮";
-      summary.title = "同题按北京时间的 AC 日期计轮。全语言合并同日记录。";
+      summary.title = supplement ? "包含本题的学习和复习记录。" : "同题按北京时间的 AC 日期计轮。全语言合并同日记录。";
       return;
     }
     summary.textContent = "全语言 " + rounds + " 轮 · AC " + (progress.ac_submits || 0) + " / 提交 " + (progress.submits || 0);
@@ -141,7 +146,7 @@
         paintGuest(session.status);
         return;
       }
-      var response = await fetch("/api/problem/" + problemId + "/progress", {
+      var response = await fetch(progressPath, {
         credentials: "same-origin", cache: "no-store"
       });
       if (request !== progressRequest) return;
@@ -182,16 +187,18 @@
     Array.prototype.forEach.call(ratingButtons, function (item) { item.disabled = true; });
     notify("正在保存本次复习评分…", "");
     try {
-      var response = await protectedFetch("/api/complete", {
+      var response = await protectedFetch(supplement ? "/api/content/complete" : "/api/complete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ problem_id: problemId, rating: rating, lang: language })
+        body: JSON.stringify(supplement
+          ? { module_id: moduleId, content_id: targetId, rating: rating, language: language }
+          : { problem_id: problemId, rating: rating, lang: language })
       }, "记录本题复习评分");
       var result = await response.json().catch(function () { return {}; });
       if (!response.ok) throw new Error(result.error || "复习记录失败");
       try {
         var owner = sessionKey(window.InterviewForgeAuth.getState());
-        localStorage.setItem("forge-hot100-progress-updated:" + owner, String(Date.now()));
+        localStorage.setItem("forge-" + moduleId + "-progress-updated:" + owner, String(Date.now()));
       } catch (_) {}
       await loadProgress();
       if (historyPanel && !historyPanel.hidden) loadSubmissionHistory();
@@ -230,6 +237,19 @@
 
   async function loadSubmissionHistory() {
     var request = progressRequest;
+    if (supplement) {
+      var history = (progress && progress.history) || [];
+      var list = document.createElement("ul");
+      var labels = {complete: "完成复习", view: "阅读题解", ac: "AC", wa: "提交未通过"};
+      history.slice(0, 50).forEach(function (entry) {
+        var row = document.createElement("li");
+        row.textContent = [String(entry.studied_at || "").replace("T", " ").slice(0, 16),
+          labels[entry.action] || entry.action, languageLabels[entry.language]].filter(Boolean).join(" · ");
+        list.appendChild(row);
+      });
+      historyPanel.replaceChildren(history.length ? list : document.createTextNode("还没有本题的学习记录。"));
+      return;
+    }
     historyPanel.textContent = "正在读取 AC 提交记录…";
     try {
       var response = await protectedFetch("/api/submissions?problem_id=" + encodeURIComponent(problemId), {
@@ -259,7 +279,7 @@
       var response = await protectedFetch("/api/mark", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target_type: "problem", target_id: String(problemId), mark: nextMark })
+        body: JSON.stringify({ target_type: targetType, target_id: targetId, mark: nextMark })
       }, "标记题目学习状态");
       var result = await response.json().catch(function () { return {}; });
       if (!response.ok) throw new Error(result.error || "标记保存失败");
@@ -290,7 +310,7 @@
       if (session.status !== "authenticated") return;
       return fetch("/api/favorites", { credentials: "same-origin", cache: "no-store" }).then(function (r) {
         return r.ok ? r.json() : {};
-      }).then(function (d) { paintFav(Array.isArray(d.ids) && d.ids.indexOf("problem:" + problemId) >= 0); });
+      }).then(function (d) { paintFav(Array.isArray(d.ids) && d.ids.indexOf(targetType + ":" + targetId) >= 0); });
     }).catch(function () { });
     favButton.addEventListener("click", async function () {
       try { await requireUser("收藏题解"); }
@@ -302,10 +322,10 @@
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            target_type: "problem",
-            target_id: String(problemId),
-            module_id: "hot100",
-            module_title: "Hot 100 算法刷题",
+            target_type: targetType,
+            target_id: targetId,
+            module_id: moduleId,
+            module_title: supplement ? "Hot 200 补充 100 题" : "Hot 100 算法刷题",
             title: titleEl ? titleEl.textContent.trim() : ("题目 " + problemId),
             url: location.pathname + location.search
           })
@@ -347,6 +367,7 @@
   new MutationObserver(paintLanguage).observe(document.documentElement, {
     attributes: true, attributeFilter: ["data-code-language"]
   });
+  if (supplement && historyButton) historyButton.textContent = "学习记录";
   paintLanguage();
   getAuthClient().then(function (auth) { return auth.ready; }).then(applyEntryLanguage).catch(function () {});
   document.addEventListener("interviewforge:auth-change", function (event) {
@@ -360,7 +381,7 @@
   window.addEventListener("storage", function (event) {
     var auth = window.InterviewForgeAuth;
     var owner = auth && sessionKey(auth.getState());
-    if (owner && event.key === "forge-hot100-progress-updated:" + owner) {
+    if (owner && event.key === "forge-" + moduleId + "-progress-updated:" + owner) {
       loadProgress();
       if (historyPanel && !historyPanel.hidden) loadSubmissionHistory();
     }

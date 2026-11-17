@@ -504,6 +504,7 @@ def leetcode_sync(
     full: bool = False,
     progress=None,
     offset: int = 0,
+    module: str = "hot100",
 ) -> dict[str, object]:
     runtime = server_runtime
     if not credentials.get("leetcode_session"):
@@ -533,10 +534,17 @@ def leetcode_sync(
     if progress is not None:
         progress("已读取力扣题目列表")
 
+    supplement = module == "hot200-extra"
+    if module not in {"hot100", "hot200-extra"}:
+        raise ValueError("未知题库")
+    from interview_forge.services import hot200
     slug_to_id = {slug: pid for pid, slug in runtime.LEETCODE_SLUGS.items()}
     title_to_id: dict[str, int] = {}
     for pid, problem in runtime.PROBLEM_BY_ID.items():
         title_to_id.setdefault(str(problem["title"]).strip(), int(pid))
+    if supplement:
+        slug_to_id = {p["slug"]: pid for pid, p in hot200.catalog().items()}
+        title_to_id = {p["title"]: pid for pid, p in hot200.catalog().items()}
     for pair in data.get("stat_status_pairs", []):
         stat = pair.get("stat", {})
         title = str(stat.get("question__title") or "").strip()
@@ -548,7 +556,7 @@ def leetcode_sync(
     #   208 站内「实现 Trie」vs 力扣「实现 Trie (前缀树)」
     #   238 站内「除自身以外数组的乘积」vs 力扣「除了自身以外数组的乘积」
     # submissions_dump 的 title 是力扣中文标题，精确匹配会漏掉这两题，故补别名。
-    for _t, _p in _LC_TITLE_ALIASES.items():
+    for _t, _p in (() if supplement else _LC_TITLE_ALIASES.items()):
         title_to_id.setdefault(_t, int(_p))
 
     # 归一化兜底：去掉括号内容、空白与常见标点后比较，兼容「标题带/不带括号」类差异
@@ -594,10 +602,10 @@ def leetcode_sync(
             if str(item.get("is_pending")) not in ("", "Not Pending"):
                 continue
             title = str(item.get("title") or "").strip()
-            pid = title_to_id.get(title)
+            pid = (slug_to_id.get(item.get("title_slug")) if supplement else None) or title_to_id.get(title)
             if pid is None:  # 标题写法差异（括号/标点/空白）兜底
                 pid = norm_to_id.get(_norm_title(title))
-            if pid is None:  # 仅差个别字（如「除自身以外」vs「除了自身以外」），编辑距离兜底
+            if pid is None and not supplement:  # 仅差个别字（如「除自身以外」vs「除了自身以外」），编辑距离兜底
                 pid = _nearest_pid(title, title_items)
             if pid is None:
                 unmatched_titles.append(title)
@@ -605,6 +613,8 @@ def leetcode_sync(
             lc_id = item.get("id")
             status = "ac" if str(item.get("status_display")) == "Accepted" else "wa"
             timestamp = str(item.get("timestamp") or "")
+            if supplement and (not timestamp.isdigit() or not str(lc_id).isdigit()):
+                continue
             submitted_at = (
                 datetime.fromtimestamp(int(timestamp), tz=runtime.BUSINESS_TZ).isoformat(timespec="seconds")
                 if timestamp.isdigit() else runtime.now_parts()[0]
@@ -635,6 +645,20 @@ def leetcode_sync(
             break
         time.sleep(0.8)
         offset = next_offset
+
+    results["unmatched_titles"] = sorted(set(unmatched_titles))[:50]
+    results["sync_errors"] = fetch_errors
+    if partial_error_category is not None:
+        results["partial"] = True
+        results["degraded"] = True
+        results["partial_error_category"] = partial_error_category
+    if supplement:
+        with closing(runtime.connect(db_path)) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            results["submissions_added"] = hot200.record_synced(connection, collected, runtime.get_fsrs_desired_retention())
+            connection.commit()
+        runtime._invalidate_learning_caches(db_path)
+        return results
 
     review_candidate_pids = {
         int(item["pid"])
@@ -748,12 +772,6 @@ def leetcode_sync(
         connection.commit()
         if progress is not None:
             progress("提交记录已写入本地数据库")
-    results["unmatched_titles"] = sorted(set(unmatched_titles))[:50]
-    results["sync_errors"] = fetch_errors
-    if partial_error_category is not None:
-        results["partial"] = True
-        results["degraded"] = True
-        results["partial_error_category"] = partial_error_category
     runtime._invalidate_learning_caches(db_path)
     return results
 
@@ -779,6 +797,7 @@ def start_leetcode_sync_task(
     db_path: Path = DB_PATH,
     offset: int = 0,
     action_id: str = "",
+    module: str = "hot100",
 ) -> str:
     runtime = server_runtime
     reused_task_id: str | None = None
@@ -795,7 +814,7 @@ def start_leetcode_sync_task(
                                 error_category="cancelled", finished_at=runtime.now_iso())
                 shared.save_sync_state(existing_id, existing)
             if str(existing.get("owner", "")) == owner and bool(existing.get("running")):
-                if bool(existing.get("full")) == bool(full):
+                if bool(existing.get("full")) == bool(full) and existing.get("module","hot100") == module:
                     reused_task_id = str(existing_id)
                 else:
                     raise LeetCodeSyncError(
@@ -813,7 +832,7 @@ def start_leetcode_sync_task(
             task = {
                 "logs": [], "running": True, "result": None, "error": None,
                 "error_category": None, "partial": False, "degraded_category": None,
-                "owner": owner, "full": bool(full),
+                "owner": owner, "full": bool(full), "module": module,
                 "offset": _normalize_sync_offset(offset) if full else 0,
                 "action_id": str(action_id or ""),
                 "created_at": runtime.now_iso(),
@@ -865,7 +884,9 @@ def start_leetcode_sync_task(
         try:
             if shared.enabled():
                 shared.save_sync_state(task_id, task)
-            if task["offset"]:
+            if module != "hot100":
+                result = runtime.leetcode_sync(credentials, db_path=db_path, full=full, offset=task["offset"], progress=progress, module=module)
+            elif task["offset"]:
                 result = runtime.leetcode_sync(
                     credentials, db_path=db_path, full=full, offset=task["offset"], progress=progress
                 )

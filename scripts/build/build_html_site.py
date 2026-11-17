@@ -38,6 +38,7 @@ import re
 import shutil
 from concurrent.futures import ProcessPoolExecutor
 from html.parser import HTMLParser
+from dataclasses import dataclass
 from pathlib import Path
 
 import sys
@@ -2212,6 +2213,10 @@ def render_visual_embed(source: Path, output: Path, title: str) -> str:
         raise FileNotFoundError(f"题解绑定的可视化不存在：{visual_path}")
     query = ["embed=1", *(f"{name}={value}" for name, value in options.items())]
     src = f"{web_rel(output, visual_path)}?{'&'.join(query)}"
+    return solution_visual_frame(src, title)
+
+
+def solution_visual_frame(src: str, title: str) -> str:
     return f"""
         <section class="reader-visual" aria-labelledby="interactive-demo-title">
           <h2 id="interactive-demo-title">交互演示</h2>
@@ -2507,12 +2512,25 @@ SELFTEST_JS = """
 """
 
 
+@dataclass(frozen=True)
+class SolutionCollectionPage:
+    collection_id: str
+    panel_title: str
+    topic: str
+    problem_id: int
+    content_id: str
+    languages: str
+    siblings: list[tuple[str, str, bool]]
+    demo_href: str
+
+
 def transform_solution_page(
     page: str,
     source: Path,
     toc_html: str,
     progress_css_href: str = "",
     progress_js_href: str = "",
+    collection: SolutionCollectionPage | None = None,
 ) -> str:
     """题解页专属构建期后处理（bs4）：aside 提示框、题目信息徽标行、三栏结构。
 
@@ -2544,6 +2562,8 @@ def transform_solution_page(
     def wrap_aside(heading, kind):
         aside = soup.new_tag("div")
         aside["class"] = "aside aside-" + kind
+        if heading.get("id"):
+            aside["id"] = heading["id"]
         title = soup.new_tag("span")
         title["class"] = "aside-title"
         title.string = heading.get_text(strip=True)
@@ -2595,33 +2615,36 @@ def transform_solution_page(
     page = str(soup)
 
     # ---- 3. 三栏结构（仅题解页）----
-    if is_solution:
+    if is_solution or collection:
         # 左栏：同专题题目（同目录文件名即题目清单）
-        siblings = []
-        # 题目页左栏必须复用运行时/首页共用的 canonical catalog。按文件名排序
-        # 会把题号顺序改成字典序，导致侧栏与首页、专题页的学习顺序不一致。
-        canonical_paths = [
-            source.parent / hot100_problem_filename(problem)
-            for problem in HOT100_PROBLEMS
-            if str(problem["folder"]) == source.parent.name
-        ]
-        ordered_paths = [path for path in canonical_paths if path.exists()]
-        # 保留同专题目录中未登记的兼容页面，但把它们放在 canonical 题目之后，
-        # 避免旧页面或扩展页被静默丢出导航。
-        ordered_paths.extend(
-            path
-            for path in sorted(source.parent.glob("*.md"))
-            if path not in ordered_paths
-        )
-        for f in ordered_paths:
-            fm = re.match(r"(\d{3,})-(.+)\.md", f.name)  # 3 位起，兼容华为题库 001-xxx 与企业题解
-            if fm:
-                href = f.name.replace(".md", ".html")
-                label = fm.group(1) + " " + fm.group(2)
-                current = f == source
-                siblings.append((href, label, current))
+        if collection:
+            siblings = collection.siblings
+        else:
+            siblings = []
+            # 题目页左栏必须复用运行时/首页共用的 canonical catalog。按文件名排序
+            # 会把题号顺序改成字典序，导致侧栏与首页、专题页的学习顺序不一致。
+            canonical_paths = [
+                source.parent / hot100_problem_filename(problem)
+                for problem in HOT100_PROBLEMS
+                if str(problem["folder"]) == source.parent.name
+            ]
+            ordered_paths = [path for path in canonical_paths if path.exists()]
+            # 保留同专题目录中未登记的兼容页面，但把它们放在 canonical 题目之后，
+            # 避免旧页面或扩展页被静默丢出导航。
+            ordered_paths.extend(
+                path
+                for path in sorted(source.parent.glob("*.md"))
+                if path not in ordered_paths
+            )
+            for f in ordered_paths:
+                fm = re.match(r"(\d{3,})-(.+)\.md", f.name)  # 3 位起，兼容华为题库 001-xxx 与企业题解
+                if fm:
+                    href = f.name.replace(".md", ".html")
+                    label = fm.group(1) + " " + fm.group(2)
+                    current = f == source
+                    siblings.append((href, label, current))
         nav_items = "".join(
-            '<a class="sol-nav-item' + (" current" if cur else "") + '" href="' + href + '"' + (' aria-current="page"' if cur else "") + ">" + label + "</a>"
+            '<a class="sol-nav-item' + (" current" if cur else "") + '" href="' + href + '"' + (' aria-current="page"' if cur else "") + ">" + html.escape(label) + "</a>"
             for href, label, cur in siblings
         )
         left_title = "同公司题目" if "ai-exam" in source.parts else "本专题题目"
@@ -2646,8 +2669,8 @@ def transform_solution_page(
             h1 = main_card.find("h1")
             if h1 is not None:
                 match = re.match(r"(\d{4})-", source.stem)
-                if match:
-                    problem_id = int(match.group(1))
+                if collection or match:
+                    problem_id = collection.problem_id if collection else int(match.group(1))
                     progress_bar = (
                         '<section class="solution-progress" id="solutionProgress" '
                         f'data-problem-id="{problem_id}" aria-label="本题学习状态">'
@@ -2661,7 +2684,7 @@ def transform_solution_page(
                         '<option value="reviewing">复习中</option><option value="weak">薄弱</option>'
                         '</select></label>'
                         '<button type="button" id="solutionWeakToggle" aria-pressed="false" disabled>标记薄弱</button>'
-                        '<button type="button" id="solutionFavoriteToggle" class="solution-fav-toggle" aria-pressed="false" data-problem-id="{problem_id}">⭐ 收藏</button>'
+                        f'<button type="button" id="solutionFavoriteToggle" class="solution-fav-toggle" aria-pressed="false" data-problem-id="{problem_id}">⭐ 收藏</button>'
                         '<div class="solution-review-ratings" role="group" aria-label="本次复习记忆情况">'
                         '<span>本次复习：</span>'
                         '<button type="button" data-review-rating="1" disabled>忘了</button>'
@@ -2673,7 +2696,16 @@ def transform_solution_page(
                         '<span class="solution-shortcut">按 M 快速切换薄弱标记</span></section>'
                         '<div id="solutionProgressToast" class="toast solution-progress-toast" aria-live="polite"></div>'
                     )
-                    h1.insert_after(BeautifulSoup(progress_bar, "html.parser"))
+                    progress_markup = BeautifulSoup(progress_bar, "html.parser")
+                    if collection:
+                        progress_markup.section["data-module-id"] = collection.collection_id
+                        progress_markup.section["data-content-id"] = collection.content_id
+                        main_card["data-module-id"] = collection.collection_id
+                        main_card["data-content-id"] = collection.content_id
+                        main_card["data-page-type"] = "library/chapter"
+                        body_node = main_card.find("article", class_="markdown-body")
+                        body_node["data-solution-languages"] = collection.languages
+                    h1.insert_after(progress_markup)
                     progress_node = h1.find_next_sibling("section", id="solutionProgress")
                     if progress_node is not None:
                         progress_node.insert_after(BeautifulSoup(SELFTEST_BAR, "html.parser"))
@@ -2709,9 +2741,11 @@ LANG_BOOTSTRAP = r"""
 """
 
 
-def render_markdown(source: Path) -> None:
-    output = output_for_markdown(source)
-    raw = source.read_text(encoding="utf-8-sig")
+def render_markdown(source: Path, *, output: Path | None = None, raw: str | None = None,
+                    collection: SolutionCollectionPage | None = None) -> None:
+    output = output or output_for_markdown(source)
+    if raw is None:
+        raw = source.read_text(encoding="utf-8-sig")
     # 独立演示链接属于旧信息架构；网页中统一在题解末尾内嵌交互组件。
     raw = re.sub(r"\s*·\s*\[打开(?:本专题)?可视化\]\([^)]*\)", "", raw)
     raw = re.sub(r"\s*·\s*\[打开本专题演示\]\([^)]*\)", "", raw)
@@ -2765,7 +2799,7 @@ def render_markdown(source: Path) -> None:
     is_solution = "03-题解" in source.parts or "ai-exam" in source.parts
     current_navigation = active_navigation_label(source)
     site_navigation = [
-        ("题目面板", root_href),
+        ("题目面板", "index.html" if collection else root_href),
         ("中控台", cockpit_href),
         ("学习书架", web_rel(output, ROOT / "library" / "index.html")),
         ("学习路线", route_href),
@@ -2778,7 +2812,17 @@ def render_markdown(source: Path) -> None:
         for label, href in site_navigation
     )
     breadcrumb_html = solution_breadcrumb(source, output) if is_solution else f'<div class="page-kicker">{html.escape(breadcrumb(source))}</div>'
-    visual_embed = render_visual_embed(source, output, title)
+    if collection:
+        breadcrumb_html = (
+            f'<nav class="page-kicker page-breadcrumb" aria-label="当前位置"><a href="index.html">'
+            f'{html.escape(collection.panel_title)}</a><span aria-hidden="true">›</span><span>题解</span>'
+            f'<span aria-hidden="true">›</span><span aria-current="page">{html.escape(collection.topic)}专题</span></nav>'
+        )
+        visual_embed = solution_visual_frame(collection.demo_href, title)
+        progress_js_href = progress_js_href.split("?")[0] + "?v=20261118-collections"
+        js_href = js_href.split("?")[0] + "?v=20261118-collections"
+    else:
+        visual_embed = render_visual_embed(source, output, title)
     page = f"""<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -2851,15 +2895,18 @@ def render_markdown(source: Path) -> None:
         page = rebuilt
 
     # —— 题解页专属后处理：aside 提示框 + 徽标行 + 三栏 ——
-    if "03-题解" in source.parts or "company-solutions" in source.parts or "huawei-od" in source.parts or "ai-exam" in source.parts:
+    if collection or "03-题解" in source.parts or "company-solutions" in source.parts or "huawei-od" in source.parts or "ai-exam" in source.parts:
         try:
-            page = transform_solution_page(page, source, toc, progress_css_href, progress_js_href)
+            page = transform_solution_page(page, source, toc, progress_css_href, progress_js_href, collection)
         except Exception:
+            if collection:
+                raise
             pass  # 转换失败不阻断构建，页面保持原样
         # 题解页也接入术语注释（与书架章节页共用同一份服务端词典）
         _tc = web_rel(output, ROOT / "assets" / "term-tooltip.css") + f"?v={ASSET_VERSION}"
         _tj = web_rel(output, ROOT / "assets" / "term-tooltip.js") + f"?v={ASSET_VERSION}"
-        _te = web_rel(output, ROOT / "assets" / "engagement-tracker.js") + f"?v={ASSET_VERSION}"
+        tracker_version = "20261118-collections" if collection else ASSET_VERSION
+        _te = web_rel(output, ROOT / "assets" / "engagement-tracker.js") + f"?v={tracker_version}"
         _tg = web_rel(output, ROOT / "assets" / "glossary.json")
         # 学习时长埋点：题解页也计入「今天学了多久」
         page = page.replace("</body>", f'<script src="{_te}" defer></script>\n</body>', 1)

@@ -37,6 +37,9 @@
   function detectTarget() {
     var panel = document.querySelector("[data-problem-id]");
     if (panel) {
+      if (panel.dataset.contentId && panel.dataset.moduleId) {
+        return { type: "content", id: panel.dataset.contentId, module: panel.dataset.moduleId };
+      }
       var pid = panel.getAttribute("data-problem-id");
       if (pid) return { type: "problem", id: String(pid), module: null };
     }

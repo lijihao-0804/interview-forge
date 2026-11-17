@@ -330,6 +330,7 @@ async def content_complete(request: Request):
         lambda p, db: complete_content(
             str(p["module_id"]), str(p["content_id"]), db,
             p.get("rating", 3), get_fsrs_desired_retention(),
+            **({"language": p["language"]} if p.get("language") else {}),
         ),
     )
 
@@ -479,3 +480,55 @@ async def search_events(request: Request):
             db,
         ),
     )
+
+# Dedicated content-backed projections; Hot 100 routes retain their original scope.
+from interview_forge.services import hot200 as hot200_service
+
+
+def _hot200_read(request, operation):
+    user, denied = _user(request)
+    if denied is not None:
+        return denied
+    try:
+        return json_response(operation(user_db(user)))
+    except BaseException as exc:
+        return _handled(exc)
+
+
+@router.get("/api/hot200-extra/bootstrap")
+def hot200_bootstrap(request: Request):
+    return _hot200_read(request, hot200_service.snapshot)
+
+
+@router.get("/api/hot200-extra/problem/{problem_id}/progress")
+def hot200_progress(request: Request, problem_id: int):
+    return _hot200_read(request, lambda db: hot200_service.progress(db, problem_id))
+
+
+@router.get("/api/hot200-extra/plan")
+def hot200_plan(request: Request):
+    return _hot200_read(request, lambda db: hot200_service.plan(db,request.query_params.get("random")=="1"))
+
+
+@router.post("/api/hot200-extra/plan/pin")
+async def hot200_pin(request: Request):
+    return await _write_json(request, lambda p, db: hot200_service.pin(db,int(p["problem_id"])))
+
+
+@router.get("/api/hot200-extra/mock")
+def hot200_mock(request: Request):
+    return _hot200_read(request, lambda db: hot200_service.mock(db,request.query_params))
+
+
+@router.get("/api/hot200-extra/export")
+def hot200_export(request: Request):
+    user, denied = _user(request)
+    if denied is not None:
+        return denied
+    try:
+        kind=request.query_params.get("kind","")
+        value, ext=hot200_service.export(user_db(user),kind)
+        return Response(value,media_type={"json":"application/json","csv":"text/csv","txt":"text/plain"}[ext],
+                        headers={"Content-Disposition":f'attachment; filename="hot200-{kind}.{ext}"'})
+    except BaseException as exc:
+        return _handled(exc)

@@ -974,10 +974,13 @@ def complete_content(
     db_path: Path = DB_PATH,
     rating: int = 3,
     desired_retention: float | None = None,
+    language: str = "",
 ) -> dict[str, object]:
     """书架章节"完成一轮"：轮次自增 + 写库（事务内原子完成），返回下次到期日。"""
     if not server_runtime.valid_content(module_id, content_id):
         raise ValueError("未知课程章节")
+    if language and (module_id != "hot200-extra" or language not in {"java", "python"}):
+        raise ValueError("未知补充题复习语言")
     if desired_retention is None:
         base = server_runtime.get_fsrs_desired_retention()
         # 阅读类章节不像刷题那样需要高频复习：非 hot100 模块把目标保留率在全局设置
@@ -1015,6 +1018,9 @@ def complete_content(
                    VALUES (?, ?, 'complete', ?, ?, ?)""",
                 (module_id, content_id, studied_at, study_date, round_no),
             )
+        if language:
+            connection.execute("INSERT OR IGNORE INTO supplement_review_languages VALUES (?,?,?)",
+                               (content_id, study_date, language))
         review_state = _apply_review_rating(
             connection, "content", content_id, rating, studied_at,
             desired_retention=desired_retention,
@@ -1411,11 +1417,13 @@ def set_setting(key: str, value: str, db_path: Path = DB_PATH) -> dict[str, str]
     if not key or len(key) > 64 or len(value) > 256:
         raise ValueError("设置项不合法")
     # 白名单机制：只有登记过的 key 可写，防止前端/注入写入任意键。
-    allowed = {"daily_goal_rounds"}
+    allowed = {"daily_goal_rounds", "hot200_daily_goal_rounds"}
     if key not in allowed:
         raise ValueError("未知设置项")
-    if key == "daily_goal_rounds" and not re.fullmatch(r"\d{1,3}", value):
+    if key in allowed and not re.fullmatch(r"\d{1,3}", value):
         raise ValueError("每日目标轮次需为数字")
+    if key == "hot200_daily_goal_rounds" and not 1 <= int(value) <= 50:
+        raise ValueError("每日目标须在 1 至 50 轮之间")
     with closing(server_runtime.connect(db_path)) as connection:
         connection.execute(
             """INSERT INTO settings(key, value) VALUES (?, ?)

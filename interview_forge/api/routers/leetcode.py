@@ -79,6 +79,9 @@ async def sync(request: Request):
         return denied
     try:
         payload = await read_json(request)
+        module = payload.get("module", "hot100")
+        if module not in ("hot100", "hot200-extra"):
+            raise ValueError("未知题库")
         full = str(payload.get("full", "0")) in ("1", "true", "True")
         try:
             offset = max(0, min(int(payload.get("offset", 0) or 0), 1_000_000))
@@ -92,9 +95,11 @@ async def sync(request: Request):
             task_id = await asyncio.to_thread(
                 task_manager.submit,
                 "leetcode", credentials, full, owner=str(user["username"]), db_path=db,
-                offset=offset,
+                offset=offset, **({"module": module} if module != "hot100" else {}),
             )
             return json_response({"ok": True, "task_id": task_id}, 201)
+        if module != "hot100":
+            raise ValueError("补充题需使用异步同步")
         owner = str(user["username"])
         if not try_acquire_sync_owner(owner):
             raise LeetCodeSyncError("sync_in_progress", "已有力扣同步任务运行中，请稍后重试", 409)

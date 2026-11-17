@@ -37,6 +37,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_content_round
     ON content_events(content_id, round_no) WHERE action = 'complete';
 CREATE INDEX IF NOT EXISTS ix_content_date ON content_events(study_date DESC);
 CREATE INDEX IF NOT EXISTS ix_content_activity ON content_events(content_id, studied_at DESC);
+CREATE TABLE IF NOT EXISTS supplement_review_languages (
+    content_id TEXT NOT NULL, study_date TEXT NOT NULL, language TEXT NOT NULL,
+    PRIMARY KEY(content_id, study_date, language)
+);
+CREATE TABLE IF NOT EXISTS supplement_submissions (
+    lc_id INTEGER PRIMARY KEY, content_id TEXT NOT NULL, status TEXT NOT NULL,
+    language TEXT NOT NULL, submitted_at TEXT NOT NULL, runtime_ms INTEGER, memory_kb INTEGER
+);
+CREATE TABLE IF NOT EXISTS supplement_plan_pins (
+    content_id TEXT PRIMARY KEY, for_date TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS library_reading_position (
     singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
     content_id TEXT NOT NULL
