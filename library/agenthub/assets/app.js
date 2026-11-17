@@ -458,7 +458,9 @@ async function mountLearningLabs() {
     find('.lab-questions').onclick = e => {
       const button = e.target.closest('[data-question]'); if (!button) return;
       const i = Number(button.dataset.question), q = def.questions[i], ok = Number(button.dataset.answer) === q.answer, feedback = find('[data-feedback="' + i + '"]');
-      feedback.hidden = false; feedback.textContent = (ok ? '回答正确：' : '解析提示：') + q.explain; feedback.classList.toggle('correct', ok);
+      feedback.textContent = (ok ? '回答正确。' : '这项选错了。') + '正确选项：' + q.options[q.answer] + '。' + q.explain;
+      feedback.classList.toggle('correct', ok);
+      feedback.hidden = false;
       button.closest('fieldset').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b === button)));
     };
     host.__restore = (sceneId, at) => { stop(); const n = def.scenarios.findIndex(s => s.id === sceneId); if (n >= 0) scenario = n; find('.lab-scenario').value = scenario; index = Math.min(Math.max(0, at), scene().steps.length - 1); draw(false); };

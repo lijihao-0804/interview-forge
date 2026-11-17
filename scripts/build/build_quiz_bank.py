@@ -37,10 +37,12 @@ for g in entries:
         "category": cat,
         "stem": "以下哪项是对「" + g["term"] + "」" + abbr + "的正确描述？",
         "options": [o["text"] for o in options],
-        "answer": answer,
+        "answer": [answer],
         "explain": g["term"] + abbr + "：" + (g.get("detail") or g["definition"]),
     })
 
+supplement = ROOT / "data" / "ai_exam" / "huawei_supplemental_quiz.json"
+bank.extend(json.loads(supplement.read_text(encoding="utf-8")))
 OUT.write_text(json.dumps({"total": len(bank), "questions": bank}, ensure_ascii=False, indent=1), encoding="utf-8")
 cats = {}
 for q in bank:

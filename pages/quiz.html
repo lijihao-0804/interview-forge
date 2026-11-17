@@ -133,7 +133,7 @@
     </div>
   </div>
   <div style="margin-top:26px;padding-top:14px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);text-align:center;line-height:1.9">
-    快捷键（<kbd>Ctrl</kbd>/<kbd>⌘</kbd> + ）：<kbd>1</kbd>–<kbd>4</kbd> 选项 · <kbd>←</kbd><kbd>→</kbd> 翻题 · <kbd>Enter</kbd> 下一题 · <kbd>M</kbd> 切模式 · <kbd>Esc</kbd> 返回分类
+    快捷键（<kbd>Ctrl</kbd>/<kbd>⌘</kbd> + ）：数字键选对应选项 · <kbd>←</kbd><kbd>→</kbd> 翻题 · <kbd>Enter</kbd> 下一题 · <kbd>M</kbd> 切模式 · <kbd>Esc</kbd> 返回分类
   </div>
 </div>
 <script>
@@ -226,14 +226,14 @@
     var html='<section class="study-block"><h2>'+esc(title)+'<small>'+pool.length+' 题</small></h2>'+redoBtn;
     pool.forEach(function(q,qi){
       html+='<div class="study-q" data-qi="'+qi+'"><p class="stem">'+(qi+1)+'. '+qStem(q)+(q.multi?' <span style="font-size:12px;color:#b06f1a">（多选）</span>':'')+'</p>';
-      var ansArr=q.answer||[];
+      var ansArr=q.equivalent_answers||q.answer;
       var myPick=(progress[q.key]&&progress[q.key].pick)||[];
       q.options.forEach(function(o,i){
         var isAns=ansArr.indexOf(i)>=0;
         var cls='opt'+(isAns?' correct':'')+((!isAns&&myPick.indexOf(i)>=0)?' wrong':'');
         html+='<div class="'+cls+'"><span class="k">'+String.fromCharCode(65+i)+'</span>'+qOption(q,i)+(isAns?' ✓':'')+((!isAns&&myPick.indexOf(i)>=0)?' <span style="color:#b3372f;font-size:12px">（你的选择）</span>':'')+'</div>';
       });
-      var ansText=ansArr.map(function(a){return String.fromCharCode(65+a)}).join('、');
+      var ansText=answerText(q);
       var pickText=myPick.length?'　<b style="color:#b3372f">你选了 '+letters(myPick)+'</b>':'';
       html+='<div class="ans"><b>答案 '+ansText+'</b>'+pickText+'　解析：'+qExplain(q)+(q.source_url?' <a href="'+esc(q.source_url)+'" target="_blank" rel="noopener noreferrer">原题</a>':'')+'</div></div>';
     });
@@ -293,18 +293,24 @@
     return true;
   }
   function letters(arr){ return (arr||[]).map(function(a){return String.fromCharCode(65+a)}).join('、') || '—'; }
+  function answerText(q){
+    return q.equivalent_answers ? q.equivalent_answers.map(function(i){return letters([i])}).join(' 或 ') : letters(q.answer);
+  }
+  function isCorrect(q,pick){
+    return q.equivalent_answers ? pick.length===1 && q.equivalent_answers.indexOf(pick[0])>=0 : sameSet(pick,q.answer);
+  }
   function submitExam(){
     var un=exam.answers.filter(function(a){return !a||a.length===0}).length;
     if(un>0 && !confirm('还有 '+un+' 题未作答，确定交卷？')) return;
     clearInterval(exam.timer);
     var total=exam.qs.length, ok=0, rows='';
     exam.qs.forEach(function(q,i){
-      var pick=exam.answers[i]||[], good=sameSet(pick,q.answer); if(good) ok++;
+      var pick=exam.answers[i]||[], good=isCorrect(q,pick); if(good) ok++;
       progress[q.key]={correct:good, ts:Date.now(), pick:pick.slice()};
       if(good){ delete wrongSet[q.key]; } else { wrongSet[q.key]=1; }
       rows+='<div class="res-item"><p style="margin:0 0 6px;font-weight:650">'+(i+1)+'. '+qStem(q)+
         '<span class="res-badge '+(good?'ok':'no')+'">'+(pick.length===0?'未答':(good?'正确':'错误'))+'</span></p>'+
-        '<div style="font-size:13px;color:#5a6472">你选：'+letters(pick)+'　正确答案：'+letters(q.answer)+'</div>'+
+        '<div style="font-size:13px;color:#5a6472">你选：'+letters(pick)+'　正确答案：'+answerText(q)+'</div>'+
         '<div style="margin-top:6px;padding:8px 11px;border-radius:8px;background:#f7f8fd;border:1px solid #e6e9f5;font-size:13px">'+qExplain(q)+(q.source_url?' <a href="'+esc(q.source_url)+'" target="_blank" rel="noopener noreferrer">原题</a>':'')+'</div></div>';
     });
     var rate=Math.round(ok/total*100), secs=Math.floor((Date.now()-exam.startTs)/1000);
@@ -360,7 +366,7 @@
       function pickKey(ix){ if(ix>=q.options.length) return; var arr=(exam.answers[exam.idx]||[]).slice();
         if(q.multi){ var p=arr.indexOf(ix); if(p>=0) arr.splice(p,1); else arr.push(ix); } else { arr=[ix]; }
         exam.answers[exam.idx]=arr; renderExam(); }
-      if(/^[1-4]$/.test(k)){ pickKey(parseInt(k,10)-1); e.preventDefault(); return; }
+      if(/^[1-9]$/.test(k)&&Number(k)<=q.options.length){ pickKey(Number(k)-1); e.preventDefault(); return; }
       if(k==='arrowleft'){ if(exam.idx>0){exam.idx--;renderExam();e.preventDefault();} return; }
       if(k==='arrowright'){ if(exam.idx+1<exam.qs.length){exam.idx++;renderExam();e.preventDefault();} return; }
       if(k==='enter'){ if(exam.idx+1<exam.qs.length){exam.idx++;renderExam();} else {submitExam();} e.preventDefault(); return; }
@@ -388,7 +394,19 @@
     var sel = document.getElementById('bankSelect');
     if(sel) sel.value = key === 'aiExam' ? 'ai-exam' : 'glossary';
     function apply(d){
+      if(key!==bank) return;
       bankCache[key] = d; DATA = d; currentCat = ''; mode = 'study'; companyFilter='';
+      var revised=false;
+      d.questions.forEach(function(q){
+        var record=progress[q.key];
+        if(!record||!Array.isArray(record.pick)) return;
+        var correct=isCorrect(q,record.pick);
+        if(record.correct===correct) return;
+        record.correct=correct;
+        if(correct) delete wrongSet[q.key]; else wrongSet[q.key]=1;
+        revised=true;
+      });
+      if(revised) saveProgress(progress);
       document.querySelectorAll('#modeSwitch button').forEach(function(x){x.classList.toggle('on',x.dataset.mode==='study');});
       syncCompanyFilter(key); goHome(); updateWrongCount();
     }

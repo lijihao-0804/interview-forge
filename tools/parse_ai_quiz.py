@@ -72,6 +72,7 @@ def answer_of(text: str) -> list[int]:
 
 def parse_chunk(lines: list[str], first: str, multi: bool) -> dict[str, object] | None:
     options: list[str] = []
+    labels: list[str] = []
     option_start = None
     answer: list[int] = []
     answer_index = None
@@ -80,13 +81,14 @@ def parse_chunk(lines: list[str], first: str, multi: bool) -> dict[str, object] 
         if option:
             if option_start is None:
                 option_start = index
-            option_text = option.group(2).strip()
-            # 有的页面把“A.”与选项正文拆成两行
-            if not option_text and index + 1 < len(lines):
-                following = lines[index + 1].strip()
-                if following and not re.match(r"^[A-D]\s*[.、．]", following) and not following.startswith(("答案", "解析", "考点", "难度")):
-                    option_text = following
-            options.append(option_text)
+            labels.append(option.group(1))
+            parts = [option.group(2).strip()]
+            for following in lines[index + 1:]:
+                if answer_of(following) or re.match(r"^(?:[A-D]\s*[.、．]|(?:参考答案|答案|解析|考点|难度|题型)(?:\s*[：:]|$))", following):
+                    break
+                if following:
+                    parts.append(following)
+            options.append(" ".join(filter(None, parts)))
         found = answer_of(line)
         if found and not answer:
             answer = found
@@ -95,8 +97,7 @@ def parse_chunk(lines: list[str], first: str, multi: bool) -> dict[str, object] 
         return None
     if any(not option.strip() for option in options):
         return None
-    answer = [value for value in answer if value < len(options)]
-    if not answer:
+    if labels != list("ABCD"[:len(labels)]) or any(value >= len(labels) for value in answer):
         return None
     stem = " ".join([first] + [part for part in lines[:option_start]
                                 if part and not re.match(r"^(答案|解析|考点|难度|题型)", part)]).strip()
@@ -121,21 +122,22 @@ def parse_by_headings(page: dict[str, object]) -> list[dict[str, object]]:
     positions = []
     cursor = 0
     for name, heading in headings:
-        index = text.find(str(heading), cursor)
-        if index < 0:
+        heading_pattern = r"\s+".join(re.escape(word) for word in str(heading).split())
+        match = re.compile(heading_pattern).search(text, cursor) if heading_pattern else None
+        if match is None:
             continue
-        positions.append((index, name, str(heading)))
-        cursor = index + len(str(heading))
+        positions.append((match.start(), name, str(heading), match.end()))
+        cursor = match.end()
 
     questions: list[dict[str, object]] = []
-    for order, (index, name, heading) in enumerate(positions):
+    for order, (_, name, heading, heading_end) in enumerate(positions):
         if name != "h3" or not re.match(r"^(?:\d{1,3}[.、]\s*|第\s*\d+\s*题\s*$)", heading):
             continue
-        previous = [h for _, kind, h in positions[:order] if kind in ("h2", "h3")]
-        if any(kind == "h2" and re.match(r"^第\s*\d+\s*题", h) for _, kind, h in positions[:order]):
+        previous = [h for _, kind, h, _ in positions[:order] if kind in ("h2", "h3")]
+        if any(kind == "h2" and re.match(r"^第\s*\d+\s*题", h) for _, kind, h, _ in positions[:order]):
             continue
         next_index = positions[order + 1][0] if order + 1 < len(positions) else len(text)
-        chunk = normal_lines(text[index + len(heading):next_index])
+        chunk = normal_lines(text[heading_end:next_index])
         multi = False
         for h in reversed(previous):
             if re.search(r"(多选|不定项)", h):
@@ -216,11 +218,26 @@ def main() -> None:
         role_label = {"ai": "AI岗", "ai-coding": "AI Coding", "agent": "Agent岗", "algo": "算法岗"}.get(role, role)
         category = f"{company} · {date} · {role_label}"
         for serial, question in enumerate(questions, 1):
+            # Lower_bound was missing from the original bank. Keep the later
+            # questions' published progress keys when inserting it in exam order.
+            progress_serial = serial
+            if page.get("slug") == "agent-20260815" and page.get("company") == "alibaba":
+                if serial == 8:
+                    progress_serial = 16
+                elif 9 <= serial <= 16:
+                    progress_serial = serial - 1
+            if not question["multi"]:
+                correct = question["options"][question["answer"][0]]
+                equivalent = [i for i, option in enumerate(question["options"]) if option == correct]
+                if len(equivalent) > 1:
+                    question["equivalent_answers"] = equivalent
+                    names = "、".join(chr(65 + i) for i in equivalent)
+                    question["explain"] += f" 原题的 {names} 选项相同，本单选题任选其中一项均计为正确。"
             question["stem_html"] = render_math_text(question["stem"])
             question["options_html"] = [render_math_text(option) for option in question["options"]]
             question["explain_html"] = render_math_text(question["explain"])
             question.update({
-                "key": f"ai-exam:{page.get('company')}:{page.get('date')}:{page.get('slug')}:{question.get('num')}:{serial}",
+                "key": f"ai-exam:{page.get('company')}:{page.get('date')}:{page.get('slug')}:{question.get('num')}:{progress_serial}",
                 "category": category,
                 "company": company,
                 "date": page.get("date", ""),
