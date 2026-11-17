@@ -92,6 +92,12 @@ REPORT_HEADERS = {**HEADERS, "Vary": "*"}
 def _integrate_reader(request: Request, body: bytes) -> bytes:
     embedded = request.query_params.get("embedded") == "1" or request.headers.get("sec-fetch-dest") == "iframe"
     widgets = b"" if embedded else private_reader_widget_tags(body)
+    if widgets:
+        # Ordinary mobile pages put AI inside the account pill. Project books use a standalone button.
+        widgets += b'<style>@media(max-width:640px){#if-ai-launcher:not([hidden]){display:inline-flex!important}}</style>'
+    if widgets and request.url.path.startswith("/api/private-archive/"):
+        # The bundled and imported history viewers absolutely position all iframes.
+        widgets += b'<style>.if-ai-drawer iframe{position:static;height:auto}</style>'
     shell = b'<script defer src="/assets/private-archive-shell.js?v=6"></script>'
     return body.replace(b"</body>", widgets + shell + b"</body>", 1)
 

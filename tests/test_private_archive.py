@@ -132,6 +132,8 @@ class PrivateArchiveTests(unittest.TestCase):
         self.assertEqual(self.request('/api/private-archive/data/history-data.json','owner-token').status_code,401)
 
     def test_reader_widgets_only_on_top_level_html(self):
+        private_archive.AGENTHUB_DIR.mkdir()
+        (private_archive.AGENTHUB_DIR / 'index.html').write_bytes(b'<html><body>reader</body></html>')
         urls = ['/api/private-archive/index.html']
         for directory, prefix, chapter in (
             (self.report, '/library/development-history/', 'chapters/origin.html'),

@@ -134,10 +134,12 @@ def _widget_tags(body: bytes, scripts, styles) -> bytes:
 
 
 def private_reader_widget_tags(body: bytes) -> bytes:
-    # Project books own their navigation and theme, including the AgentHub SPA.
-    scripts = (s for s in _WIDGET_SCRIPTS if not s.startswith(
-        ("/assets/navigation-policy.", "/assets/theme-toggle.")
-    ))
+    # Keep the reader's fixed chapter controls accessible. Both widgets need
+    # the shared session API, but the account pill would cover “next chapter”.
+    scripts = tuple(s + "&amp;ui=session" if s.startswith("/assets/auth-widget.") else s
+                    for s in _WIDGET_SCRIPTS if s.startswith((
+                        "/assets/auth-widget.", "/assets/feedback-widget.", "/assets/ai-",
+                    )))
     return _widget_tags(body, scripts, _WIDGET_STYLES)
 
 

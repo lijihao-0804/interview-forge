@@ -111,6 +111,11 @@ class PageContextProvider:
             for edge in (180, 56):
                 if len(quote) > edge * 2:
                     variants.append(f"{identity}\n用户选中文本（节选）：{quote[:edge]} […] {quote[-edge:]}")
+        if normalized.chapter_excerpt:
+            short = f"{identity}\n当前阅读区域节选：{normalized.chapter_excerpt[:280]}"
+            if normalized.selected_text:
+                short += f"\n用户选中文本（节选）：{normalized.selected_text[:112]}"
+            variants.append(short)
         if normalized.selected_text or normalized.chapter_excerpt:
             variants.append(identity)
         variants.append(f"当前页面：{normalized.title}" + (f"（题号 {normalized.problem_id}）" if normalized.problem_id else ""))

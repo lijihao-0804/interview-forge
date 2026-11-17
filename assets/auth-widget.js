@@ -4,6 +4,8 @@
 (function () {
   "use strict";
   if (window.InterviewForgeAuth) return;
+  var sessionOnly = document.currentScript &&
+    new URL(document.currentScript.src, location.href).searchParams.get("ui") === "session";
 
   var authState = { status: "checking", user: null, reason: "" };
   var authReady = null;
@@ -230,6 +232,7 @@
   }
 
   checkSession(false);
+  if (sessionOnly) return;
   authReady.then(function (session) {
     var me = session && session.user;
     if (!me || document.getElementById("forge-auth-pill")) return;
