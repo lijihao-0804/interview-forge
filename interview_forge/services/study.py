@@ -484,6 +484,14 @@ def _touch_daily_latest(connection: sqlite3.Connection, *, latest_at: str, study
     return True
 
 
+def _set_library_reading_position(connection: sqlite3.Connection, content_id: str) -> None:
+    connection.execute(
+        """INSERT INTO library_reading_position(singleton, content_id) VALUES (1, ?)
+           ON CONFLICT(singleton) DO UPDATE SET content_id = excluded.content_id""",
+        (content_id,),
+    )
+
+
 def record_view(problem_id: int, db_path: Path = DB_PATH) -> bool:
     """记录一次题目浏览（view 事件）：60 秒内对同一题去重，防止翻页/刷接口产生垃圾记录。"""
     if problem_id not in PROBLEM_BY_ID:
@@ -495,6 +503,7 @@ def record_view(problem_id: int, db_path: Path = DB_PATH) -> bool:
         # cannot both pass the 60-second de-duplication window.
         connection.execute("BEGIN IMMEDIATE")
         # 取该题最近一条 view 的时间戳，用于 60 秒窗口的去重判断。
+        _set_library_reading_position(connection, f"hot100:{problem_id:04d}")
         recent = connection.execute(
             """SELECT studied_at FROM study_events
                WHERE problem_id = ? AND action = 'view'
@@ -504,6 +513,7 @@ def record_view(problem_id: int, db_path: Path = DB_PATH) -> bool:
         if recent:
             last = datetime.fromisoformat(recent["studied_at"])
             if (datetime.fromisoformat(studied_at) - last).total_seconds() < 60:
+                connection.commit()
                 return False
         # 通过 60 秒窗口：落一条 view 记录（studied_at / study_date 由 now_parts 统一生成）。
         connection.execute(
@@ -928,6 +938,7 @@ def record_content_view(module_id: str, content_id: str, db_path: Path = DB_PATH
         connection.execute("BEGIN IMMEDIATE")
         _ensure_legacy_review_card(connection, "content", content_id)
         # 同样的 60 秒去重窗口（这里按 content_id 查最近一条 view）。
+        _set_library_reading_position(connection, content_id)
         recent = connection.execute(
             """SELECT studied_at FROM content_events
                WHERE content_id = ? AND action = 'view' ORDER BY id DESC LIMIT 1""",
@@ -936,6 +947,7 @@ def record_content_view(module_id: str, content_id: str, db_path: Path = DB_PATH
         if recent:
             last = datetime.fromisoformat(recent["studied_at"])
             if (datetime.fromisoformat(studied_at) - last).total_seconds() < 60:
+                connection.commit()
                 return False
         connection.execute(
             """INSERT INTO content_events(module_id, content_id, action, studied_at, study_date)
@@ -1091,6 +1103,16 @@ def library_data(db_path: Path = DB_PATH) -> dict[str, object]:
     """书架数据：每个模块的章节总数/已完成数（rounds>0 即算开始学习）+ 每章节的轮次与最近活动。"""
     manifest = server_runtime.load_library_manifest()
     with closing(server_runtime.connect(db_path)) as connection:
+        position = connection.execute("SELECT content_id FROM library_reading_position WHERE singleton = 1").fetchone()
+        if position is None:
+            # Existing accounts already have dated view events from before the cursor was introduced.
+            position = connection.execute(
+                """SELECT content_id FROM (
+                       SELECT content_id, studied_at, id FROM content_events WHERE action = 'view'
+                       UNION ALL
+                       SELECT printf('hot100:%04d', problem_id), studied_at, id FROM study_events WHERE action = 'view'
+                   ) ORDER BY studied_at DESC, id DESC LIMIT 1"""
+            ).fetchone()
         # 非 Hot100 章节仍按手动“完成一轮”；Hot100 题目由 AC 日期自动推进。
         rows = connection.execute(
             """SELECT content_id,
@@ -1120,13 +1142,20 @@ def library_data(db_path: Path = DB_PATH) -> dict[str, object]:
         }
     # 逐模块统计 total / completed：completed 按"该模块里 rounds>0 的章节数"计算 → 进度条。
     modules: dict[str, dict[str, int]] = {}
+    resume = None
     for module in manifest.get("modules", []):
+        if position and resume is None:
+            for chapter in module.get("chapters", []):
+                if chapter["id"] == position["content_id"]:
+                    resume = {"book_title": module["title"], "book_url": module["url"],
+                              "chapter_title": chapter["title"], "chapter_url": chapter["url"]}
+                    break
         chapter_ids = [chapter["id"] for chapter in module.get("chapters", [])]
         modules[module["id"]] = {
             "total": len(chapter_ids),
             "completed": sum(1 for content_id in chapter_ids if int(contents.get(content_id, {}).get("rounds") or 0) > 0),
         }
-    return {"modules": modules, "contents": contents}
+    return {"modules": modules, "contents": contents, "resume": resume}
 
 
 def daily_data(db_path: Path = DB_PATH, module_id: str = "") -> dict[str, object]:

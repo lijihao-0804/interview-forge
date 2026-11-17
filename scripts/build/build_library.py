@@ -75,7 +75,7 @@ if str(_PROJECT_ROOT) not in sys.path:
 # pygments：代码高亮着色，与高亮函数配合产出带 data-lang 的 codehilite 结构。
 import markdown
 from interview_forge.core.paths import ROOT as HOT100_ROOT
-from scripts.build import build_cache
+from scripts.build import build_cache, exam_shelf
 from scripts.build.asset_version import ASSET_VERSION
 from pygments import highlight as pygments_highlight
 from pygments.formatters import HtmlFormatter
@@ -311,6 +311,43 @@ mark{background:color-mix(in srgb,var(--brand) 26%,transparent);color:var(--bran
 @media(max-width:520px){.module-stats{grid-template-columns:repeat(2,1fr)}.chapter-card .card-actions{align-items:flex-end}.chapter-card .last-study{white-space:normal}}
 
 /* 章节阅读页：学习记录状态条（替代原固定侧栏，阅读区恢复全宽） */
+/* Book table of contents. Keep chapter links dense enough to scan long books. */
+.shell:has(>.module-hero){max-width:1100px}
+.module-hero{align-items:center;flex-wrap:nowrap;margin:22px 0 18px;padding:clamp(16px,3vw,30px);border:1px solid var(--line);border-inline-start:4px solid var(--brand);border-radius:var(--radius-3);background:var(--panel)}
+.module-hero>div:first-child{min-width:0}
+.module-hero h1{font-size:clamp(24px,3.2vw,36px);overflow-wrap:anywhere}
+.module-hero .module-about{margin-top:8px;line-height:1.65}
+.module-hero .module-stats{flex:none;grid-template-columns:repeat(3,minmax(58px,1fr));gap:0}
+.module-hero .stat{padding:4px 12px;border:0;border-inline-start:1px solid var(--line);border-radius:0;box-shadow:none;background:transparent}
+.shell>.module-progress{height:auto;margin:0 0 14px;background:transparent;border-radius:0}
+.shell>.module-progress .progress-head span{height:auto;background:none}
+.shell>#chapterGrid.chapter-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:0 24px;padding:0 18px;border:1px solid var(--line);border-radius:var(--radius-3);background:var(--panel)}
+#chapterGrid:empty{display:none}
+#chapterGrid .chapter-card{align-content:center;padding:13px 2px;border:0;border-bottom:1px solid var(--line);border-radius:0;box-shadow:none;transform:none;background:transparent}
+#chapterGrid .chapter-card h2 a{display:inline-block;overflow-wrap:anywhere;padding-block:5px}
+#chapterGrid .chapter-card .card-actions{margin-top:5px;padding-top:0;border:0;flex-wrap:wrap}
+#chapterGrid .chapter-card .meta{margin:3px 0}
+#chapterGrid .guest-read-note,body:not(.is-authenticated) #chapterGrid .card-actions{display:none}
+#chapterGrid .chapter-card.studied .round-count{font-weight:700}
+body.is-guest .module-hero .module-stats{grid-template-columns:1fr}
+.shelf-resume{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px;padding:16px 20px;border:1px solid var(--line);border-inline-start:4px solid var(--brand);border-radius:var(--radius-3);background:var(--panel);overflow-wrap:anywhere}
+.shelf-resume[hidden]{display:none}
+.shelf-resume h2{margin:0 0 4px;font-size:16px}
+.shelf-resume [data-resume-book]{color:var(--brand)}
+.resume-open{flex:none;padding:8px 14px;border-radius:var(--radius-2);background:var(--brand);color:white;font-weight:650}
+@media(max-width:760px){
+ .module-hero{display:block;margin:14px 0;padding:16px}
+ .module-hero .module-stats{width:max-content;margin-top:10px}
+ .module-hero .stat{display:flex;align-items:baseline;gap:4px;padding:0 9px}
+ .module-hero .stat:first-child{padding-inline-start:0;border:0}
+ .module-hero .stat strong{font-size:15px}
+ body.is-guest .module-hero .module-stats{display:none}
+ .module-controls{gap:8px}
+ .shell>#chapterGrid.chapter-grid{grid-template-columns:minmax(0,1fr);padding:0 13px}
+ #chapterGrid .chapter-card:last-child{border-bottom:0}
+ .shelf-resume{align-items:flex-start;flex-wrap:wrap;padding:13px}
+}
+
 .chapter-status{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;margin:0 0 24px;padding:10px 14px;border:1px solid var(--line);border-radius:var(--radius-2);background:var(--soft);color:var(--muted);font-size:13px}
 .chapter-status .auto-read-hint{font-size:12px;color:var(--muted);padding:2px 8px;border-radius:999px;background:color-mix(in srgb,var(--brand) 7%,transparent);border:1px dashed color-mix(in srgb,var(--brand) 24%,var(--line))}.chapter-status .complete-button{width:auto;margin-left:auto;padding:5px 12px;border:1px solid color-mix(in srgb,var(--brand) 34%,var(--line));border-radius:999px;color:var(--brand);background:var(--brand-soft);font-size:12px;cursor:pointer}
 .chapter-status .complete-button:disabled{cursor:not-allowed;opacity:.5}
@@ -1744,30 +1781,33 @@ def clean_search_text(body: str, limit: int = 1400) -> str:
     return " ".join(lines)[:limit]
 
 
-def huawei_od_search_entries() -> list[dict[str, object]]:
-    """补入华为 OD 机试题库的全文搜索条目。
-
-    华为题库存放在 books/huawei-od/ 下，页面由 build_huawei_pages.py 单独生成，
-    不属于 LIBRARY_MODULES，因此历史上只出现在书架卡片里，没进 search-index.json。
-    这里直接读取它的 Markdown 源，标题取一级标题，URL 指向已生成的题目 HTML；
-    search.html 与 /api/search 都使用同一份索引，所以一处补入即可被系统搜索命中。
-    """
-    source = NOTES_ROOT / "huawei-od"
-    if not source.is_dir():
-        return []
+def public_question_entries() -> list[dict[str, object]]:
+    """Index the public banks whose question pages are rendered outside the library."""
     entries: list[dict[str, object]] = []
-    for md in sorted(source.glob("*/*.md")):
-        text = md.read_text(encoding="utf-8-sig")
-        heading = re.search(r"(?m)^#\s+(.+?)\s*$", text)
-        title = heading.group(1).strip() if heading else md.stem
-        entries.append({
-            "id": f"huawei-od:{md.parent.name}:{md.stem}",
-            "module_id": "huawei-od",
-            "module_title": "华为 OD 机试题库",
-            "title": title,
-            "url": f"../books/huawei-od/{md.parent.name}/{md.stem}.html",
-            "text": clean_search_text(text),
-        })
+    banks = (
+        ("huawei-od", "华为 OD 机试题库", "*/*.md"),
+        ("company-solutions", "企业高频题解", "*/*.md"),
+        ("company-oj", "企业机考真题", "*/*.md"),
+        ("ai-exam", "AI 岗机试真题库", "*/*/*.md"),
+    )
+    for bank, label, pattern in banks:
+        source = NOTES_ROOT / bank
+        for md in sorted(source.glob(pattern)):
+            rel = md.relative_to(source)
+            if rel.parts[0].startswith("_") or not md.with_suffix(".html").is_file():
+                continue
+            text = md.read_text(encoding="utf-8-sig")
+            heading = re.search(r"(?m)^#\s+(.+?)\s*$", text)
+            title = heading.group(1).strip() if heading else md.stem
+            entries.append({
+                "id": ":".join((bank, *rel.with_suffix("").parts)),
+                "kind": "question",
+                "module_id": bank,
+                "module_title": label,
+                "title": title,
+                "url": f"../books/{bank}/{rel.with_suffix('.html').as_posix()}",
+                "text": clean_search_text(f"{md.parent.name}\n{text}"),
+            })
     return entries
 
 
@@ -1911,6 +1951,19 @@ def private_shelf_entry(body: str) -> str:
         'private shelf mount')
 
 
+def shelf_reading_entry(body: str) -> str:
+    anchor = '<section id="shelfDueSummary"'
+    body = _replace_required(body, anchor, '''<section id="shelfResume" class="shelf-resume auth-private" hidden aria-labelledby="resumeHeading">
+      <div><h2 id="resumeHeading">继续阅读</h2><a data-resume-book></a><span aria-hidden="true"> / </span><span data-resume-chapter></span></div>
+      <a class="resume-open" data-resume-open>继续本章 →</a></section>''' + anchor, "resume mount")
+    # The shared script updates progress and reading position from the same
+    # authenticated request, including after the reader switches tabs.
+    start = body.index("guestAuth.request('/api/library'")
+    end = body.index("fetch('/api/favorites'", start)
+    body = body[:start] + body[end:]
+    return body + '<script src="../assets/shelf-reading.js?v=1"></script>'
+
+
 def build() -> None:
     # 第 0 步：固定资产落盘。library.css / library-mermaid.js 只 strip 首尾空白再写
     # (与常量内容逐字节一致，便于 check 脚本比对)；版本号 ?v= 在页面引用处统一。
@@ -1963,6 +2016,7 @@ def build() -> None:
         {
             "id": str(chapter["id"]),
             "module_id": "hot100",
+            "kind": "question",
             "module_title": "Hot 100 算法刷题精讲",
             "title": str(chapter["title"]),
             "url": str(chapter["url"]),
@@ -2642,11 +2696,17 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
     (OUTPUT_ROOT / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     # 搜索资产：search-index.json 用紧凑分隔符(去掉多余空格)减小体积；
     # search.html 全文搜索页(见 search_page 的客户端评分说明)。
-    search_entries.extend(huawei_od_search_entries())
+    search_entries.extend(public_question_entries())
     (OUTPUT_ROOT / "search-index.json").write_text(
         json.dumps(search_entries, ensure_ascii=False, separators=(",", ":")), encoding="utf-8"
     )
     (OUTPUT_ROOT / "search.html").write_text(search_page(len(search_entries)), encoding="utf-8")
+    build_bookshelf(modules)
+    build_cache.save_cache(HOT100_ROOT, cache)
+    print(f"Library modules: {len(modules)}; chapters: {sum(module['chapter_count'] for module in modules)}")
+
+
+def build_bookshelf(modules: list[dict[str, object]]) -> None:
     # 书架总页 index.html(build_bookshelf)：
     #   模块卡片网格(标题/分类/章节数/进度条) + 分类筛选按钮(纯客户端切换
     #   显隐)；页面 JS 启动时 fetch /api/library 填进度条、/api/daily 填
@@ -2671,8 +2731,8 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
     # 学习形态：顶层分组。分类归属决定它出现在哪一组下。
     _TRACKS = [
         ('系统学习', '从零开始连续阅读的课程，适合打基础', '📚'),
-        ('面试题库', '问答式题库，适合临考前集中背诵', '🎯'),
-        ('面经与实战', '真实面经、产品拆解与项目表达', '📰'),
+        ('面试题库', '复习高频面试问答，练习企业笔试与机试', '🎯'),
+        ('面经与项目实战', '阅读公司面经，练习项目表达与代码手撕', '📰'),
     ]
     _CAT_TRACK = {
         'Java 语言': '系统学习', '计算机基础': '系统学习', '数据存储': '系统学习',
@@ -2680,88 +2740,55 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
         '编程基础与训练': '系统学习', '大模型应用': '系统学习',
         'Agent 面试题': '面试题库', '大模型面试题': '面试题库',
         '后端与算法题': '面试题库', '面试方法论': '面试题库', '企业题库': '面试题库',
-        '公司面经': '面经与实战', '产品与框架拆解': '面经与实战',
-        '项目与手撕': '面经与实战', '岗位与进阶': '面经与实战',
+        '公司面经': '面经与项目实战', '产品与框架拆解': '面经与项目实战',
+        '项目与手撕': '面经与项目实战', '岗位与进阶': '面经与项目实战',
     }
     _cat_icon_default = _cat_default
     def _cat_icon(cat):
         return _module_icons.get(cat, _cat_default)
     def _track_of(cat):
         return _CAT_TRACK.get(cat, '系统学习')
-    _solutions_card = (
-        '<article class="module-card" data-category="企业题库" data-track="面试题库" '
-        'data-search="企业高频题解 企业题库 按公司考点">'
-        '<div class="card-head"><span class="module-icon" aria-hidden="true" '
-        'style="color:#5654d4;background:color-mix(in srgb,#5654d4 13%,transparent)">\U0001F4D8</span>'
-        '<h2><a href="../books/company-solutions/index.html" target="_blank" rel="noopener noreferrer">企业高频题解</a></h2></div>'
-        '<div class="module-meta"><span>企业题库</span><span>375 题精讲</span></div>'
-        '<div class="module-progress-row"><span class="module-note">按公司查考点</span></div></article>'
+    hub_dir = OUTPUT_ROOT / "exam-practice"
+    hub_dir.mkdir(exist_ok=True)
+    (hub_dir / "index.html").write_text(
+        document("企业笔试与机试 · 学习书架", exam_shelf.exam_hub_body(topbar("..")),
+                 "../assets/library.css", exam_shelf.EXAM_PROGRESS, extra_head=exam_shelf.EXAM_HEAD),
+        encoding="utf-8",
     )
-    _oj_card = (
-        '<article class="module-card" data-category="企业题库" data-track="面试题库" '
-        'data-search="企业机考真题 大厂笔试 阿里 网易 京东 小米 拼多多 携程">'
-        '<div class="card-head"><span class="module-icon" aria-hidden="true" '
-        'style="color:#b06f1a;background:color-mix(in srgb,#b06f1a 13%,transparent)">📚</span>'
-        '<h2><a href="../books/company-oj/index.html" target="_blank" rel="noopener noreferrer">企业机考真题</a></h2></div>'
-        '<div class="module-meta"><span>企业题库</span><span>25 题 · 8 家公司</span></div>'
-        '<div class="module-progress-row"><span class="module-note">大厂笔试真题原文</span></div></article>'
+    exam_card = (
+        '<article class="module-card" data-module-id="exam-practice" data-category="企业题库" data-track="面试题库" '
+        f'data-search-modules="{exam_shelf.EXAM_SEARCH_MODULES}" '
+        'data-search="企业题库 企业笔试与机试 真题 企业高频题解 企业高频算法题库 企业机考真题 '
+        '华为 od 机试题库 ai 岗笔试真题导航 ai 岗机试真题库 选择题练习 acm 编程题 '
+        '算法 术语 手撕 阿里 网易 京东 小米 拼多多 携程 字节 腾讯 美团 机考">'
+        '<div class="card-head"><span class="module-icon" aria-hidden="true">💻</span>'
+        '<h2><a href="exam-practice/index.html">企业笔试与机试</a></h2></div>'
+        '<div class="module-meta"><span>企业题库</span><span>编程题 · 选择题</span></div>'
+        '<a class="module-link" href="exam-practice/index.html">进入题库 →</a></article>'
     )
-    _quiz_card = (
-        '<article class="module-card" data-category="企业题库" data-track="面试题库" '
-        'data-search="选择题练习 刷题 判分 术语测验 ai 岗 笔试 真题 选择题">'
-        '<div class="card-head"><span class="module-icon" aria-hidden="true" '
-        'style="color:#157a52;background:color-mix(in srgb,#157a52 13%,transparent)">✅</span>'
-        '<h2><a href="../pages/quiz.html" target="_blank" rel="noopener noreferrer">选择题练习</a></h2></div>'
-        '<div class="module-meta"><span>企业题库</span><span>332 题 · 即时判分</span></div>'
-        '<div class="module-progress-row"><span class="module-note">术语知识选择测验</span></div></article>'
-    )
-    _ai_coding_card = (
-        '<article class="module-card" data-category="企业题库" data-track="面试题库" '
-        'data-search="ai 岗 机试 真题 大题 编程题 代码题 算法">'
-        '<div class="card-head"><span class="module-icon" aria-hidden="true" '
-        'style="color:#7c3aed;background:color-mix(in srgb,#7c3aed 13%,transparent)">💻</span>'
-        '<h2><a href="../books/ai-exam/index.html" target="_blank" rel="noopener noreferrer">AI 岗机试真题库</a></h2></div>'
-        '<div class="module-meta"><span>企业题库</span><span>159 道 ACM 题 · Python/Java</span></div>'
-        '<div class="module-progress-row"><span class="module-note">独立题目页 · 目录 · Java/Python</span></div></article>'
-    )
-    _huawei_card = (
-        '<article class="module-card" data-module-id="huawei-od" data-category="企业题库" data-track="面试题库" '
-        'data-search="华为 od 机试题库 机考 真题">'
-        '<div class="card-head"><span class="module-icon" aria-hidden="true" '
-        'style="color:#c0392b;background:color-mix(in srgb,#c0392b 13%,transparent)">🖥</span>'
-        '<h2><a href="../books/huawei-od/index.html" target="_blank" rel="noopener noreferrer">华为 OD 机试题库</a></h2></div>'
-        '<div class="module-meta"><span>企业题库</span><span>321 题真题</span></div>'
-        '<div class="module-progress-row"><span class="module-note">华为 OD 机考真题</span></div></article>'
-    )
-    module_cards = _solutions_card + _huawei_card + _oj_card + _quiz_card + _ai_coding_card + "".join(f'<article class="module-card" data-module-id="{html.escape(str(module["id"]))}" data-category="{html.escape(module["category"])}" data-track="{html.escape(_track_of(module["category"]))}" data-search="{html.escape((module["title"] + " " + module["category"]).lower())}"><div class="card-head"><span class="module-icon" aria-hidden="true" style="color:{_cat_icon(module["category"])[1]};background:color-mix(in srgb,{_cat_icon(module["category"])[1]} 13%,transparent)">{_cat_icon(module["category"])[0]}</span><h2><a href="{html.escape(module["url"])}" target="_blank" rel="noopener noreferrer">{html.escape(module["title"])}</a></h2><span class="module-due-badge" data-module-due="{html.escape(str(module["id"]))}" hidden>待复习 0</span></div><div class="module-meta"><span>{html.escape(module["category"])}</span><span>{module["chapter_count"]} {module.get("unit", "章")}</span></div><div class="module-progress-row"><span class="module-progress-pct" data-module-pct="{module["id"]}">0%</span><div class="module-progress"><span data-module-progress="{module["id"]}" data-hue="{_cat_icon(module["category"])[1]}" style="width:0%;background:linear-gradient(90deg,{_cat_icon(module["category"])[1]},var(--success))"></span></div></div><a class="module-link" href="{html.escape(module["url"])}" target="_blank" rel="noopener noreferrer">进入课程 →</a></article>' for module in modules)
+    shelf_modules = [m for m in modules if m["id"] not in exam_shelf.TRACKED_MODULES]
+    module_cards = exam_card + "".join(f'<article class="module-card" data-module-id="{html.escape(str(module["id"]))}" data-category="{html.escape(module["category"])}" data-track="{html.escape(_track_of(module["category"]))}" data-search="{html.escape((module["title"] + " " + module["category"]).lower())}"><div class="card-head"><span class="module-icon" aria-hidden="true" style="color:{_cat_icon(module["category"])[1]};background:color-mix(in srgb,{_cat_icon(module["category"])[1]} 13%,transparent)">{_cat_icon(module["category"])[0]}</span><h2><a href="{html.escape(module["url"])}" target="_blank" rel="noopener noreferrer">{html.escape(module["title"])}</a></h2><span class="module-due-badge" data-module-due="{html.escape(str(module["id"]))}" hidden>待复习 0</span></div><div class="module-meta"><span>{html.escape(module["category"])}</span><span>{module["chapter_count"]} {module.get("unit", "章")}</span></div><div class="module-progress-row"><span class="module-progress-pct" data-module-pct="{module["id"]}">0%</span><div class="module-progress"><span data-module-progress="{module["id"]}" data-hue="{_cat_icon(module["category"])[1]}" style="width:0%;background:linear-gradient(90deg,{_cat_icon(module["category"])[1]},var(--success))"></span></div></div><a class="module-link" href="{html.escape(module["url"])}" target="_blank" rel="noopener noreferrer">进入课程 →</a></article>' for module in shelf_modules)
     # ---- 两层导航数据：学习形态（顶层）+ 分类（第二层）----
     # 每个形态下的分类按「模块数从多到少」排，常用的靠前。
-    track_stats = []          # [(track, icon, desc, [(cat, count), ...], module_count, chapter_count)]
+    shelf_categories = ["企业题库", *(m["category"] for m in shelf_modules)]
+    track_stats = []
     for track_name, track_desc, track_icon in _TRACKS:
-        cats = [c for c in dict.fromkeys(str(m["category"]) for m in modules)
-                if _track_of(c) == track_name]
-        # 先统计每个分类的模块数，再按数量降序（同数量按名称）排列。
         cat_counts = {}
-        for cat_name in cats:
-            cat_counts[cat_name] = 0
-        for m in modules:
-            cat_key = str(m["category"])
-            if cat_key in cat_counts:
-                cat_counts[cat_key] += 1
+        for category in shelf_categories:
+            if _track_of(category) == track_name:
+                cat_counts[category] = cat_counts.get(category, 0) + 1
         cat_items = sorted(cat_counts.items(), key=lambda kv: (-kv[1], kv[0]))
-        mod_n = len([m for m in modules if _track_of(m["category"]) == track_name])
-        ch_n = sum(m["chapter_count"] for m in modules if _track_of(m["category"]) == track_name)
-        track_stats.append((track_name, track_icon, track_desc, cat_items, mod_n, ch_n))
+        track_stats.append((track_name, track_icon, track_desc, cat_items, sum(cat_counts.values())))
 
     track_cards = "".join(
         f'<button type="button" class="track-card" data-track-filter="{html.escape(name)}">'
         f'<span class="track-ico" aria-hidden="true">{icon}</span>'
         f'<span class="track-body"><strong>{html.escape(name)}</strong>'
         f'<span class="track-desc">{html.escape(desc)}</span>'
-        f'<span class="track-meta">{mod_n} 个模块 · {ch_n} 章 · '
+        f'<span class="track-meta">{mod_n} 个入口 · '
         f'{html.escape("、".join(c for c, _ in cat_items[:3]))}</span></span>'
         f'<span class="track-go" aria-hidden="true">→</span></button>'
-        for name, icon, desc, cat_items, mod_n, ch_n in track_stats
+        for name, icon, desc, cat_items, mod_n in track_stats
     )
 
     track_cards += (
@@ -2773,7 +2800,7 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
 
     # 分类胶囊按形态分组渲染：切到某个形态时只显示该形态的分类，减少干扰。
     cat_groups = []
-    for name, _, _, cat_items, _, _ in track_stats:
+    for name, _, _, cat_items, _ in track_stats:
         chips = "".join(
             f'<button type="button" data-cat-filter="{html.escape(cat)}">'
             f'{_cat_icon(cat)[0]} {html.escape(cat)}<span class="chip-n">{n}</span></button>'
@@ -2788,89 +2815,13 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
 <div class="shelf-nav" aria-label="书架导航">
   <div class="track-row">{track_cards}</div>
   <div class="shelf-tools">
-    <label class="shelf-search"><span class="sr-only">搜索课程</span><input id="shelfSearch" type="search" placeholder="搜索课程名或分类…" autocomplete="off"></label>
+    <label class="shelf-search"><span class="sr-only">搜索书籍、章节和题目</span><input id="shelfSearch" type="search" placeholder="搜索书籍、章节和题目…" autocomplete="off"></label>
+    <label id="shelfScopeLabel" hidden><input type="checkbox" id="shelfScope"> 仅搜索当前分类</label>
     <div class="chip-row" id="chipRow" aria-label="分类筛选" hidden><button type="button" data-cat-filter="" class="active">本类全部<span class="chip-n" id="chipAllCount"></span></button>{cat_groups_html}</div>
     <p class="shelf-result" id="shelfResult" aria-live="polite"></p>
   </div>
 </div>
-<main class="module-grid" id="moduleGrid">{module_cards}</main><section class="fav-entry" aria-label="收藏中心"><a class="fav-entry-card" href="../pages/favorites.html"><span class="fav-entry-ico" aria-hidden="true">⭐</span><span class="fav-entry-body"><strong>我的收藏</strong><span>集中查看你在题目和章节里收藏的内容，可按来源筛选</span></span><span class="fav-entry-count" id="favEntryCount" hidden></span><span class="fav-entry-go" aria-hidden="true">→</span></a></section><section id="chapterHits" class="chapter-hits" aria-label="章节搜索结果" hidden><div class="hits-head"><h2>章节内容匹配</h2><span id="hitsCount" class="hits-count"></span></div><div id="hitsBody" class="hits-body"></div></section></div><script src="../assets/shelf-filters.js?v=1"></script><script>
-(function(){{
-  var idx=null, loading=false, timer=null;
-  var hits=document.getElementById("chapterHits"), hitsBody=document.getElementById("hitsBody"),
-      hitsCount=document.getElementById("hitsCount");
-  var box=document.getElementById("shelfSearch");
-  if(!box)return;
-  function esc(s){{return String(s).replace(/[&<>"']/g,function(c){{return {{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}}[c]}})}}
-  function hl(s,q){{var t=String(s),i=t.toLowerCase().indexOf(q);if(i<0)return esc(t);
-    return esc(t.slice(0,i))+"<mark>"+esc(t.slice(i,i+q.length))+"</mark>"+esc(t.slice(i+q.length))}}
-  // 范围：当前可见的模块（由形态/分类筛选决定）
-  function scope(){{
-    // 直接从卡片属性 + 当前筛选状态计算，避免依赖 DOM 渲染时序
-    var st=window.__shelfState||{{track:"",cat:""}};
-    var allow=[];
-    [].slice.call(document.querySelectorAll("#moduleGrid .module-card")).forEach(function(c){{
-      var okT=!st.track||c.dataset.track===st.track;
-      var okC=!st.cat||c.dataset.category===st.cat;
-      if(okT&&okC){{
-        var id=c.getAttribute("data-module-id");
-        if(!id){{var a=c.querySelector("a");if(a)id=(a.getAttribute("href")||"").split("/")[0];}}
-        if(id)allow.push(id);
-      }}
-    }});
-    return allow;
-  }}
-  function score(e,q){{
-    var t=(e.title||"").toLowerCase(),m=(e.module_title||"").toLowerCase(),x=(e.text||"").toLowerCase(),s=0;
-    if(t.indexOf(q)>=0)s+=60;
-    if(m.indexOf(q)>=0)s+=20;
-    var at=x.indexOf(q);if(at>=0)s+=30+Math.max(0,10-Math.floor(at/200));
-    return s;
-  }}
-  function render(q){{
-    if(!hits||!hitsBody)return;
-    if(!q||!idx){{hits.hidden=true;return;}}
-    var allow=scope();
-    var list=idx.filter(function(e){{return (allow.indexOf(e.module_id)>=0)&&score(e,q)>0;}})
-                .sort(function(a,b){{return score(b,q)-score(a,q);}});
-    if(!list.length){{hits.hidden=true;return;}}
-    var shown=list.slice(0,30);
-    if(hitsCount)hitsCount.textContent="共 "+list.length+" 章"+(list.length>shown.length?"，显示前 30 条":"");
-    var groups={{}};
-    shown.forEach(function(e){{(groups[e.module_title]=groups[e.module_title]||[]).push(e);}});
-    hitsBody.innerHTML=Object.keys(groups).map(function(mod){{
-      return '<div class="hit-group"><div class="hit-mod">'+esc(mod)+' · '+groups[mod].length+'</div>'+
-        groups[mod].map(function(e){{
-          var txt=(e.text||"").replace(/\s+/g," ").trim(),at=txt.toLowerCase().indexOf(q);
-          var snip=at<0?"":(at>0?"…":"")+hl(txt.slice(Math.max(0,at-40),at+q.length+70),q)+(at+q.length+70<txt.length?"…":"");
-          return '<a class="hit-item" href="'+esc(e.url)+'" target="_blank" rel="noopener noreferrer">'+
-                 '<span class="hit-title">'+hl(e.title,q)+'</span>'+
-                 (snip?'<span class="hit-snip">'+snip+'</span>':'')+'</a>';
-        }}).join('')+'</div>';
-    }}).join('');
-    hits.hidden=false;
-  }}
-  function ensure(cb){{
-    if(idx){{cb();return;}}
-    if(loading)return;
-    loading=true;
-    if(hitsCount)hitsCount.textContent="正在加载全文索引…";
-    fetch("search-index.json").then(function(r){{return r.ok?r.json():Promise.reject();}})
-      .then(function(d){{idx=d;loading=false;cb();}})
-      .catch(function(){{loading=false;if(hitsCount)hitsCount.textContent="索引加载失败，请稍后重试";}});
-  }}
-  // 项目笔记在当前分类内按书名和简介搜索。
-  document.addEventListener("shelf-filter-change",function(){{
-    clearTimeout(timer);
-    var q=box.value.trim().toLowerCase();
-    var notes=document.getElementById("projectNotesTrack");
-    if(!q||window.__shelfState.track===notes.dataset.trackFilter){{
-      hits.hidden=true;return;
-    }}
-    timer=setTimeout(function(){{ensure(function(){{
-      render(box.value.trim().toLowerCase());
-    }});}},220);
-  }});
-}})();</script><script>function fetchWithTimeout(input,options,timeout=12000){{const controller=new AbortController();const request=Object.assign({{}},options||{{}},{{signal:controller.signal}});const timer=setTimeout(()=>controller.abort(),timeout);return fetch(input,request).finally(()=>clearTimeout(timer));}}fetch('/api/library',{{cache:'no-store'}}).then(r=>r.ok?r.json():Promise.reject()).then(data=>document.querySelectorAll('[data-module-progress]').forEach(bar=>{{const info=data.modules[bar.dataset.moduleProgress]||{{completed:0,total:1}};const pct=Math.round(info.completed/info.total*100);bar.style.width=`${{pct}}%`;const pctEl=document.querySelector(`[data-module-pct="${{bar.dataset.moduleProgress}}"]`);if(pctEl)pctEl.textContent=pct+'%'}})).catch(()=>{{}});fetch('/api/favorites',{{cache:'no-store'}}).then(function(r){{return r.ok?r.json():Promise.reject()}}).then(function(d){{var n=(d.stats&&d.stats.__total__)||0;var el=document.getElementById('favEntryCount');if(el&&n){{el.textContent=n+' 条';el.hidden=false;}}}}).catch(function(){{}});fetch('/api/daily',{{cache:'no-store'}}).then(r=>r.ok?r.json():Promise.reject()).then(daily=>{{const summary=daily.summary||{{}};const total=summary.contents||0,overdue=summary.overdue_contents||0;const el=document.getElementById('shelfDueSummary');if(el){{el.innerHTML=total?`<span><strong>全书架待复习 ${{total}} 章</strong>${{overdue?`（逾期 ${{overdue}}）`:''}}，完成一轮后自动推进下次复习</span><a class="shelf-due-go" href="#moduleGrid">去各模块复习 →</a>`:`<span>今日全书架没有到期章节，可以继续学习新内容。</span>`}}document.querySelectorAll('[data-module-due]').forEach(badge=>{{const info=(summary.modules||{{}})[badge.dataset.moduleDue];if(info&&info.due){{badge.hidden=false;badge.textContent=`待复习 ${{info.due}}`;badge.classList.toggle('overdue',(info.overdue||0)>0)}}}})}}).catch(()=>{{}});</script>'''
+<h2 id="shelfBookHeading" hidden>书籍</h2><main class="module-grid" id="moduleGrid">{module_cards}</main><section id="chapterHits" class="chapter-hits" aria-label="章节和题目搜索结果" hidden></section><section class="fav-entry" aria-label="收藏中心"><a class="fav-entry-card" href="../pages/favorites.html"><span class="fav-entry-ico" aria-hidden="true">⭐</span><span class="fav-entry-body"><strong>我的收藏</strong><span>集中查看你在题目和章节里收藏的内容，可按来源筛选</span></span><span class="fav-entry-count" id="favEntryCount" hidden></span><span class="fav-entry-go" aria-hidden="true">→</span></a></section></div><script src="../assets/shelf-filters.js?v=2"></script><script>function fetchWithTimeout(input,options,timeout=12000){{const controller=new AbortController();const request=Object.assign({{}},options||{{}},{{signal:controller.signal}});const timer=setTimeout(()=>controller.abort(),timeout);return fetch(input,request).finally(()=>clearTimeout(timer));}}fetch('/api/library',{{cache:'no-store'}}).then(r=>r.ok?r.json():Promise.reject()).then(data=>document.querySelectorAll('[data-module-progress]').forEach(bar=>{{const info=data.modules[bar.dataset.moduleProgress]||{{completed:0,total:1}};const pct=Math.round(info.completed/info.total*100);bar.style.width=`${{pct}}%`;const pctEl=document.querySelector(`[data-module-pct="${{bar.dataset.moduleProgress}}"]`);if(pctEl)pctEl.textContent=pct+'%'}})).catch(()=>{{}});fetch('/api/favorites',{{cache:'no-store'}}).then(function(r){{return r.ok?r.json():Promise.reject()}}).then(function(d){{var n=(d.stats&&d.stats.__total__)||0;var el=document.getElementById('favEntryCount');if(el&&n){{el.textContent=n+' 条';el.hidden=false;}}}}).catch(function(){{}});fetch('/api/daily',{{cache:'no-store'}}).then(r=>r.ok?r.json():Promise.reject()).then(daily=>{{const summary=daily.summary||{{}};const total=summary.contents||0,overdue=summary.overdue_contents||0;const el=document.getElementById('shelfDueSummary');if(el){{el.innerHTML=total?`<span><strong>全书架待复习 ${{total}} 章</strong>${{overdue?`（逾期 ${{overdue}}）`:''}}，完成一轮后自动推进下次复习</span><a class="shelf-due-go" href="#moduleGrid">去各模块复习 →</a>`:`<span>今日全书架没有到期章节，可以继续学习新内容。</span>`}}document.querySelectorAll('[data-module-due]').forEach(badge=>{{const info=(summary.modules||{{}})[badge.dataset.moduleDue];if(info&&info.due){{badge.hidden=false;badge.textContent=`待复习 ${{info.due}}`;badge.classList.toggle('overdue',(info.overdue||0)>0)}}}})}}).catch(()=>{{}});</script>'''
 
     # 书架总页的两次状态请求使用统一超时，并在失败时给出可重试的可见提示；
     # 这里集中后处理长模板字符串，避免维护难以阅读的单行 HTML。
@@ -2910,6 +2861,7 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
     index_body = index_body.replace("fetchWithTimeout('/api/favorites'", "guestAuth.request('/api/favorites'", 1)
     index_body = index_body.replace("fetchWithTimeout('/api/daily'", "guestAuth.request('/api/daily'", 1)
     index_body = private_shelf_entry(index_body)
+    index_body = shelf_reading_entry(index_body)
     # Windows 上索引页可能被浏览器/杀毒软件短暂占用；先写同目录临时文件再
     # 原子替换，避免直接截断写入偶发 OSError 后留下半个页面。
     # 书架首页也要加载埋点脚本（搜索关键词上报）
@@ -2920,10 +2872,6 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
     index_tmp = OUTPUT_ROOT / "index.html.building"
     index_tmp.write_text(document("学习书架 · InterviewForge", index_body, "assets/library.css"), encoding="utf-8")
     os.replace(index_tmp, index_path)
-    build_cache.save_cache(HOT100_ROOT, cache)
-    # 构建收尾统计(模块总数/章节总数)，供命令行确认与构建日志留痕；
-    # modules 含 Hot 100 模块，章节总数恒 ≥ 题目数 + 课程章节数。
-    print(f"Library modules: {len(modules)}; chapters: {sum(module['chapter_count'] for module in modules)}")
 
 
 # 入口约定：直接运行本文件 = 只重建书架；
