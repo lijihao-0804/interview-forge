@@ -1,5 +1,6 @@
 """Create a per-lesson reader for the local and deployed Chrome evidence."""
 import argparse
+import hashlib
 from collections import Counter
 from html import escape
 import json
@@ -15,6 +16,15 @@ def read(path):
     records = [json.loads(line) for line in path.read_bytes().splitlines()]
     keyed = {(r["id"], r["viewport"][0]):r for r in records}
     assert len(records) == len(keyed), "Duplicate lesson/viewport"
+    root = Path(__file__).resolve().parents[2]
+    catalog = json.loads((root/"data/acm/hot200-extra.json").read_bytes())
+    assert set(keyed) == {(row["id"], w) for row in catalog for w in (390,2560)}, "Incomplete lesson coverage"
+    for row in catalog:
+        for width in (390,2560):
+            record = keyed[row["id"], width]
+            if not record["issues"]:
+                assert len(record["examples"]) == len(row["samples"]) + 1
+                assert all(len(e["history"]) == e["steps"] for e in record["examples"])
     return keyed
 
 
@@ -22,6 +32,11 @@ def render(path, evidence, key, record):
     if not record:
         return "<p>尚无记录</p>"
     blocks = []
+    if record.get("lesson_capture") and evidence:
+        folder = evidence / record["id"]
+        target = folder / record["lesson_capture"]["path"]
+        link = os.path.relpath(target,path.parent).replace(os.sep,"/")
+        blocks.append(f'<p><a href="{escape(link,quote=True)}">题解整页视口截图</a></p>')
     for item in record["examples"]:
         rows = []
         for step in item["history"]:
@@ -43,6 +58,21 @@ def render(path, evidence, key, record):
     return f"<h4>{pretty(key)} · {record['viewport'][0]} × {record['viewport'][1]} · {pretty(issues)}</h4>"+ "".join(blocks)
 
 
+def verify_images(records, folder):
+    if not folder:
+        return
+    for record in records.values():
+        captures = []
+        if "lesson_capture" in record:
+            lesson = record["lesson_capture"]
+            captures.append((folder/record["id"]/lesson["path"], lesson["sha256"]))
+        for item in record["examples"]:
+            for image_key, hash_key in (("start_screenshot","start_sha256"),("screenshot","sha256")):
+                captures.append((folder/item[image_key],item[hash_key]))
+        for path, digest in captures:
+            assert hashlib.sha256(path.read_bytes()).hexdigest() == digest, f"Screenshot hash mismatch: {path}"
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--local",type=Path,required=True)
@@ -56,6 +86,7 @@ def main():
     lessons = []
     root = Path(__file__).resolve().parents[2]
     for title,records,evidence in stages:
+        verify_images(records,evidence)
         total = Counter()
         for rec in records.values():
             total.update(visits=1,examples=len(rec["examples"]),steps=sum(e["steps"] for e in rec["examples"]),
