@@ -519,13 +519,13 @@
     }
     return { passed: passed, failed: failed, review: review, uncertain: uncertain, executed: executed, summary: summary };
   }
-  function showProgress(status) {
+  function showProgress(status, rounds) {
     var chip = $('native-progress');
     var labels = {
       accepted: '已通过 · AC', attempted: '已尝试', unattempted: '未做',
       loading: '读取中', guest: '登录后查看', unavailable: '暂时无法读取'
     };
-    chip.textContent = '本题状态 · ' + labels[status];
+    chip.textContent = languageLabel() + ' · ' + labels[status] + (typeof rounds === 'number' ? ' · ' + rounds + ' 轮' : '');
     chip.hidden = false;
   }
   async function refreshHistory() {
@@ -580,7 +580,7 @@
     var request = ++progressRequest;
     showProgress('loading');
     try {
-      var response = await fetch('/api/practice/hot100/status', { credentials: 'same-origin', cache: 'no-store' });
+      var response = await fetch('/api/practice/hot100/status?details=1', { credentials: 'same-origin', cache: 'no-store' });
       var data = response.ok ? await response.json() : null;
       if (request !== progressRequest) return;
       var owner = data && data.username || null;
@@ -591,8 +591,12 @@
       }
       progressOwner = owner;
       if (response.status === 401) showProgress('guest');
-      else if (!response.ok || !data || !data.statuses) showProgress('unavailable');
-      else showProgress(data.statuses[context.id.split('-')[1]] || 'unattempted');
+      else if (!response.ok || !data || !data.progress) showProgress('unavailable');
+      else {
+        var problem = data.progress[context.id];
+        var scoped = problem && problem.by_language[currentLanguage];
+        showProgress(scoped ? scoped.status : 'unattempted', scoped ? scoped.rounds : 0);
+      }
     } catch (_) {
       if (request === progressRequest) showProgress('unavailable');
     }
@@ -809,6 +813,7 @@
         history.replaceState(null, '', url.toString());
       } catch (_) {}
       loadLanguage(this.value);
+      if (context && isNative(context.id)) refreshProgress();
     });
     $('template-select').addEventListener('change', function () {
       if (context || !Object.hasOwn(templates, this.value)) return;

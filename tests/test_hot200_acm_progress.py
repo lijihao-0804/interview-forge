@@ -4,6 +4,7 @@ import mimetypes
 import os
 import shutil
 import subprocess
+from contextlib import closing
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
@@ -15,7 +16,8 @@ from interview_forge.api.routers import practice
 from interview_forge.core import default_runtime
 from interview_forge.core.problem_catalog import LEETCODE_SLUGS
 from interview_forge.core.runtime import server_runtime
-from interview_forge.services.auth import create_session, create_user
+from interview_forge.services.auth import create_session, create_user, user_db_path
+from interview_forge.services import hot200, study
 
 ROOT = Path(__file__).resolve().parents[1]
 API = "/api/practice/hot100"
@@ -102,6 +104,39 @@ def test_wa_to_ac_is_per_account_and_problem_across_languages(accounts, monkeypa
     assert alice.get(f"{API}/status").json()["statuses"] == {"1": "accepted", "186": "accepted"}
 
 
+def test_existing_native_receipts_count_ac_days_per_bank_and_language(accounts):
+    alice, bob = accounts
+    db = user_db_path("AcmAlpha")
+    with closing(server_runtime.connect(db)) as conn, conn:
+        for key in ("hot100-1", "hot200-186"):
+            # Midnight in China splits the first two receipts. Repeating the same
+            # day and the latest WA must preserve two rounds, including on upgrade.
+            for stamp, accepted in (("2026-11-12 15:59:59", 1), ("2026-11-12 16:00:00", 1),
+                                    ("2026-11-13 08:00:00", 1), ("2026-11-13 08:00:01", 0)):
+                conn.execute("INSERT INTO acm_submissions(problem_key,language,code,accepted,submitted_at) "
+                             "VALUES(?,'java','',?,?)", (key, accepted, stamp))
+        # A provider AC on an already practised day adds an attempt, not a round.
+        conn.execute("INSERT INTO submissions(problem_id,status,lang,submitted_at) "
+                     "VALUES(1,'ac','Java','2026-11-13T08:00:00+08:00')")
+    result = alice.get(f"{API}/status?details=1").json()["progress"]
+    for key in ("hot100-1", "hot200-186"):
+        assert result[key] == {"rounds": 2, "status": "accepted",
+                               "by_language": {"java": {"rounds": 2, "status": "accepted"}}}
+    for row in (study.problem_progress(1, db), study.dashboard_data(db)["problems"]["1"],
+                hot200.progress(db, 186), hot200.snapshot(db)["dashboard"]["problems"]["186"]):
+        assert row["rounds"] == row["by_language"]["java"]["rounds"] == 2
+        assert "python" not in row["by_language"]
+    assert bob.get(f"{API}/status?details=1").json()["progress"] == {}
+    with closing(server_runtime.connect(db)) as conn, conn:
+        conn.execute("INSERT INTO acm_submissions(problem_key,language,code,accepted,submitted_at) "
+                     "VALUES('hot100-1','python','',1,'2026-11-12 16:01:00'),"
+                     "('hot200-186','python','',0,'2026-11-12 16:01:00')")
+    result = alice.get(f"{API}/status?details=1").json()["progress"]
+    assert result["hot100-1"]["rounds"] == result["hot200-186"]["rounds"] == 2
+    assert result["hot100-1"]["by_language"]["python"] == {"rounds": 1, "status": "accepted"}
+    assert result["hot200-186"]["by_language"]["python"] == {"rounds": 0, "status": "attempted"}
+
+
 @pytest.mark.skipif(os.getenv("FORGE_ACM_BROWSER_ACCEPTANCE") != "1", reason="optional Chrome and JDK acceptance")
 def test_playground_and_dashboard_follow_real_submissions(accounts, monkeypatch, tmp_path):
     """Browser requests use isolated app sessions; the runner accepts only these two trusted programs."""
@@ -160,6 +195,7 @@ public class Main {
                 page.locator("#showAll").click()
                 cards = page.locator(".practice-links")
                 expect(cards).to_have_count(100)
+                page.locator("#progressLanguage").select_option("")
                 ids = cards.locator('a:has-text("本站 ACM")').evaluate_all("(xs) => xs.map(x => x.href)")
                 assert len(set(ids)) == 100 and all(f"id={bank}-" in link for link in ids)
                 assert all(link.startswith("https://leetcode.cn/problems/") for link in
@@ -180,7 +216,8 @@ public class Main {
                 badge = page.locator(f'[data-acm-problem="{pid}"]')
                 if account_index == 0:
                     for lang, program, status in (("python", wrong, "已尝试"), ("java", java, "已通过"),
-                                                   ("python", wrong, "已通过")):
+                                                   ("python", wrong, "已尝试")):
+                        page.locator("#progressLanguage").select_option(lang)
                         playground.locator("#language-select").select_option(lang)
                         playground.locator("#code-editor").fill(program)
                         with playground.expect_response(lambda r: r.url.endswith(API + "/submit")) as submitted:
@@ -188,6 +225,6 @@ public class Main {
                         assert submitted.value.ok and submitted.value.json()["accepted"] == (lang == "java")
                         expect(chip).to_contain_text(status)
                         page.evaluate("window.dispatchEvent(new Event('focus'))")
-                        expect(badge).to_have_text("ACM " + status)
+                        expect(badge).to_contain_text(f"ACM {lang.title()} {status}")
             context.close()
         browser.close()

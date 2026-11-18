@@ -118,8 +118,12 @@ async def hot100_status(request: Request):
     user, denied = await async_require_user(request)
     if denied is not None:
         return denied
-    values = await asyncio.to_thread(native_acm.statuses, user_db(user))
-    return json_response({"statuses": values, "username": user["username"]}, headers={"Cache-Control": "private, no-store"})
+    if request.query_params.get("details") == "1":
+        progress = await asyncio.to_thread(native_acm.practice_progress, user_db(user))
+        payload = {"progress": progress}
+    else:
+        payload = {"statuses": await asyncio.to_thread(native_acm.statuses, user_db(user))}
+    return json_response({**payload, "username": user["username"]}, headers={"Cache-Control": "private, no-store"})
 
 
 @router.get("/api/practice/hot100/problem/{key}")

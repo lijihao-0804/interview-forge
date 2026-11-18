@@ -38,7 +38,7 @@ def problem_language_progress(
                    COUNT(DISTINCT CASE WHEN status = 'ac' THEN date(submitted_at, '+8 hours') END) AS rounds,
                    COUNT(*) AS submits, SUM(status = 'ac') AS ac_submits,
                    strftime('%Y-%m-%dT%H:%M:%fZ', MAX(julianday(submitted_at))) AS last_submitted_at
-            FROM submissions {where}
+            FROM hot100_learning_submissions {where}
             GROUP BY problem_id, language""",
         (problem_id,) if problem_id is not None else (),
     )
@@ -98,7 +98,7 @@ def submissions_for_problem(problem_id: int, limit: int = 50, db_path: Path = DB
     with closing(runtime.connect(db_path)) as connection:
         for row in connection.execute(
             """SELECT id, problem_id, status, lang, runtime_ms, memory_kb, submitted_at, source
-               FROM submissions WHERE problem_id = ? ORDER BY julianday(submitted_at) DESC, id DESC LIMIT ?""",
+               FROM hot100_learning_submissions WHERE problem_id = ? ORDER BY julianday(submitted_at) DESC, ABS(id) DESC, id DESC LIMIT ?""",
             (problem_id, min(max(limit, 1), 200)),
         ):
             rows.append({**dict(row), "language_key": submission_language_key(row["lang"])})
@@ -121,19 +121,19 @@ def submission_summary_from_connection(connection: sqlite3.Connection, today: st
              COALESCE(SUM(CASE WHEN status = 'ac' THEN 1 ELSE 0 END), 0) AS total_ac,
              COUNT(DISTINCT CASE WHEN status = 'ac' THEN problem_id END) AS solved_ac,
              COUNT(*) AS total_submits
-           FROM submissions""",
+           FROM hot100_learning_submissions""",
         (today, today),
     ).fetchone()
     problem_rows = connection.execute(
         """SELECT problem_id, MAX(status = 'ac') AS ever_ac, COUNT(*) AS submits,
                   SUM(status = 'ac') AS ac_submits
-           FROM submissions GROUP BY problem_id"""
+           FROM hot100_learning_submissions GROUP BY problem_id"""
     ).fetchall()
     last_rows = connection.execute(
         """SELECT problem_id, status, submitted_at FROM (
                SELECT problem_id, status, submitted_at, ROW_NUMBER() OVER (
-                   PARTITION BY problem_id ORDER BY julianday(submitted_at) DESC, id DESC
-               ) AS newest FROM submissions
+                   PARTITION BY problem_id ORDER BY julianday(submitted_at) DESC, ABS(id) DESC, id DESC
+               ) AS newest FROM hot100_learning_submissions
            ) WHERE newest = 1"""
     ).fetchall()
     summary = {key: int(value or 0) for key, value in dict(row).items()}

@@ -567,7 +567,7 @@ def complete_round(
         ).fetchall()
         submission_dates = connection.execute(
             "SELECT DISTINCT date(submitted_at, '+8 hours') AS study_date "
-            "FROM submissions WHERE problem_id = ? AND status = 'ac'",
+            "FROM hot100_learning_submissions WHERE problem_id = ? AND status = 'ac'",
             (problem_id,),
         ).fetchall()
         completed_dates = {row["study_date"] for row in event_rows + submission_dates if row["study_date"]}
@@ -692,7 +692,7 @@ def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
                       COUNT(DISTINCT date(submitted_at, '+8 hours')) AS rounds,
                       MAX(submitted_at) AS last_completed_at,
                       MAX(date(submitted_at, '+8 hours')) AS last_ac_date
-               FROM submissions WHERE status = 'ac' GROUP BY problem_id"""
+               FROM hot100_learning_submissions WHERE status = 'ac' GROUP BY problem_id"""
         ).fetchall()
         review_due = {
             (str(row["target_type"]), str(row["target_id"])): str(row["due_date"])
@@ -710,7 +710,7 @@ def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
             """SELECT
                  COUNT(DISTINCT CASE WHEN date(submitted_at, '+8 hours') = ? THEN problem_id END) AS today_rounds,
                  COUNT(DISTINCT problem_id) AS completed_problems
-               FROM submissions WHERE status = 'ac'""",
+               FROM hot100_learning_submissions WHERE status = 'ac'""",
             (today,),
         ).fetchone()
         total_rounds = _curriculum_rounds([row["rounds"] for row in ac_rows])
@@ -719,7 +719,7 @@ def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
         recent_submissions = [
             dict(row) for row in connection.execute(
                 """SELECT problem_id, status, lang, submitted_at, source
-                   FROM submissions ORDER BY submitted_at DESC, id DESC LIMIT 10000"""
+                   FROM hot100_learning_submissions ORDER BY julianday(submitted_at) DESC, ABS(id) DESC, id DESC LIMIT 10000"""
             )
         ]
         view_events = connection.execute(
@@ -730,7 +730,7 @@ def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
             """SELECT problem_id,
                       date(submitted_at, '+8 hours') AS study_date,
                       MAX(submitted_at) AS studied_at
-               FROM submissions WHERE status = 'ac'
+               FROM hot100_learning_submissions WHERE status = 'ac'
                GROUP BY problem_id, study_date"""
         ).fetchall()
         # 每日每题只产生一条 complete 事件，round_no 按该题的 AC 日期自然顺序编号。
@@ -755,7 +755,7 @@ def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
         ac_days = connection.execute(
             """SELECT date(submitted_at, '+8 hours') AS study_date,
                       COUNT(DISTINCT problem_id) AS rounds
-               FROM submissions WHERE status = 'ac' GROUP BY study_date"""
+               FROM hot100_learning_submissions WHERE status = 'ac' GROUP BY study_date"""
         ).fetchall()
         content_days = connection.execute(
             """SELECT date(studied_at, '+8 hours') AS study_date,
@@ -765,13 +765,13 @@ def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
         ).fetchall()
         submission_days = connection.execute(
             """SELECT date(submitted_at, '+8 hours') AS study_date, COUNT(1) AS submits
-               FROM submissions GROUP BY study_date"""
+               FROM hot100_learning_submissions GROUP BY study_date"""
         ).fetchall()
         first_solved_days = connection.execute(
             """SELECT date(first_ac_at, '+8 hours') AS study_date, COUNT(*) AS newly_solved
                FROM (
                    SELECT problem_id, MIN(submitted_at) AS first_ac_at
-                   FROM submissions WHERE status = 'ac' GROUP BY problem_id
+                   FROM hot100_learning_submissions WHERE status = 'ac' GROUP BY problem_id
                ) GROUP BY study_date"""
         ).fetchall()
         active_dates = {
@@ -1043,7 +1043,7 @@ def _ac_problem_progress_from_connection(connection) -> dict[int, dict[str, obje
         """SELECT problem_id,
                   COUNT(DISTINCT date(submitted_at, '+8 hours')) AS rounds,
                   MAX(submitted_at) AS last_completed_at
-           FROM submissions WHERE status = 'ac' GROUP BY problem_id"""
+           FROM hot100_learning_submissions WHERE status = 'ac' GROUP BY problem_id"""
     ).fetchall()
     return {
         int(row["problem_id"]): {
@@ -1359,13 +1359,13 @@ def problem_progress(problem_id: int, db_path: Path = DB_PATH) -> dict[str, obje
                       SUM(CASE WHEN status = 'ac' THEN 1 ELSE 0 END) AS ac_submits,
                       COUNT(*) AS submits,
                       MAX(CASE WHEN status = 'ac' THEN submitted_at END) AS last_ac_at
-               FROM submissions WHERE problem_id = ?""",
+               FROM hot100_learning_submissions WHERE problem_id = ?""",
             (problem_id,),
         ).fetchone()
         languages = problem_language_progress(connection, problem_id).get(problem_id, {})
         last_submission = connection.execute(
-            "SELECT status, submitted_at FROM submissions WHERE problem_id = ? "
-            "ORDER BY julianday(submitted_at) DESC, id DESC LIMIT 1",
+            "SELECT status, submitted_at FROM hot100_learning_submissions WHERE problem_id = ? "
+            "ORDER BY julianday(submitted_at) DESC, ABS(id) DESC, id DESC LIMIT 1",
             (problem_id,),
         ).fetchone()
         last_viewed = connection.execute(

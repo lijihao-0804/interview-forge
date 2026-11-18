@@ -5,6 +5,7 @@ from contextlib import closing
 from functools import lru_cache
 
 from interview_forge.core.paths import ROOT
+from interview_forge.core.runtime import server_runtime
 from interview_forge.db.connection import connect
 
 
@@ -58,6 +59,32 @@ def statuses(db):
         return {key.split("-")[1]: "accepted" if accepted else "attempted" for key, accepted in rows}
 
 
+def practice_progress(db):
+    """Count AC days from the full submission ledger, including pre-upgrade attempts."""
+    with closing(connect(db)) as conn:
+        rows = conn.execute("""
+            WITH attempts AS (
+                SELECT problem_key, language, date(submitted_at, '+8 hours') AS study_day, accepted
+                FROM acm_submissions
+            ), scopes AS (
+                SELECT * FROM attempts
+                UNION ALL SELECT problem_key, '', study_day, accepted FROM attempts
+            )
+            SELECT problem_key, language, MAX(accepted),
+                   COUNT(DISTINCT CASE WHEN accepted THEN study_day END)
+            FROM scopes GROUP BY problem_key, language
+        """)
+        problems = {}
+        for key, language, accepted, rounds in rows:
+            item = problems.setdefault(key, {"by_language": {}})
+            summary = {"status": "accepted" if accepted else "attempted", "rounds": rounds}
+            if language:
+                item["by_language"][language] = summary
+            else:
+                item.update(summary)
+        return problems
+
+
 def submission_summary(db, key):
     """Per-account, per-problem summary; source code is never selected."""
     with closing(connect(db)) as conn:
@@ -79,6 +106,7 @@ def save_submission(db, key, language, code, accepted):
     with closing(connect(db)) as conn, conn:
         conn.execute("INSERT INTO acm_submissions(problem_key,language,code,accepted) VALUES(?,?,?,?)",
                      (key, language, code, int(accepted)))
+    server_runtime._invalidate_learning_caches(db)
 
 
 def submission_history(db, key):

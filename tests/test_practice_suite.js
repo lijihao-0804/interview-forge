@@ -14,7 +14,7 @@ class Element {
   setAttribute(key, value) { this.attrs[key]=value; }
   getAttribute(key) { return this.attrs[key] || ''; }
 }
-async function setup(responses, {guest=false, mode='tokens', samples=3, search='?id=one&lang=python', saved=new Map(), progress={username:'alice',statuses:{}}, missing=false, historyCalls=[]}={}) {
+async function setup(responses, {guest=false, mode='tokens', samples=3, search='?id=one&lang=python', saved=new Map(), progress={username:'alice',progress:{}}, missing=false, historyCalls=[]}={}) {
   const elements = new Map();
   const get = id => { if(!elements.has(id)) elements.set(id,new Element()); return elements.get(id); };
   const item = {id:'one',title:'测试题',url:'one.html',suite_version:'test',checker:{mode,reason:'多解'},codes:{python:'print(1)',java:'public class Main {}'},samples:Array.from({length:samples},(_,i)=>({input:String(i),expected:String(i),name:'边界'+i,source:i?'supplemental':'statement'}))};
@@ -44,7 +44,7 @@ async function setup(responses, {guest=false, mode='tokens', samples=3, search='
         return {ok:true,json:async()=>detail ? {username:'alice',code:'older code'} :
           {username:'alice',submissions:[{id:42,language:'python',accepted:false,submitted_at:'2026-11-18T01:00:00Z'}]}};
       }
-      if (url.endsWith('/status')) return {ok:!!progress.username,status:progress.username ? 200 : 401,json:async()=>progress};
+      if (url.endsWith('/status?details=1')) return {ok:!!progress.username,status:progress.username ? 200 : 401,json:async()=>progress};
       return {ok:!missing,json:async()=>native ? item : [item]};
     }};
   vm.runInNewContext(fs.readFileSync(require.resolve('../assets/practice-reference.js'),'utf8'),sandbox);
@@ -183,20 +183,23 @@ async function setup(responses, {guest=false, mode='tokens', samples=3, search='
   assert.match(ui.get('run-status').textContent,/已通过/);
   assert(nativeStorage.has('interviewforge.acm.updated'));
 
-  const progress = {username:'alice',statuses:{1:'accepted'}};
-  ui=await setup([{accepted:false,results:[{verdict:'fail'}]}],{search:'?id=hot100-1',progress});
-  assert.match(ui.get('native-progress').textContent,/已通过/);
+  const progress = {username:'alice',progress:{'hot100-1':{by_language:{java:{status:'accepted',rounds:2}}}}};
+  ui=await setup([{accepted:false,results:[{verdict:'fail'}]}],{search:'?id=hot100-1&lang=java',progress});
+  assert.match(ui.get('native-progress').textContent,/Java.*已通过.*2 轮/);
   await ui.click('judge-all-btn');
   assert.match(ui.get('native-progress').textContent,/已通过/);
   assert.match(ui.get('run-status').textContent,/本次提交未通过/);
-  progress.username='bob';progress.statuses={};
+  ui.change('language-select','python');
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.match(ui.get('native-progress').textContent,/Python.*未做.*0 轮/);
+  progress.username='bob';progress.progress={};
   await ui.events.focus();
   assert.match(ui.get('native-progress').textContent,/未做/);
   assert.equal(ui.get('suite-summary').textContent,'');
   progress.username='';
   await ui.events.pageshow();
   assert.match(ui.get('native-progress').textContent,/登录后查看/);
-  progress.username='carol';progress.statuses={1:'attempted'};
+  progress.username='carol';progress.progress={'hot100-1':{by_language:{python:{status:'attempted',rounds:0}}}};
   ui.events['interviewforge:auth-change']();
   await new Promise(resolve=>setTimeout(resolve,0));
   assert.match(ui.get('native-progress').textContent,/已尝试/);

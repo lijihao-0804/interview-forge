@@ -133,6 +133,21 @@ CREATE TABLE IF NOT EXISTS submissions (
     lc_id INTEGER
 );
 CREATE INDEX IF NOT EXISTS ix_submissions_problem ON submissions(problem_id, submitted_at DESC);
+-- User-facing learning projections. The provider ledger and native judge receipts
+-- retain their own identities. Existing receipts participate without a backfill.
+CREATE VIEW IF NOT EXISTS hot100_learning_submissions AS
+    SELECT id, problem_id, status, lang, runtime_ms, memory_kb, submitted_at, source FROM submissions
+    UNION ALL
+    SELECT -id, CAST(substr(problem_key, 8) AS INTEGER), CASE accepted WHEN 1 THEN 'ac' ELSE 'wa' END,
+           language, NULL, NULL, strftime('%Y-%m-%dT%H:%M:%S', submitted_at, '+8 hours') || '+08:00', 'acm'
+    FROM acm_submissions WHERE problem_key GLOB 'hot100-*';
+CREATE VIEW IF NOT EXISTS hot200_learning_submissions AS
+    SELECT content_id, status, language, submitted_at FROM supplement_submissions
+    UNION ALL
+    SELECT printf('hot200-extra:%04d', CAST(substr(problem_key, 8) AS INTEGER)),
+           CASE accepted WHEN 1 THEN 'ac' ELSE 'wa' END, language,
+           strftime('%Y-%m-%dT%H:%M:%S', submitted_at, '+8 hours') || '+08:00'
+    FROM acm_submissions WHERE problem_key GLOB 'hot200-*';
 CREATE TABLE IF NOT EXISTS plan_pins (
     problem_id INTEGER PRIMARY KEY,
     for_date TEXT NOT NULL,

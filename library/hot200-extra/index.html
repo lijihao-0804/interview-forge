@@ -439,7 +439,7 @@ html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--panel-so
       <div class="field"><label for="search">搜索</label><input id="search" type="search" placeholder="题号、题名或核心方法（/ 快速搜索）" aria-keyshortcuts="/" autocomplete="off"></div>
       <div class="field"><label for="difficulty">难度</label><select id="difficulty"><option value="">全部难度</option><option>简单</option><option>中等</option><option>困难</option></select></div>
       <div class="field"><label for="category">专题</label><select id="category"><option value="">全部专题</option></select></div>
-      <div class="field auth-private"><label for="progressLanguage">刷题语言</label><select id="progressLanguage" disabled><option value="">全部语言</option><option value="java">Java</option><option value="python">Python</option><option value="cpp">C++</option><option value="go">Go</option><option value="c">C</option></select></div>
+      <div class="field auth-private"><label for="progressLanguage">刷题语言</label><select id="progressLanguage" title="同题同语言按北京时间计轮，同一天多次通过算一轮" disabled><option value="">全部语言</option><option value="java">Java</option><option value="python">Python</option><option value="cpp">C++</option><option value="go">Go</option><option value="c">C</option></select></div>
       <div class="field auth-private" id="statusField"><label for="status">学习轮次</label><select id="status" disabled><option value="">全部轮次</option><option value="new">尚未完成（0 轮）</option><option value="once">完成 1 轮</option><option value="repeat">完成 2 轮及以上</option><option value="due">待复习（整题）</option><option value="weak">薄弱（整题）</option></select></div>
     </section>
     <div class="catalog-toolbar">
@@ -492,7 +492,7 @@ html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--panel-so
   <section class="track-section" aria-labelledby="trackTitle" id="activity" tabindex="-1">
     <div class="track-head"><h2 id="trackTitle">学习轨迹</h2><span id="heatmapDetail" class="track-sub">从首次学习至今；选择格子查看当日摘要，方向键可移动</span></div>
     <div id="heatmap" class="heatmap" role="list" aria-label="从首次学习至今的学习活跃热力图"></div>
-<div class="hm-legend" aria-hidden="true"><span>无</span><i class="hm-cell level-0"></i><span>低</span><i class="hm-cell level-1"></i><i class="hm-cell level-2"></i><i class="hm-cell level-3"></i><i class="hm-cell level-4"></i><span>高</span><span style="margin-left:8px">绿色深浅 = 当日力扣提交次数</span></div>
+<div class="hm-legend" aria-hidden="true"><span>无</span><i class="hm-cell level-0"></i><span>低</span><i class="hm-cell level-1"></i><i class="hm-cell level-2"></i><i class="hm-cell level-3"></i><i class="hm-cell level-4"></i><span>高</span><span style="margin-left:8px">绿色深浅 = 当日提交次数</span></div>
     <div class="track-head" style="margin-top:20px"><h3 id="trendTitle">近 14 天趋势</h3><span class="track-sub">每日看题与完成轮次</span></div>
     <div id="trend" class="trend-chart"></div>
   </section>
@@ -1002,19 +1002,30 @@ const acmBank='hot200';
 let nativeStatuses=null;
 let nativeStatusRequest=0;
 function paintNativeStatus(node){
-  const status=nativeStatuses?.[node.dataset.acmProblem];
+  const problem=nativeStatuses?.[acmBank+'-'+node.dataset.acmProblem];
+  const lang=progressLanguage.value;
+  const entry=lang?problem?.by_language[lang]:problem;
+  const status=entry?.status;
   node.dataset.state=status||'';
-  node.textContent=nativeStatuses?(status==='accepted'?'ACM 已通过':status==='attempted'?'ACM 已尝试':'ACM 未提交'):'';
+  if(nativeStatuses&&lang&&lang!=='python'&&lang!=='java'){
+    node.textContent='ACM 支持 Java、Python';
+    return;
+  }
+  const label=status==='accepted'?'已通过':status==='attempted'?'已尝试':'未提交';
+  const rounds=entry||lang?' · '+(entry?.rounds||0)+' 轮':'';
+  node.textContent=nativeStatuses?'ACM '+(lang?languageLabel(lang)+' ':'')+label+rounds:'';
 }
 async function refreshNativeStatuses(){
   if(authStatus!=='authenticated')return;
   const request=++nativeStatusRequest;
   try{
-    const response=await authenticatedFetch('/api/practice/hot100/status',{cache:'no-store'},'查看 ACM 记录');
+    const response=await authenticatedFetch('/api/practice/hot100/status?details=1',{cache:'no-store'},'查看 ACM 记录');
     if(!response.ok)throw new Error('ACM status unavailable');
     const data=await response.json();
     if(request!==nativeStatusRequest)return;
-    nativeStatuses=data.statuses||null;
+    const changed=nativeStatuses!==null&&JSON.stringify(nativeStatuses)!==JSON.stringify(data.progress);
+    nativeStatuses=data.progress||null;
+    if(changed)refresh();
   }catch(error){
     if(request!==nativeStatusRequest)return;
     nativeStatuses=null;

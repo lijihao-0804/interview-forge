@@ -133,7 +133,7 @@ def snapshot(db):
         ):
             events[r["content_id"]].append(dict(r))
         for r in con.execute(
-            "SELECT * FROM supplement_submissions ORDER BY submitted_at"
+            "SELECT * FROM hot200_learning_submissions ORDER BY submitted_at"
         ):
             attempts[r["content_id"]].append(dict(r))
         for r in con.execute("SELECT * FROM supplement_review_languages"):
@@ -170,6 +170,7 @@ def snapshot(db):
         key = content_key(pid)
         ev, sub, lang = events[key], attempts[key], languages[key]
         days = {e["study_date"] for e in ev if e["action"] == "complete"}
+        days.update(s["submitted_at"][:10] for s in sub if s["status"] == "ac")
         if days:
             daily_new[min(days)] += 1
         for d in days:
@@ -308,7 +309,7 @@ def progress(db, pid):
           SELECT action, studied_at, COALESCE((SELECT group_concat(language, ', ') FROM supplement_review_languages l
                       WHERE e.content_id=l.content_id AND e.study_date=l.study_date AND e.action='complete'),'') AS language
             FROM content_events e WHERE content_id=?
-          UNION ALL SELECT status, submitted_at, language FROM supplement_submissions WHERE content_id=?
+          UNION ALL SELECT status, submitted_at, language FROM hot200_learning_submissions WHERE content_id=?
           ORDER BY studied_at DESC LIMIT 50""",
                 (key, key),
             )
