@@ -4,7 +4,7 @@ import java.lang.reflect.Array;
 import java.util.*;
 
 /** Judge-supplied structures for compiling the Markdown's real Java examples. */
-public final class Hot200Judge {
+public class Hot200Judge {
     public static class TreeNode {
         public int val;
         public TreeNode left, right;
@@ -12,7 +12,7 @@ public final class Hot200Judge {
     }
     public static class Node {
         public int val;
-        public Node left, right, next;
+        public Node left, right, next, random;
         public List<Node> children;
         public Node(int v) { val = v; }
         public Node(int v, Node n) { this(v); next = n; }
@@ -125,10 +125,29 @@ public final class Hot200Judge {
         }
         return out;
     }
-    /** Emit JSON so Python can normalize unordered answers and verify the actual output. */
+    static String quoted(String value) {
+        StringBuilder out = new StringBuilder("\"");
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            switch (c) {
+                case '"', '\\' -> out.append('\\').append(c);
+                case '\b' -> out.append("\\b");
+                case '\f' -> out.append("\\f");
+                case '\n' -> out.append("\\n");
+                case '\r' -> out.append("\\r");
+                case '\t' -> out.append("\\t");
+                default -> {
+                    if (c < 0x20 || Character.isSurrogate(c)) out.append(String.format("\\u%04x", (int)c));
+                    else out.append(c);
+                }
+            }
+        }
+        return out.append('"').toString();
+    }
+    /** Emit one JSON result, preserving array order and all JSON string escapes. */
     public static String json(Object v) {
         if(v==null) return "null";
-        if(v instanceof String s) return "\"" + s.replace("\\","\\\\").replace("\"","\\\"").replace("\n","\\n").replace("\r","\\r").replace("\t","\\t") + "\"";
+        if(v instanceof String s) return quoted(s);
         if(v instanceof Number || v instanceof Boolean) return v.toString();
         if(v instanceof Interval x) return json(List.of(x.start,x.end));
         if(v instanceof TreeNode t) return json(levels(t));

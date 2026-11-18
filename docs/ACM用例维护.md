@@ -40,3 +40,16 @@ python scripts/check/check_acm_cases.py --language both
 有多个合法答案时优先使用语义 checker，例如检查排列达到最大总和、逐个区间计数、重排的元素与间距、最大数位和。语义规则无法从材料确定时，显示“待人工核对”，说明原因，不强行逐字比较。
 
 批量评测固定点击时的代码和语言，支持停止。服务繁忙有限重试；服务错误、登录失效或中途停止后，剩余用例标为未执行。输出详情均以文本呈现，用户修改输入和期望不会改变内置用例。游客可阅读，运行单例或全部用例均需要登录。
+
+## Hot 100 两卷的站内提交评测
+
+`data/acm/hot100.json` 和 `data/acm/hot200-extra.json` 分别提供第一卷和第二卷的正式判题用例。两卷各 100 题，目前分别有 332 和 200 组输入。每一行输入是一个 JSON 参数，每次运行输出一个 JSON 值；链表、树、操作序列和多解排序等约定见各题的 `case_note`。
+
+```powershell
+python -m scripts.check.check_native_acm_references --report logs/native-acm-check/full.jsonl
+python -m scripts.check.check_native_acm_references --id hot100-5 --language java
+```
+
+命令从正式题页读取 Java、Python 的主解法，按约定补上平台提供的节点、交互接口和输入输出入口。同一题的程序与样例数据分别构造，各用例均在独立进程中从 stdin 读取实际输入，再将原始 stdout 交给提交接口使用的 `native_acm.matches`。Java 在本机按题编译一次，目标为 JDK 17。报告逐例记录程序 SHA-256、输入、期望、stdout、stderr 和判定，用 `--volume hot100` 或 `--volume hot200` 可单独复跑一卷。
+
+生产 Linux 主机使用部署版本的 Python 运行 `python -m scripts.check.check_native_acm_references --engine sandbox --workers 1 --report <报告路径>`。使用与 `practice-runner.service` 相同的系统用户及 bwrap、Python、JDK 配置，安排在独立低优先级进程或 systemd 单元中。每组调用正式执行器，使用线上编译、运行、隔离和输出限制。该路径只读取题库与题页，报告写入指定文件。退出码 0 表示所选的每一题、每种语言、每一例均通过。
