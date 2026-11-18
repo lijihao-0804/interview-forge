@@ -3,16 +3,29 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Python 用例回放</title>
+  <style>
+    #empty {max-width:32rem;margin:8vh auto;padding:1.25rem;color:var(--text,#20223d);font:1rem/1.6 system-ui,sans-serif}
+    #empty h1 {font-size:1.4rem}
+    #empty a {color:var(--brand,#5450bb)}
+  </style>
 </head>
 <body>
   <a id="return" hidden>返回图形演示</a>
   <div id="app"></div>
+  <main id="empty"><h1>Python 用例回放</h1><p>请从题解的算法演示中选择要回放的题目。</p><a href="../../../../index.html" target="_top">浏览 Hot 100 题库</a></main>
   <script src="../../executions/routes.js"></script>
   <script src="demo-kit.js"></script>
   <script>
     const pid = Number(new URLSearchParams(location.search).get("problem"));
-    const route = Object.keys(window.Hot100ExecutionRoutes).find(key => window.Hot100ExecutionRoutes[key] === pid);
+    const routes = window.Hot100ExecutionRoutes || {};
+    const route = Object.keys(routes).find(key => routes[key] === pid);
     if (route) {
+      const empty = document.getElementById("empty");
+      empty.hidden = true;
+      function unavailable() {
+        empty.querySelector("p").textContent = "回放数据暂时无法加载，请刷新重试。";
+        empty.hidden = false;
+      }
       const [filename, mode, panel] = route.split("/");
       const query = new URLSearchParams({embed: "1"});
       if (mode) query.set("mode", mode);
@@ -22,15 +35,15 @@
       back.hidden = false;
       const data = document.createElement("script");
       data.src = "../../executions/" + pid + ".js";
+      data.onerror = unavailable;
       data.onload = () => {
         document.title = window.Hot200Execution.title + " · Python 用例回放";
         const player = document.createElement("script");
         player.src = "../../../../assets/hot200-example.js";
+        player.onerror = unavailable;
         document.head.appendChild(player);
       };
       document.head.appendChild(data);
-    } else {
-      document.getElementById("app").textContent = "未找到这道题的执行记录。";
     }
   </script>
 </body>

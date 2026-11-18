@@ -68,3 +68,24 @@ def test_sqlite_link_is_updated_without_rewriting_the_frozen_page():
     assert b'data/jobs.sqlite.zip' in delivered
     assert b'/research/jobs/' in delivered and b'/research/communications/' in delivered
     assert b'data/jobs.sqlite.zip' not in original
+
+
+def test_source_copy_uses_the_complete_dashboard(client):
+    response = client.get("/library/communications-research/maintained_sources/frontend_src/index.html?topic=通信",
+                          follow_redirects=False)
+    assert response.status_code == 307
+    assert response.headers["location"].startswith("/library/communications-research/index.html?topic=")
+
+
+def test_linked_documents_have_a_reader_and_exact_download(client):
+    from interview_forge.core.paths import ROOT
+    from interview_forge.core.research_readers import DOCUMENTS, READER_ROOT
+
+    for path, slug in DOCUMENTS.items():
+        html = client.get(path, headers={"Accept":"text/html"})
+        assert html.status_code == 200 and html.url.path == READER_ROOT + slug + ".html"
+        assert "<h1>" in html.text and "下载原文" in html.text
+        download = client.get(path, params={"download":1}, headers={"Accept":"text/html"})
+        assert download.content == (ROOT / path.lstrip("/")).read_bytes()
+    report = client.get("/library/communications-research/reports/通信工程专业就业报告.html").text
+    assert "research-report.css" in report and 'aria-label="就业研究导航"' in report

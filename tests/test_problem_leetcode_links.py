@@ -130,18 +130,15 @@ class ProblemLeetCodeLinkTests(unittest.TestCase):
                 self.assertIn("noopener", link.get("rel", []))
                 self.assertIn("noreferrer", link.get("rel", []))
 
-    def test_announcement_uses_existing_versioned_modal_without_internal_details(self):
-        page = (ROOT / "cockpit.html").read_text(encoding="utf-8")
-        self.assertIn('var KEY = "forge-ann-seen"', page)
-        self.assertIn('var VERSION = "2026-09-08-ai-learning-analysis-launch"', page)
-        self.assertIn("全新 AI 学习分析上线", page)
-        self.assertIn("动态分析进度", page)
-        self.assertIn("分析百分比与当前处理阶段", page)
-        self.assertIn("每日 3 次", page)
-        self.assertIn("题目与约束", page)
-        modal = page[page.index('<div class="ann-mask"'):]
-        for internal in ("SQLite", "API", "benchmark", "埋点", "数据库"):
-            self.assertNotIn(internal, modal)
+    def test_cockpit_exposes_both_catalogs_and_leaves_analysis_help_collapsed(self):
+        page = BeautifulSoup((ROOT / "cockpit.html").read_text(encoding="utf-8"), "html.parser")
+        catalogs = {"index.html", "library/hot200-extra/index.html"}
+        self.assertTrue(catalogs <= {a["href"] for a in page.select(".hero-links a")})
+        self.assertTrue(catalogs <= {o["value"] for o in page.select("#launchScope option")})
+        help_panel = page.select_one("#ai-coach-card details.ai-guide")
+        self.assertTrue(help_panel.find("summary").get_text(strip=True))
+        self.assertFalse(help_panel.has_attr("open"))
+        self.assertIsNone(page.select_one("#annMask"))
 
 
 if __name__ == "__main__":

@@ -114,3 +114,29 @@ python tools/study_server.py --host 127.0.0.1 --port 8765
 新增永久管理员私有档案，详见 [private-archive.md](private-archive.md)。公开仓库不包含用户附件原文；服务器需要另行配置仓库外的私有 ZIP。高亮依赖的修复不改变 Git 历史动画代码、模板和数据。
 
 最终扩展回归：219 个 Python 测试和 121 个子测试通过；另外 6 个阅读生成器测试通过。学习流程浏览器脚本再次通过；游客认证及时间工具 Node 测试通过。私有档案的全部章节、原始资料和历史视图验证详见专项文档。
+
+## 2026-11-18 全站复验与双卷题解
+
+这次用本机 Chromium 在 390 和 2560 CSS 像素宽度访问了 2,145 个页面入口，共 4,290 个视图。其中 2,128 个为公开入口，14 个使用会员夹具，3 个使用管理员夹具。逐页保存截图并检查页面标题、空白、横向溢出及 JavaScript 异常。另按页面类型查看截图，并在 19 个主要页面复测了七档尺寸。39 个永久管理员档案的排版使用替代正文，另通过真实鉴权路由验证访客、会员和普通管理员均被拒绝访问。
+
+中控台首屏可以直接访问或搜索补充卷。对新登录状态分别从两种屏宽搜索“火星词典”，能找到 LC269，返回后能继续上次搜索。学习分析说明在相应卡片中按需展开。移动端的公司题库导航、课程表格和通信报告均在各自的容器内换行或滚动。研究材料和补充卷许可提供站内阅读及原文下载。
+
+| 学习流程 | 验证方式与覆盖 |
+| --- | --- |
+| 补充卷题解 | 100 题都有不变量、推导、反例和复杂度。分别执行公开的 Java 与 Python 代码，每种语言通过 200 个展示用例及 46 个教学边界用例。五项算法另用穷举、独立计算或接口约束交叉验证。 |
+| 两卷演示 | 200 个入口及 424 组输入在浏览器完成回放。原卷 224 组，补充卷 200 组。长执行最多选取 20 个位置，并显示实际步号和总步数。 |
+| 原生 ACM | 逐题核对原题链接、站内入口及题解路径。两个临时账号验证题目状态相互独立。题级状态跨语言累计，历史保留提交语言。浏览器实测补充卷 Python 答错、Java 通过、Python 再次答错后，题库和判题页均显示已通过。 |
+
+可在仓库根目录复跑以下检查。浏览器验收需要 Chromium，Java 参考解检查需要支持 Java 17 的 JDK。
+
+```sh
+python -m scripts.check.site_page_audit --output output/playwright/site-audit
+python -m scripts.check.site_page_audit --private-fixture --output output/playwright/private-layout
+python -m scripts.check.check_hot200_acm_examples
+python -m scripts.check.check_hot200_java_examples
+python -m scripts.build.hot200_execution_traces --check
+python -m scripts.check.check_hot200_demo_browser
+python -m pytest -q tests/test_hot200_reference_boundaries.py tests/test_hot200_acm_progress.py
+```
+
+安装 Chrome 和 JDK、设置环境变量 `FORGE_ACM_BROWSER_ACCEPTANCE=1` 后，最后一条命令还会运行编辑器的实际提交流程。本地验收使用隔离账号和两段固定的测试程序。生产环境的判题容器、真实用户资料及第三方服务成功态需要在部署环境单独验证。研究包的 14 个缺失相对目标由结构检查单列，原始材料的出处可据此追溯。

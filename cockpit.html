@@ -205,22 +205,9 @@ padding:10px;border:1px solid var(--line);border-radius:var(--radius-2);backgrou
 .ai-feedback button{border:1px solid var(--line);border-radius:999px;background:var(--soft);color:var(--text);padding:4px 10px;cursor:pointer}
 .ai-feedback button:hover{border-color:var(--brand);color:var(--brand)}
 @media(max-width:720px){.ai-columns{grid-template-columns:1fr}.ai-card{padding:16px}}
-/* ===== 更新公告弹层（首次打开显示，关闭后不再出现） ===== */
-.ann-mask{position:fixed;inset:0;z-index:9990;background:rgba(10,14,22,.55);backdrop-filter:blur(3px);
-display:none;align-items:center;justify-content:center;padding:20px}
-.ann-mask.open{display:flex}
-.ann-card{width:min(520px,100%);max-height:82vh;overflow:auto;border:1px solid var(--line);
-border-radius:var(--radius-4);background:var(--panel);box-shadow:0 24px 60px rgba(0,0,0,.35);
-padding:24px 26px;animation:rise .3s var(--ease-out)}
-.ann-card h2{margin:0 0 4px;font-size:19px;font-weight:800}
-.ann-card .ann-date{margin:0 0 14px;color:var(--muted);font-size:12.5px}
-.ann-card h3{margin:14px 0 6px;font-size:14px;font-weight:750;color:var(--brand)}
-.ann-card ul{margin:0;padding-left:1.35em}
-.ann-card li{margin:5px 0;font-size:14px}
-.ann-card b{font-weight:750}
-.ann-ok{margin-top:18px;width:100%;padding:9px 12px;border:1px solid var(--brand);border-radius:var(--radius-3);
-color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
-.ann-ok:hover{filter:brightness(1.08)}
+.ai-guide{margin:12px 0 0;font-size:13px;color:var(--muted)}
+.ai-guide summary{width:fit-content;cursor:pointer;color:var(--brand);font-weight:600}
+.ai-guide p{max-width:52em;margin:7px 0;line-height:1.65}
 
 .is-guest #forge-auth-pill{display:none!important}
 /* Action-first launch area shared by guests and signed-in learners. */
@@ -249,6 +236,7 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
           <p class="greet"><span class="g-hello" id="ghello">你好</span><span id="heroSubtitle">可以先从一道题或一章书开始。</span></p>
           <nav class="hero-links" aria-label="常用学习入口">
             <a href="index.html" data-navigation-policy="same-tab">Hot 100 题库</a>
+            <a href="library/hot200-extra/index.html" data-navigation-policy="same-tab">Hot 200 补充卷</a>
             <a href="library/index.html" data-navigation-policy="same-tab">学习书架</a>
             <a href="library/search.html" data-navigation-policy="same-tab">全文搜索</a>
           </nav>
@@ -270,7 +258,7 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
       <div class="launchpad-head"><h2 id="launchTitle">搜索学习内容</h2></div>
       <form class="launch-search" id="launchSearch" action="index.html" method="get" role="search">
         <label for="launchQuery">搜索</label><input id="launchQuery" type="search" name="q" placeholder="题号、题名或知识点" autocomplete="off" maxlength="200">
-        <label for="launchScope">范围</label><select id="launchScope"><option value="index.html">Hot 100 题库</option><option value="library/search.html">书架全文</option></select>
+        <label for="launchScope">范围</label><select id="launchScope"><option value="index.html">Hot 100 题库</option><option value="library/hot200-extra/index.html">Hot 200 补充卷</option><option value="library/search.html">书架全文</option></select>
         <button type="submit">查找</button>
       </form>
       <p class="launch-recent" id="launchRecent" hidden>本机上次搜索：<a id="launchRecentLink" data-navigation-policy="same-tab"></a><button id="launchClearRecent" type="button">清除</button></p>
@@ -335,6 +323,9 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
         <button class="ai-button" id="ai-analyze-button" type="button">开始分析</button>
         <button class="ai-history-button" id="ai-history-button" type="button" aria-expanded="false" aria-controls="ai-history-panel">历史分析</button>
       </div>
+      <details class="ai-guide"><summary>分析会使用哪些记录？</summary>
+        <p>分析会结合你的刷题进度、提交结果和待复习内容，给出下一步学习建议。点击“开始分析”后，可以在这里查看进度和剩余次数。</p>
+      </details>
       <div class="ai-history-panel" id="ai-history-panel" hidden><strong>最近 10 次分析</strong><p class="ai-hint" id="ai-history-status">正在读取历史…</p><div class="ai-history-list" id="ai-history-list"></div></div>
       <div class="ai-history-mode" id="ai-history-mode" hidden><span id="ai-history-mode-text"></span><button class="ai-history-back" id="ai-history-back" type="button">返回最新分析</button></div>
       <div class="ai-output" id="ai-output">
@@ -412,7 +403,7 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
   function showRecentSearch() {
     var saved;
     try { saved = JSON.parse(localStorage.getItem(recentSearchKey) || "null"); } catch (_) { return; }
-    if (!saved || typeof saved.q !== "string" || !saved.q.trim() || !["index.html", "library/search.html"].includes(saved.scope)) return;
+    if (!saved || typeof saved.q !== "string" || !saved.q.trim() || !Array.from(launchScope.options).some(function (option) { return option.value === saved.scope; })) return;
     var link = document.getElementById("launchRecentLink");
     link.textContent = saved.q.slice(0, 200);
     link.href = saved.scope + "?q=" + encodeURIComponent(saved.q.slice(0, 200));
@@ -1245,63 +1236,6 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
 })();
 </script>
 
-<div class="ann-mask" id="annMask" role="dialog" aria-modal="true" aria-label="更新公告">
-  <div class="ann-card">
-    <h2>🎉 全新 AI 学习分析上线</h2>
-    <p class="ann-date">2026-09-08 · 从刷题记录到个性化学习建议</p>
-    <h3>一键读懂你的学习情况</h3>
-    <ul>
-      <li><b>AI 个性化分析</b>：点击“一键学习情况分析”，即可结合你的刷题进度、提交表现与复习情况，生成专属总结和下一步学习建议</li>
-      <li><b>动态分析进度</b>：等待期间会显示分析百分比与当前处理阶段，整个过程更加直观</li>
-      <li><b>每日 3 次机会</b>：页面会实时显示今日剩余次数；如确有需要，可联系管理员重置</li>
-    </ul>
-    <h3>刷题衔接更顺手</h3>
-    <ul>
-      <li>“题目与约束”后新增力扣原题入口，读完题目即可前往验证；文末入口继续保留</li>
-    </ul>
-    <button class="ann-ok" id="annOk" type="button">立即体验 AI 学习分析</button>
-  </div>
-</div>
-<script>
-(function () {
-  var KEY = "forge-ann-seen";
-  var VERSION = "2026-09-08-ai-learning-analysis-launch";
-  var seen = null;
-  try { seen = localStorage.getItem(KEY); } catch (e) {}
-  if (seen === VERSION) return;
-  var mask = document.getElementById("annMask");
-  var returnFocus = document.activeElement;
-  var ok = document.getElementById("annOk");
-  window.InterviewForgeGuestAuth.ready().then(function (session) {
-    if (!session || session.status !== "authenticated") return;
-    mask.classList.add("open");
-    ok.focus();
-  }).catch(function () {});
-  function closeAnnouncement() {
-    try { localStorage.setItem(KEY, VERSION); } catch (e) {}
-    mask.classList.remove("open");
-    var analyze = document.getElementById("ai-analyze-button");
-    if (analyze && !analyze.disabled && !analyze.closest("[hidden]")) analyze.focus();
-    else if (returnFocus && returnFocus.focus) returnFocus.focus();
-  }
-  ok.addEventListener("click", closeAnnouncement);
-  mask.addEventListener("keydown", function (e) {
-    if (e.key === "Escape") { e.preventDefault(); closeAnnouncement(); return; }
-    if (e.key !== "Tab") return;
-    var focusables = mask.querySelectorAll("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])");
-    if (!focusables.length) return;
-    var first = focusables[0], last = focusables[focusables.length - 1];
-    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-  });
-  mask.addEventListener("click", function (e) {
-    if (e.target === mask) {
-      closeAnnouncement();
-    }
-  });
-})();
-</script>
-
 <script>
 /* Esc 返回上级：章节→模块→书架→中控台。输入框/弹窗内不触发。 */
 (function(){{
@@ -1322,7 +1256,7 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
   document.addEventListener('keydown',function(e){{
     if(e.key!=='Escape')return;
     // 弹窗打开时让弹窗自己处理
-    var modal=document.querySelector('.ann-mask.open,.weather-modal.open,[role="dialog"]:not([hidden])');
+    var modal=document.querySelector('.weather-modal.open,[role="dialog"]:not([hidden])');
     if(modal)return;
     var el=document.activeElement;
     var tag=el?(el.tagName||'').toLowerCase():'';

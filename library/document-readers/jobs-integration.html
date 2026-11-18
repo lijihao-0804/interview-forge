@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>网站执行者接入说明 · InterviewForge</title><link rel="stylesheet" href="/assets/site.css">
+<link rel="stylesheet" href="/assets/research-report.css?v=20261118-layout"></head><body>
+<nav aria-label="文档导航"><a href="/library/ai-employment-research/index.html">返回目录</a> · <a href="/library/ai-employment-research/INTEGRATION.md?download=1" download>下载原文</a></nav>
+<main class="reader-card"><article class="markdown-body"><h1>网站执行者接入说明</h1>
+<h2>推荐交付方式</h2>
+<p>把整个文件夹放到网站静态目录，例如 <code>/research/jobs/</code>，访问 <code>/research/jobs/index.html</code>。所有JS、Worker、数据和全文分片均通过相对路径加载。不要只复制HTML；<code>assets/</code> 与 <code>data/</code> 必须保持同级。</p>
+<p>如果原网站已经有导航、登录和布局，可先以独立静态路由或iframe集成，避免CSS相互覆盖。本包不操作原网站账号、学习进度、服务Worker或鉴权状态。需要原生组件化时，可复用下述数据与纯统计模块，再接入原站组件。</p>
+<p>Vite/React/Next等项目可把文件夹完整放到 <code>public/research/jobs/</code>。无需安装本包的依赖。若迁为组件，使用原站的路由和数据缓存，不要直接把整个 <code>app.mjs</code> 当作React组件引入；它是独立页面控制器。</p>
+<h2>静态服务要求</h2>
+<ul>
+<li><code>.mjs</code> 返回JavaScript MIME，JSON返回 <code>application/json</code>，避免SPA兜底把数据请求改写为HTML。</li>
+<li>Worker脚本和入口建议同源。不要把本包脚本放在跨域CDN而不处理Worker策略。</li>
+<li>HTTPS用于线上；复制链接可能需要安全上下文，失败时界面提供手动复制。</li>
+<li>对JSON/JS/CSS开启HTTP gzip或Brotli压缩，详情分片使用缓存；版本更新时按manifest版本/哈希更新缓存。<code>corpus.ndjson.gz</code> 是下载用gzip文件，不应再误加 <code>Content-Encoding: gzip</code> 导致下载内容被服务端透明解包后仍叫.gz。</li>
+<li>本包同时提供约3.37MB的<code>catalog.json.gz</code>，Worker优先通过浏览器原生DecompressionStream读取；缺少支持或请求失败时回退约44MB的普通JSON，因此建议同时保留两个文件。直接修改目录后应重新生成gzip镜像，并同步清单哈希。</li>
+<li>先检查 <code>/research/jobs/data/catalog.json</code> 和任一 <code>detail_shard</code> 返回的是JSON，再检查页面。</li>
+<li>URL查询串只保存公开筛选条件。收藏、对照与技能清单在localStorage，不上传个人资料。</li>
+</ul>
+<h2>数据读取</h2>
+<pre><code class="language-js">const base = new URL('/research/jobs/data/', location.origin);
+const catalog = await fetch(new URL('catalog.json', base)).then(r =&gt; r.json());
+const job = catalog.jobs[0];
+const shard = await fetch(new URL(job.detail_shard, base)).then(r =&gt; r.json());
+const full = shard[job.id];
+console.log(full.description, full.requirements); // 原文
+</code></pre>
+<p><code>requirements_analysis</code> 是技能统计用段落；原始完整资格字段仍在 <code>requirements</code>。不要用摘要代替原文，不要把缺失文本写成空要求/不限要求。不要直接把上游provenance字符串当网站链接。</p>
+<h2>复用筛选与统计</h2>
+<p><code>assets/engine.mjs</code> 是无DOM、无框架依赖的模块：</p>
+<pre><code class="language-js">import {prepareJobs, filterJobs, aggregate, csvText} from './assets/engine.mjs';
+const jobs = prepareJobs(catalog.jobs);
+const selected = filterJobs(jobs, {
+  directions: ['AI Infra'],
+  skills: ['C++', 'CUDA/Triton'], skillMode: 'all',
+  geography: 'mainland', hasRequirements: 'yes'
+});
+const stats = aggregate(selected);
+</code></pre>
+<p>筛选协议是 <code>DEFAULT_FILTERS</code> 的字段；数组维度内任一匹配，不同维度同时满足，技能/学历词另设all/any。空格分隔搜索词默认全部匹配，排除词命中任一就剔除。搜索覆盖标题、摘要、公司、城市、代码和技能标签，<strong>不是全文检索</strong>。</p>
+<p><code>aggregate()</code>返回记录/正文/独立要求分母、公司与职能/城市、技能、四方向交叉统计和共现组合。默认Lift最小共现20条；公司均权仅纳入方向内要求≥5条的公司。筛选集合改变后Lift和分母也会改变，不应跨集合直接比高低。</p>
+<p><code>worker.mjs</code> 消息：<code>INIT</code>→<code>READY</code>；<code>QUERY {filters,page,favoriteIds,requestId}</code>→<code>RESULT</code>；<code>PAGE</code>→<code>PAGE_RESULT</code>；<code>LOOKUP {ids}</code>；<code>EXPORT</code>→CSV。<code>requestId</code>用于忽略过期响应。单页24条，全文按需加载，目录与全文分离。</p>
+<h2>进一步做高级筛选或分析</h2>
+<p>完整语料见 <code>data/corpus.ndjson.gz</code>，可直接Python逐行读取，见 <code>tools/analyze_example.py</code>。需要全JD检索/多人并发接口时，可运行 <code>tools/build_sqlite.py</code> 构建可选SQLite与FTS5索引，再接入原项目后端。前端当前不假装能在所有JD正文上全文搜索。</p>
+<p>后端可增加：正文FTS、经验表达人工复核、按公司/团队范围标准化、真正的发布时间序列及职位关闭事件。当前单日截面无法推导同比或HC转化，不能从标题规则直接推最低学历或必须精通。</p>
+<p>高级分析的可重算脚本和文档随包提供。<code>editorial.json</code>是有来源数字与边界的固定研究结论，不应在用户切换条件时伪装成实时生成结论。更新数据后要同步重新计算并审读这些文案。</p>
+<pre><code class="language-sh">python tools/recompute_analysis.py --output-dir reports/recomputed
+python tools/analyze_example.py --direction &quot;AI Infra&quot;
+python tools/verify_data.py
+</code></pre>
+<p>第一个命令默认直接读取本包的gzip语料，不依赖原项目；重新生成JSON和Markdown供复核，不覆盖当前已审读的结论文案。目录扩展的后训练线索可用 <code>posttrainingSignal: 'duty' | 'requirement' | 'either' | 'candidate'</code> 选择。前三种是文本命中；candidate还并入严格标题组，不能解释成已确认的后训练主责。</p>
+<h2>v4 数据扩展</h2>
+<p>保留旧目录和详情接口，新增<code>data/technology-index.json</code>（可有gzip镜像）。Worker将分段技术ID映射为展示名称后参与筛选与聚合；<code>technologies</code>数组的值与<code>facets.technologies</code>保持一致，不能把旧<code>skills</code>合并标签当原子词。具体筛选字段以<code>engine.mjs</code>的<code>DEFAULT_FILTERS</code>为准。技术需求表的CSV导出应覆盖全部匹配词项，不能只导出当前页。</p>
+<p>分期索引为<code>data/snapshot-registry.json</code>。路径相对于该登记簿目录；历史文件必须随包保留完整，不要由SPA兜底返回HTML。登记簿、当期原文、技术词典和提取版本共同定义一次观测及处理。当前只有一个真实采集截面，前端显示基线并说明等待下期，不绘制虚构涨跌。下一期通过<code>tools/snapshot_registry.py</code>注册和比较，详细命令见<code>MAINTENANCE.md</code>。</p>
+<p>维护者可直接在交接包运行原子技术重算和跨期分析；联网采集器参考冻结在<code>maintenance/source_project/</code>，应复制到每期独立工作目录再适配/验证。不要把在线采集日志、个人浏览器会话或凭据放进静态网站。</p>
+<p>可选SQLite索引也支持原子技术：<code>python tools/build_sqlite.py --output jobs.sqlite</code>会自动读取同目录的<code>data/technology-index.json</code>，可用<code>--technology-index</code>显式指定。新增<code>technology_terms</code>和<code>job_technologies(job_id,technology_id,field)</code>，字段取requirement/duty/fulltext/preferred；旧<code>job_skills</code>继续保留合并标签。工具核对源语料哈希，创建新数据库，不覆盖旧库。例：</p>
+<pre><code class="language-sql">SELECT t.name, COUNT(DISTINCT jt.job_id) AS mentions,
+       (SELECT COUNT(*) FROM jobs WHERE requirements_available=1) AS denominator
+FROM job_technologies AS jt
+JOIN technology_terms AS t ON t.id=jt.technology_id
+JOIN jobs AS j ON j.id=jt.job_id
+WHERE jt.field='requirement' AND j.requirements_available=1
+GROUP BY t.id, t.name ORDER BY mentions DESC;
+</code></pre>
+<p>SQLite是派生索引，原始字段和分期证据仍以压缩语料/登记簿为准。源码中使用参数化SQL；接网站API时继续按请求参数绑定查询，城市精确标签可从catalog或冻结city-tags映射按id关联。</p>
+<p>界面中的“当前筛选”图表与固定研究判断分开。不要在城市筛选后改写固定结论中的已审读分母；更新采集截面后需重算并审读<code>editorial.json</code>，而非只替换顶部日期。技术提及率也不能解释成全部雇主统一的必备门槛。</p>
+<h2>上线前检查（含v4）</h2>
+<p>检查子目录资源与Worker无404、技能AND/OR结果、筛选CSV全量行数、长数字ID文本保护、全文分片、元数据缺口、手机横向溢出、明暗模式和键盘操作。已有验收记录位于 <code>reports/</code>。本包不含任何自动发布/上传动作；挂站由目标项目执行者按其发布流程完成。</p></article></main></body></html>

@@ -38,11 +38,12 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from urllib.parse import unquote
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, SoupStrainer
 from scripts.build.ai_employment_research import RESEARCH_BOOKS
 from scripts.build.build_html_site import VISUAL_EMBEDS
 from scripts.build.build_hot100 import LEETCODE_SLUGS, PROBLEMS
 from scripts.build.library_catalog import LIBRARY_MODULES
+from scripts.check.research_delivery import check_research_delivery, is_package_source
 from scripts.check.server_page_links import is_registered_server_page
 from scripts.check.release_content_scope import (
     is_release_content_path,
@@ -191,8 +192,11 @@ for path in problem_files:
 #   （[..](url)）与 HTML 的 href/src 目标，再对每个“本地相对链接”做存在性校验，
 #   不存在即登记 error。扫描范围是发布内容根目录与根级页面/维护文档。
 # ============================================================================
-markdown_link = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
+markdown_link = re.compile(r'\[[^\]]*\]\(\s*(?:<([^>\n]+)>|([^)]+?))(?:\s+(?:"[^"]*"|\'[^\']*\'))?\s*\)')
 html_link = re.compile(r"(?i)(?:href|src)=[\"']([^\"']+)[\"']")
+source_gaps = []
+research_html, research_errors = check_research_delivery(ROOT, release_html_files)
+errors.extend(research_errors)
 for path in release_document_files:
     text = path.read_text(encoding="utf-8-sig", errors="replace")
     # Markdown 文件按行扫链接并跳过代码围栏（``` 块内的文本不是链接语法，
@@ -206,7 +210,7 @@ for path in release_document_files:
                 in_fence = not in_fence
                 continue
             if not in_fence:
-                links.extend(markdown_link.findall(line))
+                links.extend(angle or bare for angle, bare in markdown_link.findall(line))
     else:
         links = html_link.findall(text)
     # ---- 链接归一化与跳过规则 ----
@@ -255,7 +259,11 @@ for path in release_document_files:
         except OSError:
             exists = False
         if not exists:
-            errors.append(f"失效本地链接：{path.relative_to(ROOT)} -> {raw}")
+            relative = path.relative_to(ROOT)
+            if is_package_source(relative):
+                source_gaps.append(f"维护源缺失目标：{relative} -> {raw}")
+            else:
+                errors.append(f"失效本地链接：{relative} -> {raw}")
 
 
 # ============================================================================
@@ -276,7 +284,7 @@ for path in html_files:
 reader_pages = 0
 math_formulas = 0
 for path in html_files:
-    text = path.read_text(encoding="utf-8-sig", errors="replace")
+    text = research_html[path] if path in research_html else path.read_text(encoding="utf-8-sig", errors="replace")
     if path.suffix.lower() == ".html" and "__LC_IMG_ROOT__" in text and "99-原稿归档" not in path.parts:
         errors.append(f"公开 HTML 残留力扣图片占位符：{path.relative_to(ROOT)}")
     soup = BeautifulSoup(text, "html.parser")
@@ -307,7 +315,7 @@ for path in html_files:
     # 排除两种情况：外部 http(s) 链接，以及页面本身位于归档区（99-原稿归档）。
     for anchor in soup.find_all("a", href=True):
         href = anchor.get("href", "").split("#", 1)[0].split("?", 1)[0]
-        if href.lower().endswith(".md") and not re.match(r"^https?://", href, re.I) and "99-原稿归档" not in rel.parts:
+        if href.lower().endswith(".md") and not (path in research_html and anchor.has_attr("download") and "download=1" in anchor["href"]) and not re.match(r"^https?://", href, re.I) and "99-原稿归档" not in rel.parts:
             errors.append(f"HTML 仍会打开 Markdown：{rel} -> {href}")
 
     # ---------- B. 阅读页正文级别检查 ----------
@@ -404,7 +412,17 @@ for path in html_files:
     # （#hot100-polish）、键盘/可访问性增强（#hot100-a11y）与题解内嵌启动逻辑
     # （#hot100-embed-bootstrap）。缺任何一个都说明该页是从旧模板直接复制过来、
     # 没有接入当前可视化框架的组件体系。
-    if "05-可视化" in rel.parts:
+    if path == visualization_root / "assets" / "checked-example.html":
+        # A standalone execution player links back to a graphical topic
+        # instead of embedding that topic's lecture notes and editor.
+        source_files = [tag["src"] for tag in soup.select("script[src]")]
+        if (not soup.select_one("#app") or not soup.select_one("a#return")
+                or "demo-kit.js" not in source_files or "../../executions/routes.js" not in source_files):
+            errors.append(f"执行回放缺少播放器、返回入口或运行资源：{rel}")
+        for asset in ("../../executions/routes.js", "demo-kit.js", "../../../../assets/hot200-example.js"):
+            if not (path.parent / asset).is_file():
+                errors.append(f"执行回放缺少资源：{rel} -> {asset}")
+    elif "05-可视化" in rel.parts:
         if soup.select_one("[data-hot100-nav]") is None:
             errors.append(f"可视化页缺少统一导航：{rel}")
         if soup.select_one("#hot100-polish") is None:
@@ -501,7 +519,7 @@ for source_rel, (visual_name, query) in VISUAL_EMBEDS.items():
         errors.append(f"演示绑定指向不存在的可视化页：{source_rel} -> {visual_name}")
         continue
     visual_text = visual_path.read_text(encoding="utf-8-sig")
-    if f'"{mode}": {{' not in visual_text and f"'{mode}':" not in visual_text:
+    if not re.search(r"""["']""" + re.escape(mode) + r"""["']\s*:""", visual_text):
         errors.append(f"演示绑定的 mode 在目标页里不存在（会静默回落到第一道题）：{source_rel} -> {visual_name}?mode={mode}")
 
 
@@ -888,6 +906,7 @@ for definition in LIBRARY_MODULES:
 # ③ 每张图的 pre.mermaid 源码必须存在且非空（否则图上没有可渲染内容）；
 # ④ 图内不得残留 &#x20; 空格实体。最后 rendered != expected 时给出双方数量。
 rendered_mermaid = 0
+supplement_entries = json.loads((ROOT / "data/hot200-extra.json").read_bytes())
 for chapter_path in library_chapter_pages:
     chapter_text = chapter_path.read_text(encoding="utf-8-sig")
     chapter_soup = BeautifulSoup(chapter_text, "html.parser")
@@ -917,6 +936,45 @@ if rendered_mermaid != expected_mermaid:
 for chapter_path in library_chapter_pages:
     chapter_text = chapter_path.read_text(encoding="utf-8-sig")
     chapter_soup = BeautifulSoup(chapter_text, "html.parser")
+    if chapter_path.parent == library_root / "hot200-extra":
+        # The supplement uses the Hot 100 solution reader, including its own
+        # progress client and subject rail. Match the manifest identity as well
+        # as the DOM, so a stale chapter cannot silently write another record.
+        relative = chapter_path.relative_to(ROOT)
+        entries = supplement_entries
+        match = re.fullmatch(r"chapter-(\d+)\.html", chapter_path.name)
+        if not match or not 1 <= int(match[1]) <= len(entries):
+            errors.append(f"补充卷题解章节不在清单中：{relative}")
+            continue
+        index = int(match[1]) - 1
+        content_id = f"hot200-extra:{entries[index]['id']:04d}"
+        reader = chapter_soup.select_one("main.reader-card")
+        if reader is None or reader.get("data-content-id") != content_id:
+            errors.append(f"补充卷题解阅读器身份不匹配：{relative}")
+            continue
+        neighbors = {"index.html"}
+        if index > 0:
+            neighbors.add(f"chapter-{index:02d}.html")
+        if index + 1 < len(entries):
+            neighbors.add(f"chapter-{index + 2:02d}.html")
+        actual = {a["href"] for a in reader.select(".problem-nav a[href]")}
+        current = chapter_soup.select_one(".sol-rail-left .sol-nav-item.current")
+        if not neighbors.issubset(actual) or not current or current.get("href") != chapter_path.name:
+            errors.append(f"补充卷题解缺少当前题、相邻题或目录导航：{relative}")
+        crumbs = reader.select_one('nav.page-breadcrumb[aria-label]')
+        if not crumbs or not crumbs.select_one('a[href="index.html"]') or not crumbs.select_one('[aria-current="page"]'):
+            errors.append(f"补充卷题解面包屑缺少目录或当前位置：{relative}")
+        progress = reader.select_one("#solutionProgress")
+        controls = ("#solutionProgressSummary", "#solutionProgressDue", "#solutionProgressMark",
+                    "#solutionWeakToggle", "#solutionFavoriteToggle", "[data-review-rating]")
+        client = any(tag["src"].split("?")[0].endswith("/solution-progress.js")
+                     for tag in chapter_soup.select("script[src]"))
+        if (not progress or progress.get("data-content-id") != content_id
+                or progress.get("data-module-id") != "hot200-extra"
+                or progress.get("data-problem-id") != str(entries[index]["id"])
+                or not client or any(not progress.select_one(selector) for selector in controls)):
+            errors.append(f"补充卷题解学习状态身份、控件或脚本不完整：{relative}")
+        continue
     nav = chapter_soup.select_one(".chapter-nav")
     if nav is None:
         errors.append(f"课程章节页缺少章节导航：{chapter_path.relative_to(ROOT)}")
@@ -960,6 +1018,29 @@ if longest_page.exists():
 #   无法使用 node 的环境（未安装/不在 PATH）不阻断发布：降级为一条 WARN，
 #   提示“本环境跳过了 JS 语法检查”这一层。
 # ============================================================================
+inline_scripts = []
+for page in release_html_files:
+    if not (page.is_relative_to(visualization_root) or page.is_relative_to(library_root) or page == ROOT / "index.html"):
+        continue
+    source = page.read_text(encoding="utf-8-sig")
+    if "<script" not in source.lower():
+        continue
+    tags = BeautifulSoup(source, "html.parser", parse_only=SoupStrainer("script"))
+    for index, tag in enumerate(tags.find_all("script", src=False), 1):
+        mime = tag.get("type", "").split(";", 1)[0].strip().lower()
+        label = f"{page.relative_to(ROOT)} inline script #{index}"
+        script = tag.string or ""
+        if mime in {"application/json", "importmap", "speculationrules"} or mime.endswith("+json"):
+            try:
+                json.loads(script)
+            except ValueError as exc:
+                errors.append(f"JSON 数据块语法错误：{label}：{exc}")
+        elif mime in {"", "module", "text/javascript", "application/javascript", "text/ecmascript",
+                      "application/ecmascript", "application/x-javascript", "text/jscript",
+                      "text/livescript", "text/x-javascript", "text/x-ecmascript",
+                      "application/x-ecmascript"} or re.fullmatch(r"text/javascript1\.[0-5]", mime):
+            inline_scripts.append((label, script, "mjs" if mime == "module" else "js"))
+
 node = shutil.which("node")
 if node:
     def _node_check(job: tuple[str, Path, str | None, Path | None]) -> str | None:
@@ -979,31 +1060,10 @@ if node:
     with tempfile.TemporaryDirectory(prefix="hot100-js-", dir=ROOT) as temp_dir:
         temp = Path(temp_dir)
         temp.mkdir(parents=True, exist_ok=True)  # 防止并行清理进程删掉目录后写文件失败
-        # 收集三类含脚本的页面：05-可视化 页 + 全部书架页 + 面板首页。
-        # 提取内联脚本的正则：(?is) 忽略大小写并让 . 匹配换行；(?!…\bsrc=) 是
-        # 负向前瞻，排除带 src（外部文件引用）的 <script>——外部文件不进这里，
-        # 单独当作一个 JS 文件整体 --check（见下面 generated_scripts）。
-        script_pages = sorted(
-            path for path in release_html_files
-            if path.parent == visualization_root
-            or path.is_relative_to(library_root)
-            or path == ROOT / "index.html"
-        )
         jobs: list[tuple[str, Path, str | None, Path | None]] = []
-        inline_number = 0
-        for html_path in script_pages:
-            source = html_path.read_text(encoding="utf-8-sig")
-            scripts = re.findall(r"(?is)<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", source)
-            for index, script in enumerate(scripts):
-                # 页面 stem 可能重复；全局序号确保并行 worker 不碰同一临时文件。
-                js_path = temp / f"inline-{inline_number:05d}.js"
-                jobs.append((
-                    f"{html_path.relative_to(ROOT)} inline script #{index + 1}",
-                    js_path,
-                    script,
-                    js_path,
-                ))
-                inline_number += 1
+        for index, (label, script, extension) in enumerate(inline_scripts):
+            js_path = temp / f"inline-{index:05d}.{extension}"
+            jobs.append((label, js_path, script, js_path))
         # 生成脚本资产：assets/*.js 与 library/assets/*.js 是构建产物（独立文件，
         # 不是从 HTML 提取的），直接整体 --check；报错信息带相对路径便于定位。
         generated_scripts = [
@@ -1056,6 +1116,7 @@ summary = {
     "html_files": len(html_files),
     "reader_pages": reader_pages,
     "math_formulas": math_formulas,
+    "maintenance_source_missing_targets": len(source_gaps),
     "broken_links": sum(1 for e in errors if e.startswith("失效本地链接")),
     "errors": len(errors),
     "warnings": len(warnings),
@@ -1087,5 +1148,7 @@ for item in errors:
     print("ERROR", item)
 for item in warnings:
     print("WARN", item)
+for item in source_gaps:
+    print("SOURCE_GAP", item)
 # errors 为空 → 退出码 0（成功）；非空 → 退出码 1（失败）。
 sys.exit(1 if errors else 0)

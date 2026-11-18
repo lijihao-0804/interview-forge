@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Employment Data Bundle v4 schema · InterviewForge</title><link rel="stylesheet" href="/assets/site.css">
+<link rel="stylesheet" href="/assets/research-report.css?v=20261118-layout"></head><body>
+<nav aria-label="文档导航"><a href="/library/ai-employment-research/index.html">返回目录</a> · <a href="/library/ai-employment-research/DATA_SCHEMA.md?download=1" download>下载原文</a></nav>
+<main class="reader-card"><article class="markdown-body"><h1>Employment Data Bundle v4 schema</h1>
+<p>This package is an offline export of the 2026-11-17 Asia/Shanghai snapshot. It is independent of the workspace’s v2 evidence and report files.</p>
+<h2>Package layout</h2>
+<pre><code class="language-text">前端交接包_就业数据台/
+├── DATA_SCHEMA.md
+└── data/
+    ├── catalog.json
+    ├── details/&lt;company&gt;_&lt;batch&gt;.json
+    ├── corpus.ndjson.gz
+    ├── sources.json
+    └── manifest.json
+</code></pre>
+<p><code>catalog.json</code> has a <code>jobs</code> array with compact metadata and no job-description text. Each row’s <code>detail_shard</code> is relative to <code>data/</code>. A detail shard is an object keyed by job <code>id</code>; a job’s full record is stored at <code>shard[id]</code>.</p>
+<h2>Catalog fields</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>Stable unique record ID in the exported dataset.</td>
+</tr>
+<tr>
+<td><code>company</code>, <code>company_group</code></td>
+<td>Company name and the explicit group label <code>中国企业</code> or <code>外企</code>.</td>
+</tr>
+<tr>
+<td><code>source_job_id</code>, <code>job_code_raw</code></td>
+<td>Original employer/source ID and original or extracted job code.</td>
+</tr>
+<tr>
+<td><code>title</code>, <code>job_family</code>, <code>title_direction</code></td>
+<td>Original title and existing role-family/direction classification.</td>
+</tr>
+<tr>
+<td><code>city</code></td>
+<td>Source location text as stored upstream; it may contain several locations or non-city text.</td>
+</tr>
+<tr>
+<td><code>city_tags</code></td>
+<td>Ordered, deduplicated city matches from the embedded Chinese/English alias map. Multiple matches are retained. Unmatched text, province-only locations, “global”, remote, and unknown values are not guessed into a city.</td>
+</tr>
+<tr>
+<td><code>geography</code></td>
+<td>Existing geography classification; it is not recalculated from <code>city_tags</code>.</td>
+</tr>
+<tr>
+<td><code>experience</code>, <code>degree_raw</code>, <code>education_mentions</code></td>
+<td>Existing experience text, raw degree field, and extracted education mentions. Raw “unknown/not stated” values remain as recorded.</td>
+</tr>
+<tr>
+<td><code>skills_in_requirement</code></td>
+<td>Skill terms found in requirement text. A mention does not imply a mandatory hiring threshold.</td>
+</tr>
+<tr>
+<td><code>ai_signal</code></td>
+<td>Existing AI signal label, not a new classification.</td>
+</tr>
+<tr>
+<td><code>summary</code></td>
+<td>Existing summary sentence(s). Full body remains in the detail shard.</td>
+</tr>
+<tr>
+<td><code>clarity_score</code>, <code>clarity_candidate</code></td>
+<td>Rule-based clarity screening fields, not job value, compensation, or hiring probability.</td>
+</tr>
+<tr>
+<td><code>reviewed_clarity</code>, <code>review_reason</code></td>
+<td>Whether a record received the separate manual clarity review, and the retained reason when available. Only the reviewed subset is manual.</td>
+</tr>
+<tr>
+<td><code>body_chars</code>, <code>requirements_available</code></td>
+<td>Existing body size and independent-requirements availability flag. The manifest’s independent-requirements denominator counts rows where this flag is true.</td>
+</tr>
+<tr>
+<td><code>archive_status</code>, <code>record_kind</code>, <code>requirements_parse_status</code></td>
+<td>Existing body/archive, record, and requirement parsing statuses; see the source values for exact categories.</td>
+</tr>
+<tr>
+<td><code>url</code>, <code>url_kind</code>, <code>source_type</code></td>
+<td>Official source URL, existing URL kind, and collection source type. URLs are source links; local archive paths are not included.</td>
+</tr>
+<tr>
+<td><code>retrieved_at</code>, <code>posted_date</code></td>
+<td>Retrieved timestamp and source publication date string; they are not interchangeable.</td>
+</tr>
+<tr>
+<td><code>text_sha256</code></td>
+<td>SHA-256 of the normalized <code>full_text</code> string in UTF-8. Empty source text retains its empty/missing value.</td>
+</tr>
+<tr>
+<td><code>detail_shard</code></td>
+<td>Package-relative lookup path under <code>data/details/</code>.</td>
+</tr>
+</tbody>
+</table>
+<h2>Detail fields</h2>
+<p>Each detail object retains <code>description</code>, <code>requirements</code>, <code>requirements_analysis</code>, <code>full_text</code>, and <code>bonus_source</code> exactly as exported from v2, including blank strings and the existing <code>requirements_parse_status</code> marker. <code>source_url_resolution</code> explains how the source URL maps to a job when available. <code>text_sha256</code> hashes <code>full_text</code>; a missing or unarchived body is not synthesized.</p>
+<h2>Reading one detail shard</h2>
+<pre><code class="language-python">import json
+from pathlib import Path
+
+package = Path(&quot;前端交接包_就业数据台&quot;)
+data_dir = package / &quot;data&quot;
+catalog = json.loads((data_dir / &quot;catalog.json&quot;).read_text(encoding=&quot;utf-8&quot;))
+row = catalog[&quot;jobs&quot;][0]
+shard = json.loads((data_dir / row[&quot;detail_shard&quot;]).read_text(encoding=&quot;utf-8&quot;))
+detail = shard[row[&quot;id&quot;]]
+print(detail[&quot;description&quot;], detail[&quot;requirements&quot;])
+</code></pre>
+<h2>Reading the gzip NDJSON corpus</h2>
+<p><code>corpus.ndjson.gz</code> keeps all standardized v2 fields and adds <code>detail_shard</code>. It omits the local <code>archive_html</code> and <code>archive_json</code> paths. <code>source_file</code> remains only as upstream provenance text and must not be treated as a clickable package path.</p>
+<pre><code class="language-python">import gzip
+import json
+
+with gzip.open(&quot;前端交接包_就业数据台/data/corpus.ndjson.gz&quot;, &quot;rt&quot;, encoding=&quot;utf-8&quot;) as stream:
+    for line in stream:
+        row = json.loads(line)
+        if row.get(&quot;requirements_available&quot;):
+            analyze(row)
+</code></pre>
+<h2>Interpretation limits</h2>
+<ul>
+<li><code>skills_in_requirement</code> records mentions. Distinguish required, preferred, optional, and contextual language by reading the original <code>requirements</code> and <code>requirements_analysis</code> text.</li>
+<li><code>requirements_available</code> is the upstream independent-requirement flag; a non-empty combined body alone does not make it true.</li>
+<li>Multiple <code>city_tags</code> reflect multiple explicit location mentions. An empty list means no city alias was confidently matched, not that the job is remote.</li>
+<li>Publicly visible job pages and source headcount fields do not confirm remaining hiring capacity (HC).</li>
+<li><code>clarity_candidate</code> is a rule screen; <code>reviewed_clarity</code> identifies the smaller manually reviewed set.</li>
+<li><code>manifest.json</code> file paths are relative to the package root. <code>detail_shard</code> paths are relative to the <code>data/</code> directory. The manifest inventories payload files but excludes its own self-referential hash.</li>
+</ul>
+<h2>前端高级分析扩展</h2>
+<p>目录额外提供 <code>posttraining_duty_signal</code>（836条）、<code>posttraining_requirement_signal</code>（923条）和<code>posttraining_candidate</code>（1257条）三个布尔特征，来源为上游v2逐岗正文线索清单。职责或资格词命中的纯并集为1254，候选1257还合入3条仅由严格标题入列的记录。它们是生成式语境下的词线索，不认定岗位主责，不可相加为HC。全文与重算输入仍可从details/corpus获得。</p>
+<p>固定研究结论与高级JSON分析排除2条已识别招聘池，职位分母为28342、要求分母28142；前端默认保留全部28344记录/28144可用要求，可勾选“排除已识别招聘池”对齐。四个目标方向的分母不受这2条影响。</p>
+<p>城市标签用于检索与覆盖计数，不是标准地理编码；原始地点仍保留，极少数地名别名/行政后缀可能分列。多地标签不应相加为去重岗位数。</p>
+<h2>原子技术扩展与原文证据</h2>
+<p><code>data/technology-index.json</code> 与目录按 <code>id</code> 精确一一关联，不改写 <code>skills_in_requirement</code> 的旧含义。顶层 <code>dictionary_version</code> 标识冻结词典；<code>terms</code> 含 <code>id/name/category/aliases</code>；<code>jobs[id]</code> 的 <code>requirement/duty/fulltext</code> 是去重的技术ID数组。不同技术独立计数，别名归一到同一ID。读取时先通过terms把ID映射为展示名称，不应把原子ID当旧技能标签。</p>
+<p>资格段提及率的分母严格取 <code>requirements_available == true</code>，即使全文存在也不能替代这个标记。职责和全文以已存正文为分母；字段提及不能自动解释成必备。显式优先字段、资格中的“或/至少一种”、否定上下文需读原文证据。</p>
+<p><code>data/technology/</code> 保存提取器产出的词典、证据引用与候选队列。证据位置相对于其声明的源字段，不能拿全文offset去切资格段；重新格式化文本后应重提取证据。未审核候选不进入正式技术索引。</p>
+<p>索引另含<code>snapshot_date</code>、<code>source_corpus_sha256</code>、<code>dictionary_sha256</code>、<code>extractor_version/extractor_sha256</code>和<code>parser_version</code>。源语料哈希绑定实际输入文件字节；词典哈希为UTF-8、sort_keys、无多余空格的规范JSON SHA256，独立文件字节哈希另见manifest。提取代码hash同时锁定词典guard的实现。分期注册核对日期、语料绑定和岗位ID集合，比较时要求规则身份一致；两期的原文语料hash自然可以不同。</p>
+<p>证据为<code>technology_evidence_v4.ndjson.gz</code>，按岗位保存<code>field/offset_start/offset_end_exclusive/matched_alias/snippet</code>。偏移是Python Unicode code point索引，左闭右开；JavaScript需要先用<code>Array.from(text)</code>转为字符数组再按这些偏移切分，不能直接用UTF-16字符串slice。每个词在每字段最多保存前两个命中片段，并另记该字段总出现次数，完整原文不截断。索引统计按岗位是否提及去重，不按出现次数累加。</p>
+<h2>分期、处理版本与可比性</h2>
+<p><code>data/snapshot-registry.json</code>登记真实观测期；每期的manifest/summary/corpus和技术索引位于<code>data/snapshots/&lt;snapshot_id&gt;/</code>并有SHA256。注册不可覆盖，不可把今日重新计算包装成今日新增采集。</p>
+<p>每期保留采集日期、来源与范围、公司、完成度和失败、解析器及词典版本。<code>retrieved_at</code>、官网<code>posted_date</code>和处理时间分别保留。岗位跨期使用公司与原始source_job_id匹配；首次看到不是首次发布，未重现不是下架，原文哈希变化也不必然代表任职技能变化。</p>
+<p><code>data/processing-registry.json</code>按词典版本登记完整处理文件，<code>data/processing_versions/&lt;version&gt;/</code>冻结词典与提取脚本，文件SHA与规范词典SHA均保留。当前<code>data/technology/</code>是便于使用的索引/证据副本；未来更新它时，已登记的历史处理版本仍须保留。</p>
+<p>跨期工具会输出整体、共同公司、共同职位的技术提及数、可用资格分母和百分点差，并保留同岗技术新增/移除。词典版本不同禁止直接比较；应使用同一版本重提取历史原文，再登记可比较的处理产物。具体命令和范围限制见<code>MAINTENANCE.md</code>。</p>
+<p>原子技术总表与默认比较使用全部记录口径，包含已标记的2条毕业生招聘池；原子统计JSON另列具体职位口径。高级研究原有结论排除这2条，不能混用分母。需要调整记录类型、城市规则或解析范围时，用明确范围的派生登记簿保存新产物并保留原始归档。</p></article></main></body></html>

@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Resp
 from interview_forge.analytics.cache import invalidate_learning_caches
 from interview_forge.api.support import current_user, error_response
 from interview_forge.core.paths import ROOT
+from interview_forge.core.research_readers import DOCUMENTS, READER_ROOT, link_readers
 from interview_forge.core.web_access import (
     canonical_url_path,
     is_admin_path,
@@ -149,6 +150,8 @@ def private_reader_widget_tags(body: bytes) -> bytes:
 
 
 def _inject_html(path: str, body: bytes, *, embedded: bool = False) -> bytes:
+    if path.startswith(("/library/ai-employment-research/", "/library/communications-research/")) or path == "/library/hot200-extra/index.html":
+        body = link_readers(path, body)
     if path.startswith(_RESEARCH_APPS):
         # Keep the standalone application's theme and Worker lifecycle intact.
         # Inject at delivery time so the supplied package hashes remain valid.
@@ -182,6 +185,13 @@ def _inject_html(path: str, body: bytes, *, embedded: bool = False) -> bytes:
                 body = body.replace(marker, marker + links)
         start = body.find(b"<body")
         end = body.find(b">", start) if start >= 0 else -1
+        if path.startswith("/library/communications-research/reports/"):
+            # These standalone exports use HTML's implicit head/body. Insert
+            # the reader shell before main without modifying the source package.
+            main = body.find(b"<main")
+            if main >= 0:
+                style = b'<link rel="stylesheet" href="/assets/research-report.css?v=20261118-layout">'
+                return body[:main] + style + navigation + body[main:]
         return body[:end + 1] + navigation + body[end + 1:] if end >= 0 else body
     # Previously generated chapters embed v1. Nginx caches versioned JS as
     # immutable, so serve the current collector even before a chapter rebuild.
@@ -263,6 +273,13 @@ def static_path(request: Request, path: str):
     decoded = canonical_url_path(request.url.path or "/")
     if decoded is None or _sensitive(decoded):
         return _not_found_response(request, decoded or "/")
+    if decoded == "/library/communications-research/maintained_sources/frontend_src/index.html":
+        query = f"?{request.url.query}" if request.url.query else ""
+        return RedirectResponse("/library/communications-research/index.html" + query, status_code=307,
+                                headers={"Cache-Control": "no-store"})
+    if decoded in DOCUMENTS and request.query_params.get("download") != "1" and "text/html" in request.headers.get("accept", ""):
+        return RedirectResponse(READER_ROOT + DOCUMENTS[decoded] + ".html", status_code=307,
+                                headers={"Cache-Control": "no-store", "Vary": "Accept"})
     # Historical aliases retain filters while resolving relative assets against
     # their original package. Only the three reviewed research roots are public.
     for alias, destination in (
