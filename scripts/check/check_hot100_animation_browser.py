@@ -204,6 +204,11 @@ GRAPH_SEQUENCE = """async pid => {
     if (label && parseFloat(getComputedStyle(label).fontSize) * label.getScreenCTM().a < 10.5)
         faults.push('tree node labels smaller than 10.5 CSS pixels');
     const box = stage();
+    if (pid === '51') {
+        const list = box.querySelector('.results-scroll'), board = list?.querySelector('.result-item');
+        if (board && board.getBoundingClientRect().height > list.clientHeight + 1)
+            faults.push('one N-queens solution board is taller than the result panel');
+    }
     let tree = null;
     if (['105', '108', '114', '226'].includes(pid) && box) {
         const nodes = [...box.querySelectorAll('svg g:has(>circle)')].map(g => ({
@@ -243,7 +248,8 @@ async def shot(element, folder, name, isolate_figure=False):
     # Parent fixed-position reading progress is always at the viewport's top.
     # A stitched frame-only screenshot would paint it over the middle of the
     # figure. Keep the unaltered viewport screenshot as the separate page record.
-    style = ".read-progress{visibility:hidden!important}" if isolate_figure else None
+    style = (".read-progress,.if-ai-launcher,#forge-auth-pill,#forge-theme-btn,#forge-fb-btn"
+             "{visibility:hidden!important}") if isolate_figure else None
     data = await element.screenshot(path=path, animations="disabled", style=style)
     return {"path": path.relative_to(folder.parent).as_posix(), "sha256": digest(data)}
 
