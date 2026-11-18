@@ -263,6 +263,8 @@ async def audit(args):
             for r in candidates
             if r["path"] not in previous
             or flagged(previous[r["path"]])
+            or [v["viewport"] for v in previous[r["path"]]["views"]] != list(args.widths)
+            or (args.controls and any("controls" not in v for v in previous[r["path"]]["views"]))
             or not all(v["h1"] for v in previous[r["path"]]["views"])
             or any(
                 r["path"] == value

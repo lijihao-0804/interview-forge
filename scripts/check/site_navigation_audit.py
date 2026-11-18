@@ -1,4 +1,5 @@
 """Inventory navigable links from published HTML after the server's delivery rewrites."""
+
 from __future__ import annotations
 
 import argparse
@@ -16,10 +17,13 @@ from scripts.check.site_page_audit import PRIVATE, inventory
 from scripts.check.server_page_links import is_registered_server_page
 
 ORIGIN = "http://localhost"
-ALIASES = {"/":"/cockpit.html", "/research/market/":"/research/market/index.html",
-           "/research/jobs/":"/library/ai-employment-research/index.html",
-           "/research/communications/":"/library/communications-research/index.html",
-           "/library/communications-research/maintained_sources/frontend_src/index.html":"/library/communications-research/index.html"}
+ALIASES = {
+    "/": "/cockpit.html",
+    "/research/market/": "/research/market/index.html",
+    "/research/jobs/": "/library/ai-employment-research/index.html",
+    "/research/communications/": "/library/communications-research/index.html",
+    "/library/communications-research/maintained_sources/frontend_src/index.html": "/library/communications-research/index.html",
+}
 
 
 class Links(HTMLParser):
@@ -42,8 +46,11 @@ class Links(HTMLParser):
 @lru_cache(maxsize=None)
 def resolve(path):
     if path.startswith(("/research/jobs/", "/research/communications/")):
-        prefix, destination = (("/research/jobs/", "/library/ai-employment-research/") if path.startswith("/research/jobs/")
-                               else ("/research/communications/", "/library/communications-research/"))
+        prefix, destination = (
+            ("/research/jobs/", "/library/ai-employment-research/")
+            if path.startswith("/research/jobs/")
+            else ("/research/communications/", "/library/communications-research/")
+        )
         path = destination + (path.removeprefix(prefix) or "index.html")
     path = ALIASES.get(path, path)
     if path.startswith(PRIVATE) or is_registered_server_page(path):
@@ -66,12 +73,17 @@ def run(output):
         if path in pages:
             continue
         parser = Links()
-        parser.feed(_inject_html(path, (ROOT / path.lstrip("/")).read_bytes()).decode("utf-8-sig"))
+        parser.feed(
+            _inject_html(path, (ROOT / path.lstrip("/")).read_bytes()).decode(
+                "utf-8-sig"
+            )
+        )
+        parser.close()
         pages[path] = parser
     totals = Counter()
     examples = {}
     bad = {}
-    with (output / "links.jsonl").open("w",encoding="utf8") as log:
+    with (output / "links.jsonl").open("w", encoding="utf8") as log:
         for path, parser in pages.items():
             seen = Counter()
             for href in parser.links:
@@ -81,29 +93,74 @@ def run(output):
                 else:
                     kind, final = resolve(unquote(target.path))
                     fragment = unquote(target.fragment)
-                    if kind == "file" and fragment and final in pages and fragment in pages[final].ids:
+                    if (
+                        kind == "file"
+                        and fragment
+                        and final in pages
+                        and fragment in pages[final].ids
+                    ):
                         kind = "fragment"
-                    elif (kind == "file" and final == "/library/ai-employment-research/index.html"
-                          and fragment in ("view=overview", "view=research", "view=explore")
-                          and fragment.removeprefix("view=") in pages[final].ids):
+                    elif (
+                        kind == "file"
+                        and final == "/library/ai-employment-research/index.html"
+                        and fragment
+                        in ("view=overview", "view=research", "view=explore")
+                        and fragment.removeprefix("view=") in pages[final].ids
+                    ):
                         kind = "research-tab"
                     elif kind == "file" and fragment and final in pages:
                         kind = "fragment-needs-runtime"
-                    if kind in {"missing","restricted","fragment-needs-runtime","application-endpoint"}:
+                    if kind in {
+                        "missing",
+                        "restricted",
+                        "fragment-needs-runtime",
+                        "application-endpoint",
+                    }:
                         key = kind, final + ("#" + fragment if fragment else "")
-                        record = bad.setdefault(key, {"kind":kind,"target":key[1],"occurrences":0,"examples":[]})
+                        record = bad.setdefault(
+                            key,
+                            {
+                                "kind": kind,
+                                "target": key[1],
+                                "occurrences": 0,
+                                "examples": [],
+                            },
+                        )
                         record["occurrences"] += 1
-                        if len(record["examples"]) < 3 and path not in record["examples"]:
+                        if (
+                            len(record["examples"]) < 3
+                            and path not in record["examples"]
+                        ):
                             record["examples"].append(path)
                 totals[kind] += 1
                 seen[kind] += 1
-                examples.setdefault(kind, {"source":path,"href":href})
-            log.write(json.dumps({"path":path,"counts":seen},ensure_ascii=False)+"\n")
-    report = {"rendered_html_sources":len(pages),"aliases":ALIASES,"anchor_occurrences":sum(totals.values()),
-              "counts":totals,"examples":examples,"review":list(bad.values())}
-    (output / "navigation.json").write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding="utf8")
+                examples.setdefault(kind, {"source": path, "href": href})
+            log.write(
+                json.dumps({"path": path, "counts": seen}, ensure_ascii=False) + "\n"
+            )
+    report = {
+        "rendered_html_sources": len(pages),
+        "aliases": ALIASES,
+        "anchor_occurrences": sum(totals.values()),
+        "counts": totals,
+        "examples": examples,
+        "review": list(bad.values()),
+    }
+    (output / "navigation.json").write_text(
+        json.dumps(report, ensure_ascii=False, indent=2), encoding="utf8"
+    )
     print(len(pages), sum(totals.values()), dict(totals))
-    return int(any(totals[kind] for kind in ("missing", "restricted", "fragment-needs-runtime", "application-endpoint")))
+    return int(
+        any(
+            totals[kind]
+            for kind in (
+                "missing",
+                "restricted",
+                "fragment-needs-runtime",
+                "application-endpoint",
+            )
+        )
+    )
 
 
 if __name__ == "__main__":

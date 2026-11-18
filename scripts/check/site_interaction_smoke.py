@@ -44,7 +44,7 @@ HIT_TARGETS = """() => {
    const samples = collection.length < 5 ? collection : [...new Set([collection[0], collection[Math.floor(collection.length/2)], collection.at(-1)])];
    for (const el of samples) {
      tested++;
-     if (el.matches('.skip-link,.cockpit-skip')) el.focus({preventScroll:true});
+     if (el.matches('a.skip,a.skip-link,a.cockpit-skip')) el.focus({preventScroll:true});
      let reachable = false, covering = '';
      for (const block of ['center','start','end']) {
        el.scrollIntoView({block, inline:'center', behavior:'instant'});
@@ -87,10 +87,14 @@ def guest_prompt(page):
     button.press("Enter")
     modal = page.get_by_role("dialog")
     expect(modal).to_be_visible()
-    expect(modal.get_by_role("link", name="登录", exact=True)).to_have_attribute("href", re.compile(r"login\.html\?next="))
+    expect(modal.get_by_role("link", name="登录", exact=True)).to_have_attribute(
+        "href", re.compile(r"login\.html\?next=")
+    )
     modal.get_by_role("link", name="登录", exact=True).focus()
     page.keyboard.press("Tab")
-    assert page.evaluate("!document.activeElement.closest('body') || document.activeElement === document.body || !!document.activeElement.closest('[role=dialog],dialog')"), "Tab moved to a background control"
+    assert page.evaluate(
+        "!document.activeElement.closest('body') || document.activeElement === document.body || !!document.activeElement.closest('[role=dialog],dialog')"
+    ), "Tab moved to a background control"
     page.keyboard.press("Escape")
     expect(modal).to_have_count(0)
     expect(button).to_be_focused()
@@ -136,9 +140,13 @@ def code_wrap(page):
     control = page.locator(".code-toolbar button[aria-pressed]:visible").first
     expect(control).to_be_visible()
     block = control.locator("xpath=../../pre")
-    wrapped = lambda: block.evaluate("el => getComputedStyle(el).whiteSpace.includes('wrap')")
+    wrapped = lambda: block.evaluate(
+        "el => getComputedStyle(el).whiteSpace.includes('wrap')"
+    )
     before = wrapped()
-    assert control.get_attribute("aria-pressed") == str(before).lower(), "aria-pressed differs from line wrapping"
+    assert control.get_attribute("aria-pressed") == str(before).lower(), (
+        "aria-pressed differs from line wrapping"
+    )
     control.press("Enter")
     assert wrapped() != before, "first activation kept the same line wrapping"
     control.click()
@@ -211,13 +219,19 @@ def module(page):
         chapter.click()
         reader = page
     expect(reader.locator("h1")).to_be_visible()
-    assert urlsplit(href).path.split("/")[-1] == urlsplit(reader.url).path.split("/")[-1]
+    assert (
+        urlsplit(href).path.split("/")[-1] == urlsplit(reader.url).path.split("/")[-1]
+    )
     if reader is not page:
         reader.close()
 
 
 def chapter_contents(page):
-    link = page.locator(".reader-body a[href='chapter-02.html']").filter(has_text="LangChain").first
+    link = (
+        page.locator(".reader-body a[href='chapter-02.html']")
+        .filter(has_text="LangChain")
+        .first
+    )
     expect(link).to_be_visible()
     if link.get_attribute("target") == "_blank":
         with page.expect_popup() as opened:
@@ -266,7 +280,11 @@ def exams(page):
     companies = page.locator("#company")
     companies.select_option(index=1)
     expect(items.first).to_be_visible()
-    assert all(x == companies.input_value() for x in items.evaluate_all("els=>els.map(e=>e.dataset.company)"))
+    assert all(
+        x == companies.input_value()
+        for x in items.evaluate_all("els=>els.map(e=>e.dataset.company)")
+    )
+
 
 def research_tabs(page):
     for name in ("research", "explore", "overview"):
@@ -283,7 +301,7 @@ def tools_booking(page):
     rows = page.locator("#slot-rows > *")
     count = rows.count()
     page.locator("#slot-add").click()
-    expect(rows).to_have_count(count+1)
+    expect(rows).to_have_count(count + 1)
     last = rows.last
     start, end = last.locator("select").all()
     start.select_option("20")
@@ -307,7 +325,9 @@ def admin_sections(page):
     else:
         page.locator(".admin-topic-nav a[href='#admin-overview']").click()
     page.locator('[data-admin-tab="logs"]').click()
-    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth+1"), "admin log filters overflow"
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth+1"), (
+        "admin log filters overflow"
+    )
 
 
 def ai_drawer(page):
@@ -330,8 +350,12 @@ def panel(page, launcher, panel_id):
     button.press("Enter")
     opened = page.locator(panel_id)
     expect(opened).to_be_visible()
-    assert opened.evaluate("el=>el.contains(document.activeElement)"), "focus stayed outside the opened panel"
-    assert opened.evaluate("el=>{const r=el.getBoundingClientRect();return r.left>=-1 && r.top>=-1 && r.right<=innerWidth+1 && r.bottom<=innerHeight+1}"), "panel extends beyond viewport"
+    assert opened.evaluate("el=>el.contains(document.activeElement)"), (
+        "focus stayed outside the opened panel"
+    )
+    assert opened.evaluate(
+        "el=>{const r=el.getBoundingClientRect();return r.left>=-1 && r.top>=-1 && r.right<=innerWidth+1 && r.bottom<=innerHeight+1}"
+    ), "panel extends beyond viewport"
     page.keyboard.press("Escape")
     expect(opened).to_have_count(0)
     expect(button).to_be_focused()
@@ -374,13 +398,28 @@ CASES = [
     ("guest", "shelf-filters", "/library/index.html", library_filters),
     ("guest", "full-text-search", "/library/search.html", library_search),
     ("guest", "module-chapter-navigation", "/library/java-core/index.html", module),
-    ("guest", "chapter-authored-contents-and-export", "/library/langchain/chapter-01.html", chapter_contents),
-    ("guest", "reader-callout-anchor", "/books/company-solutions/Array/0016-最接近的三数之和.html", callout_link),
+    (
+        "guest",
+        "chapter-authored-contents-and-export",
+        "/library/langchain/chapter-01.html",
+        chapter_contents,
+    ),
+    (
+        "guest",
+        "reader-callout-anchor",
+        "/books/company-solutions/Array/0016-最接近的三数之和.html",
+        callout_link,
+    ),
     ("guest", "theme-three-modes", "/guide.html", theme),
     ("guest", "reader-copy-wrap", "/guide.html", code_wrap),
     ("guest", "market-filter-paging-detail", "/research/market/", market),
     ("guest", "exam-archive-company-search", "/books/ai-exam/index.html", exams),
-    ("guest", "research-hash-tabs", "/library/ai-employment-research/index.html", research_tabs),
+    (
+        "guest",
+        "research-hash-tabs",
+        "/library/ai-employment-research/index.html",
+        research_tabs,
+    ),
     ("member", "notice-filter-iframe-refresh-popup", "/pages/notices.html", notices),
     ("member", "quiz-bank-study-exam-navigation", "/pages/quiz.html", quiz),
     ("member", "chat-panel", "/", lambda p: panel(p, ".fap-chat", "#forge-chat-panel")),
@@ -397,26 +436,50 @@ CASES = [
 def native_guest_navigation(browser, base, output, widths):
     """Visit the production shell with normal cache, service worker and network."""
     snapshots = []
-    context = browser.new_context(locale="zh-CN", reduced_motion="reduce", service_workers="allow")
+    context = browser.new_context(
+        locale="zh-CN", reduced_motion="reduce", service_workers="allow"
+    )
     page = context.new_page()
     try:
         page.goto(base + "/", wait_until="domcontentloaded")
-        page.wait_for_function("navigator.serviceWorker.controller !== null", timeout=30000)
+        page.wait_for_function(
+            "navigator.serviceWorker.controller !== null", timeout=30000
+        )
         for width, height in VIEWPORTS:
             if widths and width not in widths:
                 continue
-            page.set_viewport_size({"width":width,"height":height})
-            for name, path in (("cockpit","/cockpit.html"),("catalog","/index.html"),("shelf","/library/index.html"),("guide","/guide.html")):
+            page.set_viewport_size({"width": width, "height": height})
+            for name, path in (
+                ("cockpit", "/cockpit.html"),
+                ("catalog", "/index.html"),
+                ("shelf", "/library/index.html"),
+                ("guide", "/guide.html"),
+            ):
                 resp = page.goto(base + path, wait_until="load")
                 expect(page.locator("h1").first).to_be_visible()
-                measured = page.evaluate("({width:document.documentElement.scrollWidth,controlled:!!navigator.serviceWorker.controller})")
-                assert resp.ok and measured["width"] <= width+1 and measured["controlled"], (path,width,measured)
+                measured = page.evaluate(
+                    "({width:document.documentElement.scrollWidth,controlled:!!navigator.serviceWorker.controller})"
+                )
+                assert (
+                    resp.ok
+                    and measured["width"] <= width + 1
+                    and measured["controlled"]
+                ), (path, width, measured)
                 if name == "catalog":
                     expect(page.locator("#grid .card").first).to_be_visible()
                 image = f"native-{name}-{width}.png"
                 page.screenshot(path=output / image)
-                snapshots.append({"path":path,"viewport":width,"height":height,"status":resp.status,
-                                  "from_service_worker":resp.from_service_worker,"screenshot":image,**measured})
+                snapshots.append(
+                    {
+                        "path": path,
+                        "viewport": width,
+                        "height": height,
+                        "status": resp.status,
+                        "from_service_worker": resp.from_service_worker,
+                        "screenshot": image,
+                        **measured,
+                    }
+                )
     finally:
         context.close()
     return snapshots
@@ -429,57 +492,109 @@ def run(args):
     results = []
     hits = []
     native = []
+    native_error = ""
     blocked_writes = Counter()
     args.output.mkdir(exist_ok=True, parents=True)
     with ExitStack() as stack:
         client = None
-        identity = {"id": 12345, "username": "interaction_fixture", "nickname": "验收", "role": "user", "lang": "java"}
+        identity = {
+            "id": 12345,
+            "username": "interaction_fixture",
+            "nickname": "验收",
+            "role": "user",
+            "lang": "java",
+        }
         if not args.base:
             db = Path(stack.enter_context(tempfile.TemporaryDirectory())) / "study.db"
-            client = stack.enter_context(TestClient(fixture_app(db), raise_server_exceptions=False))
+            client = stack.enter_context(
+                TestClient(fixture_app(db), raise_server_exceptions=False)
+            )
             stack.enter_context(patch.object(static, "_record_view"))
-            stack.enter_context(patch.object(static, "current_user", side_effect=lambda req: identity if role != "guest" else None))
+            stack.enter_context(
+                patch.object(
+                    static,
+                    "current_user",
+                    side_effect=lambda req: identity if role != "guest" else None,
+                )
+            )
         pw = stack.enter_context(sync_playwright())
         browser = pw.chromium.launch()
         stack.callback(browser.close)
         if args.native_navigation:
             if not args.base:
                 raise ValueError("--native-navigation requires --base")
-            native = native_guest_navigation(browser, base, args.output, args.widths)
+            try:
+                native = native_guest_navigation(
+                    browser, base, args.output, args.widths
+                )
+            except Exception as exc:
+                native_error = str(exc)[:600]
         for role in ("guest", "member", "admin"):
             if args.base and role == "admin":
                 continue
             identity["role"] = "admin" if role == "admin" else "user"
-            cases = [case for case in CASES if case[0] == role and (not args.case or case[1] in args.case)]
+            cases = [
+                case
+                for case in CASES
+                if case[0] == role and (not args.case or case[1] in args.case)
+            ]
             if not cases or (args.base and role == "member" and not args.credentials):
                 continue
-            context = browser.new_context(locale="zh-CN", service_workers="block", reduced_motion="reduce")
+            context = browser.new_context(
+                locale="zh-CN", service_workers="block", reduced_motion="reduce"
+            )
+
             def transport(route):
                 req = route.request
                 url = urlsplit(req.url)
                 if url.netloc != urlsplit(base).netloc:
                     route.abort()
                 elif req.method not in ("GET", "HEAD") and not (
-                    args.base and role == "member" and req.method == "POST" and url.path == "/api/login"
+                    args.base
+                    and role == "member"
+                    and req.method == "POST"
+                    and url.path == "/api/login"
                 ):
                     blocked_writes[url.path] += 1
-                    route.fulfill(status=405, json={"error":"验收只读"})
+                    route.fulfill(status=405, json={"error": "验收只读"})
                 elif client is None:
                     route.continue_()
                 elif url.path == "/api/me":
-                    route.fulfill(json=identity if role != "guest" else {"error":"游客"}, status=200 if role != "guest" else 401)
+                    route.fulfill(
+                        json=identity if role != "guest" else {"error": "游客"},
+                        status=200 if role != "guest" else 401,
+                    )
                 else:
-                    response = client.get(req.url, headers={"Referer": req.headers.get("referer", "")})
-                    route.fulfill(status=response.status_code, body=response.content,
-                                  headers={k:v for k,v in response.headers.items() if k not in ("content-length","content-encoding")})
+                    response = client.get(
+                        req.url,
+                        headers={
+                            k: v
+                            for k, v in req.headers.items()
+                            if k in ("referer", "accept", "sec-fetch-dest")
+                        },
+                    )
+                    route.fulfill(
+                        status=response.status_code,
+                        body=response.content,
+                        headers={
+                            k: v
+                            for k, v in response.headers.items()
+                            if k not in ("content-length", "content-encoding")
+                        },
+                    )
+
             context.route("**/*", transport)
             if args.base and role == "member":
-                credentials = json.loads(args.credentials.read_text(encoding="utf-8-sig"))
+                credentials = json.loads(
+                    args.credentials.read_text(encoding="utf-8-sig")
+                )
                 login = context.new_page()
                 login.goto(base + "/pages/login.html")
                 login.locator("#username").fill(credentials["username"])
                 login.locator("#password").fill(credentials["password"])
-                with login.expect_response(lambda res: urlsplit(res.url).path == "/api/login") as response:
+                with login.expect_response(
+                    lambda res: urlsplit(res.url).path == "/api/login"
+                ) as response:
                     login.locator("#btn").click()
                 assert response.value.ok, f"Login returned HTTP {response.value.status}"
                 assert context.request.get(base + "/api/me").ok
@@ -489,47 +604,111 @@ def run(args):
                     continue
                 for _, name, path, action in cases:
                     page = context.new_page()
-                    page.set_viewport_size({"width":width,"height":height})
+                    page.set_viewport_size({"width": width, "height": height})
                     page.set_default_timeout(7000)
                     errors = []
                     page.on("pageerror", lambda error: errors.append(str(error)[:300]))
-                    row = {"role":role,"case":name,"width":width,"height":height,"path":path}
+                    row = {
+                        "role": role,
+                        "case": name,
+                        "width": width,
+                        "height": height,
+                        "path": path,
+                    }
                     try:
-                        response = page.goto(base + path, wait_until="domcontentloaded", timeout=30000)
+                        response = page.goto(
+                            base + path, wait_until="domcontentloaded", timeout=30000
+                        )
                         assert response and response.ok
                         action(page)
-                        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth+1"), "horizontal overflow"
+                        assert page.evaluate(
+                            "document.documentElement.scrollWidth <= innerWidth+1"
+                        ), "horizontal overflow"
                         assert not errors, errors
                         row["passed"] = True
                     except Exception as exc:
                         row.update(passed=False, error=str(exc)[:600])
-                        page.screenshot(path=args.output / f"failure-{name}-{width}.png", timeout=10000)
+                        page.screenshot(
+                            path=args.output / f"failure-{name}-{width}.png",
+                            timeout=10000,
+                            mask=[
+                                page.locator(
+                                    ".fap-name,#forge-profile .fp-sub,#username,#password"
+                                )
+                            ],
+                        )
                     finally:
                         row["final_path"] = unquote(urlsplit(page.url).path)
-                        if args.hit_targets and not any(h["role"] == role and h["width"] == width and h["path"] == row["final_path"] for h in hits):
-                            hits.append({"role":role,"width":width,"path":row["final_path"], **page.evaluate(HIT_TARGETS)})
+                        if args.hit_targets and not any(
+                            h["role"] == role
+                            and h["width"] == width
+                            and h["path"] == row["final_path"]
+                            for h in hits
+                        ):
+                            hits.append(
+                                {
+                                    "role": role,
+                                    "width": width,
+                                    "path": row["final_path"],
+                                    **page.evaluate(HIT_TARGETS),
+                                }
+                            )
                         results.append(row)
                         page.close()
             context.close()
     unreachable = sum(len(inspection["issues"]) for inspection in hits)
-    report = {"base":base, "results":results, "native_browser_navigation":native, "pointer_hit_tests":hits, "unreachable_controls":unreachable, "blocked_writes":dict(blocked_writes),
-              "not_sent": ["发布聊天或反馈、修改账号与头像、保存第三方凭据、同步力扣、创建预约、发邮件、修改管理配置均会写入账户或联系第三方。",
-                           "外部招聘及第三方站点未遍历。","生产普通验收账号仅执行本工具的用户操作，管理入口和私人正文受身份限制。"]}
-    (args.output / "interactions.json").write_text(json.dumps(report,ensure_ascii=False,indent=2), encoding="utf8")
+    report = {
+        "base": base,
+        "results": results,
+        "native_browser_navigation": native,
+        "native_error": native_error,
+        "pointer_hit_tests": hits,
+        "unreachable_controls": unreachable,
+        "blocked_writes": dict(blocked_writes),
+        "not_sent": [
+            "发布聊天或反馈、修改账号与头像、保存第三方凭据、同步力扣、创建预约、发邮件、修改管理配置均会写入账户或联系第三方。",
+            "外部招聘及第三方站点未遍历。",
+            "生产普通验收账号仅执行本工具的用户操作，管理入口和私人正文受身份限制。",
+        ],
+    }
+    (args.output / "interactions.json").write_text(
+        json.dumps(report, ensure_ascii=False, indent=2), encoding="utf8"
+    )
     failed = [r for r in results if not r["passed"]]
     for row in failed:
-        print(row["case"],row["width"],row["error"].splitlines()[0],flush=True)
-    print(f"{len(results)-len(failed)}/{len(results)} interaction flows passed; {unreachable} unreachable pointer targets",flush=True)
-    return int(bool(failed or unreachable))
+        print(row["case"], row["width"], row["error"].splitlines()[0], flush=True)
+    print(
+        f"{len(results) - len(failed)}/{len(results)} interaction flows passed; {unreachable} unreachable pointer targets",
+        flush=True,
+    )
+    if native_error:
+        print("Native browser navigation:", native_error, flush=True)
+    return int(bool(failed or unreachable or native_error))
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--base", help="Explicit live base URL; default uses the offline test app")
-    parser.add_argument("--credentials", type=Path, help="Dedicated test account JSON; values are never logged")
+    parser.add_argument(
+        "--base", help="Explicit live base URL; default uses the offline test app"
+    )
+    parser.add_argument(
+        "--credentials",
+        type=Path,
+        help="Dedicated test account JSON; values are never logged",
+    )
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--widths", type=int, nargs="+", choices=[width for width, _ in VIEWPORTS])
-    parser.add_argument("--hit-targets", action="store_true", help="Check pointer hit points after scrolling template controls into view")
-    parser.add_argument("--native-navigation", action="store_true", help="Also capture unauthenticated live pages with normal networking and the active service worker")
+    parser.add_argument(
+        "--widths", type=int, nargs="+", choices=[width for width, _ in VIEWPORTS]
+    )
+    parser.add_argument(
+        "--hit-targets",
+        action="store_true",
+        help="Check pointer hit points after scrolling template controls into view",
+    )
+    parser.add_argument(
+        "--native-navigation",
+        action="store_true",
+        help="Also capture unauthenticated live pages with normal networking and the active service worker",
+    )
     parser.add_argument("--case", nargs="+", choices=[case[1] for case in CASES])
     raise SystemExit(run(parser.parse_args()))
