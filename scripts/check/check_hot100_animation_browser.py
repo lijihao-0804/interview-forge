@@ -16,7 +16,7 @@ import re
 from threading import Thread
 from urllib.parse import urljoin
 
-from playwright.async_api import async_playwright
+from playwright.async_api import async_playwright, expect
 try:
     from .hot100_graph_answers import compare_output
 except ImportError:  # Running this file directly.
@@ -290,9 +290,10 @@ async def graphic(frame, pid, folder=None):
     assert await desc.inner_text() == opening, "previous did not restore the opening step"
     play = frame.locator(".dk-btn.primary:visible, .btn-auto:visible, #playBtn:visible").first
     await play.click()
+    await expect(prev).to_be_enabled()
     await frame.wait_for_function("""opening => [...document.querySelectorAll(
         '.dk-desc, .panel.active .vis-msg, #desc1')].some(n =>
-        n.offsetWidth && n.textContent.trim() !== opening.trim())""", arg=opening)
+        n.offsetWidth && n.innerText.trim() !== opening.trim())""", arg=opening)
     if "暂停" in await play.inner_text():
         await play.click()
     first = frame.locator(".btn-first:visible, #resetBtn:visible").or_(

@@ -124,6 +124,64 @@ def library_filters(page):
     expect(page.locator("#chipRow")).to_be_visible()
 
 
+def catalog_filter_widths(page, member):
+    expect(page.locator("body")).to_have_class(
+        re.compile(r"\b" + ("is-authenticated" if member else "is-guest") + r"\b")
+    )
+    # The category list is populated from the volume's actual problems.
+    expect(page.locator("#category option").nth(1)).to_be_attached()
+    selectors = page.locator(".controls select:visible, #sortOrder:visible")
+    expect(selectors).to_have_count(5 if member else 3)
+    if member:
+        page.locator("#progressLanguage").select_option("python")
+        page.locator("#status").select_option("repeat")
+    page.locator("#sortOrder").select_option("difficulty")
+    page.evaluate("document.fonts.ready")
+    # A single-option clone uses the browser's own font, native arrow and padding.
+    # Measuring text alone misses exactly the clipping this check guards against.
+    measurements = selectors.evaluate_all("""selects => selects.map(select => {
+      const rect = select.getBoundingClientRect();
+      const probe = select.cloneNode(false);
+      probe.removeAttribute('id');
+      probe.setAttribute('aria-hidden', 'true');
+      probe.tabIndex = -1;
+      probe.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none;width:max-content!important;min-width:0!important;max-width:none!important';
+      const sample = new Option();
+      probe.add(sample);
+      select.after(probe);
+      const intrinsic = text => {
+        sample.text = text;
+        return probe.getBoundingClientRect().width;
+      };
+      const chrome = intrinsic('');
+      const options = Array.from(select.options, option => ({
+        label:option.label, value:option.value, required:intrinsic(option.label)
+      }));
+      const style = getComputedStyle(probe);
+      const decoration = ['paddingLeft','paddingRight','borderLeftWidth','borderRightWidth']
+        .reduce((sum, p) => sum + parseFloat(style[p]), 0);
+      probe.remove();
+      return {id:select.id, width:rect.width, x:rect.x, y:rect.y,
+              selected:select.value, native_chrome:chrome, native_arrow:chrome-decoration, options};
+    })""")
+    category = next(field for field in measurements if field["id"] == "category")
+    longest = max(category["options"], key=lambda option: option["required"])
+    page.locator("#category").select_option(longest["value"])
+    expect(page.locator("#category")).to_have_value(longest["value"])
+    category["selected"] = longest["value"]
+    if member:
+        expect(page.locator("#progressLanguage")).to_have_value("python")
+        expect(page.locator("#status")).to_have_value("repeat")
+    for field in measurements:
+        assert field["native_arrow"] > 0, f"{field['id']} native arrow was not measured"
+    clipped = [
+        f"{field['id']} {option['label']} ({option['required']:.1f} > {field['width']:.1f}px)"
+        for field in measurements for option in field["options"]
+        if option["required"] > field["width"] + 0.1
+    ]
+    return {"filter_widths": measurements, "clipped_options": clipped}
+
+
 def library_search(page):
     page.locator("h1").click()
     page.keyboard.press("/")
@@ -392,6 +450,10 @@ def favorites(page):
 
 
 CASES = [
+    ("guest", "hot100-guest-filter-widths", "/index.html", lambda p: catalog_filter_widths(p, False)),
+    ("guest", "hot200-guest-filter-widths", "/library/hot200-extra/index.html", lambda p: catalog_filter_widths(p, False)),
+    ("member", "hot100-member-filter-widths", "/index.html", lambda p: catalog_filter_widths(p, True)),
+    ("member", "hot200-member-filter-widths", "/library/hot200-extra/index.html", lambda p: catalog_filter_widths(p, True)),
     ("guest", "cockpit-to-catalog-search-reset-load", "/", cockpit),
     ("guest", "feedback-login-dialog", "/", guest_prompt),
     ("guest", "auth-form-navigation", "/pages/login.html", auth_links),
@@ -620,7 +682,13 @@ def run(args):
                             base + path, wait_until="domcontentloaded", timeout=30000
                         )
                         assert response and response.ok
-                        action(page)
+                        details = action(page)
+                        if isinstance(details, dict):
+                            row.update(details)
+                            name_and_width = f"{name}-{width}.png"
+                            page.locator(".controls").screenshot(path=args.output / name_and_width)
+                            row["filter_screenshot"] = name_and_width
+                            assert not row["clipped_options"], ", ".join(row["clipped_options"])
                         assert page.evaluate(
                             "document.documentElement.scrollWidth <= innerWidth+1"
                         ), "horizontal overflow"
