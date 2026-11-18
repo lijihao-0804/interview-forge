@@ -74,7 +74,7 @@ _ACTION = re.compile(
     r"^(?:确认|取消|重试)[。！？?]*$|"
     r"\b(?:confirm|cancel)\b", re.I,
 )
-_PAGE = re.compile(r"这(?:个|道|一)?(?:题|页|章|段)|当前(?:页|题|章)|选中|划选|页面|本题|本章|\b(?:this page|this problem|selected text)\b", re.I)
+_PAGE = re.compile(r"这(?:个|道|一)?(?:题|页|章|段)|(?:当前|本)(?:页|题|章)|选中|划选|页面|\b(?:this page|this problem|selected text)\b", re.I)
 _GREETING = re.compile(r"^(?:你好|您好|嗨|哈喽|早上好|晚上好|在吗|谢谢|hello|hi|hey)[!！。.，,？?\s]*$", re.I)
 _ACKNOWLEDGEMENT = re.compile(r"^(?:嗯|好|好的|好吧|是的|可以|开始吧)[。！？?\s]*$")
 _IMPLICIT_PAGE = re.compile(r"^(?:它(?:呢|怎么做|怎么理解)?|继续|接着(?:讲|说)?)[。！？?\s]*$")

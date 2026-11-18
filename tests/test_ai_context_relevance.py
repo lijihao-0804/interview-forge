@@ -127,9 +127,10 @@ class TopicSelectionTests(unittest.TestCase):
         self.assertFalse(page_is_relevant("给个提示", PageContext("/home", "主页", "other"), "hint"))
 
     def test_changed_page_reference_starts_a_new_topic(self):
-        selected = select_history(self.rows, "这题怎么做", current_page_path="/new-problem")
-        self.assertEqual(selected.reason, "new_page_reference")
-        self.assertFalse(selected.rows)
+        for query in ("这题怎么做", "本页题号是多少？只答数字。"):
+            selected = select_history(self.rows, query, current_page_path="/new-problem")
+            self.assertEqual(selected.reason, "new_page_reference")
+            self.assertFalse(selected.rows)
         self.rows[2]["metadata_json"] = json.dumps({"page_context": {"path": "/new-problem"}})
         selected = select_history(self.rows, "这题还有其他解法吗", current_page_path="/new-problem")
         self.assertEqual([r["id"] for r in selected.rows], [3, 4])
@@ -167,7 +168,7 @@ class TopicSelectionTests(unittest.TestCase):
 
     def test_page_reference_and_explicit_subject_override_stale_page(self):
         page = PageContext(path="/lru", title="146 LRU 缓存", problem_id=146)
-        for query in ("这题怎么做", "解释当前页面", "第146题怎么优化", "LRU 的实现"):
+        for query in ("这题怎么做", "解释当前页面", "本页题号是多少？只答数字。", "第146题怎么优化", "LRU 的实现"):
             with self.subTest(query=query):
                 self.assertTrue(page_is_relevant(query, page))
         self.assertFalse(page_is_relevant("解释 TCP 的三次握手", page))
