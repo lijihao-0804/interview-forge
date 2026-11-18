@@ -115,12 +115,14 @@ class TopicSelectionTests(unittest.TestCase):
     def test_unspecified_hint_refers_only_to_selected_learning_pages(self):
         for kind in ("problem", "library/chapter"):
             page = PageContext(path="/new", title="字母异位词分组", page_type=kind)
-            for query in ("给个提示", "卡住了，第一步呢？", "从哪里入手？"):
+            for query in ("给个提示", "卡住了，第一步呢？", "从哪里入手？", "给一个起步提示。",
+                          "给我一点起步提示", "我该从哪下手？"):
                 self.assertTrue(page_is_relevant(query, page, "hint"))
                 self.assertFalse(page_is_relevant(query, page, "auto"))
                 self.assertEqual(select_history(self.rows, query, current_page_path=page.path).reason,
                                  "new_page_reference")
-            for other_topic in ("解释 TCP 的三次握手", "TCP 握手从哪里入手？", "给个提示，怎么学习 TCP？"):
+            for other_topic in ("解释 TCP 的三次握手", "TCP 握手从哪里入手？", "给个提示，怎么学习 TCP？",
+                                "给一个学习 TCP 的起步提示", "我该从哪下手学 SQL？"):
                 self.assertFalse(page_is_relevant(other_topic, page, "hint"))
         self.assertFalse(page_is_relevant("给个提示", PageContext("/home", "主页", "other"), "hint"))
 
