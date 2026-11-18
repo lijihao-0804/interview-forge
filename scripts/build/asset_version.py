@@ -17,7 +17,11 @@ DELIVERED_ASSET_VERSIONS = {
     "auth-widget.js": "9",
     "feedback-widget.js": "6",
     "guest-auth.js": "3",
-    "ai-launcher.js": "5",
+    "ai-assistant.js": "18",
+    "ai-assistant.css": "11",
+    "ai-launcher.js": "6",
+    "ai-launcher.css": "6",
+    "ai-page-context.js": "4",
     "shelf-filters.js": "3",
 }
 SERVICE_WORKER_VERSION = "hot100-v47-20261118-embedded-navigation"

@@ -15,12 +15,18 @@ class WorkspaceLayoutTests(unittest.TestCase):
 
     def test_all_workspace_pages_load_scoped_layout(self):
         paths=['cockpit.html','index.html','tools/templates/dashboard.tpl']
-        paths += ['pages/'+name+'.html' for name in ['account','forgot-password','admin','ai-assistant','favorites','history','leetcode-connect','login','notices','quiz','register','tools','tools/nju-booking']]
+        paths += ['pages/'+name+'.html' for name in ['account','forgot-password','admin','favorites','history','leetcode-connect','login','notices','quiz','register','tools','tools/nju-booking']]
         for path in paths:
             with self.subTest(path=path):
                 text=(ROOT/path).read_text()
                 self.assertIn('data-forge-page=',text)
                 self.assertIn('assets/workspace-layout.css',text)
+
+    def test_chat_owns_its_full_height_layout(self):
+        text = (ROOT / 'pages/ai-assistant.html').read_text(encoding='utf-8')
+        self.assertIn('data-forge-page="chat"', text)
+        self.assertIn('assets/ai-assistant.css', text)
+        self.assertNotIn('assets/workspace-layout.css', text)
 
     def test_private_archive_stays_out_of_service_worker_cache(self):
         sw=(ROOT/'service-worker.js').read_text()

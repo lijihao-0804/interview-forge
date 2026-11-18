@@ -290,14 +290,18 @@ async function editablePracticeReview() {
   ui.get("messageInput").value = "哪里错了？";
   await ui.click("studyCode");
   const draft = ui.get("messageInput").value;
-  assert.match(draft, /^哪里错了？/);
-  assert.match(draft, /def solve\(\):\n    print\(7\)/);
-  assert.match(draft, /当前输入\n4/);
-  assert.match(draft, /输出区\n7/);
-  assert.doesNotMatch(draft, /stale fallback/);
+  assert.equal(draft, "哪里错了？");
+  assert.equal(ui.get("practiceOption").hidden, false);
   assert.equal(server.posts.length, 0);
+  ui.get("attachPractice").checked = true;
   await ui.submit(draft);
-  assert.equal(JSON.parse(server.posts[0].body).message, draft);
+  const body = JSON.parse(server.posts[0].body);
+  assert.equal(body.message, draft);
+  assert.equal(body.study_mode, "code");
+  assert.match(body.practice_snapshot, /def solve\(\):\n    print\(7\)/);
+  assert.match(body.practice_snapshot, /当前输入\n4/);
+  assert.match(body.practice_snapshot, /输出区\n7/);
+  assert.doesNotMatch(body.practice_snapshot, /stale fallback/);
 }
 
 (async () => {

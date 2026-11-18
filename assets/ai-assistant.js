@@ -3,12 +3,25 @@
 
   var embedded = new URLSearchParams(window.location.search).get("embedded") === "1";
   document.body.classList.toggle("embedded", embedded);
+  if (!embedded) {
+    function placeThemeButton() {
+      var themeButton = document.getElementById("forge-theme-btn");
+      if (themeButton) document.getElementById("themeSlot").appendChild(themeButton);
+    }
+    window.addEventListener("load", placeThemeButton);
+    window.addEventListener("keydown", function (event) {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      if (event.target.closest("textarea,input,select,[contenteditable=true]") ||
+          document.querySelector('dialog[open], [role="dialog"]:not([hidden])')) return;
+      location.href = "../cockpit.html";
+    });
+  }
   var state = {
     sessions: [], current: null, controller: null, assistantNode: null,
-    account: "", phase: "loading", pending: null, pendingBySession: Object.create(null),
+    account: "", drafts: Object.create(null), phase: "loading", pending: null, pendingBySession: Object.create(null),
     recoveryTimer: null, pageContext: null,
     pageContextWaiters: Object.create(null), contextRequestSerial: 0, sessionLoadSerial: 0,
-    autoFollow: true, scrollFrame: null,
+    studyMode: "auto", autoFollow: true, scrollFrame: null,
     streamDiagnostics: { delta_count: 0, render_count: 0, max_render_ms: 0 }
   };
   var STREAM_RENDER_INTERVAL = 100;
@@ -21,7 +34,7 @@
   var status = document.getElementById("status");
   var error = document.getElementById("error");
   var input = document.getElementById("messageInput");
-  var studyButtons = ["studyHint", "studyReview", "studyCode"].map(function (id) {
+  var studyButtons = ["studyAuto", "studyHint", "studyReview", "studyCode"].map(function (id) {
     return document.getElementById(id);
   });
   var send = document.getElementById("send");
@@ -70,7 +83,7 @@
         var lang = lines[i].replace(/^\s*```/, "").trim(); var code = []; i += 1;
         while (i < lines.length && !/^\s*```/.test(lines[i])) { code.push(lines[i]); i += 1; }
         if (i < lines.length) i += 1;
-        html.push("<pre><code" + (lang ? " data-language=\"" + esc(lang) + "\"" : "") + ">" + esc(code.join("\n")) + "</code></pre>"); continue;
+        html.push('<div class="code-block"><div class="code-toolbar"><span>' + esc(lang || "代码") + '</span><button type="button" class="button copy-code" aria-live="polite">复制代码</button></div><pre><code' + (lang ? " data-language=\"" + esc(lang) + "\"" : "") + ">" + esc(code.join("\n")) + "</code></pre></div>"); continue;
       }
       var heading = lines[i].match(/^\s*(#{1,6})\s+(.+?)\s*#*\s*$/);
       if (heading) { html.push("<h" + heading[1].length + ">" + inline(heading[2]) + "</h" + heading[1].length + ">"); i += 1; continue; }
@@ -101,7 +114,16 @@
     return problem;
   }
 
+  function setAccount(account) {
+    if (state.account === account) return;
+    state.drafts = Object.create(null);
+    state.current = null;
+    input.value = "";
+    state.account = account;
+  }
+
   function showAuthGate() {
+    setAccount("");
     if (document.getElementById("ai-auth-gate")) return;
     input.disabled = true;
     send.disabled = true;
@@ -137,7 +159,7 @@
           if (response.status === 401) return false;
           if (!response.ok) throw new Error("暂时无法确认登录状态，请稍后重试");
           return response.json().then(function (user) {
-            state.account = user && user.username || "";
+            setAccount(user && user.username || "");
             return !!state.account;
           });
         })
@@ -180,7 +202,7 @@
     retryTurn.hidden = phase !== "retry" && phase !== "check";
     retryTurn.textContent = phase === "retry" ? "重试原消息" : "检查状态";
     editTurn.hidden = phase !== "retry";
-    var labels = { loading: "读取会话中…", ready: "已连接", preparing: "正在发送…",
+    var labels = { loading: "读取会话中…", loadFailed: "读取失败，请重新选择会话", ready: "已连接", preparing: "正在发送…",
       stream: "生成中…", checking: "正在核对原请求…", active: "原请求仍在处理…",
       retry: "等待重试", check: "等待核对" };
     status.textContent = labels[phase];
@@ -405,7 +427,8 @@
     list.querySelectorAll("[data-session]").forEach(function (node) {
       node.addEventListener("click", function () {
         var id = node.getAttribute("data-session");
-        if (id !== state.current || state.phase === "loading") {
+        closeDrawer();
+        if (id !== state.current || state.phase === "loadFailed") {
           selectSession(id).catch(function (err) { if (id === state.current) setError(err.message); });
         }
       });
@@ -486,7 +509,7 @@
     summary.textContent = "上下文使用情况";
     var body = document.createElement("div");
     var labels = { learning: "学情", memory: "长期记忆", memory_persistence: "记忆保存状态",
-      recent_actions: "操作状态", current_page: "当前页面", legacy_context: "参考资料" };
+      recent_actions: "操作状态", current_page: "当前页面", legacy_context: "参考资料", study_mode: "学习模式", practice_snapshot: "练习代码与运行结果" };
     details.append(summary, body);
     content.appendChild(details);
 
@@ -695,6 +718,16 @@
   }
 
   async function selectSession(id) {
+    if (id === state.current && state.phase !== "loadFailed") return;
+    var attachment = document.getElementById("attachPractice");
+    if (state.current) {
+      state.drafts[state.current] = {
+        text: state.pending ? "" : input.value,
+        mode: state.studyMode,
+        attachPractice: attachment.checked
+      };
+    }
+    var draft = state.drafts[id];
     var serial = ++state.sessionLoadSerial;
     window.clearTimeout(state.recoveryTimer);
     if (state.controller) state.controller.abort();
@@ -702,9 +735,11 @@
     if (state.assistantNode) cancelStreamRender(state.assistantNode.querySelector(".bubble"));
     state.assistantNode = null;
     state.current = id;
+    selectMode(draft ? draft.mode : "auto");
+    attachment.checked = draft ? draft.attachPractice : true;
     state.pending = readPending(id);
     state.autoFollow = true;
-    input.value = "";
+    input.value = draft && !state.pending ? draft.text : "";
     messages.replaceChildren();
     setError("");
     setPhase("loading");
@@ -714,8 +749,13 @@
     if (state.pending) {
       await recoverTurn(state.pending, serial);
     } else {
-      await reloadCurrentSession();
-      if (isSelected(id, serial)) setPhase("ready");
+      try {
+        await reloadCurrentSession();
+        if (isSelected(id, serial)) setPhase("ready");
+      } catch (err) {
+        if (isSelected(id, serial)) setPhase("loadFailed");
+        throw err;
+      }
     }
   }
 
@@ -729,7 +769,7 @@
 
   async function loadSessions() {
     await refreshSessionList();
-    if (!state.sessions.length) return;
+    if (!state.sessions.length) return newSession();
     var saved = null;
     try { saved = sessionStorage.getItem(storageKey()); } catch (_) { }
     try { saved = saved || localStorage.getItem(storageKey()) || localStorage.getItem("forge-ai-session"); } catch (_) { }
@@ -769,8 +809,7 @@
     });
   }
 
-  // Read only the visible exercise fields, only when the learner chooses code review.
-  // The resulting snapshot stays in the editable composer until they press Send.
+  // Capture the latest editor and runner values when the learner sends an attached turn.
   function practiceDocument() {
     try {
       var parent = window.parent;
@@ -804,34 +843,54 @@
     return parts.join("\n\n");
   }
 
+  var modes = ["auto", "hint", "review", "code"];
+  var welcomeTitle = document.getElementById("welcomeTitle");
+  var welcomeDetail = document.getElementById("welcomeDetail");
+  var modeCopy = {
+    auto: {title: welcomeTitle.textContent, detail: welcomeDetail.textContent, placeholder: input.placeholder},
+    hint: {title: "卡在哪一步？", detail: "一次看一个线索，想好后再继续。", placeholder: "说说你已经想到哪一步…"},
+    review: {title: "哪道题值得再做一次？", detail: "结合你的练习记录，回顾错因、安排下一次复习。", placeholder: "写下题号，或问问最近的练习…"},
+    code: {title: "一起看看这段代码", detail: "从一个失败的用例，或一段跑得慢的代码开始。", placeholder: "描述运行时遇到的现象…"}
+  };
+  function selectMode(mode) {
+    if (modes.indexOf(mode) < 0) mode = "auto";
+    var copy = modeCopy[mode];
+    state.studyMode = mode;
+    welcomeTitle.textContent = copy.title;
+    welcomeDetail.textContent = copy.detail;
+    input.placeholder = copy.placeholder;
+    document.getElementById("practiceOption").hidden = !(mode === "code" && practiceDocument());
+    studyButtons.forEach(function (button, index) {
+      if (button) button.setAttribute("aria-pressed", String(mode === modes[index]));
+    });
+  }
   studyButtons.forEach(function (button, index) {
     if (!button) return;
-    var practice = practiceDocument();
-    if (index === 2 && practice) button.textContent = "附上当前代码与运行结果";
     button.addEventListener("click", function () {
       if (input.disabled) return;
-      var context = currentPageContext() || {};
-      var problem = context.problem_id ? "第" + context.problem_id + "题" : "这道题";
-      var prompts = [
-        "请带我思考" + problem + "。先问我一个能找到突破口的问题，等我回答后再给下一步提示。",
-        context.problem_id ? "请根据我的学习记录帮我复习" + problem + "，指出有记录可查的难点，给我一道检验理解的问题。" :
-          "请根据学习记录分析我的弱项，挑一道值得复盘的错题，问我一个能检验解题思路的问题。",
-        "请走查我的代码，先用一个小输入追踪关键变量，区分手工推演和页面的运行记录。指出首个与预期不符的步骤，让我自己修改。"
-      ];
-      var draft = prompts[index];
-      if (index === 2 && practice) draft += "\n\n" + practiceSnapshot(practice);
-      var previous = input.value;
-      var composed = previous ? previous + "\n\n" + draft : draft;
-      if (composed.length > 12000) { setError("草稿过长，请精简后再添加练习资料。"); return; }
-      input.value = composed;
-      setError("");
+      selectMode(modes[index]);
       input.focus();
     });
   });
 
+  var drawer = document.getElementById("sessionDrawer");
+  var panel = document.getElementById("sessionPanel");
+  function closeDrawer() { if (drawer.open) drawer.close(); }
+  document.getElementById("historyToggle").addEventListener("click", function () {
+    drawer.appendChild(panel);
+    drawer.showModal();
+  });
+  drawer.addEventListener("close", function () { drawer.parentNode.insertBefore(panel, drawer); });
+  document.getElementById("drawerClose").addEventListener("click", closeDrawer);
+  drawer.addEventListener("click", function (event) {
+    if (event.target === drawer) closeDrawer();
+  });
+  if (window.matchMedia) window.matchMedia("(max-width: 760px)").addEventListener("change", closeDrawer);
+
   async function newSession() {
     setError("");
     var item = await api("/api/chat/sessions", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    closeDrawer();
     state.sessions.unshift(item);
     await selectSession(item.id);
     input.focus();
@@ -907,7 +966,9 @@
       await reloadCurrentSession();
       if (!current()) return;
       if (result.status === "retryable" && !turn.cancelRequested) {
-        input.value = JSON.parse(turn.body).message;
+        var draft = JSON.parse(turn.body);
+        input.value = draft.message;
+        selectMode(draft.study_mode || "auto");
         setError((reason ? reason.replace(/[。.!]+$/, "") + "。" : "") + "可重试原消息，或编辑后作为新消息发送。");
         setPhase("retry");
         return;
@@ -933,7 +994,7 @@
   async function sendMessage(event) {
     event.preventDefault();
     if (!state.current || state.phase !== "ready" || state.pending) return;
-    var text = input.value.trim(); if (!text) return;
+    var text = input.value; if (!text.trim()) return;
     var id = state.current, serial = state.sessionLoadSerial;
     var controller = new AbortController();
     state.controller = controller;
@@ -947,6 +1008,9 @@
         return byte.toString(16).padStart(2, "0");
       }).join("");
       var requestBody = { client_request_id: key, message: text };
+      if (state.studyMode !== "auto") requestBody.study_mode = state.studyMode;
+      var practice = state.studyMode === "code" && document.getElementById("attachPractice").checked && practiceDocument();
+      if (practice) requestBody.practice_snapshot = practiceSnapshot(practice).slice(0, 8000);
       if (pageContext) requestBody.page_context = pageContext;
       var turn = { sessionId: id, key: key, body: JSON.stringify(requestBody), cancelRequested: false };
       rememberTurn(turn);
@@ -1034,7 +1098,9 @@
         try { await reloadCurrentSession(); } catch (_) { }
         if (isSelected(turn.sessionId, serial)) {
           setPhase("ready");
-          input.value = JSON.parse(turn.body).message;
+          var draft = JSON.parse(turn.body);
+          input.value = draft.message;
+          selectMode(draft.study_mode || "auto");
           setError("该请求标识已用于其他内容。请核对会话后再发送。");
         }
         return;
@@ -1087,6 +1153,19 @@
   });
   window.addEventListener("online", function () {
     if (state.pending && state.phase === "check") recoverTurn(state.pending, state.sessionLoadSerial);
+  });
+  messages.addEventListener("click", async function (event) {
+    var button = event.target.closest(".copy-code");
+    if (!button) return;
+    var code = button.closest(".code-block").querySelector("code");
+    try {
+      await navigator.clipboard.writeText(code.textContent);
+      button.textContent = "已复制";
+    } catch (_) {
+      button.textContent = "复制失败，请选中代码复制";
+    }
+    window.clearTimeout(button._copyTimer);
+    button._copyTimer = window.setTimeout(function () { button.textContent = "复制代码"; }, 2400);
   });
   messages.addEventListener("scroll", updateAutoFollow, { passive: true });
   window.addEventListener("message", function (event) {

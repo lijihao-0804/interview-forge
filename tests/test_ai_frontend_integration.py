@@ -1,9 +1,12 @@
 import shutil
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from interview_forge.api.routers.static import _WIDGET_SCRIPTS, _inject_html
+from scripts.build.asset_version import DELIVERED_ASSET_VERSIONS
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -38,7 +41,7 @@ class AiFrontendIntegrationTests(unittest.TestCase):
         for script in _WIDGET_SCRIPTS:
             self.assertIn(script, rendered)
         for current_asset in (
-            "/assets/ai-launcher.js?v=5",
+            f"/assets/ai-launcher.js?v={DELIVERED_ASSET_VERSIONS['ai-launcher.js']}",
             "/assets/feedback-widget.js?v=6",
             "/assets/auth-widget.js?v=9",
         ):
@@ -126,7 +129,7 @@ class AiFrontendIntegrationTests(unittest.TestCase):
         rendered = _inject_html("/library/agent-cli/chapter-01.html", body).decode()
         self.assertEqual(rendered.count("ai-launcher.js"), 1)
         self.assertEqual(rendered.count("ai-page-context.js"), 1)
-        self.assertIn("ai-page-context.js?v=3", rendered)
+        self.assertIn("ai-page-context.js?v=" + DELIVERED_ASSET_VERSIONS["ai-page-context.js"], rendered)
         collector = Path("assets") / "ai-page-context.js"
         # Git checkouts may use different line endings for the tracked copies.
         self.assertEqual((ROOT / "library" / collector).read_text(encoding="utf-8"),
@@ -135,10 +138,17 @@ class AiFrontendIntegrationTests(unittest.TestCase):
     def test_generated_page_markup_uses_shared_launcher_contract(self):
         from scripts.build import build_html_site, build_library
 
-        rendered_constants = "".join(str(item) for item in build_html_site.render_markdown.__code__.co_consts)
-        self.assertIn("/ai-launcher.css?v=5", rendered_constants)
-        self.assertIn("/ai-launcher.js?v=5", rendered_constants)
-        self.assertIn("data-interviewforge-ai", build_library.document("x", "", "assets/library.css"))
+        chapter = build_library.document("x", "", "assets/library.css")
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            output = root / "reader.html"
+            with patch.object(build_html_site, "ROOT", root):
+                build_html_site.render_markdown(root / "reader.md", output=output, raw="# 学习路线")
+            reader = output.read_text(encoding="utf-8")
+        for page in (chapter, reader):
+            self.assertIn("data-interviewforge-ai", page)
+            for asset in ("ai-launcher.css", "ai-launcher.js", "ai-page-context.js"):
+                self.assertIn(asset + "?v=" + DELIVERED_ASSET_VERSIONS[asset], page)
 
     def test_mobile_ai_entry_keeps_the_auth_gate_until_session_settles(self):
         auth = (ROOT / "assets" / "auth-widget.js").read_text(encoding="utf-8")

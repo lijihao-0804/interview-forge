@@ -1,4 +1,5 @@
 """Real Chromium check with local fixture identity and streaming provider."""
+import json
 import mimetypes
 from urllib.parse import unquote, urlsplit
 
@@ -10,6 +11,8 @@ from interview_forge.core.paths import ROOT
 
 def run():
     posts = []
+    sessions = [{"id": "s1", "title": "Smoke"}]
+    rows = []
 
     def serve(route):
         url = urlsplit(route.request.url)
@@ -18,10 +21,19 @@ def run():
             return route.abort()
         if path == "/api/me":
             return route.fulfill(json={"id": 1, "username": "smoke", "role": "user", "lang": "python"})
+        if path.startswith("/api/practice/hot100/problem/"):
+            problem_id = path.rsplit("/", 1)[-1]
+            volume = "hot200-extra" if problem_id.startswith("hot200-") else "hot100"
+            problems = json.loads((ROOT / "data" / "acm" / f"{volume}.json").read_text(encoding="utf-8"))
+            return route.fulfill(json=next(item for item in problems if item["id"] == problem_id))
         if path == "/api/chat/sessions":
-            return route.fulfill(json={"items": [{"id": "s1", "title": "Smoke"}]})
+            if route.request.method == "POST":
+                session = {"id": f"s{len(sessions) + 1}", "title": "新对话"}
+                sessions.insert(0, session)
+                return route.fulfill(json=session)
+            return route.fulfill(json={"items": sessions})
         if path.endswith("/messages"):
-            return route.fulfill(json={"session": {"title": "Smoke"}, "items": []})
+            return route.fulfill(json={"session": {"title": "Smoke"}, "items": rows})
         if path.endswith("/stream"):
             posts.append(route.request.post_data_json)
             return route.fulfill(content_type="text/event-stream", body=(
@@ -43,7 +55,9 @@ def run():
         browser = playwright.chromium.launch()
         page = browser.new_page(service_workers="block")
         page.route("**/*", serve)
-        page.goto("http://localhost/books/ai-exam/acm-playground.html")
+        practice_url = "http://localhost/books/ai-exam/acm-playground.html?id="
+        page.goto(practice_url + "hot100-1")
+        expect(page.locator("#problem-context")).to_have_text("两数之和")
         page.locator("#code-editor").fill("def solve():\n    print(19)")
         page.locator("#stdin-area").fill("19")
         page.get_by_role("button", name="问 AI 助教").click()
@@ -51,18 +65,96 @@ def run():
         frame.locator("#studyCode").click(timeout=10000)
         composer = frame.locator("#messageInput")
         draft = composer.input_value()
-        assert "    print(19)" in draft and "当前输入\n19" in draft and not posts
-        composer.fill(draft + "\nCheck the duplicate input case.")
+        assert draft == "" and not posts
+        frame.locator("#attachPractice").uncheck()
+        composer.fill("保留这段草稿，稍后补充。")
+        frame.locator("#historyToggle").click()
+        frame.locator("#newSession").click()
+        expect(composer).to_have_value("")
+        expect(frame.locator("#studyAuto")).to_have_attribute("aria-pressed", "true")
+        composer.fill("另一段草稿")
+        frame.locator("#historyToggle").click()
+        frame.locator('[data-session="s1"]').click()
+        expect(composer).to_have_value("保留这段草稿，稍后补充。")
+        expect(frame.locator("#studyCode")).to_have_attribute("aria-pressed", "true")
+        expect(frame.locator("#attachPractice")).not_to_be_checked()
+        frame.locator("#historyToggle").click()
+        frame.locator('[data-session="s1"]').click()
+        expect(composer).to_have_value("保留这段草稿，稍后补充。")
+        frame.locator("#attachPractice").check()
+        composer.fill("Check the duplicate input case.")
         frame.locator("#send").click()
         expect(frame.get_by_text("review ready")).to_be_visible()
-        assert posts[0]["message"].endswith("Check the duplicate input case.")
+        assert posts[0]["message"] == "Check the duplicate input case."
+        assert posts[0]["study_mode"] == "code"
+        assert "print(19)" in posts[0]["practice_snapshot"] and "当前输入\n19" in posts[0]["practice_snapshot"]
+        assert posts[0]["page_context"]["problem_id"] == 1
+        frame.locator("#attachPractice").uncheck()
+        page.locator("#code-editor").evaluate("editor => editor.select()")
+        composer.fill("还有哪些边界情况？")
+        frame.locator("#send").click()
+        expect(frame.get_by_text("review ready")).to_have_count(2)
+        assert "practice_snapshot" not in posts[-1]
+        assert "print(19)" not in json.dumps(posts[-1]) and "selected_text" not in posts[-1]["page_context"]
+        page.goto(practice_url + "hot200-186")
+        expect(page.locator("#problem-context")).to_have_text("反转字符串中的单词 II")
+        practice_context = page.evaluate("window.InterviewForgeAI.getPageContext()")
+        assert (practice_context["problem_id"], practice_context["page_type"]) == (186, "problem")
         for path, pid in [("/library/hot200-extra/chapter-01.html", 186),
                           ("/books/hot100/03-题解/17-技巧/0075-颜色分类.html", 75)]:
             page.goto("http://localhost" + path)
             ctx = page.evaluate("window.InterviewForgeAI.getPageContext()")
             assert (ctx["problem_id"], ctx["page_type"]) == (pid, "problem")
+        sessions.clear()
+        for width, height in [(2560, 1440), (375, 760), (320, 640)]:
+            page.set_viewport_size({"width": width, "height": height})
+            page.goto("http://localhost/pages/ai-assistant.html")
+            expect(page.locator("#themeSlot #forge-theme-btn")).to_be_visible()
+            expect(page.locator("#status")).to_have_text("已连接")
+            expect(page.locator(".welcome")).to_be_visible()
+            expect(page.locator("#messageInput")).to_be_enabled()
+            if width < 760:
+                page.locator("#historyToggle").click()
+                expect(page.locator("#sessionDrawer")).to_be_visible()
+                page.keyboard.press("Escape")
+                expect(page.locator("#sessionDrawer")).to_be_hidden()
+            composer = page.locator("#messageInput")
+            composer.fill("为什么这样做？")
+            page.locator("#studyHint").click()
+            expect(composer).to_have_value("为什么这样做？")
+            expect(page.locator("#welcomeTitle")).to_have_text("卡在哪一步？")
+            composer.press("Enter")
+            expect(page.get_by_text("review ready")).to_be_visible()
+            assert posts[-1]["study_mode"] == "hint" and posts[-1]["message"] == "为什么这样做？"
+
+        rows.extend({"role": "assistant", "content": "历史记录 " + str(i)} for i in range(65))
+        code = "print(" + "1," * 160 + "2)"
+        rows.append({"role": "assistant", "content": "```python\n" + code + "\n```"})
+        page.reload()
+        copy = page.locator(".copy-code")
+        expect(copy).to_be_in_viewport()
+        assert page.locator(".code-block pre").evaluate("el => el.scrollWidth > el.clientWidth")
+        assert page.evaluate("document.documentElement.scrollWidth === innerWidth")
+        page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+        copy.click()
+        expect(copy).to_have_text("已复制")
+        assert page.evaluate("navigator.clipboard.readText()") == code
+        page.locator("#messages").evaluate("el => { el.scrollTop = 0; }")
+        expect(page.locator("#send")).to_be_in_viewport()
+        page.set_viewport_size({"width": 320, "height": 330})
+        composer = page.locator("#messageInput")
+        composer.fill("第一行")
+        composer.press("Shift+Enter")
+        composer.press("A")
+        expect(composer).to_have_value("第一行\nA")
+        expect(composer).to_be_in_viewport()
+        expect(page.locator("#send")).to_be_in_viewport()
+        assert page.evaluate("document.documentElement.scrollWidth === innerWidth")
+        assert page.locator("#send").evaluate("el => el.getBoundingClientRect().bottom <= innerHeight")
+        composer.press("Enter")
+        expect(page.get_by_text("review ready")).to_be_visible()
         browser.close()
-    print("PASS: ACM draft, edited message, streamed reply and both catalog contexts")
+    print("PASS: practice context, study modes, mobile history, 2K layout, long history and code copying")
 
 
 if __name__ == "__main__":

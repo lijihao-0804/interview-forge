@@ -86,8 +86,6 @@ SHARED_ASSET_VERSIONS = {
     "ui.js": ASSET_VERSION,
     "engagement-tracker.js": ASSET_VERSION,
     "term-tooltip.js": ASSET_VERSION,
-    "ai-assistant.js": "17",
-    "ai-assistant.css": "10",
     "register-flow.js": "5",
     "email-captcha.js": "2",
     "practice-reference.js": "7",
@@ -2824,9 +2822,9 @@ def render_markdown(source: Path, *, output: Path | None = None, raw: str | None
     css_href = web_rel(output, ROOT / "assets" / "site.css") + f"?v={SITE_CSS_VERSION}"
     js_href = web_rel(output, ROOT / "assets" / "site.js") + f"?v={SITE_JS_VERSION}"
     ai_asset_base = web_rel(output, ROOT / "assets")
-    ai_css_href = ai_asset_base + "/ai-launcher.css?v=5"
-    ai_context_href = ai_asset_base + "/ai-page-context.js?v=2"
-    ai_launcher_href = ai_asset_base + "/ai-launcher.js?v=5"
+    ai_css_href = ai_asset_base + f"/ai-launcher.css?v={DELIVERED_ASSET_VERSIONS['ai-launcher.css']}"
+    ai_context_href = ai_asset_base + f"/ai-page-context.js?v={DELIVERED_ASSET_VERSIONS['ai-page-context.js']}"
+    ai_launcher_href = ai_asset_base + f"/ai-launcher.js?v={DELIVERED_ASSET_VERSIONS['ai-launcher.js']}"
     policy_href = ai_asset_base + "/navigation-policy.js?v=2"
     ui_href = web_rel(output, ROOT / "assets" / "ui.js") + f"?v={ASSET_VERSION}"
     progress_css_href = web_rel(output, ROOT / "assets" / "solution-progress.css") + "?v=20261009-static"

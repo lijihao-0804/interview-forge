@@ -76,7 +76,7 @@ if str(_PROJECT_ROOT) not in sys.path:
 import markdown
 from interview_forge.core.paths import ROOT as HOT100_ROOT
 from scripts.build import build_cache, build_hot200_extra, exam_shelf
-from scripts.build.asset_version import ASSET_VERSION, LIBRARY_CSS_VERSION, LIBRARY_DIAGRAM_CSS_VERSION
+from scripts.build.asset_version import ASSET_VERSION, DELIVERED_ASSET_VERSIONS, LIBRARY_CSS_VERSION, LIBRARY_DIAGRAM_CSS_VERSION
 from scripts.build.reader_fragment_links import repair_contents
 from pygments import highlight as pygments_highlight
 from pygments.formatters import HtmlFormatter
@@ -1251,9 +1251,9 @@ def document(
         # 导航策略构建期写入：离线（file://）打开时服务端不注入，书架页顶栏
         # /面包屑/上一章下一章才不会被历史 target=_blank 全部新开标签。
         f'<script src="{time_asset_base}/navigation-policy.js?v=2" defer></script>'
-        f'<link rel="stylesheet" data-interviewforge-ai href="{asset_base}/ai-launcher.css?v=5">'
-        f'<script src="{asset_base}/ai-page-context.js?v=2" defer data-interviewforge-ai></script>'
-        f'<script src="{asset_base}/ai-launcher.js?v=5" defer data-interviewforge-ai></script>'
+        f'<link rel="stylesheet" data-interviewforge-ai href="{asset_base}/ai-launcher.css?v={DELIVERED_ASSET_VERSIONS["ai-launcher.css"]}">'
+        f'<script src="{asset_base}/ai-page-context.js?v={DELIVERED_ASSET_VERSIONS["ai-page-context.js"]}" defer data-interviewforge-ai></script>'
+        f'<script src="{asset_base}/ai-launcher.js?v={DELIVERED_ASSET_VERSIONS["ai-launcher.js"]}" defer data-interviewforge-ai></script>'
     )
     page = f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>{html.escape(title)}</title><link rel="stylesheet" href="{css_href}?v={css_version}">{extra_head}{ai_assets}</head><body class="auth-checking">{body}
 <script>

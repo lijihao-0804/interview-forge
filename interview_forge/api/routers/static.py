@@ -54,7 +54,7 @@ def _version_reader_resource(match: re.Match[bytes]) -> bytes:
 
     return _READER_ASSET_VERSION.sub(version, start) + end + contents
 
-_WIDGET_STYLES = ("/assets/ai-launcher.css?v=5",)
+_WIDGET_STYLES = (f"/assets/ai-launcher.css?v={DELIVERED_ASSET_VERSIONS['ai-launcher.css']}",)
 _TOC_SCRIPT = "/assets/toc-scroll.js?v=9"
 _WIDGET_SCRIPTS = (
     "/assets/time-utils.js?v=2",
@@ -62,7 +62,7 @@ _WIDGET_SCRIPTS = (
     "/assets/role-display.js?v=1", f"/assets/auth-widget.js?v={DELIVERED_ASSET_VERSIONS['auth-widget.js']}",
     f"/assets/feedback-widget.js?v={DELIVERED_ASSET_VERSIONS['feedback-widget.js']}",
     "/assets/theme-toggle.js?v=2",
-    "/assets/ai-page-context.js?v=3",
+    f"/assets/ai-page-context.js?v={DELIVERED_ASSET_VERSIONS['ai-page-context.js']}",
     f"/assets/ai-launcher.js?v={DELIVERED_ASSET_VERSIONS['ai-launcher.js']}",
 )
 _AUTH_WIDGET_SKIP = {"/pages/login.html", "/pages/register.html", "/pages/forgot-password.html", "/pages/account.html", "/pages/admin.html", "/pages/ai-assistant.html"}
@@ -222,10 +222,6 @@ def _inject_html(path: str, body: bytes, *, embedded: bool = False) -> bytes:
                 style = b'<link rel="stylesheet" href="/assets/research-report.css?v=20261118-layout">'
                 return body[:main] + style + navigation + body[main:]
         return body[:end + 1] + navigation + body[end + 1:] if end >= 0 else body
-    # Previously generated chapters embed v1. Nginx caches versioned JS as
-    # immutable, so serve the current collector even before a chapter rebuild.
-    for old_version in (b"1", b"2"):
-        body = body.replace(b'/ai-page-context.js?v=' + old_version + b'"', b'/ai-page-context.js?v=3"')
     navigation_only = path.startswith("/books/hot100/05-可视化/")
     embedded_assistant = path == "/pages/ai-assistant.html" and embedded
     # ?embedded=1：页面被本站 iframe 内嵌（如“重要通知”壳页的子页）。此时只保留导航策略，

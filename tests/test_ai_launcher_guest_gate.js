@@ -46,6 +46,7 @@ function bootHarness(requireUser) {
   }
 
   const document = eventTarget({
+    title: "指针练习 · InterviewForge",
     body,
     documentElement: {
       classList: {
@@ -59,6 +60,9 @@ function bootHarness(requireUser) {
         const drawer = element("dialog");
         const backdrop = element("button");
         const close = element("button");
+        const expand = element("button");
+        const title = element("span");
+        drawer.classList = { toggle(name) { return drawer[name] = !drawer[name]; } };
         const frame = element("iframe");
         frame.contentWindow = { postMessage(message) { frame.message = message; } };
         Object.defineProperty(drawer, "innerHTML", {
@@ -71,10 +75,14 @@ function bootHarness(requireUser) {
         drawer.querySelector = function (selector) {
           if (selector === "iframe") return frame;
           if (selector === ".if-ai-drawer-backdrop") return backdrop;
-          if (selector === ".if-ai-drawer-actions button") return close;
+          if (selector === ".if-ai-close") return close;
+          if (selector === ".if-ai-expand") return expand;
+          if (selector === ".if-ai-origin span") return title;
           return null;
         };
         drawer.frame = frame;
+        drawer.expand = expand;
+        drawer.title = title;
         return drawer;
       }
       return element(tagName);
@@ -138,6 +146,13 @@ function flush() {
   await flush();
   assert(authenticated.drawer(), "drawer should open after the session becomes authenticated");
   assert.match(authenticated.drawer().frame.src, /ai-assistant\.html\?embedded=1/);
+  const current = authenticated.drawer();
+  assert.strictEqual(current.title.textContent, "指针练习");
+  current.expand.dispatch("click");
+  assert.strictEqual(current.expand["aria-pressed"], "true");
+  current.expand.dispatch("click");
+  assert.strictEqual(current.expand["aria-pressed"], "false");
+  assert.strictEqual(current, authenticated.drawer(), "resizing keeps the active chat and draft");
 
   let rejectGuest;
   const guest = bootHarness(new Promise((_resolve, reject) => { rejectGuest = reject; }));

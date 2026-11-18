@@ -2,38 +2,42 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>AI 助手 · InterviewForge</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,interactive-widget=resizes-content">
+  <title>学习助手 · InterviewForge</title>
   <script src="../assets/time-utils.js?v=2"></script>
-  <link rel="stylesheet" href="../assets/ai-assistant.css?v=10">
-<link rel="stylesheet" href="../assets/workspace-layout.css?v=20261118-study">
+  <link rel="stylesheet" href="../assets/ai-assistant.css?v=11">
+
 </head>
 <body data-forge-page="chat">
   <main class="shell">
-    <header class="top"><h1>AI 助手</h1><div class="top-actions"><button class="button" id="memoryButton" type="button">记忆</button><a href="../cockpit.html" target="_blank" rel="noopener noreferrer">← 中控台</a></div></header>
     <div class="layout">
-      <aside class="card sessions" aria-label="会话列表">
-        <div class="session-head"><h2>会话</h2><button class="button primary" id="newSession" type="button">新建</button></div>
+      <aside class="sessions" id="sessionPanel" aria-label="历史对话">
+        <div class="session-head"><a class="brand-home" href="../cockpit.html" aria-label="InterviewForge 中控台"><img src="../assets/icons/icon-192.png" width="32" height="32" alt=""> InterviewForge</a><button class="button drawer-close" id="drawerClose" type="button">关闭</button></div>
+        <button class="button new-session" id="newSession" type="button"><span aria-hidden="true">＋</span> 新对话</button>
+        <h2 class="history-label">历史对话</h2>
         <div class="session-list" id="sessionList"><div class="empty">正在读取…</div></div>
       </aside>
-      <section class="card chat" aria-label="AI 对话">
-        <header class="chat-head"><h2 id="chatTitle">选择一个会话</h2><span class="status" id="status">未连接</span></header>
-        <div class="messages" id="messages"><div class="empty">新建会话后开始对话。</div></div>
+      <dialog id="sessionDrawer" class="session-drawer" aria-label="历史对话"></dialog>
+      <section class="chat" aria-label="学习对话">
+        <header class="chat-head"><button class="button history-toggle" id="historyToggle" aria-haspopup="dialog" type="button">历史对话</button><div class="chat-heading"><h1 id="chatTitle">学习助手</h1><span class="status" id="status" role="status">正在连接…</span></div><button class="button" id="memoryButton" type="button">长期记忆</button><span id="themeSlot"></span></header>
+        <div class="messages" id="messages" tabindex="0" aria-label="对话记录"></div>
+        <div class="welcome"><img class="welcome-mark" src="../assets/icons/icon-192.png" width="52" height="52" alt="InterviewForge"><h2 id="welcomeTitle">今天想弄懂什么？</h2><p id="welcomeDetail">聊聊一道题、一段代码，或上次没想通的思路。</p></div>
         <form class="composer" id="composer">
-          <div role="group" aria-label="代码学习提问">
-            <button class="button" type="button" id="studyHint" disabled>逐步提示</button>
-            <button class="button" type="button" id="studyReview" disabled>错题复盘</button>
-            <button class="button" type="button" id="studyCode" disabled>代码走查</button>
-          </div>
-          <textarea id="messageInput" maxlength="12000" placeholder="问问你的学习计划、错题或知识点…" disabled></textarea>
+          <label id="practiceOption" class="practice-option" hidden><input type="checkbox" id="attachPractice" checked> 附上代码、用例和运行结果</label>
+          <textarea id="messageInput" aria-label="你的问题" maxlength="12000" placeholder="写下你的问题…" disabled></textarea>
           <div class="compose-row">
-            <span class="hint">Enter 发送，Shift+Enter 换行</span>
-            <span>
+            <div class="study-modes" role="group" aria-label="学习模式">
+              <button class="button" type="button" id="studyAuto" aria-pressed="true" disabled>自由提问</button>
+              <button class="button" type="button" id="studyHint" aria-pressed="false" disabled>逐步提示</button>
+              <button class="button" type="button" id="studyReview" aria-pressed="false" disabled>错题复盘</button>
+              <button class="button" type="button" id="studyCode" aria-pressed="false" disabled>代码走查</button>
+            </div>
+            <div class="compose-actions">
               <button class="button" id="editTurn" type="button" hidden>编辑为新消息</button>
               <button class="button primary" id="retryTurn" type="button" hidden>重试原消息</button>
               <button class="button stop" id="stop" type="button" hidden>停止生成</button>
-              <button class="button primary" id="send" type="submit" disabled>发送</button>
-            </span>
+              <button class="button primary" id="send" type="submit" title="Enter 发送，Shift+Enter 换行" disabled>发送</button>
+            </div>
           </div>
           <div class="error" id="error" role="status" aria-live="polite"></div>
         </form>
@@ -46,38 +50,8 @@
     <div class="memory-list" id="memoryList"><div class="memory-empty">正在读取…</div></div>
     <footer><button class="button" id="memoryClose" type="button">关闭</button></footer>
   </dialog>
-  <script src="../assets/ai-page-context.js?v=3" defer></script>
-  <script src="../assets/ai-assistant.js?v=17" defer></script>
+  <script src="../assets/ai-page-context.js?v=4" defer></script>
+  <script src="../assets/ai-assistant.js?v=18" defer></script>
 
-<script>
-/* Esc 返回上级：章节→模块→书架→中控台。输入框/弹窗内不触发。 */
-(function(){{
-  function parentOf(){{
-    var path=location.pathname;
-    // 章节页 → 模块页
-    if(/\/library\/[^/]+\/chapter-\d+\.html$/.test(path))return 'index.html';
-    // 模块页 → 书架
-    if(/\/library\/[^/]+\.html$/.test(path))return '../index.html';
-    // 全文搜索 → 书架
-    if(/\/library\/search\.html$/.test(path))return 'index.html';
-    // 工具子页 → 工具箱
-    if(/\/pages\/tools\/.*\.html$/.test(path))return '../tools.html';
-    // 其它二级页 → 中控台
-    if(/\/pages\/[^/]+\.html$/.test(path))return '../cockpit.html';
-    return null;
-  }}
-  document.addEventListener('keydown',function(e){{
-    if(e.key!=='Escape')return;
-    // 弹窗打开时让弹窗自己处理
-    var modal=document.querySelector('.ann-mask.open,.weather-modal.open,[role="dialog"]:not([hidden])');
-    if(modal)return;
-    var el=document.activeElement;
-    var tag=el?(el.tagName||'').toLowerCase():'';
-    if(tag==='input'||tag==='textarea'||tag==='select'||(el&&el.isContentEditable))return;
-    var target=parentOf();
-    if(target){{e.preventDefault();location.href=target;}}
-  }});
-}})();
-</script>
 </body>
 </html>

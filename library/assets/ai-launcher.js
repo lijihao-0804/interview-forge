@@ -98,16 +98,27 @@
         previousOverflow = document.body.style.overflow;
         drawer = document.createElement("dialog");
         drawer.className = "if-ai-drawer-wrap";
-        drawer.setAttribute("aria-label", "AI 助手");
+        drawer.setAttribute("aria-label", "学习助手");
         drawer.style.cssText = "position:fixed;inset:0;margin:0;padding:0;border:0;width:100%;height:100%;max-width:none;max-height:none;background:transparent";
         drawer.innerHTML = '<button class="if-ai-drawer-backdrop" type="button" tabindex="-1" aria-hidden="true"></button>' +
-          '<aside class="if-ai-drawer"><header class="if-ai-drawer-head"><span>AI 助手</span><span class="if-ai-drawer-actions"><a href="/pages/ai-assistant.html" target="_blank" rel="noopener noreferrer">打开完整页面</a><button type="button" aria-label="关闭">×</button></span></header><iframe title="AI 助手对话" src="/pages/ai-assistant.html?embedded=1"></iframe></aside>';
+          '<aside class="if-ai-drawer"><header class="if-ai-drawer-head"><div class="if-ai-origin"><small>当前学习页</small><span></span></div>' +
+          '<div class="if-ai-drawer-actions"><button type="button" class="if-ai-expand" aria-pressed="false">展开</button>' +
+          '<a href="/pages/ai-assistant.html" data-navigation-policy="new-tab" target="_blank" rel="noopener noreferrer" aria-label="在新标签页打开学习助手">独立打开 ↗</a>' +
+          '<button type="button" class="if-ai-close" aria-label="关闭学习助手">×</button></div></header>' +
+          '<iframe title="AI 助手对话" src="/pages/ai-assistant.html?embedded=1"></iframe></aside>';
         document.body.appendChild(drawer);
         document.documentElement.classList.add("if-ai-drawer-open");
         button.hidden = true;
         frame = drawer.querySelector("iframe");
         drawer.querySelector(".if-ai-drawer-backdrop").addEventListener("click", close);
-        var closeButton = drawer.querySelector(".if-ai-drawer-actions button");
+        drawer.querySelector(".if-ai-origin span").textContent = document.title.split(" · ")[0] || "当前页面";
+        var expandButton = drawer.querySelector(".if-ai-expand");
+        expandButton.addEventListener("click", function () {
+          var wide = drawer.classList.toggle("if-ai-wide");
+          expandButton.setAttribute("aria-pressed", String(wide));
+          expandButton.textContent = wide ? "收窄" : "展开";
+        });
+        var closeButton = drawer.querySelector(".if-ai-close");
         closeButton.addEventListener("click", close);
         drawer.addEventListener("cancel", function (event) { event.preventDefault(); close(); });
         frame.addEventListener("load", function () {
@@ -133,7 +144,7 @@
     openDrawer = open;
     button.addEventListener("click", requestOpen);
     global.addEventListener("message", function (event) {
-      if (event.origin !== global.location.origin || !event.data) return;
+      if (!frame || event.source !== frame.contentWindow || event.origin !== global.location.origin || !event.data) return;
       if (event.data.type === "interviewforge:request-page-context") sendContext(event.data.request_id);
     });
     var update = function () { if (drawer) scheduleContext(); };

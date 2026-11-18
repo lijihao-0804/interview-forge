@@ -51,14 +51,20 @@
     var path = global.location.pathname || "/";
     try { path = decodeURI(path); } catch (_) {}
     var root = document.querySelector("[data-content-id]");
+    var practice = path === "/books/ai-exam/acm-playground.html";
+    var exercise = practice && document.getElementById("problem-context");
+    var nativeId = exercise && !exercise.hidden && /^hot(?:100|200)-([1-9]\d{0,5})$/.exec(
+      new URLSearchParams(global.location.search).get("id") || ""
+    );
     var context = {
       path: path,
       title: String(document.title || path).slice(0, 200),
-      page_type: pageType(path),
-      problem_id: problemId(path),
+      page_type: nativeId ? "problem" : pageType(path),
+      problem_id: nativeId ? Number(nativeId[1]) : problemId(path),
       content_id: root ? root.getAttribute("data-content-id") : null,
-      heading: visibleHeading(),
-      selected_text: selectedText()
+      heading: nativeId ? exercise.textContent.trim().slice(0, 300) : visibleHeading(),
+      // Source code and runner output are shared only through the explicit editor attachment.
+      selected_text: practice ? null : selectedText()
     };
     Object.keys(context).forEach(function (key) {
       if (context[key] == null || context[key] === "") delete context[key];

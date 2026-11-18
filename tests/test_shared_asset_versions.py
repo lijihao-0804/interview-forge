@@ -109,7 +109,7 @@ class SharedAssetVersionTests(unittest.TestCase):
             result = path.read_bytes().decode("utf-8")
             self.assertEqual((changed_files, changed_references), (1, 2))
             self.assertTrue(result.startswith("\ufeff<!doctype html>\r\n"))
-            self.assertIn('src="../../assets/ai-launcher.js?v=5"', result)
+            self.assertIn(f'src="../../assets/ai-launcher.js?v={build_html_site.SHARED_ASSET_VERSIONS["ai-launcher.js"]}"', result)
             self.assertIn('src="../../assets/guest-auth.js?v=3#account"', result)
             self.assertIn("<p>正文保持不变</p>", result)
             self.assertIn("\r\n", result)
