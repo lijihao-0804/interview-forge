@@ -76,6 +76,7 @@ border-radius:7px;padding:4px 9px;font-size:12px;cursor:pointer}
 background:var(--dk-panel);color:var(--dk-text)}
 .dk-log{margin-top:10px;padding:10px 13px;border:1px dashed var(--dk-line);border-radius:10px;
 color:var(--dk-muted);font-size:13px;min-height:38px;white-space:pre-wrap}
+.dk-log:empty{display:none}
 /* ---- 视图原语通用元素 ---- */
 .dk-cells{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .dk-cell{min-width:44px;padding:9px 7px;text-align:center;border:1.5px solid var(--dk-line);

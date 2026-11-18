@@ -1174,22 +1174,28 @@ var DEMOS = {
     },
     build: function (ctx) {
       var nums = [1, 2, 3, 4], n = nums.length;
-      var answer = [], prefix = [], suffix = [];
-      prefix[0] = 1;
-      for (var i = 1; i < n; i++) prefix[i] = prefix[i - 1] * nums[i - 1];
-      suffix[n - 1] = 1;
-      for (var i = n - 2; i >= 0; i--) suffix[i] = suffix[i + 1] * nums[i + 1];
-      for (var i = 0; i < n; i++) {
-        answer[i] = prefix[i] * suffix[i];
-        ctx.step("answer[" + i + "] = 左积 " + prefix[i] + " × 右积 " + suffix[i] + " = " + answer[i],
-          { line: 6, rows: [
-            row("nums", nums, { st: st1(i, "hot") }),
-            row("左积", prefix.slice(), { st: st1(i, "hot") }),
-            row("右积", suffix.slice(), { st: st1(i, "hot") }),
-            row("answer", answer.concat(nums.slice(i + 1).map(function () { return "·"; })), { st: st1(i, "write") }) ] });
+      var answer = Array(n).fill("·");
+      answer[0] = 1;
+      ctx.step("answer[0] = 1，第一个位置左边没有因子。", { line: 1, rows: [
+        row("nums", nums), row("answer", answer, { st: st1(0, "write") }) ] });
+      for (var i = 1; i < n; i++) {
+        answer[i] = answer[i - 1] * nums[i - 1];
+        ctx.step("从左往右，answer[" + i + "] = " + answer[i - 1] + " × " + nums[i - 1] + " = " + answer[i] + "，只包含它左边的因子。", { line: 3, rows: [
+          row("nums", nums, { st: st1(i - 1, "hot") }), row("answer", answer, { st: st1(i, "write") }) ] });
       }
-      ctx.step("完成！answer[" + (n - 1) + "] = " + answer[n - 1] + "。两次遍历、无除法、O(1) 额外空间", { line: 6, rows: [
-        row("answer", answer, { st: st1(n - 1, "target") }) ] });
+      var suffix = 1;
+      ctx.step("从最右端出发，右边没有因子，后缀积 suf 从 1 开始。", { line: 4, rows: [
+        row("answer", answer), row("suf", [suffix]) ] });
+      for (var j = n - 1; j >= 0; j--) {
+        var left = answer[j], right = suffix;
+        answer[j] *= suffix;
+        suffix *= nums[j];
+        ctx.step("从右往左，answer[" + j + "] = " + left + " × " + right + " = " + answer[j] + "。再把 nums[" + j + "] 乘入 suf，得到 " + suffix + "。", { line: 6, rows: [
+          row("nums", nums, { st: st1(j, "hot") }), row("answer", answer, { st: st1(j, "write") }),
+          row("suf", [suffix]) ] });
+      }
+      ctx.step("完成！返回 [" + answer.join(",") + "]。两次遍历耗时 O(n)，无需除法，不计输出数组的额外空间为 O(1)。", { line: 6, rows: [
+        row("answer", answer, { st: answer.map(function () { return "target"; }) }) ] });
     },
     render: renderRows }
 };

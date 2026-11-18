@@ -1023,7 +1023,7 @@ var DEMOS = {
         pointerView({ prev: "dummy", first: "—", second: "—", next: "—" }, -1, [], "先固定 dummy，后面每一轮都只改三条 next 边。"), { line: 1 });
 
       for (var i = 0; i + 1 < nodes.length; i += 2) {
-        var prev = i === 0 ? "dummy" : nodes[i - 1];
+        var prev = i === 0 ? "dummy" : nodes[i - 2];
         var first = nodes[i], second = nodes[i + 1], next = edges[second] == null ? null : String(edges[second]);
         var vars = { prev: prev, first: first, second: second, next: next == null ? "null" : next };
 
@@ -1048,13 +1048,14 @@ var DEMOS = {
         }
       }
 
-      ctx.phase("done", "完成：5 没有成对节点，保持原位；沿 dummy.next 读取结果为 2 → 1 → 4 → 3 → 5。",
-        pointerView({ prev: "3", first: "5", second: "null", next: "null" }, -1, [], "奇数长度只让最后一个节点原样挂在尾部，不需要交换。"), { line: 8 });
+      var endView = pointerView({ prev: "3", first: "5", second: "null", next: "null" }, -1, [], "奇数长度只让最后一个节点原样挂在尾部，不需要交换。");
+      ctx.phase("done", "完成：5 没有成对节点，保持原位；沿 dummy.next 读取结果为 " +
+        endView.rows[0].vals.slice(1).join(" → ") + "。", endView, { line: 8 });
     },
     render: renderRows },
 
-  "0138": { no: "138", title: "随机链表的复制", tag: "链表 · 哈希映射",
-    example: "输入：head = [[7,null],[13,0],[11,4],[10,2],[1,0]]",
+  "0138": { no: "138", title: "随机链表的复制", tag: "链表 · 交织复制",
+    example: "输入：head = [[7,null],[13,0],[11,4],[10,2],[1,0]]，第二项是 random 目标下标。",
     code: {
       title: "交织复制",
       langs: {
@@ -1112,26 +1113,39 @@ var DEMOS = {
     },
     build: function (ctx) {
       var vals = [7, 13, 11, 10, 1], random = [null, 0, 4, 2, 0];
-      var clones = [];
-      ctx.step("第一遍：只复制 next，建立 原节点 → 新节点 的哈希映射", { line: 1, rows: [
-        row("原链表", vals, { dimAll: true }),
-        row("新链表", vals.map(function () { return "·"; }), { st: null }) ] });
-      vals.forEach(function (v, i) {
-        clones.push(v + "'");
-        ctx.step("复制节点 " + v + " → " + v + "'（映射表记下对应关系）", { line: 2, rows: [
-          row("原链表", vals, { st: st1(i, "hot") }),
-          row("新链表", clones.concat(vals.slice(i + 1).map(function () { return "·"; })), { st: st1(i, "write") })] });
+      var original = vals.map(function (val) { return {val: val}; });
+      original.forEach(function (node, i) {
+        node.next = original[i + 1] || null;
+        node.random = original[random[i]] || null;
       });
-      for (var i = 0; i < vals.length; i++) {
-        var r = random[i];
-        ctx.step("补 random 指针：" + vals[i] + "' → " + (r === null ? "null" : vals[r] + "'"),
-          { line: 5, rows: [
-            row("原链表", vals, { st: st1(i, "cmp") }),
-            row("新链表", vals, { st: st1(i, "write") })], note: "random 指针映射：" + vals.map(function (v, k) { return v + "→" + (random[k] === null ? "null" : vals[random[k]] + "'"); }).join("；") });
+      function chain(head) {
+        var values = [];
+        for (var n = head; n; n = n.next) values.push(String(n.val) + (n.copy ? "'" : ""));
+        return values;
       }
-      ctx.step("完成！映射表让 random 指针一步定位，时间 O(n)、空间 O(n)", { line: 8, rows: [
-        row("原链表", vals),
-        row("新链表", vals.map(function (v) { return v + "'"; }), { st: st1(vals.length - 1, "target") })], note: "进阶：原地插入克隆法可以做到 O(1) 空间" });
+      var head = original[0];
+      ctx.step("第一遍：在每个原节点后面直接插入它的副本，撇号表示新节点。", {line: 1, rows: [row("原链表", chain(head))]});
+      original.forEach(function (node) {
+        node.next = {val: node.val, copy: true, next: node.next, random: null};
+        ctx.step("插入副本 " + node.val + "'，保留它到后续链表的 next。", {line: 2, rows: [row("交织链", chain(head))]});
+      });
+      original.forEach(function (node) {
+        node.next.random = node.random ? node.random.next : null;
+        ctx.step("补副本的 random：" + node.val + "' → " + (node.next.random ? node.next.random.val + "'" : "null"),
+          {line: 5, rows: [row("交织链", chain(head))]});
+      });
+      var copies = [], dummy = {}, tail = dummy;
+      original.forEach(function (node) {
+        var copy = node.next;
+        node.next = copy.next;
+        copy.next = null;
+        tail.next = copy;
+        tail = copy;
+        copies.push(copy);
+        ctx.step("恢复 " + node.val + ".next，把 " + node.val + "' 接入新链。", {line: 8, rows: [row("原链", chain(head)), row("新链", chain(dummy.next))]});
+      });
+      var output = copies.map(function (n) { return [n.val, n.random ? copies.indexOf(n.random) : null]; });
+      ctx.step("复制结果 = " + JSON.stringify(output), {line: 8, rows: [row("原链表", chain(head)), row("新链表", chain(dummy.next))], note: "每个 random 都指向新链中的对应副本。"});
     },
     render: renderRows },
 
@@ -1194,8 +1208,9 @@ var DEMOS = {
       ctx.step("Floyd 判圈：slow 每次走 1 步、fast 走 2 步；有环则必在环内相遇", { line: 2, rows: [
         row("链表(有环 " + pos + ")", vals, { ptrs: [{ i: 0, label: "slow", c: "c1" }, { i: 0, label: "fast", c: "c2" }], tail: "⟲ 尾部连回下标 " + pos }) ] });
       for (var s = 0; s < 12 && !met; s++) {
-        slow = (slow + 1) % vals.length;
-        fast = (fast + 2) % vals.length;
+        slow = slow + 1 < vals.length ? slow + 1 : pos;
+        fast = fast + 1 < vals.length ? fast + 1 : pos;
+        fast = fast + 1 < vals.length ? fast + 1 : pos;
         stepNo++;
         met = slow === fast;
         ctx.step("第 " + stepNo + " 轮：slow=" + vals[slow] + "，fast=" + vals[fast] + (met ? " → 相遇！有环 ✓" : ""),
@@ -1263,28 +1278,36 @@ var DEMOS = {
         ]
       }
     },
-    build: function (ctx) {
-      var vals = [3, 2, 0, -4], pos = 1;
+    sizes: [{label: "尾部连回下标 1", vals: [3,2,0,-4], pos: 1},
+      {label: "尾部连回表头", vals: [1,2], pos: 0}, {label: "没有环", vals: [3,2,1], pos: -1}],
+    build: function (ctx, size) {
+      var vals = size ? size.vals : [3, 2, 0, -4], pos = size ? size.pos : 1;
       var slow = 0, fast = 0;
+      function next(i) { return i < 0 ? -1 : i + 1 < vals.length ? i + 1 : pos; }
+      var tail = pos < 0 ? "null" : "⟲ " + pos;
       ctx.step("阶段一：slow/fast 判圈，直到相遇", { line: 2, rows: [
-        row("链表", vals, { ptrs: [{ i: 0, label: "slow", c: "c1" }, { i: 0, label: "fast", c: "c2" }], tail: "⟲ " + pos }) ] });
+        row("链表", vals, { ptrs: [{ i: 0, label: "slow", c: "c1" }, { i: 0, label: "fast", c: "c2" }], tail: tail }) ] });
       var met = -1;
-      for (var s = 0; s < 12; s++) {
-        slow = (slow + 1) % vals.length;
-        fast = (fast + 2) % vals.length;
+      while (fast >= 0 && next(fast) >= 0) {
+        slow = next(slow);
+        fast = next(next(fast));
         if (slow === fast) { met = slow; break; }
-        ctx.step("追击中：slow=" + vals[slow] + "，fast=" + vals[fast], { line: 3, rows: [
-          row("链表", vals, { ptrs: [{ i: slow, label: "slow", c: "c1" }, { i: fast, label: "fast", c: "c2" }], tail: "⟲ " + pos }) ] });
+        ctx.step("追击中：slow=" + vals[slow] + "，fast=" + (fast < 0 ? "null" : vals[fast]), { line: 3, rows: [
+          row("链表", vals, { ptrs: [{ i: slow, label: "slow", c: "c1" }, { i: fast, label: "fast", c: "c2" }], tail: tail }) ] });
       }
-      ctx.step("相遇于 " + vals[met] + "。数学结论：头到入口 = 入口到相遇点（模环长）",
+      if (met < 0) {
+        ctx.step("快指针到达表尾，无环 → 返回 null。", {line: 8, rows: [row("链表", vals, {tail: tail})]});
+        return;
+      }
+      ctx.step("相遇于 " + vals[met] + "。头到入口与相遇点到入口的距离之差是环长的整数倍。",
         { line: 4, rows: [row("链表", vals, { ptrs: [{ i: met, label: "相遇", c: "c4" }], tail: "⟲ " + pos }) ] });
       slow = 0;
       var ptrs2 = [{ i: slow, label: "slow", c: "c1" }, { i: met, label: "meet", c: "c4" }];
       while (slow !== met) {
         ctx.step("两指针同速前进：slow=" + vals[slow] + "，meet=" + vals[met], { line: 6, rows: [
           row("链表", vals, { ptrs: ptrs2.slice(), tail: "⟲ " + pos }) ] });
-        slow = (slow + 1) % vals.length;
-        met = (met + 1) % vals.length;
+        slow = next(slow);
+        met = next(met);
         ptrs2 = [{ i: slow, label: "slow", c: "c1" }, { i: met, label: "meet", c: "c4" }];
       }
       ctx.step("两指针在 " + vals[met] + " 相会 → 这就是环的入口 ✓", { line: 7, rows: [
@@ -1293,7 +1316,7 @@ var DEMOS = {
     render: renderRows },
 
   "0146": { no: "146", title: "LRU 缓存", tag: "链表 · 双向链表 + 哈希",
-    example: "容量 capacity = 2；操作 [put,put,get,put,get,put,get,get,put]，见步骤",
+    example: "容量 capacity = 2；操作 [put,put,get,put,get,put,get,get,get]，见步骤",
     code: {
       title: "哈希 + 双向链表",
       langs: {
@@ -1451,7 +1474,7 @@ var DEMOS = {
         return { rows: [
           row("左半", l, { ptrs: [{ i: 0, label: "L", c: "c1" }] }),
           row("右半", r, { ptrs: [{ i: 0, label: "R", c: "c2" }] }),
-          row("合并中", merged.concat(hi !== undefined ? [hi] : []), { st: hi !== undefined ? st1(merged.length, "write") : null }) ] };
+          row("合并中", merged, { st: hi !== undefined ? st1(hi, "write") : null }) ] };
       }
       ctx.step("归并排序：快慢指针找中点 → 递归拆半 → 有序合并", { line: 1, rows: [row("链表", vals)] });
       var mid = 2;
@@ -1473,7 +1496,7 @@ var DEMOS = {
       }
       while (i < left.length) merged.push(left[i++]);
       while (j < right.length) merged.push(right[j++]);
-      ctx.step("合并完成 → [-1,0,3,4,5]", { line: 6, rows: [row("结果", merged, { st: st1(merged.length - 1, "target") })] });
+      ctx.step("合并完成 → " + JSON.stringify(merged), { line: 6, rows: [row("结果", merged, { st: st1(merged.length - 1, "target") })] });
     },
     render: renderRows },
 
@@ -1524,28 +1547,32 @@ var DEMOS = {
         ]
       }
     },
-    build: function (ctx) {
-      var common = [8, 4, 5];
-      var aHead = [4, 1], bHead = [5, 6, 1];
-      var pa = 0, pb = 0, swap = false;
-      ctx.step("技巧：pA 走完 A 就走 B，pB 走完 B 就走 A——两指针走过的总长度相同，必然在交点相遇",
-        { line: 1, rows: [row("A 独有", aHead), row("公共尾", common), row("B 独有", bHead)] });
-      var routeA = aHead.concat(common), routeB = bHead.concat(common);
-      var la = aHead.length, lb = bHead.length;
-      for (var s = 0; s < 12; s++) {
-        var va = pa < aHead.length ? aHead[pa] : common[pa - aHead.length];
-        var vb = pb < bHead.length ? bHead[pb] : common[pb - bHead.length];
-        var rowView = { rows: [
-          row("A 路径", routeA, { st: st1(pa, "hot"), ptrs: [{ i: pa, label: "pA", c: "c1" }] }),
-          row("B 路径", routeB, { st: st1(pb, "hot"), ptrs: [{ i: pb, label: "pB", c: "c2" }] }) ] };
-        if (va === vb) {
-          ctx.step("pA=" + va + " 与 pB=" + vb + " 相同 → 相交节点是 " + va + " ✓", rowView, { line: 6 });
-          break;
-        }
-        ctx.step("pA=" + va + "，pB=" + vb + "：不等，各走一步（走完自己就切到对方）", rowView, { line: 3 });
-        pa = (pa + 1) % 12; pb = (pb + 1) % 12;
-        if (pa > 11 || pb > 11) break;
+    sizes: [{label: "共享尾链 8→4→5", a: [4,1], b: [5,6,1], common: [8,4,5]},
+      {label: "数值相同但节点独立", a: [1,2], b: [1,2], common: []},
+      {label: "表头就是交点", a: [], b: [], common: [3,4]}],
+    build: function (ctx, size) {
+      var sample = size || {a: [4, 1], b: [5, 6, 1], common: [8, 4, 5]};
+      function nodes(values) { return values.map(function (value) { return {value: value}; }); }
+      var common = nodes(sample.common);
+      var a = nodes(sample.a).concat(common), b = nodes(sample.b).concat(common);
+      function link(path) { path.forEach(function (n, i) { n.next = path[i + 1] || null; }); }
+      link(a); link(b);
+      var pa = a[0] || null, pb = b[0] || null, aPath = a, bPath = b;
+      function pointerRow(name, path, ptr, color) {
+        var values = path.map(function (n) { return n.value; }).concat(["null"]);
+        var index = ptr === null ? path.length : path.indexOf(ptr);
+        return row(name + (path === a ? " 经过 A" : " 经过 B"), values,
+          {st: st1(index, "hot"), ptrs: [{i: index, label: name, c: color}]});
       }
+      function view() { return {rows: [pointerRow("pA", aPath, pa, "c1"), pointerRow("pB", bPath, pb, "c2")]}; }
+      ctx.step("pA 从 A 表头、pB 从 B 表头出发。到达 null 后切到另一条链。", view(), {line: 1});
+      ctx.step("检查两个指针是否指向同一个节点。相同的节点值可以来自两个不同的节点。", view(), {line: 2});
+      while (pa !== pb) {
+        if (pa === null) { aPath = b; pa = b[0] || null; } else pa = pa.next;
+        if (pb === null) { bPath = a; pb = a[0] || null; } else pb = pb.next;
+        ctx.step("前进一步：pA = " + (pa ? pa.value : "null") + "，pB = " + (pb ? pb.value : "null"), view(), {line: 3});
+      }
+      ctx.step(pa ? "两个指针指向同一节点 → 相交节点是 " + pa.value : "两个指针同时到达 null → 返回 null。", view(), {line: 6});
     },
     render: renderRows },
 
@@ -1606,28 +1633,28 @@ var DEMOS = {
         ]
       }
     },
-    build: function (ctx) {
-      var vals = [1, 2, 3, 2, 1];
-      var half = 2;
+    sizes: [{label: "奇数回文", vals: [1,2,3,2,1]}, {label: "偶数回文", vals: [1,2,2,1]}, {label: "最后一对不同", vals: [1,2,3,1]}],
+    build: function (ctx, size) {
+      var vals = size ? size.vals : [1, 2, 3, 2, 1];
       ctx.step("第一步：快慢指针找中点（fast 每次 2 步）", { line: 2, rows: [
         row("链表", vals, { ptrs: [{ i: 0, label: "slow", c: "c1" }, { i: 0, label: "fast", c: "c2" }] }) ] });
       var slow = 0, fast = 0;
-      for (var s = 0; s < 3; s++) {
+      while (fast + 2 < vals.length) {
         slow++; fast += 2;
-        ctx.step("slow=" + vals[slow] + "，fast=" + (fast < vals.length ? vals[fast] : "到尾") + " → 中点定位完成", { line: 2, rows: [
+        ctx.step("慢指针走一步到 " + vals[slow] + "，快指针走两步到 " + vals[fast], { line: 2, rows: [
           row("链表", vals, { ptrs: [{ i: slow, label: "slow", c: "c1" }, { i: Math.min(fast, vals.length - 1), label: "fast", c: "c2" }] }) ] });
       }
-      var second = vals.slice(slow).reverse();
-      ctx.step("第二步：反转后半段 → [" + second.join(",") + "]（原地反转，O(1) 空间）", { line: 3, rows: [
-        row("前半", vals.slice(0, slow)),
+      var second = vals.slice(slow + 1).reverse();
+      ctx.step("第二步：从 slow.next 反转后半段 → [" + second.join(",") + "]", { line: 3, rows: [
+        row("前半", vals.slice(0, slow + 1)),
         row("后半(反转)", second, { st: st1(0, "write") }) ] });
       var ok = true;
       for (var k = 0; k < second.length; k++) {
         var equal = vals[k] === second[k];
         ctx.step("比较 " + vals[k] + " vs " + second[k] + "：" + (equal ? "相等 ✓" : "不等 ✗"), { line: 6, rows: [
-          row("前半", vals.slice(0, slow), { st: st1(k, "cmp") }),
+          row("前半", vals.slice(0, slow + 1), { st: st1(k, "cmp") }),
           row("后半(反转)", second, { st: st1(k, equal ? "done" : "swap") }) ] });
-        if (!equal) ok = false;
+        if (!equal) { ok = false; break; }
       }
       ctx.step(ok ? "全部相等 → 是回文链表 ✓" : "不相等 → 不是回文", { line: 8, rows: [
         row("结论", ok ? ["是回文"] : ["不是回文"], { st: st1(0, "target") }) ] });

@@ -771,7 +771,7 @@ var DEMOS = {
           "    int f = e.getValue();",
           "    if (bucket[f] == null) bucket[f] = new ArrayList<>();  bucket[f].add(e.getKey()); }",
           "for (int f = nums.length; f >= 1 && ans.size() < k; f--)   // ③ 从高频往低频取",
-          "    if (bucket[f] != null) ans.addAll(bucket[f]);    // 整体 O(n)，比堆的 O(n log k) 还省"
+          "    if (bucket[f] != null) for (int v : bucket[f]) { ans.add(v); if (ans.size() == k) break; }"
         ],
         cpp: [
           "unordered_map<int, int> cnt;",
@@ -781,7 +781,7 @@ var DEMOS = {
           "    int f = e.second;",
           "    bucket[f].push_back(e.first); }",
           "for (int f = nums.size(); f >= 1 && (int)ans.size() < k; f--)  // ③ 从高频往低频取",
-          "    for (int v : bucket[f]) ans.push_back(v);        // 整体 O(n)，比堆的 O(n log k) 还省"
+          "    for (int v : bucket[f]) { ans.push_back(v); if ((int)ans.size() == k) break; }"
         ],
         python: [
           "cnt = {}",
@@ -791,7 +791,7 @@ var DEMOS = {
           "    # 频次 f 的数字，全部丢进第 f 号桶",
           "    bucket[f].append(key)",
           "for f in range(len(nums), 0, -1):                    # ③ 从高频往低频取",
-          "    ans += bucket[f];  ans = ans[:k]                 # 整体 O(n)，比堆的 O(n log k) 还省"
+          "    ans.extend(bucket[f][:k - len(ans)])             # 最多再取 k - len(ans) 个"
         ],
         go: [
           "cnt := map[int]int{}",
@@ -801,17 +801,17 @@ var DEMOS = {
           "    // 频次 f 的数字，全部丢进第 f 号桶",
           "    bucket[f] = append(bucket[f], key) }",
           "for f := len(nums); f >= 1 && len(ans) < k; f-- {    // ③ 从高频往低频取",
-          "    ans = append(ans, bucket[f]...) }                // 整体 O(n)，比堆的 O(n log k) 还省"
+          "    for _, v := range bucket[f] { ans = append(ans, v); if len(ans) == k { break } } }"
         ],
         c: [
-          "int cnt[MAXV] = {0};",
-          "for (int i = 0; i < n; i++) cnt[nums[i]]++;          /* ① 统计频次，O(n) */",
-          "int bucket[MAXN][MAXN], bn[MAXN] = {0};              /* ② 桶下标就是频次 */",
-          "for (int v = 0; v < MAXV; v++) {",
-          "    int f = cnt[v];  if (f == 0) continue;",
-          "    bucket[f][bn[f]++] = v; }",
-          "for (int f = n; f >= 1 && *sz < k; f--)              /* ③ 从高频往低频取 */",
-          "    for (int t = 0; t < bn[f]; t++) ans[(*sz)++] = bucket[f][t];  /* 整体 O(n) */"
+          "int cnt[20001] = {0}, keys[n], m = 0;              /* 题目值域 [-10000, 10000] */",
+          "for (int i = 0; i < n; ++i) if (cnt[nums[i] + 10000]++ == 0) keys[m++] = nums[i];",
+          "int head[n + 1], next[m]; for (int f = 0; f <= n; ++f) head[f] = -1;",
+          "for (int i = 0; i < m; ++i) {",
+          "    int f = cnt[keys[i] + 10000];",
+          "    next[i] = head[f]; head[f] = i; }              /* 挂入频率为 f 的桶 */",
+          "for (int f = n; f >= 1 && *sz < k; --f)",
+          "    for (int i = head[f]; i != -1 && *sz < k; i = next[i]) ans[(*sz)++] = keys[i];"
         ]
       }
     },
@@ -819,29 +819,33 @@ var DEMOS = {
       var nums = [1, 1, 1, 2, 2, 3], k = 2;
       var count = {};
       ctx.step("第一步：哈希表统计每个数字的出现频率", { line: 1, rows: [row("nums", nums)] });
-      nums.forEach(function (x) {
+      nums.forEach(function (x, index) {
         count[x] = (count[x] || 0) + 1;
-        ctx.step("统计 " + x + "：出现 " + count[x] + " 次", { line: 2, rows: [row("nums", nums, { st: st1(nums.indexOf(x), "hot") })], note: "频率表：" + JSON.stringify(count) });
+        ctx.step("读到 nums[" + index + "] = " + x + "，它已出现 " + count[x] + " 次。", { line: 2, rows: [
+          row("nums", nums, { st: st1(index, "hot") }) ], note: "频率表 " + JSON.stringify(count) });
       });
-      var buckets = [];
-      Object.keys(count).forEach(function (num) {
-        var f = count[num];
+      var values = Object.keys(count).map(Number);
+      var frequencies = values.map(function (value) { return count[value]; });
+      var buckets = Array(nums.length + 1);
+      values.forEach(function (value, index) {
+        var f = frequencies[index];
         if (!buckets[f]) buckets[f] = [];
-        buckets[f].push(parseInt(num, 10));
+        buckets[f].push(value);
       });
-      ctx.step("第二步：按频率建桶（桶下标 = 频率），从高频往低频收集前 k 个", { line: 3, rows: [
-        row("数字", Object.keys(count).map(Number)), row("频率", Object.keys(count).map(function (n) { return count[n]; })) ] });
+      ctx.step("按频率建桶。同一列的数字和频率配成一对，频率就是桶的下标。", { line: 3, rows: [
+        row("数字", values), row("频率", frequencies) ] });
       var result = [];
       for (var f = buckets.length - 1; f >= 0 && result.length < k; f--) {
         if (buckets[f]) {
           result = result.concat(buckets[f].slice(0, k - result.length));
+          var bucketMarks = frequencies.map(function (freq) { return freq === f ? "hot" : ""; });
           ctx.step("频率 " + f + " 的桶里有 " + JSON.stringify(buckets[f]) + " → 收集，当前结果 [" + result.join(",") + "]", { line: 7, rows: [
-            row("数字", Object.keys(count).map(Number), { st: (function () { var m = {}; Object.keys(count).forEach(function (n) { if (count[n] === f) m[count[n]] = "hot"; }); return m; })() }),
-            row("频率", Object.keys(count).map(function (n) { return count[n]; })) ] });
+            row("数字", values, { st: bucketMarks }), row("频率", frequencies, { st: bucketMarks }) ] });
         }
       }
-      ctx.step("完成！前 " + k + " 个高频元素 = [" + result.join(",") + "]（桶排序 O(n)，比堆更省）", { line: 8, rows: [
-        row("结果", result, { st: st1(result.length - 1, "target") }) ] });
+      ctx.step("完成！前 " + k + " 个高频元素 = [" + result.join(",") + "]。频率桶总耗时 O(n)，额外空间 O(n)。", { line: 8, rows: [
+        row("结果", result, { st: result.map(function () { return "target"; }) }) ],
+        note: "两种做法都先计数。若有 u 个不同数字，用大小为 k 的最小堆筛选候选需要 O(u log(k+1)) 时间，候选堆占 O(k) 空间。" });
     },
     render: renderRows },
 

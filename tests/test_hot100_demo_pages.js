@@ -16,6 +16,7 @@
 const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
+const checkArrayHeapScenario = require("./test_hot100_array_heap_scenarios");
 
 const VISUAL_DIR = path.join(__dirname, "..", "books", "hot100", "05-可视化");
 const MIN_STEPS = 3;
@@ -175,6 +176,11 @@ function lineNumbers(opts) {
 
 function checkDemo(file, cfg, problems) {
   const where = `${file} #${cfg.no || cfg.title || "?"}`;
+  try {
+    checkArrayHeapScenario(cfg, collectSteps);
+  } catch (error) {
+    problems.push(where + " 图解逐帧校验失败：" + error.stack);
+  }
   const maxLine = codeLineCount(cfg.code, problems, where);
   // 引擎把整个 size 对象（{label, value}）交给 build，这里保持一致。
   const sizes = (cfg.sizes && cfg.sizes.length ? cfg.sizes : [null]);

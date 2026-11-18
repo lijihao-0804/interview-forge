@@ -1232,7 +1232,8 @@ var DEMOS = {
     render: renderTable },
 
   "0064": { no: "64", title: "最小路径和", tag: "DP · 网格",
-    example: "输入：grid = [[1,3,1],[1,5,1],[2,4,1]]　输出：7（右→右→下→下→左…即 1→3→1→1→1）",
+    example: "输入：grid = [[1,3,1],[1,5,1],[2,4,1]]　输出：7（右→右→下→下，经过 1→3→1→1→1）",
+    sizes: [{label: "3×3 路径", grid: [[1,3,1],[1,5,1],[2,4,1]]}, {label: "一行三个数", grid: [[1,2,3]]}, {label: "单个起点", grid: [[8]]}],
     code: {
       title: "网格 DP",
       langs: {
@@ -1283,28 +1284,30 @@ var DEMOS = {
         ]
       }
     },
-    build: function (ctx) {
-      var g = [[1, 3, 1], [1, 5, 1], [2, 4, 1]];
+    build: function (ctx, size) {
+      var g = size ? size.grid : [[1, 3, 1], [1, 5, 1], [2, 4, 1]];
       var dp = [];
       for (var i = 0; i < g.length; i++) dp.push(g[i].map(function () { return { v: "·" }; }));
+      function snapshot() { return dp.map(function (r) { return r.slice(); }); }
+      ctx.step("输入网格 " + JSON.stringify(g) + "。每一步只能向右或向下。", { line: 1, table: snapshot() });
       dp[0][0] = { v: g[0][0], st: "hot" };
-      ctx.step("起点 dp[0][0] = " + g[0][0], { line: 1, table: dp.map(function (r) { return r.map(function (x) { return { v: x.v }; }); }) });
+      ctx.step("起点 dp[0][0] = " + g[0][0], { line: 1, table: snapshot() });
       for (var c = 1; c < g[0].length; c++) {
         dp[0][c] = { v: dp[0][c - 1].v + g[0][c] };
-        ctx.step("首行只能向右：dp[0][" + c + "] = " + dp[0][c].v, { line: 2, table: dp });
+        ctx.step("首行只能向右：dp[0][" + c + "] = " + dp[0][c].v, { line: 2, table: snapshot() });
       }
       for (var r = 1; r < g.length; r++) {
         dp[r][0] = { v: dp[r - 1][0].v + g[r][0] };
-        ctx.step("首列只能向下：dp[" + r + "][0] = " + dp[r][0].v, { line: 3, table: dp });
+        ctx.step("首列只能向下：dp[" + r + "][0] = " + dp[r][0].v, { line: 3, table: snapshot() });
       }
       for (var r = 1; r < g.length; r++) {
         for (var c = 1; c < g[0].length; c++) {
           dp[r][c] = { v: Math.min(dp[r - 1][c].v, dp[r][c - 1].v) + g[r][c] };
           ctx.step("dp[" + r + "][" + c + "] = min(上 " + dp[r - 1][c].v + "，左 " + dp[r][c - 1].v + ") + " + g[r][c] + " = " + dp[r][c].v,
-            { line: 6, table: dp });
+            { line: 6, table: snapshot() });
         }
       }
-      ctx.step("完成！右下角 = 最小路径和 " + dp[g.length - 1][g[0].length - 1], { line: 7, table: dp });
+      ctx.step("完成！右下角 = 最小路径和 " + dp[g.length - 1][g[0].length - 1].v, { line: 7, table: snapshot() });
     },
     render: renderTable }
 };

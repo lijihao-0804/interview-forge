@@ -9,6 +9,7 @@ import asyncio
 from contextlib import contextmanager
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -16,6 +17,10 @@ from threading import Thread
 from urllib.parse import urljoin
 
 from playwright.async_api import async_playwright
+try:
+    from .hot100_graph_answers import compare_output
+except ImportError:  # Running this file directly.
+    from hot100_graph_answers import compare_output
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -105,7 +110,7 @@ CONTROL_LAYOUT = """() => {
 # Waiting for a swap only when a transition actually blocks the button keeps
 # ordinary steps fast. Reading after two animation frames lets the child's
 # size message and the reader's height update settle before checking geometry.
-GRAPH_SEQUENCE = """async () => {
+GRAPH_SEQUENCE = """async pid => {
     const visible = s => [...document.querySelectorAll(s)].find(n => n.offsetWidth && n.offsetHeight);
     const next = [...document.querySelectorAll('.dk-btn')].find(
         n => n.offsetWidth && n.textContent.includes('下一步')) || visible('.btn-next, #nextBtn');
@@ -117,7 +122,12 @@ GRAPH_SEQUENCE = """async () => {
         visible('.panel.active .step-info')?.textContent.trim() ||
         [description(), visible('#itemDesc1')?.textContent, visible('#jDesc1')?.textContent].join('/');
     const settled = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const bars = () => [...(stage()?.querySelectorAll('.bar-label') || [])].map(e => Number(e.textContent));
+    const matrix = () => [...(stage()?.querySelectorAll('table tr') || [])].map(r =>
+        [...r.querySelectorAll('td')].map(e => e.innerText.trim()).filter(x => /^-?\\d+$/.test(x)).map(Number)
+    ).filter(r => r.length);
     const initial = description(), descriptions = new Set();
+    const inputBars = bars(), inputMatrix = matrix(), history = [];
     const faults = [], footprint = new Map();
     const toolbarFits = () => next.parentElement.getBoundingClientRect().bottom + scrollY <= innerHeight + 2;
     async function settleToolbar() {
@@ -129,6 +139,7 @@ GRAPH_SEQUENCE = """async () => {
     let count = 0, previous = null;
     while (true) {
         const why = description() || '';
+        if (['146','155','295','141'].includes(pid)) history.push(why);
         if (!why) faults.push('empty explanation at step ' + count);
         descriptions.add(why.replace(/^\\d+\\.\\s*/, ''));
         const current = status();
@@ -163,15 +174,78 @@ GRAPH_SEQUENCE = """async () => {
     const descNode = visible('.dk-desc');
     if (descNode && descNode.scrollHeight > descNode.clientHeight + 2)
         faults.push('current explanation is vertically clipped');
-    const label = stage()?.querySelector('svg g[data-key] text');
+    const label = stage()?.querySelector('svg g:has(>circle) text');
     if (label && parseFloat(getComputedStyle(label).fontSize) * label.getScreenCTM().a < 10.5)
         faults.push('tree node labels smaller than 10.5 CSS pixels');
+    const box = stage();
+    let tree = null;
+    if (['105', '108', '114', '226'].includes(pid) && box) {
+        const nodes = [...box.querySelectorAll('svg g:has(>circle)')].map(g => ({
+            x: Number(g.querySelector('circle').getAttribute('cx')),
+            y: Number(g.querySelector('circle').getAttribute('cy')), v: Number(g.querySelector('text').textContent)
+        }));
+        const byX = new Map(nodes.map(n => [n.x, n]));
+        for (const edge of box.querySelectorAll('svg line')) {
+            const p = byX.get(Number(edge.getAttribute('x1'))), c = byX.get(Number(edge.getAttribute('x2')));
+            if (!p || !c || p.y >= c.y) throw new Error('unattached visible tree edge');
+            p[c.x < p.x ? 'left' : 'right'] = c;
+        }
+        if (!nodes.length) throw new Error('tree output is empty');
+        const queue = [nodes.slice().sort((a,b) => a.y-b.y)[0]];
+        tree = [];
+        while (queue.length) {
+            const n = queue.shift(); tree.push(n ? n.v : null);
+            if (n) queue.push(n.left, n.right);
+            if (tree.length > nodes.length * 2 + 1) throw new Error('cycle in visible tree');
+        }
+        while (tree.at(-1) === null) tree.pop();
+        if (tree.filter(v => v !== null).length !== nodes.length) throw new Error('detached visible node');
+    }
     return {steps:count, descriptions:descriptions.size, start:initial, end:description(),
-        state:stage()?.innerText.trim().slice(0, 430), issues:[...new Set(faults), ...footprint.values()]};
+        state:box?.innerText.trim() || '', inputBars, bars:bars(), matrix:matrix(), inputMatrix,
+        items:[...(box?.querySelectorAll('.result-item') || [])].map(e => e.innerText.trim()),
+        tree, history, issues:[...new Set(faults), ...footprint.values()]};
 }"""
 
 
-async def graphic(frame, pid):
+def digest(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+async def shot(element, folder, name, isolate_figure=False):
+    path = folder / (name + ".png")
+    # Parent fixed-position reading progress is always at the viewport's top.
+    # A stitched frame-only screenshot would paint it over the middle of the
+    # figure. Keep the unaltered viewport screenshot as the separate page record.
+    style = ".read-progress{visibility:hidden!important}" if isolate_figure else None
+    data = await element.screenshot(path=path, animations="disabled", style=style)
+    return {"path": path.relative_to(folder.parent).as_posix(), "sha256": digest(data)}
+
+
+async def graph_options(frame, pid):
+    modes = frame.locator(SIZE).first
+    presets = frame.locator(".panel.active .preset-btn:visible")
+    if pid == "208":
+        sizes = frame.locator(".panel.active .size-select:visible")
+        actions = frame.locator(".panel.active .action-select:visible")
+        for size in await sizes.locator("option").evaluate_all("(o) => o.map(x => x.value)"):
+            await sizes.select_option(size)
+            for i, text in enumerate(await actions.locator("option").all_inner_texts()):
+                await actions.select_option(index=i)
+                yield i, text, int(size)
+    elif await modes.count():
+        for i, text in enumerate(await modes.locator("option").all_inner_texts()):
+            await modes.select_option(index=i)
+            yield i, text, None
+    elif await presets.count():
+        for i, text in enumerate(await presets.all_inner_texts()):
+            await presets.nth(i).click()
+            yield i, text, None
+    else:
+        yield 0, "默认", None
+
+
+async def graphic(frame, pid, folder=None):
     problems = []
     nxt, prev, desc = (frame.locator(s).first for s in (NEXT, PREVIOUS, DESCRIPTION))
     await nxt.wait_for()
@@ -193,51 +267,51 @@ async def graphic(frame, pid):
         frame.get_by_role("button", name=re.compile("开头"))).first
     await first.click()
     assert await desc.inner_text() == opening, "reset did not restore the start after autoplay"
-    modes = frame.locator(SIZE).first
-    presets = frame.locator(".panel.active .preset-btn:visible")
-    action = frame.locator(".panel.active .action-select:visible")
-    if await modes.count():
-        options = await modes.locator("option").all_inner_texts()
-    elif await presets.count():
-        options = await presets.all_inner_texts()
-    elif await action.count():
-        modes = action
-        options = await modes.locator("option").all_inner_texts()
-    else:
-        options = ["默认"]
     outputs = []
-    for i, option in enumerate(options):
-        if await modes.count():
-            await modes.select_option(index=i)
-        elif await presets.count():
-            await presets.nth(i).click()
+    async for i, option, word_count in graph_options(frame, pid):
         assert await prev.is_disabled(), f"{option}: sample did not start at the beginning"
-        result = await frame.evaluate(GRAPH_SEQUENCE)
-        if pid in ("34", "35"):
-            expected = ([[3, 4], [-1, -1], [0, 2], [-1, -1]] if pid == "34" else [1, 2, 4, 0])[i]
-            actual = await frame.evaluate("window.__dk.steps[window.__dk.idx].view.answer")
-            if actual != expected:
-                result["issues"].append(f"returned {actual!r}, expected {expected!r}")
-        elif pid == "416":
-            expected = ["true", "false", "false"][i]
-            if expected not in result["end"]:
-                result["issues"].append(f"partition result should be {expected}")
-        elif pid == "17" and option == "空串" and "返回 []" not in result["end"]:
-            result["issues"].append("empty digits should produce []")
-        result["example"] = option
+        result = await frame.evaluate(GRAPH_SEQUENCE, pid)
+        if word_count is not None:
+            result["word_count"] = word_count
+        if result["inputBars"] or result["inputMatrix"]:
+            result["graphical_input"] = result["inputBars"] or result["inputMatrix"]
+        try:
+            actual, expected = compare_output(int(pid), i, option, result)
+            result["actual"], result["expected"] = actual, expected
+            if actual != expected or type(actual) is not type(expected):
+                result["issues"].append(f"visible output {actual!r}, expected {expected!r}")
+        except (AssertionError, ValueError, TypeError, KeyError, IndexError) as exc:
+            result["issues"].append(f"could not verify graphical output: {exc}")
+        for field in ("inputBars", "bars", "matrix", "inputMatrix", "items", "tree", "history"):
+            result.pop(field)
+        result["state"] = result["state"][:430]
+        result["example"] = option if word_count is None else f"{word_count} 个词 · {option}"
+        if folder:
+            result["screenshot"] = await shot(frame.locator("body"), folder, f"graph-{len(outputs)+1}", True)
         problems.extend(f"{option}: {item}" for item in result.pop("issues"))
         outputs.append(result)
+    if not outputs:
+        problems.append("no graphical examples were exercised")
+    if pid == "208" and {r["word_count"] for r in outputs} != {4, 6, 8, 10}:
+        problems.append("did not exercise all four Trie dictionaries")
     problems.extend(await frame.evaluate(CONTROL_LAYOUT))
     return outputs, sorted(set(problems))
 
 
-async def traces(frame, row):
+async def traces(frame, row, folder=None, report=None):
     pid = int(row["id"].split("-")[1])
     expected = checked_examples(pid)
     # Where the site publishes the same input as an ACM fixture, verify against
     # that separate expected value as well as the checked reference trace.
     acm = {s["input"].strip(): json.loads(s["expected"]) for s in row["samples"]}
-    await frame.locator(".hot100-trace-switch").click()
+    async with frame.page.expect_response(lambda res: res.url.split("?")[0].endswith(
+            f"/books/hot100/executions/{pid}.js")) as downloaded:
+        await frame.locator(".hot100-trace-switch").click()
+    payload = await downloaded.value
+    assert payload.ok, f"trace data HTTP {payload.status}"
+    if report is not None:
+        report["trace_script_sha256"] = digest(await payload.body())
+        report["trace_url"] = frame.url
     control = frame.get_by_role("combobox", name="演示输入")
     await frame.locator(".dk-stage pre").wait_for()
     assert await frame.evaluate("Hot200Execution.id") == pid, "opened another problem's replay"
@@ -252,7 +326,11 @@ async def traces(frame, row):
         if await control.count():
             await control.select_option(index=i)
         assert await previous.is_disabled(), "example did not restart"
-        assert await stage.locator("pre").inner_text() == sample["input"], f"input mismatch for {sample['label']}"
+        stdin = await stage.locator("pre").inner_text()
+        assert stdin == sample["input"], f"input mismatch for {sample['label']}"
+        case = {"example": sample["label"], "input": stdin, "input_sha256": digest(stdin.encode())}
+        if folder:
+            case["input_screenshot"] = await shot(stage, folder, f"case-{i+1}-input", True)
         await next_button.click()
         assert await stage.locator(".dk-trace-vars dt").count() > 0, "missing execution variables"
         await previous.press("Enter")
@@ -264,7 +342,11 @@ async def traces(frame, row):
             assert actual == acm[sample["input"]], f"{sample['label']}: output differs from ACM fixture"
         assert await next_button.is_disabled(), "next enabled after final output"
         issues.extend(await frame.evaluate(CONTROL_LAYOUT))
-        details.append({"example": sample["label"], "steps": len(sample["steps"]) + 2, "output": actual})
+        encoded = json.dumps(actual, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+        case.update(steps=len(sample["steps"]) + 2, output=actual, expected=sample["output"], output_sha256=digest(encoded))
+        if folder:
+            case["output_screenshot"] = await shot(stage, folder, f"case-{i+1}-output", True)
+        details.append(case)
     await frame.get_by_role("link", name="返回图形演示").click()
     await frame.locator(".hot100-trace-switch").wait_for()
     return details, sorted(set(issues))
@@ -273,6 +355,9 @@ async def traces(frame, row):
 async def check(page, row, width, base, opts):
     pid = row["id"].split("-")[1]
     result = {"id": row["id"], "viewport": width, "graph": [], "traces": [], "issues": []}
+    folder = opts.evidence_dir / f"{row['id']}-{width}" if opts.evidence_dir else None
+    if folder:
+        folder.mkdir(parents=True, exist_ok=True)
     errors = []
     def on_error(error):
         errors.append(str(error))
@@ -288,8 +373,12 @@ async def check(page, row, width, base, opts):
         assert await frame.locator(".hot100-trace-switch").get_attribute("href") == \
             f"assets/checked-example.html?problem={pid}", "graph route belongs to another problem"
         result["frame_width"] = await frame.evaluate("innerWidth")
+        result.update(solution_url=page.url, graphical_url=frame.url, height=VIEWPORTS[width])
+        if folder:
+            await frame.locator(DESCRIPTION).first.evaluate("n => n.scrollIntoView({block:'center', behavior:'instant'})")
+            result["solution_screenshot"] = await shot(page, folder, "solution")
         assert result["frame_width"] <= width, "iframe overflows parent horizontally"
-        for key, run in (("graph", lambda: graphic(frame, pid)), ("traces", lambda: traces(frame, row))):
+        for key, run in (("graph", lambda: graphic(frame, pid, folder)), ("traces", lambda: traces(frame, row, folder, result))):
             try:
                 result[key], issues = await run()
                 result["issues"].extend(f"{key}: {msg}" for msg in issues)
@@ -348,9 +437,8 @@ async def sweep(base, opts):
                     pages[width] = await contexts[width].new_page()
                     pages[width].set_default_timeout(opts.timeout * 1000)
                 result = await check(pages[width], row, width, base, opts)
-                transient = [msg for msg in result["issues"] if msg.startswith((
-                    "Page.goto:", "solution HTTP 5", "Locator.scroll_into_view_if_needed: Timeout"
-                ))]
+                transient = [msg for msg in result["issues"] if
+                             "Timeout " in msg or "net::ERR_" in msg or "HTTP 5" in msg]
                 if transient:
                     await pages[width].close()
                     pages[width] = await contexts[width].new_page()
@@ -382,6 +470,7 @@ def main():
     parser.add_argument("--widths", nargs="+", type=int, choices=VIEWPORTS, default=list(VIEWPORTS))
     parser.add_argument("--report", type=Path, help="Append a JSON record for each lesson and viewport")
     parser.add_argument("--screenshots", type=Path)
+    parser.add_argument("--evidence-dir", type=Path, help="Capture every example's actual output, screenshot and SHA-256")
     parser.add_argument("--screenshot-ids", nargs="+", default=["hot100-34", "hot100-46", "hot100-416"])
     parser.add_argument("--jobs", type=int, choices=range(1, 9), default=3)
     parser.add_argument("--timeout", type=int, default=8, help="Interaction timeout in seconds")

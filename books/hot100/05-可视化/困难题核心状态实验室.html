@@ -764,7 +764,7 @@ var S239 = [
 ];
 var S295 = [
   { label: "默认数据流 5,2,10,4,8,3", s: [5, 2, 10, 4, 8, 3] },
-  { label: "递增流：每次都要把人从左边挪到右边", s: [1, 2, 3, 4, 5, 6, 7] },
+  { label: "递增流 1 至 7，右堆较大时把堆顶移回左堆", s: [1, 2, 3, 4, 5, 6, 7] },
   { label: "大量重复值 4,4,4,1,9,9,2", s: [4, 4, 4, 1, 9, 9, 2] }
 ];
 var S41 = [
@@ -936,7 +936,7 @@ var DEMOS = {
         }
       }
 
-      ctx.phase("done", "扫完了。每个下标只进队一次、出队一次，总共 O(n)。答案：[" + out.join(", ") + "]。",
+      ctx.phase("done", "扫完了。每个下标入队一次、至多出队一次，总共 O(n)。答案：[" + out.join(", ") + "]。",
         V(n - 1, "回头看：单调队列其实是「把不可能成为答案的候选提前删掉」的通用技巧。"), { line: 7 });
     },
     render: renderPanels
@@ -1002,12 +1002,12 @@ var DEMOS = {
       }
     },
     invariants: [
-      { label: "刚插入时最多失衡 1 格，平衡完必定「左 − 右 ∈ {0, 1}」", test: function (v) {
+      { label: "插入后左、右大小差可暂为 −1 或 2，平衡后为 0 或 1", test: function (v) {
           var d = v.lowN - v.highN;
           if (d < -1 || d > 2) return false;
           if (v.settled && d !== 0 && d !== 1) return false;
           return "左 " + v.lowN + " 个，右 " + v.highN + " 个，差 " + d +
-            (v.settled ? "（已平衡）" : "（刚插入，下一步就掰回来）");
+            (v.settled ? "（已平衡）" : "（待平衡）");
         } },
       { label: "左堆堆顶 ≤ 右堆堆顶（左边每个数都不大于右边）", test: function (v) {
           if (!v.lowN || !v.highN) return "有一边是空的，条件自动成立";
@@ -1017,14 +1017,43 @@ var DEMOS = {
     build: function (ctx, size) {
       var cfg = size || S295[0];
       var stream = cfg.s;
-      var low = [], high = [];   /* low 降序（堆顶在 0），high 升序（堆顶在 0） */
-      /* settled 标记「此刻是否处在两次插入之间的稳定态」：刚归堆还没平衡的那一拍
-         本来就允许失衡，不变量必须把这一拍说清楚，不能假装它不存在。 */
-      var settled = true;
+      var low = [], high = [];
+      function largerFirst(a, b) { return a > b; }
+      function smallerFirst(a, b) { return a < b; }
 
-      function V(idx, note, hotSide) {
-        var med = low.length === 0 ? null
-          : (low.length === high.length ? (low[0] + high[0]) / 2 : low[0]);
+      // 堆按层序存储。插入时沿父节点上浮，删除堆顶时用末项填洞并下沉。
+      function heapPush(heap, value, before) {
+        var index = heap.length;
+        heap.push(value);
+        while (index > 0) {
+          var parent = Math.floor((index - 1) / 2);
+          if (!before(value, heap[parent])) break;
+          heap[index] = heap[parent];
+          index = parent;
+        }
+        heap[index] = value;
+        return index;
+      }
+      function heapPop(heap, before) {
+        var top = heap[0], last = heap.pop();
+        if (!heap.length) return top;
+        var index = 0;
+        while (2 * index + 1 < heap.length) {
+          var child = 2 * index + 1;
+          if (child + 1 < heap.length && before(heap[child + 1], heap[child])) child++;
+          if (!before(heap[child], last)) break;
+          heap[index] = heap[child];
+          index = child;
+        }
+        heap[index] = last;
+        return top;
+      }
+      function median() {
+        return low.length === high.length ? (low[0] + high[0]) / 2 : low[0];
+      }
+      function V(idx, note, changedSide, changedIndex) {
+        var balanced = low.length === high.length || low.length === high.length + 1;
+        var med = balanced ? (low.length ? median() : "—") : "待平衡";
         return {
           rows: [
             { name: "数据流", cells: stream.map(function (v, i) {
@@ -1033,60 +1062,59 @@ var DEMOS = {
                 return cd;
               }), ptrTop: true },
             { name: "左｜大顶堆", cells: low.map(function (v, i) {
-                return { v: v, st: i === 0 ? (hotSide === "low" ? "swap" : "hot") : "target", sub: i === 0 ? "堆顶" : null };
+                return { v: v, st: changedSide === "low" && i === changedIndex ? "write" : i === 0 ? "hot" : "target", sub: i === 0 ? "堆顶" : null };
               }), empty: "空" },
             { name: "右｜小顶堆", cells: high.map(function (v, i) {
-                return { v: v, st: i === 0 ? (hotSide === "high" ? "swap" : "hot") : "target", sub: i === 0 ? "堆顶" : null };
+                return { v: v, st: changedSide === "high" && i === changedIndex ? "write" : i === 0 ? "hot" : "target", sub: i === 0 ? "堆顶" : null };
               }), empty: "空" }
           ],
-          vars: [["已读入", idx < 0 ? 0 : Math.min(idx + 1, stream.length)], ["左堆", low.length + " 个"], ["右堆", high.length + " 个"], ["中位数", med === null ? "—" : med]],
+          vars: [["已入堆", low.length + high.length], ["左堆", low.length + " 个"], ["右堆", high.length + " 个"], ["中位数", med]],
           note: note,
-          lowN: low.length, highN: high.length, settled: settled,
+          lowN: low.length, highN: high.length, settled: balanced,
           lowTop: low.length ? low[0] : null, highTop: high.length ? high[0] : null
         };
       }
 
-      ctx.step("对顶堆的全部想法只有一句：把所有数从中间劈开，左半边塞进「大顶堆」，右半边塞进「小顶堆」。两个堆顶就紧贴着中位数。",
-        V(-1, "左堆随时能 O(1) 拿到「较小一半里最大的」，右堆能拿到「较大一半里最小的」。"), { line: 1 });
+      ctx.step("把较小的一半放进左边的大顶堆，较大的一半放进右边的小顶堆。两行都按二叉堆的层序排列，第一格是堆顶。",
+        V(-1, "左堆顶是较小一半的最大值，右堆顶是较大一半的最小值。"), { line: 1 });
 
       for (var i = 0; i < stream.length; i++) {
         var x = stream[i];
-        ctx.phase("compare", "读入 " + x + "：先判断它该去哪边 —— 比左堆顶 " + (low.length ? low[0] : "（空）") + " 小就归左边，否则归右边。",
-          V(i, "只跟左堆顶比一次就够了，不需要遍历。"), { line: 4 });
+        var position;
+        ctx.phase("compare", low.length ? "读到 " + x + "，与左堆顶 " + low[0] + " 比较。小于或等于堆顶的数归左边，其余归右边。"
+          : "读到 " + x + "，左堆为空，第一个数归左边。", V(i), { line: 4 });
 
-        settled = false;
         if (!low.length || x <= low[0]) {
-          low.push(x); low.sort(function (p, q) { return q - p; });
-          ctx.phase("enqueue", "① " + x + " ≤ 左堆顶 → 进左堆。左堆现在有 " + low.length + " 个。", V(i, null, "low"), { line: 4 });
+          position = heapPush(low, x, largerFirst);
+          ctx.phase("enqueue", "① 把 " + x + " 插入左堆，按大顶堆规则上浮，停在下标 " + position + "。", V(i, null, "low", position), { line: 4 });
         } else {
-          high.push(x); high.sort(function (p, q) { return p - q; });
-          ctx.phase("enqueue", "① " + x + " > 左堆顶 → 进右堆。右堆现在有 " + high.length + " 个。", V(i, null, "high"), { line: 4 });
+          position = heapPush(high, x, smallerFirst);
+          ctx.phase("enqueue", "① 把 " + x + " 插入右堆，按小顶堆规则上浮，停在下标 " + position + "。", V(i, null, "high", position), { line: 4 });
         }
 
         if (low.length > high.length + 1) {
-          var mv = low.shift(); high.push(mv); high.sort(function (p, q) { return p - q; });
-          settled = true;
+          var mv = heapPop(low, largerFirst);
+          position = heapPush(high, mv, smallerFirst);
           ctx.phase("swap_move", "② 左边比右边多了 2 个，失衡了 → 把左堆顶 " + mv + " 挪到右堆。它本来就是左边最大的那个，挪过去正好当右边最小的。",
-            V(i, "这一步保证「左 − 右 ∈ {0, 1}」。"), { line: 5 });
+            V(i, "弹出时把原堆的末项移到根并下沉，插入另一堆时沿父节点上浮。", "high", position), { line: 5 });
         } else if (high.length > low.length) {
-          var mv2 = high.shift(); low.push(mv2); low.sort(function (p, q) { return q - p; });
-          settled = true;
+          var mv2 = heapPop(high, smallerFirst);
+          position = heapPush(low, mv2, largerFirst);
           ctx.phase("swap_move", "③ 右边反超了 → 把右堆顶 " + mv2 + " 挪回左堆。约定「奇数个时多的那一个放左边」，这样中位数就是左堆顶。",
-            V(i, "为什么固定放左边？这样取中位数时判断最简单。"), { line: 6 });
+            V(i, "弹出时把原堆的末项移到根并下沉，插入另一堆时沿父节点上浮。", "low", position), { line: 6 });
         } else {
-          settled = true;
           ctx.step("②③ 两堆大小本来就合法（左 " + low.length + " / 右 " + high.length + "），不用搬人。", V(i, null), { line: 5 });
         }
 
-        var med = low.length === high.length ? (low[0] + high[0]) / 2 : low[0];
+        var med = median();
         ctx.step("查询中位数：" + (low.length === high.length
             ? "两堆一样大 → 取两个堆顶的平均 (" + low[0] + " + " + high[0] + ") / 2 = " + med
             : "左边多一个 → 直接就是左堆顶 " + med) + "。只看堆顶，O(1)。",
           V(i, "前 " + (i + 1) + " 个数的中位数是 " + med + "。"), { line: 8 });
       }
 
-      ctx.phase("done", "整条流处理完了。插入 O(log n)、查询 O(1)，比「每次重新排序」快了一个量级。",
-        V(stream.length - 1, "对顶堆的套路：任何「随时要第 k 小 / 中位数」的流式问题都可以照搬。"), { line: 8 });
+      ctx.phase("done", stream.length ? "已处理 " + stream.length + " 个数，最终中位数为 " + median() + "。插入 O(log n)，查询 O(1)。"
+        : "数据流为空，还没有中位数。", V(stream.length, "一次插入至多搬动一个堆顶，两个堆共保存所有已读入的数。"), { line: 8 });
     },
     render: renderPanels
   },

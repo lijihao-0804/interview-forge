@@ -624,6 +624,9 @@ function toTree(arr) {
   return root;
 }
 function height(n) { return n ? 1 + Math.max(height(n.left), height(n.right)) : 0; }
+function snapshotTree(n) {
+  return n ? {id: n.id, val: n.val, left: snapshotTree(n.left), right: snapshotTree(n.right)} : null;
+}
 
 /* 树渲染：SVG。view = { tree, hl:[id], done:[id], cur:id, side:{标题:内容}, path:[id] } */
 function drawTree(view, stage) {
@@ -1364,7 +1367,7 @@ var DEMOS = {
       var idx = {}; ino.forEach(function (v, i) { idx[v] = i; });
       var tree = null, built = 0, seq = 0;
       function V(extra) {
-        var v = { tree: tree, built: built };
+        var v = { tree: snapshotTree(tree), built: built };
         Object.keys(extra || {}).forEach(function (k) { v[k] = extra[k]; });
         return v;
       }
@@ -1462,7 +1465,7 @@ var DEMOS = {
     build: function (ctx) {
       var nums = N108, tree = null, built = 0, seq = 0;
       function V(extra) {
-        var v = { tree: tree, built: built, balanced: true };
+        var v = { tree: snapshotTree(tree), built: built, balanced: true };
         Object.keys(extra || {}).forEach(function (k) { v[k] = extra[k]; });
         return v;
       }
@@ -1588,7 +1591,7 @@ var DEMOS = {
         return cnt;
       }
       function V(extra) {
-        var v = { tree: root, chain: chainOf().join(" → "), leftClean: leftClean() };
+        var v = { tree: snapshotTree(root), chain: chainOf().join(" → "), leftClean: leftClean() };
         Object.keys(extra || {}).forEach(function (k) { v[k] = extra[k]; });
         return v;
       }
@@ -1607,9 +1610,9 @@ var DEMOS = {
           }
           ctx.step("找到前驱 " + p.val + "：把 " + cur.val + " 原来的右子树 " + (cur.right ? cur.right.val : "null") + " 挂到它下面",
             V({ cur: cur.id, hl: [p.id] }), { line: 6 });
-          p.right = cur.right;
-          ctx.phase("update", "现在把左子树 " + cur.left.val + " 整体搬到 " + cur.val + " 的右边",
+          ctx.phase("update", "先把原右子树接到前驱，再把左子树 " + cur.left.val + " 搬到 " + cur.val + " 的右边。",
             V({ cur: cur.id, hl: [cur.left.id] }), { line: 7 });
+          p.right = cur.right;
           cur.right = cur.left;
           cur.left = null;
           ctx.phase("update", cur.val + " 的左指针清空 —— 这一段已经是链了",
@@ -1811,7 +1814,7 @@ var DEMOS = {
         return out.join(",");
       }
       function V(extra) {
-        var v = { tree: root, swapped: swapped.slice(), done: done.slice(), inorder: inorderOf() };
+        var v = { tree: snapshotTree(root), swapped: swapped.slice(), done: done.slice(), inorder: inorderOf() };
         Object.keys(extra || {}).forEach(function (k) { v[k] = extra[k]; });
         return v;
       }
@@ -1986,7 +1989,7 @@ var DEMOS = {
       var root = toTree(T236), answer = null, done = [];
       ctx.step("后序上报：每个节点问左右两边「你那边有没有找到 " + P + " 或 " + Q + "」。两边都回话的最低节点就是答案",
         { tree: root, answer: null }, { line: 1 });
-      (function go(n) {
+      answer = (function go(n) {
         if (!n) return null;
         if (n.val === P || n.val === Q) {
           done.push(n.id);

@@ -718,14 +718,15 @@ var DEMOS = {
         ]
       }
     },
-    build: function (ctx) {
-      var s = "{[()]}";
+    sizes: [{label: "{[()]}", s: "{[()]}"}, {label: "([)]", s: "([)]"}, {label: "(()", s: "(()"}],
+    build: function (ctx, size) {
+      var s = size ? size.s : "{[()]}";
       var pairs = { ")": "(", "]": "[", "}": "{" };
       var stack = [];
-      ctx.step("左括号入栈；右括号必须与栈顶配对消除", { line: 1, rows: [] });
+      ctx.step("检查 " + s + "：左括号入栈，右括号必须与栈顶配对消除", { line: 1, rows: [] });
       for (var i = 0; i < s.length; i++) {
         var ch = s[i];
-        if (pairs[ch]) {
+        if (!Object.prototype.hasOwnProperty.call(pairs, ch)) {
           stack.push(ch);
           ctx.step("'" + ch + "' 是左括号 → 入栈。栈（底→顶）：" + stack.join(" "),
             { line: 3, stackView: { vals: stack.slice() } });
@@ -970,35 +971,38 @@ var DEMOS = {
         ]
       }
     },
-    build: function (ctx) {
-      var s = "3[a2[c]]";
-      var numStack = [], strStack = [], cur = "";
-      ctx.step("双栈：数字栈存重复次数，字符串栈存“上一层已完成的结果”", { line: 1, rows: [] });
+    sizes: [{label: "3[a2[c]]", s: "3[a2[c]]"}, {label: "10[a]", s: "10[a]"}, {label: "2[ab]3[c]", s: "2[ab]3[c]"}],
+    build: function (ctx, size) {
+      var s = size ? size.s : "3[a2[c]]";
+      var numStack = [], strStack = [], cur = "", num = 0;
+      function state(line) {
+        return {line: line, rows: [row("数字栈", numStack), row("字符串栈", strStack.map(function (s) { return JSON.stringify(s); }))],
+          note: "待读次数 = " + num + "，本层字符串 = " + JSON.stringify(cur)};
+      }
+      ctx.step("解码 " + s + "：数字栈存重复次数，字符串栈保存外层结果", state(1));
       for (var i = 0; i < s.length; i++) {
         var ch = s[i];
         if (ch >= "0" && ch <= "9") {
-          var num = ch;
-          while (i + 1 < s.length && s[i + 1] >= "0" && s[i + 1] <= "9") num += s[++i];
-          numStack.push(parseInt(num, 10));
+          num = num * 10 + Number(ch);
+          ctx.step("读到数字 " + ch + "，累积重复次数为 " + num, state(3));
+        } else if (ch === "[") {
+          numStack.push(num);
+          num = 0;
           strStack.push(cur); cur = "";
-          ctx.step("数字 " + num + " → 压数字栈；当前串 \"" + cur + "\" 压字符串栈（进入新一层）", { line: 3, rows: [] });
+          ctx.step("读到 [，保存重复次数与外层字符串，开始新的内层字符串", state(4));
         } else if (ch === "]") {
           var times = numStack.pop(), prev = strStack.pop();
-          cur = prev + cur.repeat(times);
-          ctx.step("] 出栈：重复 \"" + cur.split(prev).pop() + "\" × " + times + "，拼回外层 → \"" + cur + "\"", { line: 5, rows: [] });
+          var inner = cur;
+          cur = prev + inner.repeat(times);
+          ctx.step("读到 ]，把 " + JSON.stringify(inner) + " 重复 " + times + " 次，接回外层得到 " + JSON.stringify(cur), state(5));
         } else {
           cur += ch;
-          ctx.step("字母 '" + ch + "' → 当前串=\"" + cur + "\"", { line: 6, rows: [] });
+          ctx.step("字母 '" + ch + "' → 当前串=\"" + cur + "\"", state(6));
         }
       }
-      ctx.step("完成！解码结果 = \"" + cur + "\"", { line: 7, rows: [] });
+      ctx.step("完成！解码结果 = \"" + cur + "\"", state(7));
     },
-    render: function (view, stage) {
-      var box = el("div", "dk-cells");
-      var nums = ["3"], strs = ["", "a", "a2[c]", "acc"];
-      box.appendChild(el("span", "dk-var", "数字栈: 3 | 字符串栈见步骤 | 本题嵌套结构见 desc 面板"));
-      stage.textContent = ""; stage.appendChild(box);
-    } },
+    render: renderRows },
 
   "0045": { no: "45", title: "跳跃游戏 II", tag: "贪心 · 边界扩展",
     example: "输入：nums = [2,3,1,1,4]　输出：2（两次跳跃到末尾）",
@@ -1584,15 +1588,16 @@ var DEMOS = {
         ]
       }
     },
-    build: function (ctx) {
-      var nums = [1, 3, 4, 2, 2];
+    sizes: [{label: "[1,3,4,2,2]", nums: [1,3,4,2,2]}, {label: "[3,1,3,4,2]", nums: [3,1,3,4,2]}],
+    build: function (ctx, size) {
+      var nums = size ? size.nums : [1, 3, 4, 2, 2];
       var slow = 0, fast = 0;
       ctx.step("把数组看成链表：i → nums[i]。有重复值 = 有环；找环入口 = 找重复值", { line: 1, rows: [
         row("nums", nums, { ptrs: [{ i: 0, label: "slow", c: "c1" }, { i: 0, label: "fast", c: "c2" }] }) ] });
-      for (var s = 0; s < 12; s++) {
+      while (true) {
         slow = nums[slow];
         fast = nums[nums[fast]];
-        if (slow === fast) { ctx.step("阶段一相遇于 " + nums[slow] + "（环内）", { line: 2, rows: [
+        if (slow === fast) { ctx.step("阶段一相遇于下标 " + slow + "（环内）", { line: 2, rows: [
           row("nums", nums, { ptrs: [{ i: slow, label: "slow", c: "c1" }, { i: fast, label: "fast", c: "c2" }] }) ] }); break; }
         ctx.step("slow 在 " + slow + "，fast 在 " + fast, { line: 3, rows: [
           row("nums", nums, { ptrs: [{ i: slow, label: "slow", c: "c1" }, { i: fast, label: "fast", c: "c2" }] }) ] });
@@ -1604,8 +1609,10 @@ var DEMOS = {
         slow = nums[slow]; fast = nums[fast];
         ptrs2 = [{ i: slow, label: "slow", c: "c1" }, { i: fast, label: "fast", c: "c2" }];
       }
-      ctx.step("阶段二相遇于下标 " + slow + " → 重复数字 = nums[" + slow + "] = " + nums[slow] + " ✓", { line: 7, rows: [
-        row("nums", nums, { st: st1(slow, "target") }) ] });
+      var matches = {};
+      nums.forEach(function (v, i) { if (v === slow) matches[i] = "target"; });
+      ctx.step("阶段二相遇于下标 " + slow + " → 重复数字 = " + slow + "。高亮位置都指向这个入口。", { line: 7, rows: [
+        row("nums", nums, { st: matches }) ] });
     },
     render: renderRows }
 };
