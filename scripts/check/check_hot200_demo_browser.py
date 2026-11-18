@@ -23,6 +23,23 @@ def demos():
             yield row, (page.parent / unquote(link.path)).resolve().as_uri() + "?" + link.query
 
 
+def check_toolbar(page):
+    bar = page.locator(".dk-bar").filter(has=page.get_by_role("button", name="4×", exact=True))
+    for width in (390, 730, 1024):
+        page.set_viewport_size({"width": width, "height": 820})
+        assert bar.evaluate("""bar => {
+            const bounds = bar.getBoundingClientRect();
+            return bar.scrollWidth <= bar.clientWidth + 1 &&
+                [...bar.querySelectorAll('button')].every(button => {
+                    const rect = button.getBoundingClientRect();
+                    return rect.left >= bounds.left - 1 && rect.right <= bounds.right + 1;
+                });
+        }"""), f"Demo toolbar controls exceed the toolbar at {width}px"
+        bar.get_by_role("button", name="4×", exact=True).click()
+        bar.get_by_role("button", name="重置", exact=False).click()
+    page.set_viewport_size({"width": 390, "height": 820})
+
+
 def check(page, row, uri, screenshots):
     page.goto(uri, wait_until="domcontentloaded")
     if page.evaluate("Boolean(window.__dk)"):
@@ -85,6 +102,8 @@ def check(page, row, uri, screenshots):
                 page.set_viewport_size({"width": width, "height": 820})
                 page.screenshot(path=screenshots / f"{row['id']}-{width}.png")
             page.set_viewport_size({"width": 390, "height": 820})
+    if row["id"] == "hot200-269":
+        check_toolbar(page)
     return len(samples)
 
 

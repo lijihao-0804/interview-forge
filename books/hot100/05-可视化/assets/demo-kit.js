@@ -59,7 +59,7 @@ color:var(--dk-brand-strong);font-weight:600;height:68px;min-height:68px;display
 .dk-var{font-size:12.5px;padding:3px 10px;border-radius:8px;background:var(--dk-soft);
 border:1px solid var(--dk-line);color:var(--dk-muted)}
 .dk-var b{color:var(--dk-text);font-weight:700}
-.dk-bar{display:flex;align-items:center;gap:9px;flex-wrap:nowrap;min-height:42px;margin:14px 0 6px;overflow-x:auto;white-space:nowrap}
+.dk-bar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;min-height:42px;margin:14px 0 6px}
 .dk-btn{border:1px solid var(--dk-line);background:var(--dk-panel);color:var(--dk-text);border-radius:9px;
 padding:7px 14px;min-height:38px;flex:0 0 auto;font:inherit;font-weight:600;cursor:pointer;white-space:nowrap}
 .dk-btn.primary{min-width:104px}
@@ -176,7 +176,7 @@ border-radius:9px;background:var(--dk-panel);color:var(--dk-text);font-size:13px
 .dk-trace-map{display:grid;grid-template-columns:minmax(2em,auto) 1fr;margin:0;gap:2px 8px}
 .dk-trace-map dt{color:var(--dk-muted)}.dk-trace-change{display:block;color:var(--dk-brand-strong);font-size:11px}
 .dk-trace-player .dk-log:empty,.dk-trace-player .dk-vars:empty{display:none}
-@media(max-width:560px){.dk-bar{flex-wrap:wrap;white-space:normal}.dk-trace-vars{grid-template-columns:minmax(4em,30%) minmax(0,1fr)}}
+@media(max-width:560px){.dk-trace-vars{grid-template-columns:minmax(4em,30%) minmax(0,1fr)}}
 @media(prefers-reduced-motion:reduce){.dk-flip,.dk-enter,.dk-pulse,.dk-exit{animation:none!important;
 transition:none!important;transform:none!important}}
 `;
