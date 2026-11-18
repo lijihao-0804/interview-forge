@@ -12,6 +12,18 @@ from scripts.build import build_html_site
 
 
 class SharedAssetVersionTests(unittest.TestCase):
+    def test_built_and_served_library_styles_preserve_diagram_cache_scope(self):
+        from interview_forge.api.routers.static import _inject_html
+        from scripts.build.asset_version import LIBRARY_CSS_VERSION, LIBRARY_DIAGRAM_CSS_VERSION
+
+        for before, after in (("20261117-reader-image-sizing", LIBRARY_CSS_VERSION),
+                              ("20261010-compact-diagrams", LIBRARY_DIAGRAM_CSS_VERSION)):
+            markup = f'<link href="../assets/library.css?v={before}">'
+            rewritten, count = build_html_site.rewrite_shared_asset_versions(markup)
+            self.assertEqual((rewritten, count), (markup.replace(before, after), 1))
+            self.assertIn(rewritten.encode(), _inject_html("/library/test.html", markup.encode()))
+            self.assertEqual(build_html_site.rewrite_shared_asset_versions(rewritten), (rewritten, 0))
+
     def test_served_reader_does_not_rewrite_code_samples(self):
         from interview_forge.api.routers.static import _inject_html
 

@@ -55,7 +55,7 @@ from interview_forge.core.problem_catalog import (
     problem_filename as hot100_problem_filename,
 )
 from scripts.build import build_cache
-from scripts.build.asset_version import ASSET_VERSION, DELIVERED_ASSET_VERSIONS, SITE_CSS_VERSION, SITE_JS_VERSION, SOLUTION_PROGRESS_VERSION
+from scripts.build.asset_version import ASSET_VERSION, DELIVERED_ASSET_VERSIONS, SITE_CSS_VERSION, SITE_JS_VERSION, SOLUTION_PROGRESS_VERSION, library_style_version
 from scripts.build.reader_fragment_links import repair_contents
 
 # 并行渲染进程数：8（或按 CPU 核数自动收敛）。渲染是 CPU+IO 混合，进程池
@@ -86,7 +86,8 @@ SHARED_ASSET_VERSIONS = {
     "ui.js": ASSET_VERSION,
     "engagement-tracker.js": ASSET_VERSION,
     "term-tooltip.js": ASSET_VERSION,
-    "ai-assistant.js": "10",
+    "ai-assistant.js": "17",
+    "ai-assistant.css": "10",
     "register-flow.js": "5",
     "email-captcha.js": "2",
     "practice-reference.js": "7",
@@ -3299,6 +3300,8 @@ def _rewrite_shared_asset_url(value: str) -> tuple[str, int]:
     changed = 0
     for index in range(0, len(query_parts), 2):
         key, separator, current_version = query_parts[index].partition("=")
+        if parts[-1] == "library.css":
+            target_version = library_style_version(current_version)
         if key != "v" or not separator or current_version == target_version:
             continue
         query_parts[index] = f"v={target_version}"

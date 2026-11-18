@@ -76,7 +76,7 @@ if str(_PROJECT_ROOT) not in sys.path:
 import markdown
 from interview_forge.core.paths import ROOT as HOT100_ROOT
 from scripts.build import build_cache, build_hot200_extra, exam_shelf
-from scripts.build.asset_version import ASSET_VERSION
+from scripts.build.asset_version import ASSET_VERSION, LIBRARY_CSS_VERSION, LIBRARY_DIAGRAM_CSS_VERSION
 from scripts.build.reader_fragment_links import repair_contents
 from pygments import highlight as pygments_highlight
 from pygments.formatters import HtmlFormatter
@@ -114,8 +114,8 @@ PARALLEL_WORKERS = min(8, os.cpu_count() or 4)
 #   浏览器据此做缓存失效；每次改动 CSS/JS 常量后应递增该值再重新构建
 #   (构建命令：tools/build_hot100.py 或直接运行本文件)。
 # LIBRARY_STYLE_VERSION：通用书架 CSS 版本；LIBRARY_DIAGRAM_STYLE_VERSION 仅供含图章节刷新。
-LIBRARY_STYLE_VERSION = "20261117-reader-image-sizing"
-LIBRARY_DIAGRAM_STYLE_VERSION = "20261010-compact-diagrams"
+LIBRARY_STYLE_VERSION = LIBRARY_CSS_VERSION
+LIBRARY_DIAGRAM_STYLE_VERSION = LIBRARY_DIAGRAM_CSS_VERSION
 LIBRARY_MERMAID_VERSION = "20261010-compact-flowcharts"
 NOTES_ROOT = HOT100_ROOT / "books"
 OUTPUT_ROOT = HOT100_ROOT / "library"

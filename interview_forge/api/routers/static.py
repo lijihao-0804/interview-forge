@@ -28,7 +28,7 @@ from interview_forge.core.web_access import (
 )
 from interview_forge.services.catalog import load_library_manifest
 from interview_forge.services.study import record_content_view, record_view
-from scripts.build.asset_version import DELIVERED_ASSET_VERSIONS
+from scripts.build.asset_version import DELIVERED_ASSET_VERSIONS, library_style_version
 from scripts.build.reader_fragment_links import restore_aside_ids
 
 router = APIRouter()
@@ -39,7 +39,7 @@ _READER_ASSET_VERSIONS = {k.encode(): v.encode() for k, v in DELIVERED_ASSET_VER
 _READER_ASSET_VERSION = re.compile(
     rb"""(\s(?:href|src)\s*=\s*["'](?:(?:/library)?/|(?:\.\.?/)*)assets/("""
     + b"|".join(map(re.escape, _READER_ASSET_VERSIONS))
-    + rb""")\?v=)[\w.-]+"""
+    + rb""")\?v=)([\w.-]+)"""
 )
 
 def _version_reader_resource(match: re.Match[bytes]) -> bytes:
@@ -47,7 +47,12 @@ def _version_reader_resource(match: re.Match[bytes]) -> bytes:
     if tag.startswith(b"<!--"):
         return tag
     start, end, contents = tag.partition(b">")
-    return _READER_ASSET_VERSION.sub(lambda m: m[1] + _READER_ASSET_VERSIONS[m[2]], start) + end + contents
+    def version(m: re.Match[bytes]) -> bytes:
+        if m[2] == b"library.css":
+            return m[1] + library_style_version(m[3].decode("ascii")).encode("ascii")
+        return m[1] + _READER_ASSET_VERSIONS[m[2]]
+
+    return _READER_ASSET_VERSION.sub(version, start) + end + contents
 
 _WIDGET_STYLES = ("/assets/ai-launcher.css?v=5",)
 _TOC_SCRIPT = "/assets/toc-scroll.js?v=9"
