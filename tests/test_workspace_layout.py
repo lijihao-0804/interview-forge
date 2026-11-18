@@ -15,7 +15,7 @@ class WorkspaceLayoutTests(unittest.TestCase):
 
     def test_all_workspace_pages_load_scoped_layout(self):
         paths=['cockpit.html','index.html','tools/templates/dashboard.tpl']
-        paths += ['pages/'+name+'.html' for name in ['admin','ai-assistant','favorites','history','leetcode-connect','login','notices','quiz','register','tools','tools/nju-booking']]
+        paths += ['pages/'+name+'.html' for name in ['account','forgot-password','admin','ai-assistant','favorites','history','leetcode-connect','login','notices','quiz','register','tools','tools/nju-booking']]
         for path in paths:
             with self.subTest(path=path):
                 text=(ROOT/path).read_text()

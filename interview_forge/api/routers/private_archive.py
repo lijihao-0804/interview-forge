@@ -98,6 +98,7 @@ def _integrate_reader(request: Request, body: bytes) -> bytes:
     if widgets and request.url.path.startswith("/api/private-archive/"):
         # The bundled and imported history viewers absolutely position all iframes.
         widgets += b'<style>.if-ai-drawer iframe{position:static;height:auto}</style>'
+    body = body.replace(b"</head>", b'<link rel="stylesheet" href="/assets/project-reader-shell.css?v=20261118-study"></head>', 1)
     shell = b'<script defer src="/assets/private-archive-shell.js?v=6"></script>'
     return body.replace(b"</body>", widgets + shell + b"</body>", 1)
 

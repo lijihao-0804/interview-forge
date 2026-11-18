@@ -36,7 +36,7 @@ _WIDGET_SCRIPTS = (
     "/assets/role-display.js?v=1", "/assets/auth-widget.js?v=8",
     "/assets/feedback-widget.js?v=5",
     "/assets/theme-toggle.js?v=2",
-    "/assets/ai-page-context.js?v=2",
+    "/assets/ai-page-context.js?v=3",
     "/assets/ai-launcher.js?v=4",
 )
 _AUTH_WIDGET_SKIP = {"/pages/login.html", "/pages/register.html", "/pages/forgot-password.html", "/pages/account.html", "/pages/admin.html", "/pages/ai-assistant.html"}
@@ -63,7 +63,10 @@ h1{margin:0 0 6px;font-size:44px;letter-spacing:-.02em;color:#5654d4}
 p{margin:0 0 22px;color:#647188}
 nav{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
 nav a{padding:9px 16px;border:1px solid rgba(100,113,136,.32);border-radius:10px;color:inherit;text-decoration:none}
-nav a:hover{border-color:#5654d4;color:#5654d4}
+nav a:hover{border-color:currentColor;text-decoration:underline}
+nav a:focus-visible{outline:3px solid currentColor;outline-offset:3px}
+@media(prefers-color-scheme:dark){h1{color:#bbb8ff}p{color:#b8c4d5}}
+@media(max-width:420px){.box{margin:12px;padding:28px 20px}nav a{min-height:44px;box-sizing:border-box}}
 </style>
 </head>
 <body>
@@ -149,7 +152,7 @@ def _inject_html(path: str, body: bytes, *, embedded: bool = False) -> bytes:
         # Keep the standalone application's theme and Worker lifecycle intact.
         # Inject at delivery time so the supplied package hashes remain valid.
         navigation = (
-            '<nav aria-label="Interview Forge 学习书架" style="padding:8px 16px;'
+            '<nav aria-label="Interview Forge 学习书架" style="display:flex;justify-content:flex-end;align-items:center;min-height:44px;padding:8px clamp(16px,3vw,48px);'
             'font:14px system-ui;text-align:right">'
             '<a href="/library/index.html" style="color:inherit">← 返回学习书架</a></nav>'
         ).encode("utf-8")
@@ -161,7 +164,8 @@ def _inject_html(path: str, body: bytes, *, embedded: bool = False) -> bytes:
         return body[:end + 1] + navigation + body[end + 1:] if end >= 0 else body
     # Previously generated chapters embed v1. Nginx caches versioned JS as
     # immutable, so serve the current collector even before a chapter rebuild.
-    body = body.replace(b'/ai-page-context.js?v=1"', b'/ai-page-context.js?v=2"')
+    for old_version in (b"1", b"2"):
+        body = body.replace(b'/ai-page-context.js?v=' + old_version + b'"', b'/ai-page-context.js?v=3"')
     navigation_only = path.startswith("/books/hot100/05-可视化/")
     embedded_assistant = path == "/pages/ai-assistant.html" and embedded
     # ?embedded=1：页面被本站 iframe 内嵌（如“重要通知”壳页的子页）。此时只保留导航策略，
@@ -208,6 +212,8 @@ def _inject_html(path: str, body: bytes, *, embedded: bool = False) -> bytes:
         # before the chapter page's inline restore script runs so the keyword
         # target has priority over "resume last position".
         head_extra = b'<script>(function(){try{var q=new URLSearchParams(location.search).get("q");if(!q)return;var m=location.pathname.match(/^\\/library\\/([^/]+)\\/chapter-(\\d+)\\.html$/);if(!m)return;var keys=[m[1]+":"+m[2],m[1]+":"+m[1]+":"+m[2]];var raw=localStorage.getItem("readingPos:v1");if(!raw)return;var all=JSON.parse(raw),changed=false;keys.forEach(function(k){if(all&&Object.prototype.hasOwnProperty.call(all,k)){delete all[k];changed=true;}});if(changed)localStorage.setItem("readingPos:v1",JSON.stringify(all));}catch(e){}})();</script>'
+    if path.startswith("/books/hot100/05-可视化/") or path == "/docs/面试准备/项目面试报告.html":
+        head_extra += b'<link rel="stylesheet" href="/assets/teaching-surface.css?v=20261118-study">'
     head_marker = b"</head>"
     head_index = body.lower().find(head_marker)
     if head_index >= 0 and (icon_html or head_extra):
