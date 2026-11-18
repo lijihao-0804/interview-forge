@@ -10,6 +10,8 @@ from interview_forge.ai.chat.context_blocks import ContextBlock
 from interview_forge.ai.chat.context_builder import ContextBuilder, SUMMARY_PREFIX
 from interview_forge.ai.chat.page_context import PageContext
 from interview_forge.ai.chat.recent_action_context import RecentActionContextProvider
+from interview_forge.ai.chat.service import ChatService
+from interview_forge.ai.memory.contracts import MemoryPersistenceResult
 from interview_forge.ai.actions.store import ActionRequestStore
 from interview_forge.ai.chat.relevance import page_is_relevant, select_history
 from interview_forge.ai.chat.token_budget import ChatTokenBudget, DEFAULT_TOKEN_ESTIMATOR, budget_for_context_window
@@ -224,6 +226,22 @@ class ScopedContextIntegrationTests(unittest.TestCase):
                 builder, messages = self.build(query, context_blocks=(block,))
                 self.assertIn("recent_actions", builder.last_build["context_blocks"])
                 self.assertIn("存在仍在等待用户确认的操作", messages[0]["content"])
+
+    def test_small_window_preserves_memory_receipt_and_pending_state_together(self):
+        ActionRequestStore().create(
+            user_db=self.db, session_id="s", turn_id="both", user_message_id=3,
+            tool_name="sync_leetcode", arguments={"full": False}, confirmation_text="确认同步",
+        )
+        pending = RecentActionContextProvider().build(user_db=self.db, session_id="s")
+        receipt = ChatService._memory_persistence_block(MemoryPersistenceResult(
+            explicit=True, success=True, operation="upsert", count=1,
+        ))
+        budget = budget_for_context_window(4096)
+        builder, messages = self.build("同步完成了吗？", budget=budget, context_blocks=(receipt, pending))
+        self.assertEqual(builder.last_build["context_blocks"], ["memory_persistence", "recent_actions"])
+        self.assertIn("persistence_success=true", messages[0]["content"])
+        self.assertIn("存在仍在等待用户确认的操作", messages[0]["content"])
+        self.assertLessEqual(DEFAULT_TOKEN_ESTIMATOR.estimate_text(messages[0]["content"]), budget.system_tokens)
 
     def test_zero_history_budget_does_not_emit_empty_or_orphan_messages(self):
         _, messages = self.build("继续", budget=ChatTokenBudget(recent_tokens=0))

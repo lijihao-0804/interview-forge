@@ -142,6 +142,12 @@ def run_cases(client, db, service, show_answers):
             [r"LRU", r"链表"],
         ),
         (
+            "library_ambiguous",
+            "正文书单和资料卡的顺序不一样。我想看第二篇，但记不清指的是哪份。",
+            [],
+            [r"[？?]|确认|指的是|请.{0,12}(说|提供|告诉|选)"],
+        ),
+        (
             "library_followup",
             "请回读刚才“本轮检索资料”卡片的第 1 项，告诉我该章标题和当前索引片段里提到的办法。",
             ["search_library"],
@@ -235,6 +241,8 @@ def run_cases(client, db, service, show_answers):
             )
             history = client.get(f"/api/chat/sessions/{session}/messages").json()["items"]
             checks["source_persisted"] = bool(sources) and history[-1]["metadata"].get("library_sources") == sources
+        if label == "library_ambiguous":
+            checks["no_guess"] = not result["library_sources"] and "search_library" not in result["tools"]
         if label == "library_followup":
             sources = result["library_sources"]
             checks["same_chapter"] = bool(first_library_url and len(sources) == 1 and

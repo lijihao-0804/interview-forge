@@ -69,7 +69,7 @@ def register_builtin_tools(registry: ToolRegistry) -> ToolRegistry:
     registry.register(ToolSpec(
         name="search_library",
         display_name="站内书架",
-        description="按 query 搜索本站章节，多个概念用空格分隔。用户指刚才书架列表中的第几项时，按 previous_source 序号读取该章当前的索引片段。",
+        description="按 query 搜索本站章节，多个概念用空格分隔。previous_source 只按最近一张“本轮检索资料”卡片的显示序号回读当前索引。若用户指正文中的推荐顺序，按对应标题检索。两种顺序有歧义时先问清标题或卡片序号。",
         args_model=SearchLibraryArgs,
         handler=search_library,
         timeout_seconds=4.0,
