@@ -57,7 +57,8 @@ vm.runInNewContext(fs.readFileSync('service-worker.js','utf8'),{
   URL,self:{location:{origin:'https://fixture.invalid'},addEventListener:(name,fn)=>workerEvents[name]=fn}
 });
 for(const path of ['/api/private-archive-status','/api/private-archive/index.html','/api/private-archive/assets/media/test.png',
-  '/library/development-history/chapters/review.html','/library/voltedu-study/story/01-origin.html','/library/agenthub/index.html']) {
+  '/library/development-history/chapters/review.html','/library/voltedu-study/story/01-origin.html','/library/agenthub/index.html',
+  '/library/hot200-extra/demos/269.html?embed=1']) {
   let intercepted=false;
   workerEvents.fetch({request:{url:'https://fixture.invalid'+path,method:'GET',mode:'navigate'},respondWith:()=>{intercepted=true;}});
   assert.equal(intercepted,false);
