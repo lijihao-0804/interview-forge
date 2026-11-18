@@ -47,7 +47,9 @@
             const code = read("pre");
             check(title===ref.label && why===ref.why && read(".dk-log")===ref.state &&
                 same(cells,ref.cells.map(String)), "graph or narration differs from authored step", i);
-            check(!!code && Array.isArray(ref.code) && code === ref.code.join("\n"), "no matching Python code", i);
+            const compactIndent = row => row.replace(/^\s*(\d+)\s+/, "$1 ");
+            check(!!code && Array.isArray(ref.code) && same(code.split("\n").map(compactIndent),
+                ref.code.map(compactIndent)), "no matching Python code", i);
             if (code) for (const row of code.split("\n")) {
                 const parsed = row.match(/^\s*(\d+)\s+(.+)$/);
                 check(parsed && source[Number(parsed[1])-1]?.trim() === parsed[2].trim(), "code differs from published solution", i);

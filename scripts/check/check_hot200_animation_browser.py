@@ -24,7 +24,8 @@ def reference(row):
     code = FENCE.search(sections(path.read_text(encoding="utf-8-sig"))["Python"])[2]
     cases = [supplement(pid, path, code, sample) for sample in row["samples"]]
     lines = code.splitlines()
-    return {"cases": cases, "source": lines, "statements": multiline_statements(code, set(range(1, len(lines)+1)))}
+    statements = multiline_statements(code, set(range(1, len(lines)+1)))
+    return {"cases": cases, "source": lines, "statements": {str(k):v for k,v in statements.items()}}
 
 
 async def visit(page, row, ref, base, width, evidence):

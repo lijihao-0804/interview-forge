@@ -148,8 +148,9 @@ def render_demo(module_dir, chapter):
     demo_dir = module_dir / "demos"
     demo_dir.mkdir(exist_ok=True)
     demo_name = f"{number}.html"
+    example = re.sub(r"`([^`\n]+)`", r"\1", chapter["example"])
     payload = json.dumps({"no": str(number), "title": chapter["title"].split(" · ", 1)[1], "tag": chapter["category"],
-                          "example": chapter["example"], "frames": chapter["trace"]}, ensure_ascii=False)
+                          "example": example, "frames": chapter["trace"]}, ensure_ascii=False)
     payload = payload.replace("<", "\\u003c")
     demo = (
         '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">'
