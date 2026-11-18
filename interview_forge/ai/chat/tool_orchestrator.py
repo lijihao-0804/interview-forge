@@ -345,6 +345,9 @@ class ToolOrchestrator:
 
     async def _quote_answer_round(self, model, context, batches, round_index, *, partial, review=False,
                                  direct_selection=False):
+        # When the user named the retrieved message there is no cross-source
+        # ranking to perform. The shorter selector still validates exact quotes.
+        direct_selection = direct_selection or quote_selection.names_single_source(context.current_query, batches)
         window, reserve = self._context_budget_inputs(context)
         deepseek = context.artifacts.get("deepseek_chat_completions") is True
         if deepseek:

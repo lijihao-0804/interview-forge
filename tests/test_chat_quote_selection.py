@@ -102,6 +102,21 @@ class ChatQuoteSelectionTests(unittest.TestCase):
             db.commit()
         self.assertEqual(quotes.render(self.ctx, decision("match",(1,"周六早晨")), actual), (quotes.NO_QUOTE, ()))
 
+    def test_named_source_uses_verified_direct_selection(self):
+        self.ctx.current_query = "请回查消息 #1，给出当时的出行计划原文。"
+        text = self.one.splitlines()[-1]
+        pick = json.dumps({"picks": [{"source": "A", "quote": text}]})
+        model = JudgeModel([[FakeChunk(pick)]])
+        result, refs = asyncio.run(ToolOrchestrator()._quote_answer_round(
+            model, self.ctx, [[self.a]], 2, partial=False))
+        self.assertIn(text, result.text)
+        self.assertEqual([ref["message_id"] for ref in refs], [1])
+        passages = json.loads(model.seen[-1][-1]["content"])["passages"]
+        self.assertEqual([p["message_id"] for p in passages], [1])
+        self.assertFalse(quotes.names_single_source(self.ctx.current_query, [[self.b]]))
+        self.assertFalse(quotes.names_single_source("比较消息 #1 和消息 #2", [[self.a]]))
+        self.assertFalse(quotes.names_single_source("比较消息 #1 和 #2", [[self.a]]))
+
     def test_ambiguity_and_earliest_apply_user_scope(self):
         self.ctx.current_query = "将聊天里那句给我，可能有两种，请给原话。"
         picked = decision("ambiguous", (2,self.two), (1,self.one))

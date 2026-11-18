@@ -32,6 +32,7 @@ _COPY_SENTENCE = re.compile(
 _ID = re.compile(r"(?:消息|留言|发言|记录|出处|来源|message|source)[\s的原始]*[#＃]?(?:id(?![a-z0-9_])|编号|号\b|number\b)|"
                  r"\b(?:id|number)\s+of\s+(?:the\s+)?message|(?:原话|原句).{0,12}编号", re.I)
 _ATTACHED_ID = re.compile(r"(?:附(?:上)?|加上|连同|配上|带上|标(?:出|明)|给出)(?:对应的?|各自的?)?(?:编号|ID\b)", re.I)
+_NUMBERED_MESSAGE = re.compile(r"(?:消息|留言|message)\s*[#＃]\s*([1-9][0-9]{0,18})(?![0-9])", re.I)
 _CURRENT_MESSAGE_INPUT = re.compile(
     r"(?:当前这条|本条|本轮的?|这条)消息(?:中|里)?(?:我)?(?:附上|附带|所附|附的|粘贴|贴出|贴的)|"
     r"(?:当前这条|本条|本轮的?)消息|\b(?:attached to|pasted in) (?:this|the current) message\b", re.I,
@@ -102,6 +103,14 @@ def identity_required(query: str) -> bool:
 
 def no_quote(query: str) -> str:
     return _NO_SPEAKER if identity_required(query) else NO_QUOTE
+
+
+def names_single_source(query, batches):
+    named = _NUMBERED_MESSAGE.search(query)
+    if not named or set(re.findall(r"[#＃]\s*([0-9]+)", query)) != {named[1]}:
+        return False
+    sources = {item.get("message_id") for batch in batches for item in batch}
+    return sources == {int(named[1])}
 
 
 def requested(query: str) -> bool:
@@ -184,6 +193,9 @@ def prepare(context, batches, *, input_tokens, result_tokens, review=False, dire
     while visible:
         labelled = [{"source": chr(ord("A") + i), "role": p["role"], "excerpt": p["excerpt"]}
                     for i, p in enumerate(visible)]
+        if direct_selection and names_single_source(context.current_query, [visible]):
+            for label, passage in zip(labelled, visible):
+                label["message_id"] = passage["message_id"]
         body = {"request": context.current_query, "passages": labelled}
         messages = [{"role": "system", "content": prompt}, {"role": "user", "content": json.dumps(body, ensure_ascii=False)}]
         if estimate_json_tokens({"messages": messages, "tools": []}) <= min(MAX_INPUT_TOKENS, input_tokens):
