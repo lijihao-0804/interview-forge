@@ -137,7 +137,7 @@ def run_cases(client, db, service, show_answers):
     cases = [
         (
             "library",
-            "请在本站书架里用“LRU 双向链表”作为一个查询，找同时涉及这两个概念的一章，说明里面讲了什么。",
+            "请在本站书架里用“LRU 双向链表”作为一个查询，找同时涉及这两个概念的三章。",
             ["search_library"],
             [r"LRU", r"链表"],
         ),
@@ -149,9 +149,15 @@ def run_cases(client, db, service, show_answers):
         ),
         (
             "library_followup",
-            "请回读刚才“本轮检索资料”卡片的第 1 项，告诉我该章标题和当前索引片段里提到的办法。",
+            "请回读刚才“本轮检索资料”卡片第 2 项，写出这篇的完整标题，并说明当前索引片段涉及的内容。",
             ["search_library"],
             [],
+        ),
+        (
+            "library_missing",
+            "请打开上一张本轮检索资料卡第 57 项，告诉我它的章节标题。",
+            ["search_library"],
+            [r"只有 1 项", r"没有第 57 项"],
         ),
         ("memory", "记住我喜欢用 Python。", [], []),
         (
@@ -234,7 +240,7 @@ def run_cases(client, db, service, show_answers):
         }
         if label == "library":
             sources = result["library_sources"]
-            first_library_url = sources[0]["url"] if sources else None
+            expected_library_url = sources[1]["url"] if len(sources) >= 2 else None
             checks["locatable_source"] = any(
                 s.get("body_match") and s.get("url", "").startswith(("/library/", "/books/"))
                 for s in sources
@@ -245,8 +251,10 @@ def run_cases(client, db, service, show_answers):
             checks["no_guess"] = not result["library_sources"] and "search_library" not in result["tools"]
         if label == "library_followup":
             sources = result["library_sources"]
-            checks["same_chapter"] = bool(first_library_url and len(sources) == 1 and
-                                          sources[0]["url"] == first_library_url and sources[0]["title"] in answer)
+            checks["same_chapter"] = bool(expected_library_url and len(sources) == 1 and
+                                          sources[0]["url"] == expected_library_url and sources[0]["title"] in answer)
+        if label == "library_missing":
+            checks["no_substitute"] = not result["library_sources"]
         if label in {"memory", "editor", "followup"}:
             client.portal.call(settle_memory)
             memories = MemoryStore().list_active(user_db=db)

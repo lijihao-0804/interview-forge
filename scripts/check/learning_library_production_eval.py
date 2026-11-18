@@ -13,13 +13,13 @@ from scripts.check.learning_agent_live_eval import chat
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--account-file", required=True, type=Path)
+    parser.add_argument("--session-id", help="append the test turns to this existing test-account session")
     args = parser.parse_args()
     account = json.loads(args.account_file.read_text(encoding="utf-8-sig"))
     with httpx.Client(base_url="https://hot100.xyz", timeout=140) as client:
         client.post("/api/login", json=account).raise_for_status()
-        session = client.post("/api/chat/sessions", json={})
-        session.raise_for_status()
-        base = "/api/chat/sessions/" + session.json()["id"]
+        session_id = args.session_id or client.post("/api/chat/sessions", json={}).raise_for_status().json()["id"]
+        base = "/api/chat/sessions/" + session_id
         payload = {"message": "请在本站书架用“LRU 双向链表”作为一个查询，找同时涉及这两个概念的三章。",
                    "client_request_id": uuid4().hex}
         first_answer, mid, first = chat(client, base + "/stream", payload)
@@ -52,9 +52,10 @@ def main():
                                        expected["title"] in second_answer and "search_library" in second["tools"]),
             "persisted": bool(expected and rows[-1]["metadata"].get("library_sources") == second["library_sources"]),
             "missing_without_substitute": bool(not missing["errors"] and not missing["library_sources"] and
-                                              re.search(r"没有|不存在|只有|仅有|超出|越界|无法|未找到|找不到|只.{0,3}[1一]", missing_answer)),
+                                              missing["tools"] == ["search_library"] and "只有 1 项" in missing_answer),
         }
         print(json.dumps({"checks": checks, "turns": [first, unclear, second, missing],
+                          "session_id": session_id, "previous_card_reply": second_answer,
                           "clarification": unclear_answer, "out_of_bounds": missing_answer}, ensure_ascii=False))
         return 0 if all(checks.values()) else 1
 

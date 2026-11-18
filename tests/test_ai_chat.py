@@ -515,15 +515,22 @@ class AIChatContractTests(unittest.TestCase):
             self.assertEqual(replayed[-1], events[-1])
             self.assertEqual(replayed[1], ("message.delta", {"delta": items[1]["content"]}))
             self.assertEqual(self.client.get(base + "/messages").json()["items"], items)
-        recall = LibrarySearchModel({"previous_source": 2})
+        self.service.model_factory = lambda _config: self.model
+        uncertain = parse_sse(self.client.post(base + "/stream", json={"message": "正文和资料卡顺序不一样，我记不清了"}).text)
+        self.assertFalse(any(e == "tool.start" for e, _ in uncertain))
+        self.assertIn("资料卡有 2 项", "".join(p["delta"] for e, p in uncertain if e == "message.delta"))
+        recall = LibrarySearchModel()  # This model cannot initiate its own retrieval.
         self.service.model_factory = lambda _config: recall
         events = parse_sse(self.client.post(base + "/stream", json={"message": "请回读资料卡第2项"}).text)
         self.assertEqual(events[-1][1]["library_sources"], [sources[1]])
         self.assertEqual(recall.observations[0]["data"]["edition"], "current_index")
         self.assertTrue(recall.observations[0]["data"]["items"][0]["snippet"])
         other = self.client.post("/api/chat/sessions", json={}).json()["id"]
-        parse_sse(self.client.post(f"/api/chat/sessions/{other}/stream", json={"message": "资料卡第2项"}).text)
-        self.assertEqual(recall.observations[0]["data"]["reason"], "previous_source_missing")
+        for path, expected_count in ((base, 1), (f"/api/chat/sessions/{other}", 0)):
+            events = parse_sse(self.client.post(path + "/stream", json={"message": "打开资料卡第57项"}).text)
+            self.assertEqual([p["name"] for e, p in events if e == "tool.start"], ["search_library"])
+            self.assertIn(f"{expected_count} 项", "".join(p["delta"] for e, p in events if e == "message.delta"))
+            self.assertNotIn("library_sources", events[-1][1])
         self.service.model_factory = lambda _config: self.model  # Next turn has no tool binding.
         events = parse_sse(self.client.post(base + "/stream", json={"message": "书架有哪章讲事务？"}).text)
         self.assertTrue(events[-1][1]["usage"]["tooling_unavailable"])

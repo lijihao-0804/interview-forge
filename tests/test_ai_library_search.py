@@ -1,4 +1,7 @@
 from pathlib import Path
+import json
+from contextlib import closing
+from tempfile import TemporaryDirectory
 from unittest import TestCase
 from unittest.mock import patch
 from urllib.parse import unquote
@@ -6,7 +9,8 @@ from urllib.parse import unquote
 from pydantic import ValidationError
 
 from interview_forge.ai.token_counting import estimate_json_tokens
-from interview_forge.ai.tools.builtins.library import SearchLibraryArgs, search_library
+from interview_forge.ai.tools.builtins.library import SearchLibraryArgs, latest_card_sources, requested_card_ordinal, search_library
+from interview_forge.core.runtime import server_runtime
 from interview_forge.ai.tools.contracts import ToolExecutionContext
 from interview_forge.ai.tools.registry import build_default_tool_registry
 from interview_forge.services import community
@@ -17,6 +21,25 @@ CONTEXT = ToolExecutionContext(Path("unused.db"), "session", "turn", 1, "找站�
 
 
 class LibrarySearchTests(TestCase):
+    def test_explicit_card_ordinal_excludes_quoted_negative_and_ambiguous_language(self):
+        for query, number in [
+            ("请回读刚才“本轮检索资料”卡片第 2 项，写出这篇的完整标题，并说明当前索引片段涉及的内容。", 2),
+            ("请打开上一张本轮检索资料卡第 57 项，告诉我它的章节标题。", 57),
+            ("资料卡第二篇", 2), ("资料卡第十一项", 11), ("资料卡第五十七项", 57),
+            ("麻烦把上次资料卡里的第二篇给我打开。", 2),
+            ("刚才那张资料卡第七条展开说说，如果超出请告诉我一共有几项。", 7),
+            ("能不能看看资料卡第三章，如果没找到就告诉我。", 3),
+            ("帮我查看资料卡第三条，如果没有，不要猜。", 3),
+            ("麻烦把上回那张资料卡的第二条再打开，告诉我章节标题。", 2),
+            ("上一张资料卡里的第37条能打开吗？如果越界请告诉我共有几项。", 37),
+            ("上回资料卡第三章可以再给我读一下吗？", 3),
+        ]:
+            self.assertEqual(requested_card_ordinal(query), number)
+        for text in ("不要打开资料卡第2项", "如果用户说“打开资料卡第2项”怎么办", "例如：打开资料卡第2项",
+                     "正文还是资料卡第2项？", "资料卡第2项，告诉我为什么不要打开", "资料卡第2项只是举例",
+                     "“打开资料卡第2项”", "资料卡第十十项", "资料卡第0项", "请打开资料卡第2项和第3项"):
+            self.assertIsNone(requested_card_ordinal(text))
+
     def test_canonical_arguments_and_server_owned_fields(self):
         self.assertEqual(SearchLibraryArgs(query=" TCP ").model_dump(exclude_none=True), {"query": "tcp", "limit": 3})
         for args in (
@@ -27,6 +50,20 @@ class LibrarySearchTests(TestCase):
         ):
             with self.subTest(args=args), self.assertRaises(ValidationError):
                 SearchLibraryArgs.model_validate(args)
+
+    def test_read_skips_empty_and_malformed_historical_metadata(self):
+        with TemporaryDirectory() as folder:
+            context = ToolExecutionContext(Path(folder) / "study.db", "s", "turn", 20, "请按卡片回读")
+            old = {"title": "旧章", "url": "/library/a.html"}
+            with closing(server_runtime.connect(context.user_db)) as db, db:
+                db.execute("INSERT INTO chat_sessions(id,title,created_at,updated_at) VALUES ('s','x','now','now')")
+                for metadata in (json.dumps({"library_sources": [old]}), "{", '{}', '{"library_sources":[]}'):
+                    db.execute("INSERT INTO chat_messages(session_id,role,content,metadata_json,created_at) "
+                               "VALUES ('s','assistant','x',?,'now')", (metadata,))
+            self.assertEqual(latest_card_sources(context), [old])
+            context.current_query = "例如：打开资料卡第2项"
+            result = search_library(context, SearchLibraryArgs(previous_source=2))
+            self.assertEqual(result.data["reason"], "selection_not_requested")
 
     def test_index_ranking_snippet_and_safe_library_relative_links(self):
         book = "../books/hot100/03-题解/0146-LRU 缓存.html"

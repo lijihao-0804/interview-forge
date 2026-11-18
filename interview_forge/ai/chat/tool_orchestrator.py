@@ -23,6 +23,7 @@ from interview_forge.ai.chat.request_budget import (
 from interview_forge.ai.errors import AIServiceError
 from interview_forge.ai.provider import _usage_from
 from interview_forge.ai.telemetry import debug_ai_event
+from interview_forge.ai.tools.builtins.library import latest_card_sources, requested_card_ordinal, unclear_card_order
 from interview_forge.ai.tools.contracts import (
     LibrarySource,
     ToolExecutionContext,
@@ -585,6 +586,19 @@ class ToolOrchestrator:
         has_valid_tool_activity = False
         has_pending_confirmation = False
         history = list(messages)
+        library_spec = self.registry.get("search_library")
+        card_ordinal = None
+        if library_spec and library_spec.kind == ToolKind.READ and not library_spec.requires_confirmation:
+            card_ordinal = requested_card_ordinal(context.current_query)
+            if not card_ordinal and any(word in context.current_query for word in ("资料卡", "本轮检索资料")):
+                sources = await asyncio.to_thread(latest_card_sources, context)
+                card_state = f"本会话最近的检索资料卡有 {len(sources)} 项。" if sources else "本会话尚无检索资料卡。"
+                if unclear_card_order(context.current_query):
+                    answer = card_state + "你要看的是正文书单里的那一篇，还是按资料卡序号回读？"
+                    self.last_result = ToolTurnResult(visible_text_chars=len(answer))
+                    yield _event("message.delta", {"delta": answer})
+                    return
+                history = _with_tool_notice(history, card_state)
         quote_requested = quote_selection.requested(context.current_query)
         unconfirmed_quote = quote_selection.no_quote(context.current_query)
         conditional_identity = quote_selection.identity_required(context.current_query)
@@ -642,16 +656,16 @@ class ToolOrchestrator:
             return
 
         for round_index in range(self.policy.max_rounds):
-            async for item in self._stream_round(
-                bound_model,
-                history,
-                context=context,
-                tool_schemas=tool_schemas,
-                round_index=round_index + 1,
-            ):
-                if not quote_requested:
-                    yield item
-            result = self._round_result
+            if card_ordinal and round_index == 0:
+                result = _RoundResult("", (NormalizedToolCall("library-card-1", "search_library",
+                                      {"previous_source": card_ordinal}),), {})
+            else:
+                async for item in self._stream_round(
+                    bound_model, history, context=context, tool_schemas=tool_schemas, round_index=round_index + 1,
+                ):
+                    if not quote_requested:
+                        yield item
+                result = self._round_result
             for key, value in result.usage.items():
                 total_usage[key] = total_usage.get(key, 0) + value
             calls = list(result.calls)
@@ -728,6 +742,16 @@ class ToolOrchestrator:
                     history, calls, results, sources_by_position=sources_by_position, recall_by_position=recall_by_position,
                 )
                 tool_run_ids.extend(result.run_id for result in results if result.run_id)
+                if card_ordinal and round_index == 0 and results[0].result:
+                    data = results[0].result.data
+                    if data.get("reason") == "previous_source_missing":
+                        count = data["available"]
+                        answer = (f"最近一张检索资料卡只有 {count} 项，没有第 {card_ordinal} 项。"
+                                  if count else f"本会话尚无检索资料卡，可用章节为 0 项，无法打开第 {card_ordinal} 项。")
+                        self.last_result = ToolTurnResult(tool_calls_count=call_count, tool_names=tuple(tool_names),
+                            tool_run_ids=tuple(tool_run_ids), visible_text_chars=len(answer), has_valid_tool_activity=True)
+                        yield _event("message.delta", {"delta": answer})
+                        return
                 recall_results = [r for r in results if r.tool_name == "recall_chat_history" and r.status in {"ok", "cache_hit"}]
                 if quote_requested and recall_results:
                     supplement = quote_selection.semantic_supplement(context.current_query, calls, recall_results)
