@@ -1,0 +1,394 @@
+"""Exercise Hot 100 animations inside their published solution pages in Chrome.
+
+Run directly for local HTTP, or supply --base-url to verify a running site.
+An optional JSON credentials file has the same username/password fields as the
+normal sign-in form. Credentials and session cookies stay out of the report.
+"""
+import argparse
+import asyncio
+from contextlib import contextmanager
+from functools import partial
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+import json
+from pathlib import Path
+import re
+from threading import Thread
+from urllib.parse import urljoin
+
+from playwright.async_api import async_playwright
+
+
+ROOT = Path(__file__).resolve().parents[2]
+VIEWPORTS = {390: 844, 2560: 1440}
+FRAME = "iframe.reader-visual-frame"
+NEXT = "button.dk-btn:has-text('下一步'):visible, .btn-next:visible, #nextBtn:visible"
+PREVIOUS = "button.dk-btn:has-text('上一步'):visible, .btn-prev:visible, #prevBtn:visible"
+DESCRIPTION = ".dk-desc:visible, .panel.active .vis-msg:visible, #desc1:visible"
+SIZE = "#app select.dk-select:visible, .panel.active .preset-select:visible, #exampleSelect:visible"
+
+
+class QuietFiles(SimpleHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+
+    def log_message(self, *args):
+        pass
+
+
+class LocalSite(ThreadingHTTPServer):
+    request_queue_size = 64
+
+
+@contextmanager
+def site(base_url):
+    if base_url:
+        yield base_url.rstrip("/") + "/"
+        return
+    with LocalSite(("127.0.0.1", 0), partial(QuietFiles, directory=ROOT)) as server:
+        worker = Thread(target=server.serve_forever, daemon=True)
+        worker.start()
+        try:
+            yield f"http://127.0.0.1:{server.server_port}/"
+        finally:
+            server.shutdown()
+            worker.join()
+
+
+def checked_examples(pid):
+    # Local artifacts are regenerated from the reviewed, executed Hot 100
+    # reference tests by scripts.build.hot200_execution_traces --check.
+    path = ROOT / f"books/hot100/executions/{pid}.js"
+    return json.loads(path.read_text(encoding="utf-8").removeprefix(
+        "window.Hot200Execution=").strip().removesuffix(";"))["cases"]
+
+
+# Keep the viewport of the *iframe* and its overflow-clipping ancestors in
+# the calculation. Playwright can opportunistically scroll a scrolling="no"
+# frame to click an otherwise permanently clipped control.
+CONTROL_LAYOUT = """() => {
+    const controls = [...document.querySelectorAll(
+        'button, select, a[href], input, .preset-btn'
+    )].filter(n => n.getClientRects().length && n.offsetWidth && n.offsetHeight);
+    const issues = [], host = window.frameElement;
+    const originalY = parent.scrollY;
+    for (const node of controls) {
+        const r = node.getBoundingClientRect();
+        const name = node.getAttribute('aria-label') || node.textContent.trim().slice(0, 28) ||
+                     node.id || node.className;
+        const clipped = r.left + scrollX < -2 || r.right + scrollX > innerWidth + 2 ||
+                        r.top + scrollY < -2 || r.bottom + scrollY > innerHeight + 2;
+        if (clipped) issues.push(name + ' clipped by iframe');
+        const x = (r.left + r.right) / 2, y = (r.top + r.bottom) / 2;
+        if (x >= 0 && x < innerWidth && y >= 0 && y < innerHeight) {
+            const hit = document.elementFromPoint(x, y);
+            if (hit && !node.contains(hit) && !hit.contains(node)) issues.push(name + ' covered by ' +
+                (hit.id || hit.className || hit.tagName));
+            // Move the parent just as a reader could. A permanently covered
+            // target fails even when the iframe's own hit test succeeds.
+            const exposed = [.5, .32, .68].some(fraction => {
+                const at = host.getBoundingClientRect();
+                parent.scrollBy({top:at.top + host.clientTop + y - parent.innerHeight * fraction,
+                                 behavior:'instant'});
+                const box = host.getBoundingClientRect();
+                return parent.document.elementFromPoint(box.left + host.clientLeft + x,
+                    box.top + host.clientTop + y) === host;
+            });
+            if (!exposed) issues.push(name + ' covered in parent page');
+        }
+    }
+    parent.scrollTo({top:originalY, behavior:'instant'});
+    return [...new Set(issues)];
+}"""
+
+
+# Use each player's real next button for the full sequence. A separate
+# Playwright click and keyboard round-trip cover physical input and hit testing.
+# Waiting for a swap only when a transition actually blocks the button keeps
+# ordinary steps fast. Reading after two animation frames lets the child's
+# size message and the reader's height update settle before checking geometry.
+GRAPH_SEQUENCE = """async () => {
+    const visible = s => [...document.querySelectorAll(s)].find(n => n.offsetWidth && n.offsetHeight);
+    const next = [...document.querySelectorAll('.dk-btn')].find(
+        n => n.offsetWidth && n.textContent.includes('下一步')) || visible('.btn-next, #nextBtn');
+    const last = [...document.querySelectorAll('.dk-btn')].find(
+        n => n.offsetWidth && n.textContent.includes('末尾')) || visible('.btn-last');
+    const description = () => visible('.dk-desc, .panel.active .vis-msg, #desc1')?.innerText.trim();
+    const stage = () => visible('.dk-stage, .panel.active .vis-canvas-wrap, #dpContainer1');
+    const status = () => (window.__dk && window.__dk.idx + '/' + window.__dk.steps.length) ||
+        visible('.panel.active .step-info')?.textContent.trim() ||
+        [description(), visible('#itemDesc1')?.textContent, visible('#jDesc1')?.textContent].join('/');
+    const settled = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const initial = description(), descriptions = new Set();
+    const faults = [], footprint = new Map();
+    const toolbarFits = () => next.parentElement.getBoundingClientRect().bottom + scrollY <= innerHeight + 2;
+    async function settleToolbar() {
+        // Child ResizeObserver -> child RAF -> parent message -> parent RAF.
+        // Wait only after a change which could move the controls out of view.
+        for (let frame = 0; frame < 10 && !toolbarFits(); frame++) await settled();
+        return toolbarFits();
+    }
+    let count = 0, previous = null;
+    while (true) {
+        const why = description() || '';
+        if (!why) faults.push('empty explanation at step ' + count);
+        descriptions.add(why.replace(/^\\d+\\.\\s*/, ''));
+        const current = status();
+        count++;
+        if (count > 2000) throw new Error('player did not terminate after 2000 steps');
+        const info = visible('.panel.active .step-info')?.textContent || '';
+        const index = info.match(/(\\d+)\\s*\\/\\s*(\\d+)/);
+        const end = !next || (next.disabled && (!last || last.disabled) &&
+            (!index || Number(index[1]) === Number(index[2])));
+        if (end || current === previous) {
+            if (!end) faults.push('next did not advance at ' + status());
+            break;
+        }
+        if (next.disabled) {
+            const until = performance.now() + 950;
+            while (next.disabled && performance.now() < until) {
+                await new Promise(resolve => setTimeout(resolve, 35));
+            }
+            if (next.disabled) { faults.push('next stayed disabled at ' + status()); break; }
+        }
+        if (!window.__dk) {
+            if (!toolbarFits() && !footprint.has('toolbar') && !await settleToolbar())
+                footprint.set('toolbar', 'toolbar extends beyond iframe at ' + status());
+        }
+        previous = current;
+        next.click();
+    }
+    await settled();
+    if (!await settleToolbar()) footprint.set('toolbar', 'final toolbar extends beyond iframe');
+    if (!stage()) faults.push('no graphical stage');
+    if (count > 1 && descriptions.size < 2) faults.push('explanation never changed');
+    const descNode = visible('.dk-desc');
+    if (descNode && descNode.scrollHeight > descNode.clientHeight + 2)
+        faults.push('current explanation is vertically clipped');
+    const label = stage()?.querySelector('svg g[data-key] text');
+    if (label && parseFloat(getComputedStyle(label).fontSize) * label.getScreenCTM().a < 10.5)
+        faults.push('tree node labels smaller than 10.5 CSS pixels');
+    return {steps:count, descriptions:descriptions.size, start:initial, end:description(),
+        state:stage()?.innerText.trim().slice(0, 430), issues:[...new Set(faults), ...footprint.values()]};
+}"""
+
+
+async def graphic(frame, pid):
+    problems = []
+    nxt, prev, desc = (frame.locator(s).first for s in (NEXT, PREVIOUS, DESCRIPTION))
+    await nxt.wait_for()
+    assert await prev.is_disabled(), "previous enabled at the opening step"
+    opening = await desc.inner_text()
+    await nxt.click()
+    assert await desc.inner_text() != opening, "next did not update the explanation"
+    await prev.focus()
+    await prev.press("Enter")
+    assert await desc.inner_text() == opening, "previous did not restore the opening step"
+    play = frame.locator(".dk-btn.primary:visible, .btn-auto:visible, #playBtn:visible").first
+    await play.click()
+    await frame.wait_for_function("""opening => [...document.querySelectorAll(
+        '.dk-desc, .panel.active .vis-msg, #desc1')].some(n =>
+        n.offsetWidth && n.textContent.trim() !== opening.trim())""", arg=opening)
+    if "暂停" in await play.inner_text():
+        await play.click()
+    first = frame.locator(".btn-first:visible, #resetBtn:visible").or_(
+        frame.get_by_role("button", name=re.compile("开头"))).first
+    await first.click()
+    assert await desc.inner_text() == opening, "reset did not restore the start after autoplay"
+    modes = frame.locator(SIZE).first
+    presets = frame.locator(".panel.active .preset-btn:visible")
+    action = frame.locator(".panel.active .action-select:visible")
+    if await modes.count():
+        options = await modes.locator("option").all_inner_texts()
+    elif await presets.count():
+        options = await presets.all_inner_texts()
+    elif await action.count():
+        modes = action
+        options = await modes.locator("option").all_inner_texts()
+    else:
+        options = ["默认"]
+    outputs = []
+    for i, option in enumerate(options):
+        if await modes.count():
+            await modes.select_option(index=i)
+        elif await presets.count():
+            await presets.nth(i).click()
+        assert await prev.is_disabled(), f"{option}: sample did not start at the beginning"
+        result = await frame.evaluate(GRAPH_SEQUENCE)
+        if pid in ("34", "35"):
+            expected = ([[3, 4], [-1, -1], [0, 2], [-1, -1]] if pid == "34" else [1, 2, 4, 0])[i]
+            actual = await frame.evaluate("window.__dk.steps[window.__dk.idx].view.answer")
+            if actual != expected:
+                result["issues"].append(f"returned {actual!r}, expected {expected!r}")
+        elif pid == "416":
+            expected = ["true", "false", "false"][i]
+            if expected not in result["end"]:
+                result["issues"].append(f"partition result should be {expected}")
+        elif pid == "17" and option == "空串" and "返回 []" not in result["end"]:
+            result["issues"].append("empty digits should produce []")
+        result["example"] = option
+        problems.extend(f"{option}: {item}" for item in result.pop("issues"))
+        outputs.append(result)
+    problems.extend(await frame.evaluate(CONTROL_LAYOUT))
+    return outputs, sorted(set(problems))
+
+
+async def traces(frame, row):
+    pid = int(row["id"].split("-")[1])
+    expected = checked_examples(pid)
+    # Where the site publishes the same input as an ACM fixture, verify against
+    # that separate expected value as well as the checked reference trace.
+    acm = {s["input"].strip(): json.loads(s["expected"]) for s in row["samples"]}
+    await frame.locator(".hot100-trace-switch").click()
+    control = frame.get_by_role("combobox", name="演示输入")
+    await frame.locator(".dk-stage pre").wait_for()
+    assert await frame.evaluate("Hot200Execution.id") == pid, "opened another problem's replay"
+    labels = await control.locator("option").all_inner_texts() if await control.count() else [expected[0]["label"]]
+    assert labels == [s["label"] for s in expected], "replay example labels differ"
+    details, issues = [], []
+    next_button = frame.locator(NEXT).first
+    previous = frame.locator(PREVIOUS).first
+    end = frame.get_by_role("button", name=re.compile("末尾"))
+    stage = frame.locator(".dk-stage")
+    for i, sample in enumerate(expected):
+        if await control.count():
+            await control.select_option(index=i)
+        assert await previous.is_disabled(), "example did not restart"
+        assert await stage.locator("pre").inner_text() == sample["input"], f"input mismatch for {sample['label']}"
+        await next_button.click()
+        assert await stage.locator(".dk-trace-vars dt").count() > 0, "missing execution variables"
+        await previous.press("Enter")
+        assert await stage.locator("pre").inner_text() == sample["input"], "return to input failed"
+        await end.click()
+        actual = json.loads(await stage.locator("pre").inner_text())
+        assert actual == sample["output"], f"{sample['label']}: output differs from reference"
+        if sample["input"] in acm:
+            assert actual == acm[sample["input"]], f"{sample['label']}: output differs from ACM fixture"
+        assert await next_button.is_disabled(), "next enabled after final output"
+        issues.extend(await frame.evaluate(CONTROL_LAYOUT))
+        details.append({"example": sample["label"], "steps": len(sample["steps"]) + 2, "output": actual})
+    await frame.get_by_role("link", name="返回图形演示").click()
+    await frame.locator(".hot100-trace-switch").wait_for()
+    return details, sorted(set(issues))
+
+
+async def check(page, row, width, base, opts):
+    pid = row["id"].split("-")[1]
+    result = {"id": row["id"], "viewport": width, "graph": [], "traces": [], "issues": []}
+    errors = []
+    def on_error(error):
+        errors.append(str(error))
+    page.on("pageerror", on_error)
+    try:
+        response = await page.goto(urljoin(base, row["solution_url"]), wait_until="domcontentloaded")
+        assert response and response.ok, f"solution HTTP {response.status if response else 'unavailable'}"
+        embed = page.locator(FRAME)
+        await embed.scroll_into_view_if_needed()
+        frame = await (await embed.element_handle()).content_frame()
+        await frame.locator(".hot100-trace-switch").wait_for()
+        assert frame.parent_frame == page.main_frame and await embed.is_visible(), "missing normal iframe"
+        assert await frame.locator(".hot100-trace-switch").get_attribute("href") == \
+            f"assets/checked-example.html?problem={pid}", "graph route belongs to another problem"
+        result["frame_width"] = await frame.evaluate("innerWidth")
+        assert result["frame_width"] <= width, "iframe overflows parent horizontally"
+        for key, run in (("graph", lambda: graphic(frame, pid)), ("traces", lambda: traces(frame, row))):
+            try:
+                result[key], issues = await run()
+                result["issues"].extend(f"{key}: {msg}" for msg in issues)
+            except Exception as exc:
+                result["issues"].append(f"{key}: {str(exc)[:1000]}")
+        if opts.screenshots and (row["id"] in opts.screenshot_ids or result["issues"]):
+            await embed.scroll_into_view_if_needed()
+            await page.screenshot(path=opts.screenshots / f"{row['id']}-{width}.png")
+    except Exception as exc:
+        result["issues"].append(str(exc)[:1000])
+    finally:
+        page.remove_listener("pageerror", on_error)
+    result["issues"].extend("JavaScript: " + err for err in errors)
+    return result
+
+
+async def sweep(base, opts):
+    rows = json.loads((ROOT / "data/acm/hot100.json").read_bytes())
+    assert len(rows) == len({r["id"] for r in rows}) == 100
+    if opts.only:
+        rows = [row for row in rows if row["id"].split("-")[1] in opts.only]
+        assert len(rows) == len(set(opts.only)), "unknown problem ID"
+    if opts.screenshots:
+        opts.screenshots.mkdir(parents=True, exist_ok=True)
+    if opts.report:
+        opts.report.parent.mkdir(parents=True, exist_ok=True)
+    results = []
+    async with async_playwright() as pw:
+        browser = await pw.chromium.launch(channel="chrome")
+        storage = None
+        if opts.credentials:
+            assert opts.base_url, "credentials require an explicit --base-url"
+            account = json.loads(opts.credentials.read_text(encoding="utf-8-sig"))
+            auth = await pw.request.new_context(base_url=base)
+            response = await auth.post("/api/login", data={k: account[k] for k in ("username", "password")})
+            assert response.ok, f"sign in failed (HTTP {response.status})"
+            user = await auth.get("/api/me")
+            assert user.ok and (await user.json()).get("effective_role") == "user", \
+                "authenticated sweep requires an ordinary user account"
+            storage = await auth.storage_state()
+            await auth.dispose()
+        contexts = {w: await browser.new_context(storage_state=storage,
+                    viewport={"width": w, "height": VIEWPORTS[w]}, has_touch=w == 390,
+                    is_mobile=w == 390, reduced_motion="reduce" if w == 390 else "no-preference")
+                    for w in opts.widths}
+        queue = asyncio.Queue()
+        for row in rows:
+            for width in opts.widths:
+                queue.put_nowait((row, width))
+
+        async def worker():
+            pages = {}
+            while not queue.empty():
+                row, width = queue.get_nowait()
+                if width not in pages:
+                    pages[width] = await contexts[width].new_page()
+                    pages[width].set_default_timeout(opts.timeout * 1000)
+                result = await check(pages[width], row, width, base, opts)
+                transient = [msg for msg in result["issues"] if msg.startswith((
+                    "Page.goto:", "solution HTTP 5", "Locator.scroll_into_view_if_needed: Timeout"
+                ))]
+                if transient:
+                    await pages[width].close()
+                    pages[width] = await contexts[width].new_page()
+                    pages[width].set_default_timeout(opts.timeout * 1000)
+                    result = await check(pages[width], row, width, base, opts)
+                    result["first_attempt"] = transient
+                results.append(result)
+                if opts.report:
+                    with opts.report.open("a", encoding="utf-8") as out:
+                        out.write(json.dumps(result, ensure_ascii=False) + "\n")
+                if result["issues"]:
+                    print(row["id"], width, "; ".join(result["issues"])[:200], flush=True)
+            for page in pages.values():
+                await page.close()
+
+        await asyncio.gather(*(worker() for _ in range(opts.jobs)))
+        await browser.close()
+    print(f"{len(results)} embedded solution visits, {sum(len(r['graph']) for r in results)} graphical "
+          f"examples, {sum(len(r['traces']) for r in results)} checked execution outputs, "
+          f"{sum(bool(r['issues']) for r in results)} visits with issues")
+    return any(result["issues"] for result in results)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--base-url")
+    parser.add_argument("--credentials", type=Path)
+    parser.add_argument("--only", nargs="+", help="Limit to numerical LeetCode IDs")
+    parser.add_argument("--widths", nargs="+", type=int, choices=VIEWPORTS, default=list(VIEWPORTS))
+    parser.add_argument("--report", type=Path, help="Append a JSON record for each lesson and viewport")
+    parser.add_argument("--screenshots", type=Path)
+    parser.add_argument("--screenshot-ids", nargs="+", default=["hot100-34", "hot100-46", "hot100-416"])
+    parser.add_argument("--jobs", type=int, choices=range(1, 9), default=3)
+    parser.add_argument("--timeout", type=int, default=8, help="Interaction timeout in seconds")
+    opts = parser.parse_args()
+    with site(opts.base_url) as base:
+        return asyncio.run(sweep(base, opts))
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

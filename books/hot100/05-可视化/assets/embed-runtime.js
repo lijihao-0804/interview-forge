@@ -51,6 +51,11 @@
   });
   const embedParams = new URLSearchParams(location.search);
   if (embedParams.get('embed') === '1') {
+    // Keep the built-in examples available when the full custom-input form is hidden.
+    document.querySelectorAll('.input-section > .preset-row').forEach((presets) => {
+      presets.parentElement.after(presets);
+      presets.querySelector('.preset-btn')?.classList.add('active');
+    });
     const routeScript = document.createElement('script');
     routeScript.src = '../executions/routes.js';
     routeScript.onload = () => {
@@ -63,6 +68,7 @@
       link.textContent = '查看本题输入与 Python 执行过程';
       link.className = 'hot100-trace-switch';
       document.body.prepend(link);
+      scheduleEmbeddedMeasure('replay-link');
     };
     document.head.appendChild(routeScript);
     const panelIndex = embedParams.get('panel');
@@ -83,7 +89,7 @@
     const computeHeight = () => {
       const bottoms = [...document.body.children]
         .filter((item) => getComputedStyle(item).display !== 'none')
-        .map((item) => item.getBoundingClientRect().bottom);
+        .map((item) => item.getBoundingClientRect().bottom + window.scrollY);
       return Math.max(320, Math.ceil(Math.max(0, ...bottoms) + 12));
     };
     // 单帧合并测量：同一时段的多个触发只保留一次布局读取。
@@ -102,6 +108,12 @@
       measureFrame = requestAnimationFrame(() => measure(reason));
     };
     window.__hot100ScheduleEmbeddedMeasure = scheduleEmbeddedMeasure;
+    // Native stages can gain rows or wrap descriptions during playback. Watch
+    // their content containers, whose height is independent of the iframe's
+    // viewport, and reuse the existing one-measurement-per-frame scheduler.
+    const contentObserver = new ResizeObserver(() => scheduleEmbeddedMeasure('content-size'));
+    document.querySelectorAll('body > .container, body > .wrap, body > .shell, #app, .btn-group')
+      .forEach((container) => contentObserver.observe(container));
     window.addEventListener('message', (event) => {
       if (event.data?.type === 'hot100:measure') scheduleEmbeddedMeasure('parent-request');
     });

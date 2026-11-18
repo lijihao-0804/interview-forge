@@ -129,6 +129,11 @@ def main():
     folder = ROOT / "books/hot100/executions"
     folder.mkdir(exist_ok=True)
     original_cases = 0
+    public_outputs = {
+        int(row["id"].split("-")[1]): {
+            sample["input"].strip(): json.loads(sample["expected"]) for sample in row["samples"]
+        } for row in json.loads((ROOT / "data/acm/hot100.json").read_bytes())
+    }
     for pid, item in CURRICULUM.items():
         cases = []
         for test in item["tests"]:
@@ -140,7 +145,12 @@ def main():
             def checked_output():
                 _run_test(pid, test)
                 return json.loads(sample["expected"])
-            cases.append(capture(f"<python-hot100-{pid}>", sample, checked_output))
+            case = capture(f"<python-hot100-{pid}>", sample, checked_output)
+            outputs = public_outputs[pid]
+            if case["input"] in outputs and case["output"] != outputs[case["input"]]:
+                raise ValueError(f"LC {pid}: {case['label']} conflicts with another output for this input")
+            outputs[case["input"]] = case["output"]
+            cases.append(case)
         if not cases:
             raise ValueError(f"LC {pid}: no readable execution examples")
         original_cases += len(cases)

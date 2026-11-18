@@ -81,6 +81,10 @@ def public_case(pid, case, code):
             expected = chain == chain[::-1]
         elif pid == 79:
             expected = expected[0]
+        elif pid == 64 and case.get("observe") == "grid":
+            # The curriculum checks that the argument was preserved. The public
+            # result for that same input is the path sum returned by the method.
+            expected = _evaluate(case["call"], namespace)(*args)
         elif pid == 138 and args[0] is None:
             args = [[]]
         if pid in (2,19,21,23,24,25,94,98,101,102,104,114,124,138,148,199,206,226,230,234,437,543):

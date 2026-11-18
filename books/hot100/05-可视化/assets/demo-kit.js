@@ -54,7 +54,7 @@ background:var(--dk-soft);border-radius:0 9px 9px 0;font-size:13px;color:var(--d
 .dk-stage{position:relative;height:var(--dk-stage-height,320px);min-height:220px;padding:18px;
 border:1px solid var(--dk-line);border-radius:var(--dk-radius);background:var(--dk-panel);overflow:auto}
 .dk-desc{margin:12px 2px 6px;padding:10px 14px;border-radius:10px;background:var(--dk-brand-soft);
-color:var(--dk-brand-strong);font-weight:600;height:68px;min-height:68px;display:flex;align-items:flex-start;overflow:auto}
+color:var(--dk-brand-strong);font-weight:600;min-height:68px;overflow-wrap:anywhere}
 .dk-vars{display:flex;gap:8px;flex-wrap:nowrap;margin:0 2px 12px;height:40px;min-height:40px;overflow-x:auto;overflow-y:hidden}
 .dk-var{font-size:12.5px;padding:3px 10px;border-radius:8px;background:var(--dk-soft);
 border:1px solid var(--dk-line);color:var(--dk-muted)}
@@ -98,6 +98,11 @@ white-space:nowrap;color:var(--dk-brand)}
 .dk-ptr.c2::after,.dk-ptr.c4::after{color:inherit}
 .dk-arrow{align-self:center;color:var(--dk-muted);font-size:14px;padding:0 1px}
 .dk-ptr.up::after{content:"▲";transform:rotate(180deg)}
+/* Keep labels attached to their value when an array wraps or several
+   pointers converge on one cell. Each label participates in layout. */
+.dk-cell:has(> .dk-ptr){display:inline-flex;flex-direction:column;align-items:center;gap:2px}
+.dk-cell > .dk-ptr{position:static;transform:none;order:-1;line-height:1.2}
+.dk-cell > .dk-ptr::after{content:" ↓";display:inline;font-size:10px}
 .dk-note{font-size:12px;color:var(--dk-muted);margin-top:6px}
 .dk-phase{display:inline-flex;align-items:center;gap:6px;margin:0 0 8px;padding:4px 9px;border:1px solid var(--dk-line);
 border-radius:999px;color:var(--dk-brand-strong);background:var(--dk-brand-soft);font-size:12px;font-weight:700}
@@ -176,6 +181,8 @@ border-radius:9px;background:var(--dk-panel);color:var(--dk-text);font-size:13px
 .dk-trace-map{display:grid;grid-template-columns:minmax(2em,auto) 1fr;margin:0;gap:2px 8px}
 .dk-trace-map dt{color:var(--dk-muted)}.dk-trace-change{display:block;color:var(--dk-brand-strong);font-size:11px}
 .dk-trace-player .dk-log:empty,.dk-trace-player .dk-vars:empty{display:none}
+.dk-trace-player #return{display:inline-flex;align-items:center;min-height:40px;padding:4px 10px;
+color:var(--dk-brand-strong);background:var(--dk-brand-soft);border-radius:8px}
 @media(max-width:560px){.dk-trace-vars{grid-template-columns:minmax(4em,30%) minmax(0,1fr)}}
 @media(prefers-reduced-motion:reduce){.dk-flip,.dk-enter,.dk-pulse,.dk-exit{animation:none!important;
 transition:none!important;transform:none!important}}
@@ -438,6 +445,9 @@ transition:none!important;transform:none!important}}
     }
 
     var stage = el("div", "dk-stage");
+    stage.tabIndex = 0;
+    stage.setAttribute("role", "region");
+    stage.setAttribute("aria-label", "当前步骤的算法状态");
     var stageHeight = Number(cfg.stageHeight);
     if (Number.isFinite(stageHeight) && stageHeight >= 220) {
       stage.style.setProperty("--dk-stage-height", Math.round(stageHeight) + "px");
@@ -767,9 +777,26 @@ transition:none!important;transform:none!important}}
       }
       idx = 0;
       btnPlay.textContent = "▶ 自动播放";
+      reserveDescription();
       measureStage();
       show(0);
       window.dispatchEvent(new CustomEvent("hot100:demo-rebuilt"));
+    }
+
+    // Reserve room for long narrations without clipping at narrow widths. If a
+    // shorter string wraps onto more lines, the normal block can still grow.
+    function reserveDescription() {
+      if (!desc.offsetWidth || !steps.length) return;
+      var longest = steps.reduce(function (text, step) {
+        var next = String(step.desc || "");
+        return next.length > text.length ? next : text;
+      }, "");
+      var measure = el("div", "dk-desc", steps.length + ". " + longest);
+      measure.setAttribute("aria-hidden", "true");
+      measure.style.cssText = "position:absolute;visibility:hidden;min-height:0;width:" + desc.offsetWidth + "px";
+      wrap.appendChild(measure);
+      desc.style.minHeight = Math.max(68, measure.offsetHeight) + "px";
+      measure.remove();
     }
 
     /* ---- 舞台高度自适应 ----

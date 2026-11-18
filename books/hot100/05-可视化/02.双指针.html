@@ -18,10 +18,10 @@ html[data-theme="light"]{--dk-bg:#f4f6fb;--dk-panel:#ffffff;--dk-soft:#f6f7fb;--
 html[data-theme="dark"]{--dk-bg:#0f131b;--dk-panel:#181e29;--dk-soft:#141a24;--dk-text:#eaf0fa;
 --dk-muted:#9aa6ba;--dk-line:#313b4c;--dk-brand:#b1afff;--dk-brand-strong:#c4c2ff;--dk-brand-soft:#292955;
 --dk-ok:#79d8a8;--dk-warn:#ffc174;--dk-err:#ff969d}
-@font-face{font-family:"Inter";src:url("../../assets/fonts/Inter-Variable.woff2") format("woff2");
+@font-face{font-family:"Inter";src:url("../../../assets/fonts/Inter-Variable.woff2") format("woff2");
 font-weight:100 900;font-style:normal;font-display:swap;
 unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
-@font-face{font-family:"JetBrains Mono";src:url("../../assets/fonts/JetBrainsMono-Variable.woff2") format("woff2");
+@font-face{font-family:"JetBrains Mono";src:url("../../../assets/fonts/JetBrainsMono-Variable.woff2") format("woff2");
 font-weight:100 800;font-style:normal;font-display:swap;
 unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
 body{font-family:var(--font-sans)!important;background:var(--dk-bg)!important;color:var(--dk-text)!important}
@@ -523,6 +523,18 @@ html.hot100-embedded .hot100-language-note {
   width: 100%;
   margin: 0 0 10px;
 }
+.hot100-trace-switch {
+  display: flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 40px;
+  margin-bottom: 8px;
+  padding: 4px 10px;
+  color: var(--hot-brand);
+  background: var(--hot-brand-soft);
+  border-radius: 8px;
+}
 html.hot100-embedded body > .container,
 html.hot100-embedded body > .shell,
 html.hot100-embedded body > main,
@@ -678,7 +690,7 @@ const PROBLEM_DATA = [
     desc: "双指针技巧——快慢指针。左指针维护已处理好的非零元素末尾，右指针遍历数组。当右指针遇到非零元素时，将其与左指针位置交换，左指针右移。这样所有非零元素被依次移到前面，零则被动移到最后。",
     presets: [
       { label: "默认 [0,1,0,3,12]", data: [0,1,0,3,12] },
-      { label: "全零 [0,0,0,0,1]", data: [0,0,0,0,1] },
+      { label: "前段连续零 [0,0,0,0,1]", data: [0,0,0,0,1] },
       { label: "无零 [1,2,3,4,5]", data: [1,2,3,4,5] },
       { label: "混合 [0,0,1,0,3,0,2]", data: [0,0,1,0,3,0,2] },
       { label: "随机 8 个", data: null, size: 8 },
@@ -798,6 +810,11 @@ function generateRandomArray(size, min, max) {
   for (let i = 0; i < size; i++) arr[i] = Math.floor(Math.random() * (max - min + 1)) + min;
   return arr;
 }
+
+const phaseLabels = {
+  update: '更新状态', compare: '比较', swap_prepare: '准备交换', swap_move: '交换',
+  swap_done: '交换完成', pointer_move: '移动指针', done: '完成'
+};
 
 // ---------- 步骤生成 ----------
 function buildSteps(probIdx, rawArr) {
@@ -1048,7 +1065,6 @@ function initPanel(idx) {
     if (!state.steps.length) return;
     const stepIdx = Math.min(state.stepIdx, state.steps.length - 1);
     const step = state.steps[stepIdx];
-    state.animating = step.phase === 'swap_move';
     const arrVals = step.array;
     if (!arrVals || !arrVals.length) return;
     const maxVal = Math.max(...arrVals.map(Math.abs), 1);
@@ -1072,10 +1088,6 @@ function initPanel(idx) {
         const other = pair[0] === i ? pair[1] : pair[0];
         wrapper.classList.add('swap-moving');
         wrapper.style.setProperty('--swap-from', ((other - i) * (barW + 3)) + 'px');
-        wrapper.addEventListener('animationend', () => {
-          state.animating = false;
-          updateButtons();
-        }, { once: true });
       }
 
       const bar = document.createElement('div');
@@ -1192,7 +1204,7 @@ function initPanel(idx) {
       if (step.waterTotal != null) msg += `　<span class="sub-msg">累计接水：${step.waterTotal}</span>`;
       if (step.lMax != null) msg += `　<span class="sub-msg">leftMax=${step.lMax} rightMax=${step.rMax}</span>`;
       if (step.sum != null) msg += `　<span class="sub-msg">sum=${step.sum}</span>`;
-      msgEl.innerHTML = `<span class="teaching-phase">${step.phase || 'update'}</span> ${msg}`;
+      msgEl.innerHTML = `<span class="teaching-phase">${phaseLabels[step.phase] || phaseLabels.update}</span> ${msg}`;
     }
 
     // Code highlight
@@ -1234,26 +1246,22 @@ function initPanel(idx) {
     const atLast = state.stepIdx >= state.steps.length - 1;
     firstBtn.disabled = atFirst;
     prevBtn.disabled = atFirst;
-    nextBtn.disabled = atLast || !!state.animating;
+    nextBtn.disabled = atLast;
     lastBtn.disabled = atLast;
   }
 
   presetSelect.addEventListener('change', resetSteps);
 
   nextBtn.addEventListener('click', () => {
-    if (state.animating) return;
     if (state.stepIdx < state.steps.length - 1) { state.stepIdx++; render(); updateButtons(); }
   });
   prevBtn.addEventListener('click', () => {
-    if (state.animating) return;
     if (state.stepIdx > 0) { state.stepIdx--; render(); updateButtons(); }
   });
   firstBtn.addEventListener('click', () => {
-    if (state.animating) return;
     state.stepIdx = 0; render(); updateButtons();
   });
   lastBtn.addEventListener('click', () => {
-    if (state.animating) return;
     state.stepIdx = state.steps.length - 1; render(); updateButtons();
   });
   resetBtn.addEventListener('click', resetSteps);

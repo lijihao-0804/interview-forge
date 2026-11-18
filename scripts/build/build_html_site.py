@@ -1486,6 +1486,18 @@ html.hot100-embedded .hot100-language-note {
   width: 100%;
   margin: 0 0 10px;
 }
+.hot100-trace-switch {
+  display: flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 40px;
+  margin-bottom: 8px;
+  padding: 4px 10px;
+  color: var(--hot-brand);
+  background: var(--hot-brand-soft);
+  border-radius: 8px;
+}
 html.hot100-embedded body > .container,
 html.hot100-embedded body > .shell,
 html.hot100-embedded body > main,
@@ -1591,6 +1603,11 @@ VISUAL_RUNTIME_JS = r"""
   });
   const embedParams = new URLSearchParams(location.search);
   if (embedParams.get('embed') === '1') {
+    // Keep the built-in examples available when the full custom-input form is hidden.
+    document.querySelectorAll('.input-section > .preset-row').forEach((presets) => {
+      presets.parentElement.after(presets);
+      presets.querySelector('.preset-btn')?.classList.add('active');
+    });
     const routeScript = document.createElement('script');
     routeScript.src = '../executions/routes.js';
     routeScript.onload = () => {
@@ -1603,6 +1620,7 @@ VISUAL_RUNTIME_JS = r"""
       link.textContent = '查看本题输入与 Python 执行过程';
       link.className = 'hot100-trace-switch';
       document.body.prepend(link);
+      scheduleEmbeddedMeasure('replay-link');
     };
     document.head.appendChild(routeScript);
     const panelIndex = embedParams.get('panel');
@@ -1623,7 +1641,7 @@ VISUAL_RUNTIME_JS = r"""
     const computeHeight = () => {
       const bottoms = [...document.body.children]
         .filter((item) => getComputedStyle(item).display !== 'none')
-        .map((item) => item.getBoundingClientRect().bottom);
+        .map((item) => item.getBoundingClientRect().bottom + window.scrollY);
       return Math.max(320, Math.ceil(Math.max(0, ...bottoms) + 12));
     };
     // 单帧合并测量：同一时段的多个触发只保留一次布局读取。
@@ -1642,6 +1660,12 @@ VISUAL_RUNTIME_JS = r"""
       measureFrame = requestAnimationFrame(() => measure(reason));
     };
     window.__hot100ScheduleEmbeddedMeasure = scheduleEmbeddedMeasure;
+    // Native stages can gain rows or wrap descriptions during playback. Watch
+    // their content containers, whose height is independent of the iframe's
+    // viewport, and reuse the existing one-measurement-per-frame scheduler.
+    const contentObserver = new ResizeObserver(() => scheduleEmbeddedMeasure('content-size'));
+    document.querySelectorAll('body > .container, body > .wrap, body > .shell, #app, .btn-group')
+      .forEach((container) => contentObserver.observe(container));
     window.addEventListener('message', (event) => {
       if (event.data?.type === 'hot100:measure') scheduleEmbeddedMeasure('parent-request');
     });
@@ -2979,10 +3003,10 @@ html[data-theme="light"]{--dk-bg:#f4f6fb;--dk-panel:#ffffff;--dk-soft:#f6f7fb;--
 html[data-theme="dark"]{--dk-bg:#0f131b;--dk-panel:#181e29;--dk-soft:#141a24;--dk-text:#eaf0fa;
 --dk-muted:#9aa6ba;--dk-line:#313b4c;--dk-brand:#b1afff;--dk-brand-strong:#c4c2ff;--dk-brand-soft:#292955;
 --dk-ok:#79d8a8;--dk-warn:#ffc174;--dk-err:#ff969d}
-@font-face{font-family:"Inter";src:url("../../assets/fonts/Inter-Variable.woff2") format("woff2");
+@font-face{font-family:"Inter";src:url("../../../assets/fonts/Inter-Variable.woff2") format("woff2");
 font-weight:100 900;font-style:normal;font-display:swap;
 unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
-@font-face{font-family:"JetBrains Mono";src:url("../../assets/fonts/JetBrainsMono-Variable.woff2") format("woff2");
+@font-face{font-family:"JetBrains Mono";src:url("../../../assets/fonts/JetBrainsMono-Variable.woff2") format("woff2");
 font-weight:100 800;font-style:normal;font-display:swap;
 unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
 body{font-family:var(--font-sans)!important;background:var(--dk-bg)!important;color:var(--dk-text)!important}

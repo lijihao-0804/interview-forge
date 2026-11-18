@@ -18,10 +18,10 @@ html[data-theme="light"]{--dk-bg:#f4f6fb;--dk-panel:#ffffff;--dk-soft:#f6f7fb;--
 html[data-theme="dark"]{--dk-bg:#0f131b;--dk-panel:#181e29;--dk-soft:#141a24;--dk-text:#eaf0fa;
 --dk-muted:#9aa6ba;--dk-line:#313b4c;--dk-brand:#b1afff;--dk-brand-strong:#c4c2ff;--dk-brand-soft:#292955;
 --dk-ok:#79d8a8;--dk-warn:#ffc174;--dk-err:#ff969d}
-@font-face{font-family:"Inter";src:url("../../assets/fonts/Inter-Variable.woff2") format("woff2");
+@font-face{font-family:"Inter";src:url("../../../assets/fonts/Inter-Variable.woff2") format("woff2");
 font-weight:100 900;font-style:normal;font-display:swap;
 unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
-@font-face{font-family:"JetBrains Mono";src:url("../../assets/fonts/JetBrainsMono-Variable.woff2") format("woff2");
+@font-face{font-family:"JetBrains Mono";src:url("../../../assets/fonts/JetBrainsMono-Variable.woff2") format("woff2");
 font-weight:100 800;font-style:normal;font-display:swap;
 unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
 body{font-family:var(--font-sans)!important;background:var(--dk-bg)!important;color:var(--dk-text)!important}
@@ -522,6 +522,18 @@ html:not([data-code-language="java"]) .java-code {
 html.hot100-embedded .hot100-language-note {
   width: 100%;
   margin: 0 0 10px;
+}
+.hot100-trace-switch {
+  display: flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 40px;
+  margin-bottom: 8px;
+  padding: 4px 10px;
+  color: var(--hot-brand);
+  background: var(--hot-brand-soft);
+  border-radius: 8px;
 }
 html.hot100-embedded body > .container,
 html.hot100-embedded body > .shell,
@@ -1551,17 +1563,21 @@ function trieLayout(root, canvasW, canvasH) {
   for (const n of nodes) levels[n._depth].push(n);
 
   const yGap = Math.min(80, Math.max(50, (canvasH - 60) / (maxDepth + 1)));
+  const widest = Math.max(...levels.map(level => level.length));
+  const radius = Math.min(18, Math.floor(((canvasW - 8) / widest - 6) / 2));
   for (let d = 0; d < levels.length; d++) {
     const lev = levels[d];
-    const xGap = Math.min(80, Math.max(30, (canvasW - 20) / (lev.length + 1)));
+    const xGap = Math.min(80, (canvasW - 2 * radius - 8) / Math.max(1, lev.length - 1));
+    const left = (canvasW - (lev.length - 1) * xGap) / 2;
     for (let i = 0; i < lev.length; i++) {
-      lev[i].x = xGap * (i + 1) + (d % 2 === 0 ? 0 : xGap / 2);
+      lev[i].x = left + i * xGap;
       lev[i].y = 30 + d * yGap;
     }
   }
+  return radius;
 }
 
-function trieDraw(ctx, root, highlights) {
+function trieDraw(ctx, root, highlights, radius) {
   if (!root) return;
   const nodes = [];
   const edges = [];
@@ -1572,8 +1588,8 @@ function trieDraw(ctx, root, highlights) {
   ctx.lineWidth = 2;
   for (const [p, c] of edges) {
     ctx.beginPath();
-    ctx.moveTo(p.x, p.y + 16);
-    ctx.lineTo(c.x, c.y - 16);
+    ctx.moveTo(p.x, p.y + radius);
+    ctx.lineTo(c.x, c.y - radius);
     ctx.stroke();
   }
 
@@ -1590,9 +1606,8 @@ function trieDraw(ctx, root, highlights) {
     else if (isCurrent) { bg = '#ff9800'; borderW = 3; }
     else if (isPath && n !== root) { bg = '#7c4dff'; }
 
-    const r = 18;
     ctx.beginPath();
-    ctx.arc(n.x, n.y, r, 0, 2 * Math.PI);
+    ctx.arc(n.x, n.y, radius, 0, 2 * Math.PI);
     ctx.fillStyle = bg;
     ctx.fill();
     ctx.strokeStyle = '#333';
@@ -1600,20 +1615,18 @@ function trieDraw(ctx, root, highlights) {
     ctx.stroke();
 
     // 字符
-    if (n.ch) {
-      ctx.fillStyle = textColor;
-      ctx.font = '15px Consolas, monospace';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(n.ch, n.x, n.y);
-    }
+    ctx.fillStyle = textColor;
+    ctx.font = '14px Consolas, monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(n.ch || '根', n.x, n.y);
 
     // isEnd 标记
     if (n.isEnd) {
-      ctx.fillStyle = '#4caf50';
-      ctx.font = '10px sans-serif';
+      ctx.fillStyle = '#12633f';
+      ctx.font = 'bold 11px sans-serif';
       ctx.textBaseline = 'top';
-      ctx.fillText('End', n.x + 20, n.y - 10);
+      ctx.fillText('End', n.x, n.y + radius + 2);
     }
   }
 }
@@ -1823,8 +1836,8 @@ function initPanel(idx) {
       drawHashTable(ctx, step, w, h);
     } else if (idx === 4) {
       if (state.trie) {
-        trieLayout(state.trie, w, h);
-        trieDraw(ctx, state.trie, step.highlights || {});
+        const radius = trieLayout(state.trie, w, h);
+        trieDraw(ctx, state.trie, step.highlights || {}, radius);
       }
     } else if (idx === 3) {
       if (state.btree) {
@@ -2151,7 +2164,9 @@ function initPanel(idx) {
   // 事件绑定
   const sizeSelect = document.createElement('select');
   sizeSelect.className = 'size-select';
-  sizeSelect.innerHTML = '<option value="8">8</option><option value="12" selected>12</option><option value="16">16</option><option value="20">20</option>';
+  const sizes = idx === 4 ? [4, 6, 8, 10] : [8, 12, 16, 20];
+  const defaultSize = idx === 4 ? 10 : 12;
+  sizes.forEach(value => sizeSelect.add(new Option(String(value), String(value), false, value === defaultSize)));
   // 插入到 actionSelect 前面
   const controlsEl = panel.querySelector('.controls');
   const actionLabel = controlsEl.querySelector('label[for]') || controlsEl.querySelector('label');
@@ -2367,7 +2382,7 @@ function initPanel(idx) {
   updateLegend();
 
   // 初始生成
-  state.size = 12;
+  state.size = defaultSize;
   generate();
 
   const ro = new ResizeObserver(() => render());

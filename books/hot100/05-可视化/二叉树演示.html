@@ -18,10 +18,10 @@ html[data-theme="light"]{--dk-bg:#f4f6fb;--dk-panel:#ffffff;--dk-soft:#f6f7fb;--
 html[data-theme="dark"]{--dk-bg:#0f131b;--dk-panel:#181e29;--dk-soft:#141a24;--dk-text:#eaf0fa;
 --dk-muted:#9aa6ba;--dk-line:#313b4c;--dk-brand:#b1afff;--dk-brand-strong:#c4c2ff;--dk-brand-soft:#292955;
 --dk-ok:#79d8a8;--dk-warn:#ffc174;--dk-err:#ff969d}
-@font-face{font-family:"Inter";src:url("../../assets/fonts/Inter-Variable.woff2") format("woff2");
+@font-face{font-family:"Inter";src:url("../../../assets/fonts/Inter-Variable.woff2") format("woff2");
 font-weight:100 900;font-style:normal;font-display:swap;
 unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
-@font-face{font-family:"JetBrains Mono";src:url("../../assets/fonts/JetBrainsMono-Variable.woff2") format("woff2");
+@font-face{font-family:"JetBrains Mono";src:url("../../../assets/fonts/JetBrainsMono-Variable.woff2") format("woff2");
 font-weight:100 800;font-style:normal;font-display:swap;
 unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
 body{font-family:var(--font-sans)!important;background:var(--dk-bg)!important;color:var(--dk-text)!important}
@@ -452,6 +452,18 @@ html.hot100-embedded .hot100-language-note {
   width: 100%;
   margin: 0 0 10px;
 }
+.hot100-trace-switch {
+  display: flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 40px;
+  margin-bottom: 8px;
+  padding: 4px 10px;
+  color: var(--hot-brand);
+  background: var(--hot-brand-soft);
+  border-radius: 8px;
+}
 html.hot100-embedded body > .container,
 html.hot100-embedded body > .shell,
 html.hot100-embedded body > main,
@@ -626,23 +638,30 @@ function drawTree(view, stage) {
     return;
   }
   var H = height(root) || 1;
-  // 宽度按节点数给足，否则四层以上的树会把节点挤成一团（viewBox 会自动缩放回容器）。
   var N = countNodes(root);
-  var W = Math.max(560, stage.clientWidth || 640, N * 48 + 90);
-  var rowH = Math.min(74, 360 / H);
+  var style = getComputedStyle(stage);
+  var available = stage.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+  // 同层节点的中序编号至少相差 2。在窄屏保留可辨认的圆和字号，
+  // 仅当最密一行确实放不下时，让舞台横向滚动。
+  var padding = 24, minWidth = 2 * padding + (N - 1) * 13;
+  var W = Math.max(minWidth, Math.min(900, available));
+  var spacing = (W - 2 * padding) / Math.max(1, N - 1);
+  var radius = N === 1 ? 17 : Math.min(17, Math.max(11, spacing - 1));
+  var rowH = Math.max(48, Math.min(70, W / 5, 360 / H));
   var pos = {};
   var col = 0;
   (function assign(n, d) {
     if (!n) return;
     assign(n.left, d + 1);
-    pos[n.id] = { x: 46 + (col++) * ((W - 90) / Math.max(1, N - 1) || 60), y: 40 + d * rowH };
+    pos[n.id] = { x: N === 1 ? W / 2 : padding + col++ * spacing, y: 40 + d * rowH };
     assign(n.right, d + 1);
   })(root, 0);
   function countNodes(n) { return n ? 1 + countNodes(n.left) + countNodes(n.right) : 0; }
   var svgNS = "http://www.w3.org/2000/svg";
   var svg = document.createElementNS(svgNS, "svg");
-  var Ht = 40 + (H - 1) * rowH + 62;   // 最后一行只需留住节点半径和标签，不必再空一整行
-  svg.setAttribute("width", "100%"); svg.setAttribute("height", Ht);
+  var Ht = 40 + (H - 1) * rowH + radius + 6;
+  svg.style.cssText = "display:block;margin-inline:auto;min-width:" + minWidth + "px";
+  svg.setAttribute("width", W); svg.setAttribute("height", Ht);
   svg.setAttribute("viewBox", "0 0 " + W + " " + Ht);
   var hl = view.hl || [], done = view.done || [], path = view.path || [];
   // 连线和节点都必须属于 SVG 命名空间；DemoKit.el 使用的是 HTML
@@ -655,8 +674,8 @@ function drawTree(view, stage) {
       var a = pos[n.id], b = pos[p[0].id];
       var onPath = path.indexOf(n.id) >= 0 && path.indexOf(p[0].id) >= 0;
       var line = document.createElementNS(svgNS, "line");
-      line.setAttribute("x1", a.x); line.setAttribute("y1", a.y + 16);
-      line.setAttribute("x2", b.x); line.setAttribute("y2", b.y - 16);
+      line.setAttribute("x1", a.x); line.setAttribute("y1", a.y + radius - 1);
+      line.setAttribute("x2", b.x); line.setAttribute("y2", b.y - radius + 1);
       line.style.stroke = onPath ? "var(--dk-brand)" : "var(--dk-line)";
       line.style.strokeWidth = onPath ? 2.6 : 1.6;
       edges.appendChild(line);
@@ -670,7 +689,7 @@ function drawTree(view, stage) {
     var isCur = view.cur === n.id, inHl = hl.indexOf(n.id) >= 0, inDone = done.indexOf(n.id) >= 0;
     var g = document.createElementNS(svgNS, "g");
     var c = document.createElementNS(svgNS, "circle");
-    c.setAttribute("cx", p.x); c.setAttribute("cy", p.y); c.setAttribute("r", 17);
+    c.setAttribute("cx", p.x); c.setAttribute("cy", p.y); c.setAttribute("r", radius);
     c.style.fill = isCur ? "var(--dk-brand)" : inHl ? "var(--dk-brand-soft)"
       : inDone ? "color-mix(in srgb, var(--dk-ok) 16%, var(--dk-panel))" : "var(--dk-panel)";
     c.style.stroke = isCur ? "var(--dk-brand-strong)" : inDone ? "var(--dk-ok)"
@@ -687,7 +706,7 @@ function drawTree(view, stage) {
     g.appendChild(tx);
     if (view.cur === n.id) {
       var tag = document.createElementNS(svgNS, "text");
-      tag.setAttribute("x", p.x); tag.setAttribute("y", p.y - 24);
+      tag.setAttribute("x", p.x); tag.setAttribute("y", p.y - radius - 5);
       tag.setAttribute("text-anchor", "middle");
       tag.style.fill = "var(--dk-brand)"; tag.setAttribute("font-size", 12); tag.setAttribute("font-weight", 700);
       tag.textContent = "◀ 当前";
