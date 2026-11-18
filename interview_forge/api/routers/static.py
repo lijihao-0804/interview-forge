@@ -7,6 +7,7 @@ from __future__ import annotations
 from interview_forge.core.roles import has_admin_role
 
 import hashlib
+import re
 from pathlib import Path
 from urllib.parse import quote
 
@@ -19,6 +20,7 @@ from interview_forge.core.paths import ROOT
 from interview_forge.core.research_readers import DOCUMENTS, READER_ROOT, link_readers
 from interview_forge.core.web_access import (
     canonical_url_path,
+    hot200_demo_embed_url,
     is_admin_path,
     is_public_get,
     is_sensitive_path,
@@ -26,8 +28,23 @@ from interview_forge.core.web_access import (
 )
 from interview_forge.services.catalog import load_library_manifest
 from interview_forge.services.study import record_content_view, record_view
+from scripts.build.asset_version import SITE_CSS_VERSION, SOLUTION_PROGRESS_VERSION
 
 router = APIRouter()
+
+# Already-built chapters must move off immutable browser-cache entries as well.
+_READER_RESOURCE_TAG = re.compile(rb"<!--.*?-->|<script\b[^>]*>.*?</script\s*>|<link\b[^>]*>", re.I | re.S)
+_READER_ASSET_VERSION = re.compile(
+    rb"""(\s(?:href|src)\s*=\s*["'](?:/|(?:\.\.?/)*)assets/(site\.css|solution-progress\.js)\?v=)[\w.-]+"""
+)
+_READER_ASSET_VERSIONS = {b"site.css": SITE_CSS_VERSION.encode(), b"solution-progress.js": SOLUTION_PROGRESS_VERSION.encode()}
+
+def _version_reader_resource(match: re.Match[bytes]) -> bytes:
+    tag = match[0]
+    if tag.startswith(b"<!--"):
+        return tag
+    start, end, contents = tag.partition(b">")
+    return _READER_ASSET_VERSION.sub(lambda m: m[1] + _READER_ASSET_VERSIONS[m[2]], start) + end + contents
 
 _WIDGET_STYLES = ("/assets/ai-launcher.css?v=5",)
 _TOC_SCRIPT = "/assets/toc-scroll.js?v=9"
@@ -150,6 +167,8 @@ def private_reader_widget_tags(body: bytes) -> bytes:
 
 
 def _inject_html(path: str, body: bytes, *, embedded: bool = False) -> bytes:
+    if b"site.css?v=" in body or b"solution-progress.js?v=" in body:
+        body = _READER_RESOURCE_TAG.sub(_version_reader_resource, body)
     if path.startswith(("/library/ai-employment-research/", "/library/communications-research/")) or path == "/library/hot200-extra/index.html":
         body = link_readers(path, body)
     if path.startswith(_RESEARCH_APPS):
@@ -322,12 +341,18 @@ def static_path(request: Request, path: str):
     if db_path is not None:
         _record_view(decoded, db_path)
     if decoded.lower().endswith(".html"):
-        body = _inject_html(decoded, target.read_bytes(), embedded=request.query_params.get("embedded") == "1")
+        demo_embed = hot200_demo_embed_url(decoded, request.query_params.get("embed"))
+        embedded = request.query_params.get("embedded") == "1" or (
+            demo_embed and request.headers.get("sec-fetch-dest") == "iframe"
+        )
+        body = _inject_html(decoded, target.read_bytes(), embedded=embedded)
         # HTML 协商缓存：注入后的页面按内容指纹发 ETag，浏览器以 no-cache
         # 回存并在每次导航时重验证（命中即 304，不再全量下载 771 个阅读页）。
         # 注入内容只取决于页面本身，与用户身份无关；_record_view 在上方
         # 已执行，浏览计数不受 304 影响。
         headers = _security_headers(decoded)
+        if demo_embed:
+            headers["Vary"] = "Sec-Fetch-Dest"
         headers["Cache-Control"] = "private, no-cache"
         headers["ETag"] = '"' + hashlib.sha256(body).hexdigest()[:32] + '"'
         if headers["ETag"] in (request.headers.get("if-none-match") or ""):

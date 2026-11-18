@@ -13,6 +13,12 @@ from urllib.parse import unquote
 
 from interview_forge.core.public_api import PUBLIC_API_OPERATIONS
 
+
+def hot200_demo_embed_url(path: str, embed: str | None) -> bool:
+    """Hot 200 readers use ?embed=1 for their optional embedded presentation."""
+    return embed == "1" and path.startswith("/library/hot200-extra/demos/") and path.endswith(".html")
+
+
 PUBLIC_FILES = frozenset({
     "/research/market", "/research/jobs", "/research/communications",
     "/docs/面试准备/项目面试报告.html",

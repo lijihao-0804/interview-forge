@@ -9,6 +9,29 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class AiFrontendIntegrationTests(unittest.TestCase):
+    def test_hot200_demo_widgets_follow_navigation_destination(self):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from interview_forge.api.routers.static import router
+
+        app = FastAPI()
+        app.include_router(router)
+        url = "/library/hot200-extra/demos/269.html?embed=1"
+        with TestClient(app) as client:
+            frame = client.get(url, headers={"Sec-Fetch-Dest": "iframe"})
+            self.assertEqual(frame.status_code, 200)
+            self.assertEqual(frame.headers["vary"], "Sec-Fetch-Dest")
+            self.assertIn("navigation-policy.js", frame.text)
+            widgets = ("auth-widget.js", "feedback-widget.js", "ai-launcher.js", "ai-launcher.css")
+            for widget in widgets:
+                self.assertNotIn(widget, frame.text)
+            for headers in ({}, {"Sec-Fetch-Dest": "document"}):
+                document = client.get(url, headers={**headers, "If-None-Match": frame.headers["etag"]})
+                self.assertEqual(document.status_code, 200)
+                self.assertNotEqual(document.headers["etag"], frame.headers["etag"])
+                for widget in widgets:
+                    self.assertIn(widget, document.text)
+
     def test_static_html_injects_launcher_assets(self):
         body = "<!doctype html><html><body><main>学习</main></body></html>".encode()
         rendered = _inject_html("/books/hot100/03-题解/0146-LRU.html", body).decode()

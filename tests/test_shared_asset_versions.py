@@ -1,11 +1,47 @@
 import tempfile
 import unittest
 from pathlib import Path
+from urllib.parse import urljoin
+
+from bs4 import BeautifulSoup
+from fastapi.testclient import TestClient
+
+from interview_forge.api.app import app
 
 from scripts.build import build_html_site
 
 
 class SharedAssetVersionTests(unittest.TestCase):
+    def test_served_reader_does_not_rewrite_code_samples(self):
+        from interview_forge.api.routers.static import _inject_html
+
+        sample = b'<pre>&lt;script src="assets/solution-progress.js?v=example"&gt;</pre>'
+        inline = b"""<script>const snippet = '<link href="/assets/site.css?v=example">';</script>"""
+        comment = b'<!-- <link href="/assets/site.css?v=example"> -->'
+        response = _inject_html("/books/test.html", b"<body>" + sample + inline + comment + b"</body>")
+        for original in (sample, inline, comment):
+            self.assertIn(original, response)
+
+    def test_served_readers_link_to_current_asset_contents(self):
+        root = build_html_site.ROOT
+        chapters = (
+            next((root / "books/hot100/03-题解").rglob("0001-*.html")),
+            root / "library/hot200-extra/chapter-01.html",
+        )
+        with TestClient(app) as client:
+            for chapter in chapters:
+                path = "/" + chapter.relative_to(root).as_posix()
+                response = client.get(path, follow_redirects=False)
+                self.assertEqual(response.status_code, 200)
+                html = BeautifulSoup(response.content, "html.parser")
+                for name, tag, attr in (("site.css", "link", "href"), ("solution-progress.js", "script", "src")):
+                    urls = [urljoin(path, el[attr]) for el in html.select(f"{tag}[{attr}]")
+                            if el[attr].split("?")[0].endswith("/" + name)]
+                    self.assertEqual(urls, [f"/assets/{name}?v={build_html_site.SHARED_ASSET_VERSIONS[name]}"])
+                    asset = client.get(urls[0])
+                    self.assertEqual(asset.status_code, 200)
+                    self.assertEqual(asset.content, (root / "assets" / name).read_bytes())
+
     def test_rewrite_is_local_tag_scoped_and_idempotent(self):
         markup = """<!doctype html>
 <html><head>

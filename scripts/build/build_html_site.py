@@ -55,7 +55,7 @@ from interview_forge.core.problem_catalog import (
     problem_filename as hot100_problem_filename,
 )
 from scripts.build import build_cache
-from scripts.build.asset_version import ASSET_VERSION, SITE_JS_VERSION
+from scripts.build.asset_version import ASSET_VERSION, SITE_CSS_VERSION, SITE_JS_VERSION, SOLUTION_PROGRESS_VERSION
 
 # 并行渲染进程数：8（或按 CPU 核数自动收敛）。渲染是 CPU+IO 混合，进程池
 # 不受 GIL 限制；仅在逐文件渲染（render_markdown）阶段并行，聚合产物仍串行。
@@ -82,8 +82,9 @@ CONTENT_DIRS = ["books/hot100/00-总览", "books/hot100/01-基础", "books/hot10
 # only reviewed scripts with an explicit cache-busting version are rewritten.
 SHARED_ASSET_VERSIONS = {
     "site.js": SITE_JS_VERSION,
+    "site.css": SITE_CSS_VERSION,
     "ui.js": ASSET_VERSION,
-    "solution-progress.js": "20261113-language-rounds",
+    "solution-progress.js": SOLUTION_PROGRESS_VERSION,
     "engagement-tracker.js": ASSET_VERSION,
     "term-tooltip.js": ASSET_VERSION,
     "ai-launcher.js": "4",
@@ -2793,7 +2794,7 @@ def render_markdown(source: Path, *, output: Path | None = None, raw: str | None
         page_heading, body = heading_match.groups()
     else:
         page_heading = f"<h1>{html.escape(source.stem)}</h1>"
-    css_href = web_rel(output, ROOT / "assets" / "site.css") + f"?v={ASSET_VERSION}"
+    css_href = web_rel(output, ROOT / "assets" / "site.css") + f"?v={SITE_CSS_VERSION}"
     js_href = web_rel(output, ROOT / "assets" / "site.js") + f"?v={SITE_JS_VERSION}"
     ai_asset_base = web_rel(output, ROOT / "assets")
     ai_css_href = ai_asset_base + "/ai-launcher.css?v=5"
@@ -2834,7 +2835,6 @@ def render_markdown(source: Path, *, output: Path | None = None, raw: str | None
             f'<span aria-hidden="true">›</span><span aria-current="page">{html.escape(collection.topic)}专题</span></nav>'
         )
         visual_embed = solution_visual_frame(collection.demo_href, title)
-        progress_js_href = progress_js_href.split("?")[0] + "?v=20261118-collections"
         js_href = js_href.split("?")[0] + "?v=20261118-collections"
     else:
         visual_embed = render_visual_embed(source, output, title)

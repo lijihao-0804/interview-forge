@@ -290,6 +290,7 @@ from interview_forge.core.client_ip import client_ip as resolve_client_ip
 from interview_forge.core.runtime import server_runtime
 from interview_forge.core.web_access import (
     canonical_url_path,
+    hot200_demo_embed_url,
     is_admin_path,
     is_public_get,
     is_sensitive_path,
@@ -1109,7 +1110,11 @@ class StudyHandler(SimpleHTTPRequestHandler):
         # 内嵌内容同样只注入导航策略，否则外层壳页与 iframe 内各有一套 fixed 定位的
         # 认证胶囊/反馈球，会在右下角叠成两层。
         if decoded_path.lower().endswith(".html"):
-            embedded = parse_qs(parsed.query).get("embedded") == ["1"]
+            params = parse_qs(parsed.query)
+            demo_embed = hot200_demo_embed_url(decoded_path, params.get("embed", [None])[-1])
+            embedded = params.get("embedded") == ["1"] or (
+                demo_embed and self.headers.get("Sec-Fetch-Dest") == "iframe"
+            )
             if self.serve_html_with_widget(
                 decoded_path,
                 navigation_only=embedded or decoded_path.startswith("/books/hot100/05-可视化/"),
