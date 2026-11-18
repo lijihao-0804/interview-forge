@@ -148,7 +148,8 @@ async function boot(server, tab = storage(), local = storage(), embedded = false
 
 async function lostDoneAndNewTurn() {
   const server = backend(), ui = await boot(server);
-  const sources = [{ title: "题解", url: "/books/lru.html" }];
+  const sources = [{ title: "旧题解", url: "/books/lru.html" },
+    { title: "链表", url: "/books/list.html", body_match: "双向-链表" }];
   server.post = ({ message }) => {
     server.rows = [{ role: "user", content: message }, { role: "assistant", content: "已保存",
       metadata: { stream_message_id: "original", library_sources: sources } }];
@@ -162,6 +163,8 @@ async function lostDoneAndNewTurn() {
   assert.deepEqual(ui.bubbles(), ["一道题", "<p>已保存</p>"]);
   assert.equal(ui.get("messages").querySelectorAll(".action-card").length, 1);
   assert.equal(ui.get("messages").querySelector("a").href, "/books/lru.html");
+  assert.equal(ui.get("messages").querySelector("ol").querySelectorAll("a")[1].href,
+    "/books/list.html#:~:text=" + encodeURIComponent("双向") + "%2D" + encodeURIComponent("链表"));
   assert.equal(server.posts.length, 1);
   assert.equal(server.lookups[0].key, JSON.parse(server.posts[0].body).client_request_id);
   await ui.submit("一道题");

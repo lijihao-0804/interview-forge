@@ -243,16 +243,21 @@ def _load_search_index() -> list[dict]:
     return _SEARCH_INDEX
 
 
-def search_index_server(query: str) -> list[dict[str, object]]:
-    items, _total = search_index_server_with_count(query)
+def search_index_server(query: str, *, all_terms: bool = False) -> list[dict[str, object]]:
+    items, _total = search_index_server_with_count(query, all_terms=all_terms)
     return items
 
 
-def search_index_server_with_count(query: str) -> tuple[list[dict[str, object]], int]:
+def indexed_chapter(index_url: str) -> dict | None:
+    return next((entry for entry in _load_search_index() if entry.get("url") == index_url), None)
+
+
+def search_index_server_with_count(query: str, *, all_terms: bool = False) -> tuple[list[dict[str, object]], int]:
     """Return the bounded search page plus the complete match count."""
     q = query.strip().lower()
     if not q:
         return [], 0
+    terms = list(dict.fromkeys(q.split())) if all_terms else []
     hits = []
     for entry in _load_search_index():
         title = str(entry.get("title", "")).lower()
@@ -260,14 +265,22 @@ def search_index_server_with_count(query: str) -> tuple[list[dict[str, object]],
         body = str(entry.get("text", ""))
         text = body.lower()
         score = 3 if q in title else 2 if q in mod else 1 if q in text else 0
+        body_match = q if q in text else ""
+        if not score and 2 <= len(terms) <= 6 and all(
+            term in title or term in mod or term in text for term in terms
+        ):
+            score = (1 + sum(term in title for term in terms) / len(terms)) / 3
+            body_match = max((term for term in terms if term in text), key=len, default="")
         if score:
             snippet = ""
-            if q in text:
-                index = text.find(q)
+            if body_match:
+                index = text.find(body_match)
                 start = max(0, index - 64)
-                end = min(len(body), index + len(q) + 80)
+                end = min(len(body), index + len(body_match) + 80)
                 snippet = ("…" if start else "") + body[start:end].strip() + ("…" if end < len(body) else "")
             hits.append({"id": entry.get("id"), "title": entry.get("title"), "url": entry.get("url"), "module_title": entry.get("module_title"), "snippet": snippet, "s": score})
+            if all_terms:
+                hits[-1]["body_match"] = body_match
     hits.sort(key=lambda x: -x["s"])
     return hits[:60], len(hits)
 

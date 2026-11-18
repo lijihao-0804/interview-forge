@@ -55,6 +55,7 @@ def chat(client, url, payload):
                 if k in usage
             },
             "errors": errors,
+            "library_sources": done.get("library_sources", []),
             "confirmations": [
                 item["action_id"]
                 for name, item in events
@@ -134,6 +135,18 @@ def run_cases(client, db, service, show_answers):
             BEGIN INSERT INTO eval_mark_writes VALUES('delete'); END;
         """)
     cases = [
+        (
+            "library",
+            "请在本站书架里用“LRU 双向链表”作为一个查询，找同时涉及这两个概念的一章，说明里面讲了什么。",
+            ["search_library"],
+            [r"LRU", r"链表"],
+        ),
+        (
+            "library_followup",
+            "请回读刚才“本轮检索资料”卡片的第 1 项，告诉我该章标题和当前索引片段里提到的办法。",
+            ["search_library"],
+            [],
+        ),
         ("memory", "记住我喜欢用 Python。", [], []),
         (
             "editor",
@@ -213,6 +226,19 @@ def run_cases(client, db, service, show_answers):
                 re.search(p, answer, re.IGNORECASE | re.DOTALL) for p in patterns
             ),
         }
+        if label == "library":
+            sources = result["library_sources"]
+            first_library_url = sources[0]["url"] if sources else None
+            checks["locatable_source"] = any(
+                s.get("body_match") and s.get("url", "").startswith(("/library/", "/books/"))
+                for s in sources
+            )
+            history = client.get(f"/api/chat/sessions/{session}/messages").json()["items"]
+            checks["source_persisted"] = bool(sources) and history[-1]["metadata"].get("library_sources") == sources
+        if label == "library_followup":
+            sources = result["library_sources"]
+            checks["same_chapter"] = bool(first_library_url and len(sources) == 1 and
+                                          sources[0]["url"] == first_library_url and sources[0]["title"] in answer)
         if label in {"memory", "editor", "followup"}:
             client.portal.call(settle_memory)
             memories = MemoryStore().list_active(user_db=db)

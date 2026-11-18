@@ -31,6 +31,7 @@ class LibrarySource(TypedDict):
     title: str
     module_title: str
     url: str
+    body_match: str
 
 
 @dataclass(frozen=True)

@@ -444,17 +444,26 @@
 
   function renderLibrarySources(content, sources) {
     if (!Array.isArray(sources) || !sources.length || content.querySelector(".library-sources")) return;
-    var links = document.createElement("ul");
+    var links = document.createElement("ol");
     sources.forEach(function (source) {
       var url = source && librarySourceUrl(source.url);
       if (!url || typeof source.title !== "string" || !source.title) return;
       var link = document.createElement("a");
       link.href = url;
+      if (typeof source.body_match === "string" && source.body_match.length && source.body_match.length <= 120) {
+        link.href += "#:~:text=" + encodeURIComponent(source.body_match).replace(/-/g, "%2D");
+        link.title = "在章节正文中定位“" + source.body_match + "”";
+      }
       link.target = "_blank";
       link.rel = "noopener noreferrer";
       link.textContent = (source.module_title ? source.module_title + " · " : "") + source.title;
       var row = document.createElement("li");
       row.appendChild(link);
+      if (source.body_match === "") {
+        var note = document.createElement("span");
+        note.textContent = "（章节入口）";
+        row.appendChild(note);
+      }
       links.appendChild(row);
     });
     if (!links.childElementCount) return;

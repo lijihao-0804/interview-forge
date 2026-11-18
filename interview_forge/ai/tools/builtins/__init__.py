@@ -69,7 +69,7 @@ def register_builtin_tools(registry: ToolRegistry) -> ToolRegistry:
     registry.register(ToolSpec(
         name="search_library",
         display_name="站内书架",
-        description="按关键词查询站内书架的章节与题页，返回匹配标题、站内链接及可用的索引片段。用户询问站内出处或希望找相关阅读时使用。",
+        description="按 query 搜索本站章节，多个概念用空格分隔。用户指刚才书架列表中的第几项时，按 previous_source 序号读取该章当前的索引片段。",
         args_model=SearchLibraryArgs,
         handler=search_library,
         timeout_seconds=4.0,

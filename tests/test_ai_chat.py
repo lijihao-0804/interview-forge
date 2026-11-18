@@ -114,7 +114,8 @@ class LibrarySearchModel(FakeAsyncModel):
         ]
         if not self.observations:
             yield FakeChunk(tool_calls=[
-                {"id": f"lookup-{i}", "name": "search_library", "args": {"query": query, "limit": 1}}
+                {"id": f"lookup-{i}", "name": "search_library",
+                 "args": query if isinstance(query, dict) else {"query": query, "limit": 1}}
                 for i, query in enumerate(self.queries)
             ])
         elif self.fail_after_search:
@@ -501,7 +502,7 @@ class AIChatContractTests(unittest.TestCase):
         self.assertTrue(observed[0]["snippet"])
         self.assertEqual(observed[2]["url"], observed[0]["url"])
         sources = events[-1][1]["library_sources"]
-        self.assertEqual(sources, [{k: hit[k] for k in ("url", "title", "module_title")} for hit in observed[:2]])
+        self.assertEqual(sources, [{k: hit[k] for k in ("url", "title", "module_title", "body_match")} for hit in observed[:2]])
         self.assertNotIn(observed[0]["snippet"], json.dumps(events, ensure_ascii=False))
         items = self.client.get(base + "/messages").json()["items"]
         self.assertEqual(items[1]["metadata"]["library_sources"], sources)
@@ -514,7 +515,15 @@ class AIChatContractTests(unittest.TestCase):
             self.assertEqual(replayed[-1], events[-1])
             self.assertEqual(replayed[1], ("message.delta", {"delta": items[1]["content"]}))
             self.assertEqual(self.client.get(base + "/messages").json()["items"], items)
-
+        recall = LibrarySearchModel({"previous_source": 2})
+        self.service.model_factory = lambda _config: recall
+        events = parse_sse(self.client.post(base + "/stream", json={"message": "请回读资料卡第2项"}).text)
+        self.assertEqual(events[-1][1]["library_sources"], [sources[1]])
+        self.assertEqual(recall.observations[0]["data"]["edition"], "current_index")
+        self.assertTrue(recall.observations[0]["data"]["items"][0]["snippet"])
+        other = self.client.post("/api/chat/sessions", json={}).json()["id"]
+        parse_sse(self.client.post(f"/api/chat/sessions/{other}/stream", json={"message": "资料卡第2项"}).text)
+        self.assertEqual(recall.observations[0]["data"]["reason"], "previous_source_missing")
         self.service.model_factory = lambda _config: self.model  # Next turn has no tool binding.
         events = parse_sse(self.client.post(base + "/stream", json={"message": "书架有哪章讲事务？"}).text)
         self.assertTrue(events[-1][1]["usage"]["tooling_unavailable"])

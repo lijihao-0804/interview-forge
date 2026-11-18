@@ -18,11 +18,12 @@ CONTEXT = ToolExecutionContext(Path("unused.db"), "session", "turn", 1, "找站�
 
 class LibrarySearchTests(TestCase):
     def test_canonical_arguments_and_server_owned_fields(self):
-        self.assertEqual(SearchLibraryArgs(query=" TCP ").model_dump(), {"query": "tcp", "limit": 3})
+        self.assertEqual(SearchLibraryArgs(query=" TCP ").model_dump(exclude_none=True), {"query": "tcp", "limit": 3})
         for args in (
             {}, {"query": "  "}, {"query": "x" * 121}, {"query": "tcp", "limit": 4},
             {"query": "tcp", "limit": 0}, {"query": "tcp", "limit": True},
             {"query": "tcp", "user_db": "unused.db"}, {"query": "tcp", "path": "books"},
+            {"query": "tcp", "previous_source": 1}, {"previous_source": 0}, {"previous_source": True},
         ):
             with self.subTest(args=args), self.assertRaises(ValidationError):
                 SearchLibraryArgs.model_validate(args)
@@ -48,10 +49,23 @@ class LibrarySearchTests(TestCase):
         self.assertLess(len(items[2]["snippet"]), 201)
         self.assertNotIn(long_body, str(result))
         self.assertEqual(result.library_sources, tuple(
-            {k: item[k] for k in ("title", "module_title", "url")} for item in items
+            {k: item[k] for k in ("title", "module_title", "url", "body_match")} for item in items
         ))
+        self.assertEqual([item["body_match"] for item in items], ["", "", "lru"])
         self.assertEqual(missing.data, {"items": []})
         self.assertEqual(missing.library_sources, ())
+
+    def test_compound_concepts_require_every_term_and_prefer_exact_phrase(self):
+        rows = [
+            {"url": "m/a.html", "title": "LRU", "text": "通过双向链表维护顺序"},
+            {"url": "m/b.html", "title": "双向链表", "text": "节点的删除"},
+            {"url": "m/c.html", "title": "专题", "text": "LRU 双向链表的实现"},
+        ]
+        with patch.object(community, "_SEARCH_INDEX", rows):
+            result = search_library(CONTEXT, SearchLibraryArgs(query="LRU 双向链表"))
+            self.assertEqual(len(community.search_index_server("LRU 双向链表")), 1)
+        self.assertEqual([s["body_match"] for s in result.library_sources], ["lru 双向链表", "双向链表"])
+        self.assertIn("维护顺序", result.data["items"][1]["snippet"])
 
     def test_invalid_index_destinations_cannot_become_references(self):
         urls = [
