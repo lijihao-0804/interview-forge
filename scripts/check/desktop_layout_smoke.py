@@ -54,7 +54,7 @@ def run(output: Path) -> None:
         for pid in [1,49,128]:
             record_view(pid, db_path=db)
             toggle_favorite("problem", str(pid), db_path=db)
-        user = {"id": 987653, "username": "desktop_smoke", "nickname": "桌面验证", "lang": "java", "role": "admin"}
+        user = {"id": 987653, "username": "desktop_smoke", "email": "", "nickname": "桌面验证", "lang": "java", "role": "admin"}
         for module in ("support", "routers.auth", "routers.static"):
             stack.enter_context(patch(f"interview_forge.api.{module}.current_user", return_value=user))
         stack.enter_context(patch("interview_forge.api.routers.study.user_db", return_value=db))
@@ -62,7 +62,7 @@ def run(output: Path) -> None:
         stack.enter_context(patch("interview_forge.api.routers.static._record_view"))
         client = stack.enter_context(TestClient(app, raise_server_exceptions=False))
         pw = stack.enter_context(sync_playwright())
-        browser = pw.chromium.launch(args=["--no-sandbox", "--no-zygote", "--single-process"])
+        browser = pw.chromium.launch()
         context = browser.new_context(service_workers="block", locale="zh-CN", reduced_motion="reduce")
         page = context.new_page()
         page.on("pageerror", lambda error: page_errors.append({"url": page.url, "error": str(error)}))
@@ -109,8 +109,22 @@ def run(output: Path) -> None:
                 if name in ("chapter","solution"):
                     assert metrics["readerWidth"] <= 1000, (name,width,metrics)
                     if width >= 1920: assert metrics["rails"] >= 2, (name,width,metrics)
-                if name in ("library","catalog") and width>=1920:
+                if name == "library" and width>=1920:
                     assert 1500 < metrics["shellWidth"] <= 1841, (name,width,metrics)
+                if name == "catalog" and width>=1920:
+                    assert width * .95 < metrics["shellWidth"] < width, (name,width,metrics)
+                    layout = page.evaluate("""() => {
+                      const bounds = selector => document.querySelector(selector).getBoundingClientRect();
+                      const weak = bounds('#weakness'), mock = bounds('#practice'), plot = bounds('#heatmap');
+                      const cells = [...document.querySelectorAll('#heatmap .hm-cell')];
+                      return {stacked: mock.top >= weak.bottom && Math.abs(mock.width - weak.width) < 1,
+                        columns: getComputedStyle(document.querySelector('#grid')).gridTemplateColumns.split(' ').length,
+                        plotWidth: plot.width, rightGap: plot.right - Math.max(...cells.map(c => c.getBoundingClientRect().right))};
+                    }""")
+                    assert layout['stacked'] and layout['plotWidth'] > width * .9, (width,layout)
+                    assert abs(layout['rightGap']) < 1, (width,layout)
+                    if width == 2560:
+                        assert layout['columns'] == 7, (width,layout)
                 if width in (1920,2560) or (width==390 and name in ("library","chapter","chat","history","favorites")):
                     page.screenshot(path=str(output / f"{name}-{width}.png"))
             print(f"PASS {width}×{height}: {len(PAGES)} pages",flush=True)
