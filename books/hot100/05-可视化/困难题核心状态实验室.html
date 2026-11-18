@@ -793,6 +793,34 @@ var S4 = [
   { label: "A 整体比 B 大：切口会被推到 i=0 的边界", a: [30, 40, 50], b: [1, 2, 3, 4] }
 ];
 
+// 堆按层序存储。插入沿父节点上浮，删除堆顶后用末项填洞并下沉。
+function heapPush(heap, value, before) {
+  var index = heap.length;
+  heap.push(value);
+  while (index > 0) {
+    var parent = Math.floor((index - 1) / 2);
+    if (!before(value, heap[parent])) break;
+    heap[index] = heap[parent];
+    index = parent;
+  }
+  heap[index] = value;
+  return index;
+}
+function heapPop(heap, before) {
+  var top = heap[0], last = heap.pop();
+  if (!heap.length) return top;
+  var index = 0;
+  while (2 * index + 1 < heap.length) {
+    var child = 2 * index + 1;
+    if (child + 1 < heap.length && before(heap[child + 1], heap[child])) child++;
+    if (!before(heap[child], last)) break;
+    heap[index] = heap[child];
+    index = child;
+  }
+  heap[index] = last;
+  return top;
+}
+
 var DEMOS = {
 
   "0239": {
@@ -1021,33 +1049,6 @@ var DEMOS = {
       function largerFirst(a, b) { return a > b; }
       function smallerFirst(a, b) { return a < b; }
 
-      // 堆按层序存储。插入时沿父节点上浮，删除堆顶时用末项填洞并下沉。
-      function heapPush(heap, value, before) {
-        var index = heap.length;
-        heap.push(value);
-        while (index > 0) {
-          var parent = Math.floor((index - 1) / 2);
-          if (!before(value, heap[parent])) break;
-          heap[index] = heap[parent];
-          index = parent;
-        }
-        heap[index] = value;
-        return index;
-      }
-      function heapPop(heap, before) {
-        var top = heap[0], last = heap.pop();
-        if (!heap.length) return top;
-        var index = 0;
-        while (2 * index + 1 < heap.length) {
-          var child = 2 * index + 1;
-          if (child + 1 < heap.length && before(heap[child + 1], heap[child])) child++;
-          if (!before(heap[child], last)) break;
-          heap[index] = heap[child];
-          index = child;
-        }
-        heap[index] = last;
-        return top;
-      }
       function median() {
         return low.length === high.length ? (low[0] + high[0]) / 2 : low[0];
       }
@@ -1479,7 +1480,7 @@ var DEMOS = {
       var pos = lists.map(function () { return 0; });
       var heap = [], out = [];
 
-      function sortHeap() { heap.sort(function (p, q) { return p.v - q.v || p.i - q.i; }); }
+      function first(p, q) { return p.v < q.v || (p.v === q.v && p.i < q.i); }
       function V(note, hotList) {
         var rows = lists.map(function (list, li) {
           return {
@@ -1507,7 +1508,7 @@ var DEMOS = {
 
       for (var i = 0; i < K; i++) {
         if (lists[i].length) {
-          heap.push({ v: lists[i][0], i: i }); sortHeap();
+          heapPush(heap, {v: lists[i][0], i: i}, first);
           ctx.phase("enqueue", "① L" + (i + 1) + " 派出队头 " + lists[i][0] + " 进堆。", V(null, i), { line: 2 });
         } else {
           ctx.step("① L" + (i + 1) + " 是空链表，没有代表可派，跳过。", V(null, i), { line: 2 });
@@ -1517,17 +1518,16 @@ var DEMOS = {
       ctx.step("初始化结果链表：用一个 dummy 头节点，tail 指着它。这样「接第一个节点」和「接后面的节点」写法完全一样，省掉特判。",
         V("dummy 哨兵是链表题的通用减负技巧。"), { line: 3 });
 
-      var guard = 0;
-      while (heap.length && guard++ < 400) {
-        var x = heap.shift();
-        ctx.phase("dequeue", "② 弹出堆顶 " + x.v + "（来自 L" + (x.i + 1) + "）。它比堆里其他 K−1 个代表都小，而每条链表剩下的节点又都 ≥ 自己的代表 —— 所以它是全局最小，可以放心输出。",
+      while (heap.length) {
+        var x = heapPop(heap, first);
+        ctx.phase("dequeue", "② 弹出堆顶 " + x.v + "（来自 L" + (x.i + 1) + "）。其余非空链的队头都 ≥ 它，每条链的后续节点也 ≥ 自己的队头，因此可以输出。",
           V("这一句推理是整道题的正确性所在。", x.i), { line: 5 });
 
         out.push(x.v); pos[x.i]++;
         ctx.step("③ 把 " + x.v + " 接到结果尾部：tail.next = x; tail = x。", V(null, x.i), { line: 6 });
 
         if (pos[x.i] < lists[x.i].length) {
-          heap.push({ v: lists[x.i][pos[x.i]], i: x.i }); sortHeap();
+          heapPush(heap, {v: lists[x.i][pos[x.i]], i: x.i}, first);
           ctx.phase("enqueue", "④ L" + (x.i + 1) + " 还有货，把新队头 " + lists[x.i][pos[x.i]] + " 补进堆，维持「每条链表一个代表」。",
             V(null, x.i), { line: 7 });
         } else {

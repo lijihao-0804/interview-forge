@@ -237,7 +237,8 @@ def compare_output(pid, index, label, result):
                 raise ValueError("cycle in final linked list")
             chain.append(int(node))
             node = edges[node]
-        return chain, [2,1,4,3,5]
+        caption = numbers(match(r"读取结果为 ([\d →]+)", end))
+        return [chain,caption], [[2,1,4,3,5],[2,1,4,3,5]]
     if pid in (23,25,206):
         pattern, expected = {
             23: (r"合并结果：([\d →]+)", [[1,1,2,3,4,4,5,6],list(range(1,10)),[1,2,3,5]]),

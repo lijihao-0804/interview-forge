@@ -128,6 +128,8 @@ GRAPH_SEQUENCE = """async pid => {
     ).filter(r => r.length);
     const initial = description(), descriptions = new Set();
     const inputBars = bars(), inputMatrix = matrix(), history = [];
+    const shapes = new Set();
+    let constructed = 0, filledCells = 0;
     const faults = [], footprint = new Map();
     const toolbarFits = () => next.parentElement.getBoundingClientRect().bottom + scrollY <= innerHeight + 2;
     async function settleToolbar() {
@@ -141,6 +143,28 @@ GRAPH_SEQUENCE = """async pid => {
         const why = description() || '';
         if (['146','155','295','141'].includes(pid)) history.push(why);
         if (!why) faults.push('empty explanation at step ' + count);
+        if (pid === '105' || pid === '108') {
+            const attached = why.match(/(?:现在树上有|树上已有) (\\d+) 个节点/);
+            if (attached) {
+                constructed++;
+                const n = stage().querySelectorAll('svg g:has(>circle)').length;
+                if (n !== Number(attached[1])) faults.push('tree shows ' + n +
+                    ' nodes when the explanation has attached ' + attached[1]);
+            }
+        }
+        if (pid === '114' || pid === '226') {
+            const labels = [...stage().querySelectorAll('svg g:has(>circle)')].map(g => {
+                const c = g.querySelector('circle');
+                return [g.querySelector('text').textContent,c.getAttribute('cx'),c.getAttribute('cy')];
+            });
+            shapes.add(JSON.stringify(labels));
+        }
+        if (pid === '64') {
+            const cells = matrix().flat().length;
+            if (cells < filledCells || cells > filledCells + 1)
+                faults.push('DP table reveals future values at step ' + count);
+            filledCells = cells;
+        }
         descriptions.add(why.replace(/^\\d+\\.\\s*/, ''));
         const current = status();
         count++;
@@ -170,6 +194,8 @@ GRAPH_SEQUENCE = """async pid => {
     await settled();
     if (!await settleToolbar()) footprint.set('toolbar', 'final toolbar extends beyond iframe');
     if (!stage()) faults.push('no graphical stage');
+    if ((pid === '105' || pid === '108') && constructed < 3) faults.push('missing incremental tree states');
+    if ((pid === '114' || pid === '226') && shapes.size < 3) faults.push('tree structure never progressed');
     if (count > 1 && descriptions.size < 2) faults.push('explanation never changed');
     const descNode = visible('.dk-desc');
     if (descNode && descNode.scrollHeight > descNode.clientHeight + 2)

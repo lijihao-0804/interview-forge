@@ -174,6 +174,35 @@ function lineNumbers(opts) {
   return Array.isArray(l) ? l : [l];
 }
 
+function checkRecordedFrames(cfg, steps, size, where, problems) {
+  const id = Number(cfg.no);
+  if (id === 23) {
+    const expected = size.lists.flat().sort((a, b) => a - b);
+    const emitted = steps[steps.length - 1].view.out;
+    if (JSON.stringify(emitted) !== JSON.stringify(expected)) problems.push(where + " 合并链漏项或乱序");
+    for (const {view} of steps) {
+      const heap = view.rows.find(row => row.name === "最小堆").cells;
+      if (heap.some((cell, index) => index > 0 && heap[Math.floor((index - 1) / 2)].v > cell.v)) {
+        problems.push(where + " 中间帧破坏最小堆父子关系");
+        break;
+      }
+    }
+  }
+  if (id === 105 || id === 108) {
+    function count(n) { return n ? 1 + count(n.left) + count(n.right) : 0; }
+    if (steps.some(s => count(s.view.tree) !== s.view.built)) problems.push(where + " 提前显示尚未接入的树节点");
+  }
+  if (id === 114 || id === 226) {
+    if (new Set(steps.map(s => JSON.stringify(s.view.tree))).size < 3) problems.push(where + " 树形操作缺少中间状态");
+  }
+  if (id === 64) {
+    const counts = steps.map(s => s.view.table.flat().filter(cell => typeof cell.v === "number").length);
+    if (counts[0] !== 0 || counts.some((n, i) => i && (n < counts[i-1] || n > counts[i-1] + 1))) {
+      problems.push(where + " DP 表提前显示尚未计算的数值");
+    }
+  }
+}
+
 function checkDemo(file, cfg, problems) {
   const where = `${file} #${cfg.no || cfg.title || "?"}`;
   try {
@@ -183,7 +212,13 @@ function checkDemo(file, cfg, problems) {
   }
   const maxLine = codeLineCount(cfg.code, problems, where);
   // 引擎把整个 size 对象（{label, value}）交给 build，这里保持一致。
-  const sizes = (cfg.sizes && cfg.sizes.length ? cfg.sizes : [null]);
+  const sizes = (cfg.sizes && cfg.sizes.length ? cfg.sizes : [null]).slice();
+  if (Number(cfg.no) === 23) {
+    // Longer than the previous 400-pop limit, with empty lists and tied heads.
+    sizes.push({label: "空链和重复值共 406 个节点", lists: [
+      [], Array.from({length: 203}, (_,i) => i), Array.from({length: 203}, (_,i) => i)
+    ]});
+  }
 
   sizes.forEach((size) => {
     const tag = size ? (size.label || size.value) : "默认";
@@ -197,6 +232,7 @@ function checkDemo(file, cfg, problems) {
     if (steps.length < MIN_STEPS) {
       problems.push(`${where} [size=${tag}]: 只有 ${steps.length} 步，少于 ${MIN_STEPS} 步`);
     }
+    checkRecordedFrames(cfg, steps, size, where + " [" + tag + "]", problems);
     steps.forEach((s, i) => {
       if (!s.view || typeof s.view !== "object") {
         problems.push(`${where} [size=${tag}] 第 ${i + 1} 步缺少 view`);

@@ -26,9 +26,10 @@ def test_placeholder_or_unresolved_return_cannot_pass(pid, end):
 
 
 def test_pair_swap_uses_rendered_next_fields_even_when_the_caption_claims_success():
-    result = {"end": "完成，结果 2 → 1 → 4 → 3 → 5。",
+    result = {"end": "完成，读取结果为 2 → 1 → 4 → 3 → 5。",
               "state": "dummy.next → 2\n1.next → 3\n2.next → 4\n3.next → 5\n4.next → 3\n5.next → null"}
-    assert compare_output(24, 0, "默认", result) == ([2,4,3,5], [2,1,4,3,5])
+    assert compare_output(24, 0, "默认", result) == (
+        [[2,4,3,5], [2,1,4,3,5]], [[2,1,4,3,5], [2,1,4,3,5]])
 
 
 def test_random_cases_recompute_the_oracle_from_the_visible_input():
