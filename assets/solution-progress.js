@@ -6,6 +6,16 @@
   var problemId = Number(panel.getAttribute("data-problem-id"));
   var moduleId = panel.dataset.moduleId || "hot100";
   var supplement = moduleId === "hot200-extra";
+  var official = document.querySelector('.reader-card a[href^="https://leetcode.cn/problems/"]');
+  if (official && problemId > 0) {
+    var practice = document.createElement("a");
+    practice.href = "/books/ai-exam/acm-playground.html?id=" + (supplement ? "hot200-" : "hot100-") + problemId;
+    var language = new URLSearchParams(location.search).get("lang");
+    if (language === "java" || language === "python") practice.href += "&lang=" + language;
+    practice.textContent = "本站 ACM 练习";
+    practice.dataset.navigationPolicy = "user-preference";
+    official.after(document.createTextNode(" · "), practice);
+  }
   var targetType = supplement ? "content" : "problem";
   var targetId = panel.dataset.contentId || String(problemId);
   var progressPath = (supplement ? "/api/hot200-extra/problem/" : "/api/problem/") + problemId + "/progress";

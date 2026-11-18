@@ -10,17 +10,25 @@ class Element {
   appendChild(el) { this.children.push(el); }
   replaceChildren() { this.children=[]; }
   focus() {}
+  before() {}
   setAttribute(key, value) { this.attrs[key]=value; }
   getAttribute(key) { return this.attrs[key] || ''; }
 }
-async function setup(responses, {guest=false, mode='tokens', samples=3, search='?id=one&lang=python', saved=new Map()}={}) {
+async function setup(responses, {guest=false, mode='tokens', samples=3, search='?id=one&lang=python', saved=new Map(), progress={username:'alice',statuses:{}}, missing=false, historyCalls=[]}={}) {
   const elements = new Map();
   const get = id => { if(!elements.has(id)) elements.set(id,new Element()); return elements.get(id); };
   const item = {id:'one',title:'测试题',url:'one.html',suite_version:'test',checker:{mode,reason:'多解'},codes:{python:'print(1)',java:'public class Main {}'},samples:Array.from({length:samples},(_,i)=>({input:String(i),expected:String(i),name:'边界'+i,source:i?'supplemental':'statement'}))};
+  const native = search.includes('id=hot100-');
+  if (native) {
+    item.id = 'hot100-1';
+    item.solution_url = '/books/hot100/solution.html';
+    delete item.codes;
+  }
   let initialize, requests=[], prompts=0;
+  const events = {};
   const storage = {getItem:key=>saved.get(key) ?? null,setItem:(key,value)=>saved.set(key,String(value)),removeItem:key=>saved.delete(key)};
-  const document = {readyState:'loading', documentElement:new Element(), getElementById:get, createElement:()=>new Element(), addEventListener:(n,cb)=>{if(n==='DOMContentLoaded')initialize=cb;}};
-  const window = {InterviewForgePracticeChecker:checker,InterviewForgeAcmTemplates:templates,addEventListener:()=>{},matchMedia:()=>({matches:false}),setTimeout,clearTimeout,
+  const document = {readyState:'loading', documentElement:new Element(), getElementById:get, createElement:()=>new Element(), addEventListener:(n,cb)=>{events[n]=cb;if(n==='DOMContentLoaded')initialize=cb;}};
+  const window = {InterviewForgePracticeChecker:checker,InterviewForgeAcmTemplates:templates,addEventListener:(n,cb)=>{events[n]=cb;},matchMedia:()=>({matches:false}),setTimeout,clearTimeout,
     InterviewForgeAuth:{ready:true,requireUser:async()=>{prompts++;if(guest)throw Object.assign(Error('login'),{code:'AUTH_REQUIRED'});},fetchProtected:async(url,options)=>{
       requests.push(JSON.parse(options.body));
       const response=responses.shift();
@@ -29,7 +37,16 @@ async function setup(responses, {guest=false, mode='tokens', samples=3, search='
       return {ok:response.http==null || response.http===200,status:response.http||200,json:async()=>response};
     }}};
   const sandbox = {window,document,localStorage:storage,sessionStorage:storage,location:{search,href:'https://test/acm'+search},history:{replaceState:()=>{}},URL,URLSearchParams,AbortController,Promise,Error,String,Number,Object,Array,setTimeout,clearTimeout,
-    fetch:async()=>({ok:true,json:async()=>[item]})};
+    fetch:async url=>{
+      if (url.includes('/history/')) {
+        historyCalls.push(url);
+        const detail = url.endsWith('/42');
+        return {ok:true,json:async()=>detail ? {username:'alice',code:'older code'} :
+          {username:'alice',submissions:[{id:42,language:'python',accepted:false,submitted_at:'2026-11-18T01:00:00Z'}]}};
+      }
+      if (url.endsWith('/status')) return {ok:!!progress.username,status:progress.username ? 200 : 401,json:async()=>progress};
+      return {ok:!missing,json:async()=>native ? item : [item]};
+    }};
   vm.runInNewContext(fs.readFileSync(require.resolve('../assets/practice-reference.js'),'utf8'),sandbox);
   await initialize();
   function change(id, value, event='change') {
@@ -37,7 +54,7 @@ async function setup(responses, {guest=false, mode='tokens', samples=3, search='
     el.value=value;
     el.listeners[event].call(el);
   }
-  return {get,requests,change,prompts:()=>prompts,click:async id=>get(id).listeners.click()};
+  return {get,requests,change,events,prompts:()=>prompts,click:async id=>get(id).listeners.click()};
 }
 (async()=>{
   let ui=await setup([{status:'ok',stdout:'0'},{status:'ok',stdout:'999'},{status:'ok',stdout:'2'}]);
@@ -153,6 +170,59 @@ async function setup(responses, {guest=false, mode='tokens', samples=3, search='
   assert.equal(ui.get('suite-results').children.length,3);
   ui.change('template-select','array');
   assert.equal(ui.get('suite-results').children.length,0,'switching templates clears the previous suite');
+
+  const nativeStorage = new Map();
+  ui=await setup([{accepted:true,results:[{verdict:'pass'},{verdict:'pass'},{verdict:'pass'}]}],
+    {search:'?id=hot100-1&lang=python',saved:nativeStorage});
+  assert.match(ui.get('code-editor').value,/json.loads/);
+  assert.match(ui.get('judge-all-btn').textContent,/提交评测/);
+  await ui.click('judge-all-btn');
+  assert.equal(ui.requests.length,1);
+  assert.equal(ui.requests[0].id,'hot100-1');
+  assert.strictEqual(ui.requests[0].samples,undefined);
+  assert.match(ui.get('run-status').textContent,/已通过/);
+  assert(nativeStorage.has('interviewforge.acm.updated'));
+
+  const progress = {username:'alice',statuses:{1:'accepted'}};
+  ui=await setup([{accepted:false,results:[{verdict:'fail'}]}],{search:'?id=hot100-1',progress});
+  assert.match(ui.get('native-progress').textContent,/已通过/);
+  await ui.click('judge-all-btn');
+  assert.match(ui.get('native-progress').textContent,/已通过/);
+  assert.match(ui.get('run-status').textContent,/本次提交未通过/);
+  progress.username='bob';progress.statuses={};
+  await ui.events.focus();
+  assert.match(ui.get('native-progress').textContent,/未做/);
+  assert.equal(ui.get('suite-summary').textContent,'');
+  progress.username='';
+  await ui.events.pageshow();
+  assert.match(ui.get('native-progress').textContent,/登录后查看/);
+  progress.username='carol';progress.statuses={1:'attempted'};
+  ui.events['interviewforge:auth-change']();
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.match(ui.get('native-progress').textContent,/已尝试/);
+  ui=await setup([],{search:'?id=hot100-9999',missing:true});
+  assert.equal(ui.get('judge-all-btn').disabled,true);
+  assert.equal(ui.get('run-btn').disabled,true);
+  assert.match(ui.get('context-notice').textContent,/题目不存在/);
+  assert.equal(ui.get('code-editor').value,'');
+
+  const historyCalls=[];
+  ui=await setup([{accepted:false,results:[{verdict:'fail'}]}],{search:'?id=hot100-1',historyCalls});
+  assert.equal(historyCalls.length,0);
+  ui.change('code-editor','current draft','input');
+  const historyPanel=ui.get('native-history');
+  historyPanel.open=true;
+  await historyPanel.listeners.toggle();
+  assert.deepEqual(historyCalls,['/api/practice/hot100/history/hot100-1']);
+  const entry=ui.get('native-history-list').children[0];
+  entry.open=true;
+  await entry.listeners.toggle();
+  assert.match(entry.children[0].textContent,/Python · 未通过/);
+  assert.equal(entry.children[1].textContent,'older code');
+  assert.equal(ui.get('code-editor').value,'current draft');
+  await ui.click('judge-all-btn');
+  assert.deepEqual(historyCalls,['/api/practice/hot100/history/hot100-1','/api/practice/hot100/history/hot100-1/42','/api/practice/hot100/history/hot100-1']);
+  assert.equal(ui.get('code-editor').value,'current draft');
 
   console.log('ACM full-suite UI behavior passed');
 })().catch(error=>{console.error(error);process.exitCode=1;});

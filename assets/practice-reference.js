@@ -20,6 +20,10 @@
   var running = false;
   var suiteController = null;
   var suiteCancelled = false;
+  var progressRequest = 0;
+  var historyRequest = 0;
+  var accountEpoch = 0;
+  var progressOwner = null;
 
   function $(id) { return document.getElementById(id); }
   function waitForAuthClient() {
@@ -58,9 +62,10 @@
   function queryId() {
     try { return new URLSearchParams(location.search).get('id') || ''; } catch (_) { return ''; }
   }
+  function isNative(id) { return /^hot(?:100|200)-[1-9]\d*$/.test(id || ''); }
   function readContext() {
     var id = queryId();
-    if (!id) return null;
+    if (!id || isNative(id)) return null;
     try {
       var stored = JSON.parse(localStorage.getItem(CONTEXT_PREFIX + id)) ||
         JSON.parse(sessionStorage.getItem('interviewforge.practice.context'));
@@ -73,11 +78,12 @@
     var controller = new AbortController();
     var timer = setTimeout(function () { controller.abort(); }, 8000);
     try {
-      var response = await fetch('/books/ai-exam/practice-meta.json', { credentials: 'same-origin', cache: 'no-store', signal: controller.signal });
+      var url = isNative(id) ? '/api/practice/hot100/problem/' + id : '/books/ai-exam/practice-meta.json';
+      var response = await fetch(url, { credentials: 'same-origin', cache: 'no-store', signal: controller.signal });
       if (!response.ok) throw new Error('用例更新失败');
       var items = await response.json();
-      var fresh = Array.isArray(items) && items.find(function (item) { return item.id === id; });
-      if (fresh) context = fresh;
+      var fresh = isNative(id) ? items : Array.isArray(items) && items.find(function (item) { return item.id === id; });
+      if (fresh && fresh.id === id && Array.isArray(fresh.samples) && (!isNative(id) || fresh.samples.length)) context = fresh;
       else if (queryId()) context = null;
     } catch (_) { /* Offline use can still open previously carried public cases. */ }
     finally { clearTimeout(timer); }
@@ -102,7 +108,7 @@
     $('sample-prompt').textContent = context ? '' : templates[currentTemplate].prompt;
     $('sample-prompt').hidden = Boolean(context);
     $('problem-suite-notice').hidden = !context;
-    $('judge-all-btn').textContent = '运行全部用例（' + items.length + '）';
+    $('judge-all-btn').textContent = (context && isNative(context.id) ? '提交评测（' : '运行全部用例（') + items.length + '）';
     $('judge-all-btn').disabled = !items.length;
   }
   function setBusy(busy) {
@@ -116,7 +122,11 @@
     if (editor) editor.setOption('readOnly', busy);
   }
   function initialCode(language) {
-    return context ? (context.codes[language] || '') : templates[currentTemplate].codes[language];
+    if (!context) return templates[currentTemplate].codes[language];
+    if (context.codes && context.codes[language]) return context.codes[language];
+    return language === 'python'
+      ? 'import json\nimport sys\n\nargs = [json.loads(line) for line in sys.stdin if line.strip()]\n# 根据题意计算结果，用 print(json.dumps(result)) 输出。\n'
+      : 'import java.io.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        BufferedReader in = new BufferedReader(new InputStreamReader(System.in));\n        // 按题目说明逐行读取参数，将结果写入标准输出。\n    }\n}\n';
   }
   function sampleList() {
     return context ? (context.samples || []) : templates[currentTemplate].samples;
@@ -509,9 +519,128 @@
     }
     return { passed: passed, failed: failed, review: review, uncertain: uncertain, executed: executed, summary: summary };
   }
+  function showProgress(status) {
+    var chip = $('native-progress');
+    var labels = {
+      accepted: '已通过 · AC', attempted: '已尝试', unattempted: '未做',
+      loading: '读取中', guest: '登录后查看', unavailable: '暂时无法读取'
+    };
+    chip.textContent = '本题状态 · ' + labels[status];
+    chip.hidden = false;
+  }
+  async function refreshHistory() {
+    var token = ++historyRequest;
+    var host = $('native-history-list');
+    host.replaceChildren();
+    if (!$('native-history').open) return;
+    host.textContent = '正在读取提交记录…';
+    var url = '/api/practice/hot100/history/' + context.id;
+    var options = {credentials:'same-origin', cache:'no-store'};
+    try {
+      var response = await fetch(url, options);
+      if (!response.ok) throw new Error(response.status === 401 ? '登录后可查看提交记录。' : '提交记录暂时无法读取。');
+      var data = await response.json();
+      if (token !== historyRequest) return;
+      host.textContent = data.submissions.length ? '' : '这道题还没有提交记录。';
+      data.submissions.forEach(function (item) {
+        var entry = document.createElement('details');
+        var summary = document.createElement('summary');
+        var timestamp = new Date(item.submitted_at).toLocaleString('zh-CN', {hour12:false});
+        summary.textContent = timestamp + ' · ' + (item.language === 'java' ? 'Java' : 'Python') +
+          ' · ' + (item.accepted ? '通过' : '未通过') + ' · 查看代码';
+        var code = document.createElement('pre');
+        code.style.whiteSpace = 'pre-wrap';
+        code.style.overflowWrap = 'anywhere';
+        entry.appendChild(summary);
+        entry.appendChild(code);
+        var loaded = false;
+        entry.addEventListener('toggle', async function () {
+          if (!entry.open || loaded || token !== historyRequest) return;
+          loaded = true;
+          code.textContent = '正在读取代码…';
+          try {
+            var detail = await fetch(url + '/' + item.id, options);
+            if (!detail.ok) throw new Error();
+            var payload = await detail.json();
+            if (token !== historyRequest) return;
+            if (payload.username !== data.username) { await refreshHistory(); return; }
+            code.textContent = payload.code;
+          } catch (_) {
+            loaded = false;
+            if (token === historyRequest) code.textContent = '代码暂时无法读取，重新展开可重试。';
+          }
+        });
+        host.appendChild(entry);
+      });
+    } catch (error) {
+      if (token === historyRequest) host.textContent = error.message || '提交记录暂时无法读取。';
+    }
+  }
+  async function refreshProgress() {
+    var request = ++progressRequest;
+    showProgress('loading');
+    try {
+      var response = await fetch('/api/practice/hot100/status', { credentials: 'same-origin', cache: 'no-store' });
+      var data = response.ok ? await response.json() : null;
+      if (request !== progressRequest) return;
+      var owner = data && data.username || null;
+      if (progressOwner !== null && owner !== progressOwner) {
+        accountEpoch++;
+        clearResult(true);
+        refreshHistory();
+      }
+      progressOwner = owner;
+      if (response.status === 401) showProgress('guest');
+      else if (!response.ok || !data || !data.statuses) showProgress('unavailable');
+      else showProgress(data.statuses[context.id.split('-')[1]] || 'unattempted');
+    } catch (_) {
+      if (request === progressRequest) showProgress('unavailable');
+    }
+  }
+  async function submitNative() {
+    var epoch = accountEpoch;
+    var samples = sampleList();
+    $('run-status').textContent = '正在提交评测';
+    $('run-status').className = 'run-status running';
+    renderCases([], samples.length, false);
+    try {
+      var auth = await waitForAuthClient();
+      var response = await auth.fetchProtected('/api/practice/hot100/submit', {
+        method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: context.id, language: currentLanguage, code: getCode() })
+      }, '提交评测');
+      var payload = await response.json();
+      if (epoch !== accountEpoch) return;
+      if (!response.ok) throw new Error(payload.error || '评测暂时不可用');
+      var results = payload.results;
+      while (results.length < samples.length) results.push({ verdict: 'not_run', message: '首个失败用例后停止' });
+      var state = renderCases(results, samples.length, true);
+      var label = payload.accepted ? '本次提交已通过 · AC' : '本次提交未通过';
+      $('run-status').textContent = label;
+      $('run-status').className = 'run-status ' + (payload.accepted ? 'success' : 'error');
+      $('status-info').textContent = label;
+      showOutput(state.summary, !payload.accepted);
+      await Promise.all([refreshProgress(), refreshHistory()]);
+      try { localStorage.setItem('interviewforge.acm.updated', String(Date.now())); } catch (_) {}
+    } catch (error) {
+      if (epoch !== accountEpoch) return;
+      var message = error.message || '提交失败，请稍后重试';
+      $('run-status').textContent = '提交未确认';
+      $('run-status').className = 'run-status error';
+      $('suite-summary').textContent = message;
+      showOutput(message, true);
+    } finally {
+      running = false;
+      setBusy(false);
+    }
+  }
   async function judgeAll() {
     if (running || !sampleList().length) return;
     if (!await authorizeRun('评测全部用例')) return;
+    if (context && isNative(context.id)) {
+      await submitNative();
+      return;
+    }
     // Snapshot code, language and cases: every case tests the same submitted program.
     var items = sampleList().slice(), language = currentLanguage, code = getCode();
     var results = [], compileMs = 0, runMs = 0;
@@ -645,6 +774,12 @@
       chip.hidden = false;
       chip.title = context.title;
     }
+    if (context.solution_url && context.solution_url.startsWith('/books/')) {
+      var link = document.createElement('a');
+      link.href = context.solution_url;
+      link.textContent = '查看本站题解';
+      $('template-link').before(link);
+    }
     document.title = context.title + ' · ACM 模拟';
   }
   async function init() {
@@ -652,6 +787,16 @@
     setBusy(true);
     await refreshContext();
     initTheme();
+    if (queryId() && !context) {
+      $('context-notice').textContent = '题目不存在或用例未能载入。请检查链接或刷新页面重试。';
+      $('context-notice').hidden = false;
+      $('template-select').hidden = true;
+      $('template-link').hidden = false;
+      $('judge-all-btn').disabled = true;
+      $('run-btn').disabled = true;
+      $('status-info').textContent = '题目未载入';
+      return;
+    }
     initEditor();
     initContext();
     renderSuiteInfo();
@@ -725,6 +870,22 @@
     loadLanguage(currentLanguage);
     running = false;
     setBusy(false);
+    if (context && isNative(context.id)) {
+      $('native-history').hidden = false;
+      $('native-history').addEventListener('toggle', refreshHistory);
+      document.addEventListener('interviewforge:auth-change', function () {
+        refreshHistory();
+        accountEpoch++;
+        clearResult(true);
+        refreshProgress();
+      });
+      window.addEventListener('focus', refreshProgress);
+      window.addEventListener('pageshow', refreshProgress);
+      window.addEventListener('storage', function (event) {
+        if (event.key === 'interviewforge.acm.updated') { refreshProgress(); refreshHistory(); }
+      });
+      await refreshProgress();
+    }
     window.addEventListener('beforeunload', saveDraft);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

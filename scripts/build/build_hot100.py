@@ -1998,6 +1998,7 @@ def render_dashboard() -> None:
             "method": p["method"],
             # note 预先算好静态题页路径（.md → .html），前端无需自己拼路径。
             "note": f"books/hot100/03-题解/{p['folder']}/{Path(problem_filename(p)).with_suffix('.html').name}",
+            "original": LEETCODE_BASE.format(slug=LEETCODE_SLUGS[int(p["id"])]),
         })
     # ensure_ascii=False 保留中文可读；replace("</", "<\\/") 防止 JSON 里出现
     # “</script>”直接截断内联脚本标签（语法破损与注入风险），<\/ 在 JS 字符串中即普通左斜杠。

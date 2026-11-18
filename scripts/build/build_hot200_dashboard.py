@@ -34,6 +34,7 @@ def render_dashboard(root):
             }
         )
     page = (root / "tools/templates/dashboard.tpl").read_text(encoding="utf-8")
+    page = page.replace("const acmBank='hot100'", "const acmBank='hot200'")
     page = page.replace(
         'href="library/hot200-extra/index.html"', 'href="index.html"'
     ).replace("练 Hot 200 补充题 →", "返回 Hot 100 →")

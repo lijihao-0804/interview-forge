@@ -47,6 +47,9 @@ _PYTHON = os.environ.get(
 )
 _JAVA = os.environ.get("PRACTICE_JAVA", "/usr/bin/java")
 _JAVAC = os.environ.get("PRACTICE_JAVAC", "/usr/bin/javac")
+# Size JVM housekeeping for a single submission even on high-core hosts.
+_JVM_OPTIONS = ("-Xmx256m", "-XX:CompressedClassSpaceSize=128m",
+                "-XX:ActiveProcessorCount=1", "-XX:+UseSerialGC")
 
 
 def _sandbox_environment() -> dict[str, str]:
@@ -276,7 +279,8 @@ def run_code(language: str, code: str, stdin_text: str) -> dict:
             compile_result = _bounded_run(
                 _bwrap_command(
                     workdir,
-                    [_JAVAC, "-J-Xmx256m", "-J-XX:CompressedClassSpaceSize=128m", "-encoding", "UTF-8", "-d", "/work/classes", f"/work/{filename}"],
+                    [_JAVAC, *("-J" + option for option in _JVM_OPTIONS),
+                     "-encoding", "UTF-8", "-d", "/work/classes", f"/work/{filename}"],
                     8,
                 ),
                 stdin_text="",
@@ -322,7 +326,7 @@ def run_code(language: str, code: str, stdin_text: str) -> dict:
             run_result = _bounded_run(
                 _bwrap_command(
                     workdir,
-                    [_JAVA, "-Xmx256m", "-XX:CompressedClassSpaceSize=128m", "-XX:MaxMetaspaceSize=128m", "-cp", "/work/classes", class_name],
+                    [_JAVA, *_JVM_OPTIONS, "-XX:MaxMetaspaceSize=128m", "-cp", "/work/classes", class_name],
                     3,
                 ),
                 stdin_text=stdin_text,

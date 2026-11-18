@@ -111,6 +111,16 @@ CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS acm_submissions (
+    id INTEGER PRIMARY KEY,
+    problem_key TEXT NOT NULL,
+    language TEXT NOT NULL,
+    code TEXT NOT NULL,
+    accepted INTEGER NOT NULL CHECK (accepted IN (0,1)),
+    submitted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS acm_submissions_progress ON acm_submissions(problem_key, accepted);
+
 CREATE TABLE IF NOT EXISTS submissions (
     id INTEGER PRIMARY KEY,
     problem_id INTEGER NOT NULL,

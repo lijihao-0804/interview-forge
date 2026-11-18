@@ -134,7 +134,11 @@ body.auth-checking .auth-private,body.is-guest .auth-private,body.auth-error .au
 .card h3{min-width:0;margin:0;font-size:17px;line-height:1.45}
 .card h3 a{color:var(--text);overflow-wrap:anywhere}.card h3 a:hover{color:var(--brand)}
 .problem-number{margin-right:7px;color:var(--muted);font:500 13px var(--font-mono)}
-.card.public h3 a::after{content:"";position:absolute;inset:0;border-radius:11px}
+.practice-links{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;margin-top:10px;font-size:13px}
+.practice-links a{display:inline-flex;align-items:center;min-height:32px;font-weight:650}
+.practice-links .native-status{color:var(--muted)}
+.practice-links .native-status[data-state="accepted"]{color:var(--success)}
+.grid.is-compact .practice-links{grid-column:1/-1;margin:0}
 .card.public .card-head{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start}
 .card.public .entry-jump{display:flex;align-items:center;align-self:center;margin-left:auto;color:var(--muted)}
 .card.public:hover .entry-jump{color:var(--brand)}
@@ -342,7 +346,7 @@ html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--panel-so
 @media(max-width:760px){.workspace{padding:16px 12px}.study-nav{margin-top:14px;padding:5px;border-radius:10px}.study-nav a{padding-inline:12px}.grid.is-compact .card{grid-template-columns:minmax(0,1fr);gap:5px}.grid.is-compact .card-actions{grid-column:auto}.catalog-toolbar{align-items:flex-start}.catalog-tools{gap:6px}.controls .field:first-child{flex-basis:100%}.hero-eyebrow{font-size:11px}.resume-strip a{flex-basis:60%}}
 @media print{.study-nav,.catalog-toolbar,.controls,.catalog-pagination{display:none}}
 </style>
-<link rel="stylesheet" href="../../assets/workspace-layout.css?v=20261115-desktop">
+<link rel="stylesheet" href="../../assets/workspace-layout.css?v=20261118-study">
 </head>
 <body data-forge-page="catalog" class="auth-checking">
 <a class="skip-link" href="#problemGrid">跳到题目列表</a>
@@ -994,6 +998,32 @@ function renderTrend(){
 function announceProgressUpdate(){
   try{localStorage.setItem('forge-hot200-extra-progress-updated:'+dashboardSessionKey,String(Date.now()))}catch(_){}
 }
+const acmBank='hot200';
+let nativeStatuses=null;
+let nativeStatusRequest=0;
+function paintNativeStatus(node){
+  const status=nativeStatuses?.[node.dataset.acmProblem];
+  node.dataset.state=status||'';
+  node.textContent=nativeStatuses?(status==='accepted'?'ACM 已通过':status==='attempted'?'ACM 已尝试':'ACM 未提交'):'';
+}
+async function refreshNativeStatuses(){
+  if(authStatus!=='authenticated')return;
+  const request=++nativeStatusRequest;
+  try{
+    const response=await authenticatedFetch('/api/practice/hot100/status',{cache:'no-store'},'查看 ACM 记录');
+    if(!response.ok)throw new Error('ACM status unavailable');
+    const data=await response.json();
+    if(request!==nativeStatusRequest)return;
+    nativeStatuses=data.statuses||null;
+  }catch(error){
+    if(request!==nativeStatusRequest)return;
+    nativeStatuses=null;
+  }
+  grid.querySelectorAll('[data-acm-problem]').forEach(paintNativeStatus);
+}
+window.addEventListener('focus',refreshNativeStatuses);
+window.addEventListener('pageshow',event=>{if(event.persisted)refreshNativeStatuses()});
+window.addEventListener('storage',event=>{if(event.key==='interviewforge.acm.updated')refreshNativeStatuses()});
 function renderCards(){
   const query=search.value.trim().toLowerCase();
   const signature=JSON.stringify([query,category.value,difficulty.value,status.value,progressLanguage.value,sortOrder.value]);
@@ -1061,10 +1091,16 @@ function renderCards(){
       </div>
       <div class="meta"><span class="pill">${esc(problem.category)}</span><span class="difficulty-${problem.difficulty}">${problem.difficulty}</span></div>
       <div class="method">${esc(problem.method)}</div>
+      <div class="practice-links">
+        <a href="${esc(problem.original)}" target="_blank" rel="noopener noreferrer">力扣原题</a>
+        <a href="/books/ai-exam/acm-playground.html?id=${acmBank}-${problem.id}${lang==='java'||lang==='python'?'&amp;lang='+lang:''}" data-navigation-policy="user-preference">本站 ACM</a>
+        ${personal?`<span class="native-status" data-acm-problem="${problem.id}"></span>`:''}
+      </div>
       ${activity}
     </article>`;
   }).join('');
   resultCount.textContent=list.length===problems.length?`共 ${list.length} 道题`:`筛选结果 ${list.length} 道`;
+  grid.querySelectorAll('[data-acm-problem]').forEach(paintNativeStatus);
   document.getElementById('catalogProgress').hidden=!personal;
   if(personal){
     const totals=(lang?state.data.language_summary?.[lang]:state.data.summary)||{};
@@ -1550,6 +1586,8 @@ function activateAuthSession(session){
   const changed=key!==dashboardSessionKey;
   if(changed){
     clearSummary('正在读取');
+    ++nativeStatusRequest;
+    nativeStatuses=null;
     ++refreshSerial;
     state.online=false;
     status.value='';
@@ -1569,6 +1607,7 @@ function activateAuthSession(session){
   }
   if(!changed)return;
   restoreMockSession();
+  refreshNativeStatuses();
   refresh();
   loadPick(false);
 }
