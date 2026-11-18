@@ -108,10 +108,18 @@ def run(root, model, base, show_answers, modes_only=False):
                          router.chat_service, show_answers)
 
 
+def grounded_anagram_hint(answer):
+    words = set(re.findall(r"\b[a-z]{2,}\b", answer.lower()))
+    uses_anagram_pair = len({tuple(sorted(word)) for word in words}) < len(words)
+    about_words = uses_anagram_pair or re.search(r"字母|字符", answer)
+    invariant = re.search(r"顺序|排[列序]|频[次率]|次数|个数|相同|一致|共同|一样|标准[形型]|归一|规范", answer)
+    return bool(about_words and invariant)
+
+
 def run_mode_cases(client, show_answers):
     cases = [
         ("auto", "栈和队列分别从哪端取出元素？", None, [r"后进先出|LIFO|栈顶", r"先进先出|FIFO|队头"]),
-        ("hint", "卡住了，第一步呢？", None, [r"字母|字符", r"顺序|排序|频次|次数|个数|相同|一致"]),
+        ("hint", "卡住了，第一步呢？", None, []),
         ("review", "最近哪些题值得再做？", None, [r"复习|再做|重做|复盘|练习|记录|题"]),
         ("code", "为什么会慢？", "编辑器代码（Python）\ndef count_pairs(items):\n"
          "    return sum(items.count(x) for x in items)\n",
@@ -138,7 +146,10 @@ def run_mode_cases(client, show_answers):
                                    history[0]["metadata"].get("study_mode", "auto") == mode),
         }
         if mode == "hint":
+            checks["grounded"] = grounded_anagram_hint(answer)
             checks["one_hint"] = len(answer.strip()) <= 270 and "```" not in answer
+        if mode == "code":
+            checks["focused"] = len(answer.strip()) <= 1_000
         if mode in {"hint", "review"} and mid:
             selection = client.get(url + f"/turns/{mid}/context").json()
             block = "current_page" if mode == "hint" else "learning"

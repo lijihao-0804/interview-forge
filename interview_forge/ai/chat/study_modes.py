@@ -5,7 +5,7 @@ from interview_forge.ai.chat.context_blocks import ContextBlock
 _GUIDANCE = {
     "hint": "只给一个简短启发性问题就停下，等用户追问再给算法步骤或代码。",
     "review": "学习复盘：结合相关记录梳理已掌握内容、困惑和下一步练习；资料不足时说明。",
-    "code": "代码走查：围绕问题检查可用代码、输入与运行结果，指出具体原因和验证方法。",
+    "code": "代码走查：短问只用一段，引用代码解释原因和一种改法。耗时以实测为准。",
 }
 
 
