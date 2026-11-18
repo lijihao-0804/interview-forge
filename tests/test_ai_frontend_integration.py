@@ -38,9 +38,9 @@ class AiFrontendIntegrationTests(unittest.TestCase):
         for script in _WIDGET_SCRIPTS:
             self.assertIn(script, rendered)
         for current_asset in (
-            "/assets/ai-launcher.js?v=4",
-            "/assets/feedback-widget.js?v=5",
-            "/assets/auth-widget.js?v=8",
+            "/assets/ai-launcher.js?v=5",
+            "/assets/feedback-widget.js?v=6",
+            "/assets/auth-widget.js?v=9",
         ):
             self.assertIn(current_asset, _WIDGET_SCRIPTS)
             self.assertIn(current_asset, rendered)
@@ -137,7 +137,7 @@ class AiFrontendIntegrationTests(unittest.TestCase):
 
         rendered_constants = "".join(str(item) for item in build_html_site.render_markdown.__code__.co_consts)
         self.assertIn("/ai-launcher.css?v=5", rendered_constants)
-        self.assertIn("/ai-launcher.js?v=4", rendered_constants)
+        self.assertIn("/ai-launcher.js?v=5", rendered_constants)
         self.assertIn("data-interviewforge-ai", build_library.document("x", "", "assets/library.css"))
 
     def test_mobile_ai_entry_keeps_the_auth_gate_until_session_settles(self):

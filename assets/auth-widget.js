@@ -55,22 +55,24 @@
       "#forge-auth-pill .fap-auth-link.is-primary{background:var(--brand,#5654d4);color:#fff}" +
       "#forge-auth-pill .fap-auth-link:hover{filter:brightness(.96);text-decoration:none}" +
       "#forge-auth-pill .fap-retry{background:transparent;color:var(--muted,#66748a)!important;padding:4px 6px!important}" +
-      "#forge-auth-modal{position:fixed;inset:0;z-index:10020;display:grid;place-items:center;padding:20px;background:rgba(12,18,30,.5);backdrop-filter:blur(3px)}" +
+      "#forge-auth-modal{position:fixed;inset:0;width:100%;height:100%;max-width:none;max-height:none;box-sizing:border-box;margin:0;border:0;display:grid;place-items:center;padding:20px;background:transparent;overscroll-behavior:contain}" +
+      "#forge-auth-modal::backdrop{background:rgba(12,18,30,.5);backdrop-filter:blur(3px)}" +
       "#forge-auth-modal[hidden]{display:none}.forge-auth-dialog{width:min(100%,430px);padding:24px;border:1px solid var(--line,#dfe4ee);border-radius:16px;background:var(--surface,var(--panel,#fff));color:var(--text,#182235);box-shadow:0 24px 70px rgba(10,14,22,.28);font:14px/1.65 -apple-system,'Segoe UI','Microsoft YaHei',sans-serif}" +
       ".forge-auth-dialog h2{margin:0;font-size:20px}.forge-auth-dialog p{margin:10px 0 0;color:var(--muted,#66748a)}.forge-auth-actions{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap;margin-top:20px}" +
       ".forge-auth-actions a,.forge-auth-actions button{border:1px solid var(--line,#dfe4ee);border-radius:9px;padding:8px 13px;background:var(--soft,#f7f8fc);color:var(--text,#182235);font:inherit;font-weight:650;text-decoration:none;cursor:pointer}" +
       ".forge-auth-actions .is-primary{border-color:var(--brand,#5654d4);background:var(--brand,#5654d4);color:#fff}.forge-auth-actions .is-quiet{background:transparent;color:var(--muted,#66748a)}" +
-      "@media(max-width:640px){#forge-auth-pill{right:10px;bottom:calc(10px + env(safe-area-inset-bottom));gap:6px}.forge-auth-dialog{padding:20px}}";
+      "@media(max-width:640px){#forge-auth-pill{right:10px;bottom:calc(10px + env(safe-area-inset-bottom));gap:6px}.forge-auth-dialog{padding:20px}html:has(#forge-auth-pill) #forge-theme-btn{bottom:calc(var(--forge-auth-reserve,76px) + env(safe-area-inset-bottom))!important}}";
     document.head.appendChild(style);
   }
 
   function openLoginPrompt(feature, options) {
     installAuthStyles();
     var old = document.getElementById("forge-auth-modal");
-    if (old) old.remove();
+    if (old && old.open) return old;
+    var opener = options && options.focusSelector ? document.querySelector(options.focusSelector) : document.activeElement;
     var action = String(feature || "使用此功能");
     var isError = authState.status === "error";
-    var modal = document.createElement("div");
+    var modal = document.createElement("dialog");
     modal.id = "forge-auth-modal";
     modal.setAttribute("role", "dialog");
     modal.setAttribute("aria-modal", "true");
@@ -87,22 +89,19 @@
     copy.textContent = isError
       ? "当前网络暂时无法确认账号状态。阅读不受影响；恢复连接后可以重试，或直接登录/注册。"
       : "游客模式可阅读和搜索。登录后才能" + action + "，完成后会回到当前页面。";
-    var dialog = modal.querySelector(".forge-auth-dialog");
     function close() {
-      modal.remove();
-      document.removeEventListener("keydown", onKeydown);
+      modal.close();
     }
-    function onKeydown(event) { if (event.key === "Escape") close(); }
+    modal.addEventListener("close", function () {
+      modal.remove();
+      if (opener && opener.isConnected) opener.focus();
+    }, { once: true });
     modal.querySelector("[data-auth-close]").onclick = close;
     modal.addEventListener("click", function (event) { if (event.target === modal) close(); });
     var retry = modal.querySelector("[data-auth-retry]");
     if (retry) retry.onclick = function () { close(); checkSession(true); };
-    document.addEventListener("keydown", onKeydown);
-    if (options && options.focusSelector) {
-      var target = document.querySelector(options.focusSelector);
-      if (target && typeof target.focus === "function") target.focus();
-    }
-    dialog.focus();
+    modal.showModal();
+    modal.querySelector("[data-auth-close]").focus();
     return modal;
   }
 
@@ -236,6 +235,7 @@
   authReady.then(function (session) {
     var me = session && session.user;
     if (!me || document.getElementById("forge-auth-pill")) return;
+    installAuthStyles();
 
       var style = document.createElement("style");
       style.textContent =
@@ -255,6 +255,7 @@
         "@keyframes forge-panel-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}@media(prefers-reduced-motion:reduce){.forge-panel{animation:none}}.forge-panel{position:fixed;right:16px;bottom:calc(var(--forge-auth-reserve,76px) + 16px + env(safe-area-inset-bottom));z-index:9999;width:min(360px,calc(100vw - 32px));animation:forge-panel-in .2s cubic-bezier(.22,1,.36,1);" +
         "background:var(--surface,var(--panel,#fff));border:1px solid var(--line,#dfe4ee);border-radius:14px;box-shadow:0 16px 44px rgba(33,45,73,.22);" +
         "font:14px/1.6 -apple-system,'Segoe UI','Microsoft YaHei',sans-serif;color:var(--text,#182235);display:flex;flex-direction:column}" +
+        ".forge-panel{box-sizing:border-box;max-height:calc(100dvh - var(--forge-auth-reserve,76px) - 32px - env(safe-area-inset-bottom));overflow:auto;overscroll-behavior:contain}" +
         ".forge-panel .fp-head{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line,#dfe4ee)}" +
         ".forge-panel .fp-head h3{margin:0;font-size:14px}" +
         ".forge-panel .fp-head .fp-sub{font-size:11px;color:var(--muted,#66748a);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
@@ -273,6 +274,7 @@
             var p = document.getElementById(id);
             if (p) {
               p.remove();
+              (id === "forge-chat-panel" ? chatLink : name).setAttribute("aria-expanded", "false");
               if (id === "forge-profile") profilePanel = null;
               if (id === "forge-chat-panel") {
                 chatState.generation += 1;
@@ -282,6 +284,22 @@
           }
         });
         if (except !== "forge-chat-panel" && chatTimer) { clearInterval(chatTimer); chatTimer = null; }
+      }
+
+      function openWidgetPanel(panel, opener, closePanel) {
+        panel.setAttribute("role", "dialog");
+        panel.setAttribute("aria-label", panel.querySelector("h3").textContent);
+        opener.setAttribute("aria-expanded", "true");
+        var close = panel.querySelector(".fp-close");
+        close.setAttribute("aria-label", "关闭" + panel.getAttribute("aria-label"));
+        close.onclick = closePanel;
+        panel.addEventListener("keydown", function (event) {
+          if (event.key !== "Escape" || event.isComposing) return;
+          event.preventDefault();
+          event.stopPropagation();
+          closePanel();
+        });
+        close.focus();
       }
 
       /* ===================== 悬浮聊天室（公屏） ===================== */
@@ -315,6 +333,8 @@
         var exist = document.getElementById("forge-chat-panel");
         if (exist) {
           exist.remove();
+          chatLink.setAttribute("aria-expanded", "false");
+          chatLink.focus();
           if (chatTimer) { clearInterval(chatTimer); chatTimer = null; }
           chatState.generation += 1;
           chatState.pollAgain = false;
@@ -350,7 +370,8 @@
           '<input id="fcp-input" maxlength="500" placeholder="说点什么…（Enter 发送）" autocomplete="off" style="flex:1;min-width:0;padding:8px 11px;border:1px solid var(--line,#dfe4ee);border-radius:9px;font:inherit;color:var(--text,#182235);background:var(--surface-softer,var(--soft,#fbfcff))">' +
           '<button id="fcp-send" style="border:0;border-radius:9px;padding:8px 15px;font:inherit;font-weight:600;cursor:pointer;background:var(--brand,#5654d4);color:#fff">发送</button></div>';
         document.body.appendChild(panel);
-        panel.querySelector(".fp-close").onclick = function () { toggleChat(); };
+        openWidgetPanel(panel, chatLink, toggleChat);
+        panel.querySelector("#fcp-input").setAttribute("aria-label", "聊天室消息");
 
         var msgs = panel.querySelector("#fcp-msgs");
         function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
@@ -599,7 +620,13 @@
       var profilePanel = null;
       function toggleProfile() {
         var exist = document.getElementById("forge-profile");
-        if (exist) { exist.remove(); profilePanel = null; return; }
+        if (exist) {
+          exist.remove();
+          profilePanel = null;
+          name.setAttribute("aria-expanded", "false");
+          name.focus();
+          return;
+        }
         closePanels("forge-profile");
         var panel = document.createElement("div");
         panel.id = "forge-profile";
@@ -632,7 +659,9 @@
           '<button id="fpr-clear" style="border:1px solid #dfe4ee;background:transparent;color:#66748a;border-radius:8px;padding:5px 11px;font:inherit;cursor:pointer">清除头像</button>' +
           '<div id="fpr-hint" style="font-size:12px;color:#66748a;margin-top:6px;min-height:16px"></div></div>';
         document.body.appendChild(panel);
-        panel.querySelector(".fp-close").onclick = function () { toggleProfile(); };
+        openWidgetPanel(panel, name, toggleProfile);
+        panel.querySelector("#fpr-file").setAttribute("aria-label", "上传头像");
+        panel.querySelector("#fpr-nick").setAttribute("aria-label", "昵称");
         var hint = panel.querySelector("#fpr-hint");
         var avaBox = panel.querySelector("#fpr-ava-box");
         var navModeInputs = panel.querySelectorAll('input[name="fpr-nav-mode"]');
@@ -765,6 +794,8 @@
       var chatLink = document.createElement("button");
       chatLink.type = "button";
       chatLink.setAttribute("aria-label", "打开聊天室");
+      chatLink.setAttribute("aria-controls", "forge-chat-panel");
+      chatLink.setAttribute("aria-expanded", "false");
       chatLink.className = "fap-chat";
       chatLink.textContent = "聊天室";
       chatLink.onclick = function () { toggleChat(); };
@@ -805,6 +836,8 @@
       var name = document.createElement("button");
       name.type = "button";
       name.setAttribute("aria-label", "设置昵称与头像");
+      name.setAttribute("aria-controls", "forge-profile");
+      name.setAttribute("aria-expanded", "false");
       name.title = window.InterviewForgeRoles ? window.InterviewForgeRoles.label(me) : "";
       name.className = "fap-name";
       name.title = "点击设置昵称与头像";

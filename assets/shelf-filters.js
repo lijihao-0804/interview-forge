@@ -132,8 +132,12 @@
     notes.style.display = notes.hidden ? 'none' : 'grid';
     books += noteCount;
     document.getElementById('shelfBookHeading').hidden = !query || !books;
-    tracks.forEach(button => button.classList.toggle('active', button.dataset.trackFilter === track));
-    categories.forEach(button => button.classList.toggle('active', button.dataset.catFilter === category));
+    for (const button of [...tracks, ...categories]) {
+      const active = button.hasAttribute('data-track-filter')
+        ? button.dataset.trackFilter === track : button.dataset.catFilter === category;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', String(active));
+    }
     groups.forEach(group => { group.hidden = group.dataset.trackGroup !== track; });
     document.getElementById('chipRow').hidden = !track || inNotes;
     document.getElementById('chipAllCount').textContent = publicCards.filter(card => card.dataset.track === track).length;

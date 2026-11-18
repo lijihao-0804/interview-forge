@@ -28,16 +28,19 @@ from interview_forge.core.web_access import (
 )
 from interview_forge.services.catalog import load_library_manifest
 from interview_forge.services.study import record_content_view, record_view
-from scripts.build.asset_version import SITE_CSS_VERSION, SOLUTION_PROGRESS_VERSION
+from scripts.build.asset_version import DELIVERED_ASSET_VERSIONS
+from scripts.build.reader_fragment_links import restore_aside_ids
 
 router = APIRouter()
 
 # Already-built chapters must move off immutable browser-cache entries as well.
 _READER_RESOURCE_TAG = re.compile(rb"<!--.*?-->|<script\b[^>]*>.*?</script\s*>|<link\b[^>]*>", re.I | re.S)
+_READER_ASSET_VERSIONS = {k.encode(): v.encode() for k, v in DELIVERED_ASSET_VERSIONS.items()}
 _READER_ASSET_VERSION = re.compile(
-    rb"""(\s(?:href|src)\s*=\s*["'](?:/|(?:\.\.?/)*)assets/(site\.css|solution-progress\.js)\?v=)[\w.-]+"""
+    rb"""(\s(?:href|src)\s*=\s*["'](?:(?:/library)?/|(?:\.\.?/)*)assets/("""
+    + b"|".join(map(re.escape, _READER_ASSET_VERSIONS))
+    + rb""")\?v=)[\w.-]+"""
 )
-_READER_ASSET_VERSIONS = {b"site.css": SITE_CSS_VERSION.encode(), b"solution-progress.js": SOLUTION_PROGRESS_VERSION.encode()}
 
 def _version_reader_resource(match: re.Match[bytes]) -> bytes:
     tag = match[0]
@@ -51,11 +54,11 @@ _TOC_SCRIPT = "/assets/toc-scroll.js?v=9"
 _WIDGET_SCRIPTS = (
     "/assets/time-utils.js?v=2",
     "/assets/navigation-policy.js?v=2",
-    "/assets/role-display.js?v=1", "/assets/auth-widget.js?v=8",
-    "/assets/feedback-widget.js?v=5",
+    "/assets/role-display.js?v=1", f"/assets/auth-widget.js?v={DELIVERED_ASSET_VERSIONS['auth-widget.js']}",
+    f"/assets/feedback-widget.js?v={DELIVERED_ASSET_VERSIONS['feedback-widget.js']}",
     "/assets/theme-toggle.js?v=2",
     "/assets/ai-page-context.js?v=3",
-    "/assets/ai-launcher.js?v=4",
+    f"/assets/ai-launcher.js?v={DELIVERED_ASSET_VERSIONS['ai-launcher.js']}",
 )
 _AUTH_WIDGET_SKIP = {"/pages/login.html", "/pages/register.html", "/pages/forgot-password.html", "/pages/account.html", "/pages/admin.html", "/pages/ai-assistant.html"}
 _FEEDBACK_WIDGET_SKIP = {"/pages/login.html", "/pages/register.html", "/pages/forgot-password.html", "/pages/account.html", "/pages/admin.html", "/pages/ai-assistant.html"}
@@ -167,7 +170,9 @@ def private_reader_widget_tags(body: bytes) -> bytes:
 
 
 def _inject_html(path: str, body: bytes, *, embedded: bool = False) -> bytes:
-    if b"site.css?v=" in body or b"solution-progress.js?v=" in body:
+    if path.startswith(("/books/company-solutions/", "/books/hot100/03-题解/")):
+        body = restore_aside_ids(body)
+    if b"assets/" in body and b"?v=" in body:
         body = _READER_RESOURCE_TAG.sub(_version_reader_resource, body)
     if path.startswith(("/library/ai-employment-research/", "/library/communications-research/")) or path == "/library/hot200-extra/index.html":
         body = link_readers(path, body)

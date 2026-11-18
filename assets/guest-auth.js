@@ -128,15 +128,16 @@
 
   function ensureFallbackModal(feature) {
     var previous = document.getElementById("forge-guest-auth-modal");
-    if (previous) previous.remove();
+    if (previous && previous.open) return;
     var style = document.getElementById("forge-guest-auth-style");
     if (!style) {
       style = document.createElement("style");
       style.id = "forge-guest-auth-style";
       style.textContent = ".forge-guest-auth-mask{position:fixed;inset:0;z-index:10020;display:grid;place-items:center;padding:20px;background:rgba(12,18,30,.52);backdrop-filter:blur(3px)}.forge-guest-auth-dialog{width:min(100%,430px);padding:23px;border:1px solid var(--line,#dfe4ee);border-radius:16px;color:var(--text,#182235);background:var(--panel,#fff);box-shadow:0 24px 70px rgba(10,14,22,.28)}.forge-guest-auth-dialog h2{margin:0;font-size:20px}.forge-guest-auth-dialog p{margin:10px 0 0;color:var(--muted,#66748a)}.forge-guest-auth-actions{display:flex;justify-content:flex-end;gap:9px;flex-wrap:wrap;margin-top:20px}.forge-guest-auth-actions a,.forge-guest-auth-actions button{padding:8px 13px;border:1px solid var(--line,#dfe4ee);border-radius:9px;color:var(--text,#182235);background:var(--soft,#f7f8fc);font:inherit;font-weight:650;text-decoration:none;cursor:pointer}.forge-guest-auth-actions .primary{border-color:var(--brand,#5654d4);color:#fff;background:var(--brand,#5654d4)}";
+      style.textContent += ".forge-guest-auth-mask{width:100%;height:100%;max-width:none;max-height:none;margin:0;border:0;box-sizing:border-box;background:transparent;backdrop-filter:none;overscroll-behavior:contain}.forge-guest-auth-mask::backdrop{background:rgba(12,18,30,.52);backdrop-filter:blur(3px)}";
       document.head.appendChild(style);
     }
-    var modal = document.createElement("div");
+    var modal = document.createElement("dialog");
     modal.id = "forge-guest-auth-modal";
     modal.className = "forge-guest-auth-mask";
     modal.setAttribute("role", "dialog");
@@ -144,12 +145,13 @@
     modal.setAttribute("aria-labelledby", "forge-guest-auth-title");
     modal.innerHTML = '<section class="forge-guest-auth-dialog" tabindex="-1"><h2 id="forge-guest-auth-title">登录后即可继续</h2><p id="forge-guest-auth-copy"></p><div class="forge-guest-auth-actions"><button type="button" data-close>暂不登录</button><a href="' + authHref("/pages/register.html") + '">注册</a><a class="primary" href="' + authHref("/pages/login.html") + '">登录</a></div></section>';
     modal.querySelector("#forge-guest-auth-copy").textContent = "游客可阅读和搜索。登录后才能" + String(feature || "使用此功能") + "，完成后会回到当前页面。";
-    function close() { modal.remove(); }
+    function close() { modal.close(); }
+    modal.addEventListener("close", function () { modal.remove(); }, { once: true });
     modal.querySelector("[data-close]").addEventListener("click", close);
     modal.addEventListener("click", function (event) { if (event.target === modal) close(); });
-    modal.addEventListener("keydown", function (event) { if (event.key === "Escape") close(); });
     document.body.appendChild(modal);
-    modal.querySelector(".forge-guest-auth-dialog").focus();
+    modal.showModal();
+    modal.querySelector("[data-close]").focus();
   }
 
   function promptLogin(feature) {

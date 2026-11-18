@@ -3,6 +3,7 @@ import re
 import unittest
 from pathlib import Path
 
+from interview_forge.api.routers.static import _inject_html
 from scripts.build import build_library
 from scripts.build.asset_version import SITE_JS_VERSION
 
@@ -29,7 +30,8 @@ class LibraryReaderLayoutTests(unittest.TestCase):
             1,
         )
         self.assertIn("?v={SITE_JS_VERSION}", generator)
-        self.assertIn(f'site.js?v={SITE_JS_VERSION}', problem_page)
+        served = _inject_html("/books/hot100/03-题解/0034.html", problem_page.encode()).decode()
+        self.assertIn(f'site.js?v={SITE_JS_VERSION}', served)
         self.assertNotIn('<div class="codehilite" data-lang="text">', problem_page)
         for example in (
             "<p><strong>输入：</strong>nums = [5,7,7,8,8,10], target = 8<br/><strong>输出：</strong>[3,4]</p>",

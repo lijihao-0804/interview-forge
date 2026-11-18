@@ -22,6 +22,7 @@ document.querySelectorAll('.markdown-body table').forEach((table) => {
   wrapper.appendChild(table);
 });
 
+const narrowCodeLayout = window.matchMedia('(max-width: 720px)');
 document.querySelectorAll('.markdown-body pre').forEach((pre) => {
   if (pre.parentElement?.classList.contains('code-block')) return;
   const wrapper = document.createElement('div');
@@ -51,14 +52,20 @@ document.querySelectorAll('.markdown-body pre').forEach((pre) => {
   const wrapButton = document.createElement('button');
   wrapButton.type = 'button';
   wrapButton.className = 'copy-code';
-  wrapButton.textContent = '换行';
-  wrapButton.setAttribute('aria-pressed', 'false');
   wrapButton.setAttribute('aria-label', '切换代码长行自动换行');
-  wrapButton.addEventListener('click', () => {
-    const nowrap = pre.classList.toggle('code-nowrap');
-    const wrapped = pre.classList.toggle('code-wrap', !nowrap);
+  function updateWrapButton() {
+    const wrapped = pre.classList.contains('code-wrap') ||
+      (narrowCodeLayout.matches && !pre.classList.contains('code-nowrap'));
     wrapButton.setAttribute('aria-pressed', String(wrapped));
     wrapButton.textContent = wrapped ? '原样' : '换行';
+  }
+  updateWrapButton();
+  narrowCodeLayout.addEventListener('change', updateWrapButton);
+  wrapButton.addEventListener('click', () => {
+    const wrap = wrapButton.getAttribute('aria-pressed') !== 'true';
+    pre.classList.toggle('code-wrap', wrap);
+    pre.classList.toggle('code-nowrap', !wrap);
+    updateWrapButton();
   });
   toolbar.append(label, button, wrapButton);
   pre.parentNode.insertBefore(wrapper, pre);

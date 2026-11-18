@@ -276,6 +276,11 @@ footer{margin-top:25px;color:var(--muted);text-align:center;font-size:13px}
   .dashboard-nav a,.dashboard-nav summary{padding-inline:9px}
   .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
+@media(max-width:420px){
+  .review-forecast{display:grid;grid-template-columns:minmax(0,1fr)}
+  .review-forecast-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}
+  .review-forecast-day{min-width:0}
+}
 @media(max-width:660px){
   .masthead{flex-wrap:wrap;gap:0;padding:13px 0 7px}
   .brand{font-size:20px}.brand img{width:30px;height:30px}

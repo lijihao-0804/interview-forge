@@ -37,6 +37,9 @@ function bootHarness(requireUser) {
       style: {},
       hidden: false,
       setAttribute(name, value) { this[name] = value; },
+      showModal() { this.open = true; },
+      close() { this.open = false; },
+      focus() { document.activeElement = this; },
       appendChild(node) { this.children.push(node); return node; },
       remove() { this.removed = true; }
     });
@@ -52,8 +55,8 @@ function bootHarness(requireUser) {
     },
     getElementById() { return null; },
     createElement(tagName) {
-      if (tagName === "div") {
-        const drawer = element("div");
+      if (tagName === "dialog") {
+        const drawer = element("dialog");
         const backdrop = element("button");
         const close = element("button");
         const frame = element("iframe");

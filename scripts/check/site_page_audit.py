@@ -1,4 +1,4 @@
-"""Render the web root twice in local Chromium and build page-family contact sheets.
+"""Render the web root in local Chromium and build page-family contact sheets.
 
 Run python -m scripts.check.site_page_audit --output output/playwright/site-audit.
 Only reviewed static routes and the public catalog use application code. Account
@@ -142,6 +142,24 @@ METRICS = """() => {
    offenders,canvas:!!document.querySelector('canvas,svg,iframe')};
 }"""
 
+CONTROLS = """() => {
+ const groups = {};
+ const interactive = 'a[href],button,input:not([type=hidden]),select,textarea,summary,[role=button],[role=tab],[role=switch],[role=checkbox],[contenteditable=true]';
+ for (const el of document.querySelectorAll(interactive)) {
+   const tag = el.tagName.toLowerCase();
+   const href = el.getAttribute('href') || '';
+   const kind = tag === 'a' ? (href.startsWith('#') ? 'anchor' : 'link') :
+       el.getAttribute('role') || (tag === 'input' ? el.type : tag);
+   const key = kind + (el.id ? '#' + el.id : el.classList.length ? '.' + el.classList[0] : '');
+   const group = groups[key] ||= {total:0, visible:0, disabled:0};
+   group.total++;
+   if (!el.getClientRects().length || getComputedStyle(el).visibility === 'hidden') continue;
+   group.visible++;
+   if (el.matches(':disabled,[aria-disabled=true]')) group.disabled++;
+ }
+ return groups;
+}"""
+
 
 def sheets(output, rows):
     families = defaultdict(list)
@@ -161,11 +179,12 @@ def sheets(output, rows):
             draw = ImageDraw.Draw(sheet)
             for i, row in enumerate(batch):
                 x, y = i % 6 * 232, i // 6 * 115
+                desktop = 180 if len(row["views"]) < 3 else 146
                 for j, view in enumerate(row["views"]):
                     image = output / view["image"]
                     with Image.open(image) as thumb:
-                        thumb.thumbnail((180 if j == 0 else 46, 88))
-                        sheet.paste(thumb, (x + (182 if j else 0), y))
+                        thumb.thumbnail((desktop if j == 0 else 40, 88))
+                        sheet.paste(thumb, (x + (desktop + 2 + (j - 1) * 42 if j else 0), y))
                 draw.text((x, y + 90), row["key"], fill="black")
             name = family.replace("/", "_") + f"-{start // 42 + 1}.jpg"
             sheet.save(folder / name)
@@ -190,10 +209,11 @@ def sheets(output, rows):
         draw = ImageDraw.Draw(sheet)
         for i, row in enumerate(batch):
             x, y = i % 4 * 334, i // 4 * 192
+            desktop = 248 if len(row["views"]) < 3 else 200
             for j, view in enumerate(row["views"]):
                 with Image.open(output / view["image"]) as thumb:
-                    thumb.thumbnail((248 if j == 0 else 75, 158))
-                    sheet.paste(thumb, (x + (251 if j else 0), y))
+                    thumb.thumbnail((desktop if j == 0 else 60, 158))
+                    sheet.paste(thumb, (x + (desktop + 3 + (j - 1) * 64 if j else 0), y))
             label = row["family"].encode("ascii", errors="replace").decode()
             draw.text((x + 4, y + 162), f"{label} · {row['key']}", fill="black")
         sheet.save(output / f"families-{start // 24 + 1}.jpg")
@@ -203,7 +223,7 @@ def sheets(output, rows):
         <style>body{background:#f2f0fa;color:#222039;font:16px/1.6 system-ui;margin:2rem auto;max-width:84rem;
         padding:0 1rem}details{background:white;border:1px solid #d9d6e6;margin:.5rem 0;padding:.7rem 1rem}
         summary{cursor:pointer;font-weight:bold}p{overflow-wrap:anywhere}a{color:#5147a7}</style>
-        <h1>页面巡检清单</h1><p>展开页面家族查看联系表、路径及两种屏宽的首屏缩略图。
+        <h1>页面巡检清单</h1><p>展开页面家族查看联系表、路径及各屏宽的首屏缩略图。
         逐页测量和异常记录见 <a href="pages.jsonl">JSONL</a>，汇总见 <a href="summary.json">JSON</a>。</p>"""
         + "".join(links),
         encoding="utf8",
@@ -329,14 +349,15 @@ async def audit(args):
                                         denied.status,
                                     )
                                     await denied.dispose()
-                            for i, width in enumerate(WIDTHS):
-                                height = 1000 if i == 0 else 844
+                            for i, width in enumerate(args.widths):
+                                height = 1440 if width >= 1920 else 844 if width >= 375 else 700
                                 await page.set_viewport_size(
                                     {"width": width, "height": height}
                                 )
-                                resp = await page.goto(
-                                    base + route_path, wait_until="load", timeout=90000
-                                )
+                                if i == 0 or not args.reflow:
+                                    resp = await page.goto(
+                                        base + route_path, wait_until="load", timeout=90000
+                                    )
                                 redirected = {
                                     "/pages/ai-exam-coding.html": "/books/ai-exam/index.html",
                                     "/library/hot100/index.html": "/index.html",
@@ -364,6 +385,8 @@ async def audit(args):
                                     "new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))"
                                 )
                                 metrics = await page.evaluate(METRICS)
+                                if args.controls:
+                                    metrics["controls"] = await page.evaluate(CONTROLS)
                                 if is_catalog:
                                     metrics[
                                         "visible_problem_cards"
@@ -386,6 +409,10 @@ async def audit(args):
                                 )
                                 file = thumbs / f"{row['key']}-{width}.jpg"
                                 file.write_bytes(base64.b64decode(result["data"]))
+                                if args.full_screenshots:
+                                    screenshots = output / "screenshots"
+                                    screenshots.mkdir(exist_ok=True)
+                                    await page.screenshot(path=screenshots / f"{row['key']}-{width}.png")
                                 row["views"].append(
                                     {
                                         **metrics,
@@ -427,7 +454,9 @@ async def audit(args):
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "working_tree_base": revision.stdout.strip(),
         "engine": "Chromium",
-        "widths": WIDTHS,
+        "widths": args.widths,
+        "viewport_mode": "resize after initial navigation" if args.reflow else "fresh navigation",
+        "control_inventory": args.controls,
         "family_count": len({r["family"] for r in candidates}),
         "data_mode": "synthetic archive"
         if args.private_fixture
@@ -472,6 +501,14 @@ if __name__ == "__main__":
     parser.add_argument("--prefix", action="append")
     parser.add_argument("--limit", type=int)
     parser.add_argument("--workers", type=int, default=6)
+    parser.add_argument("--widths", type=int, nargs="+", default=WIDTHS,
+                        help="One to three CSS viewport widths, desktop first")
+    parser.add_argument("--controls", action="store_true",
+                        help="Record rendered control groups, visibility and disabled states per page and width")
+    parser.add_argument("--full-screenshots", action="store_true",
+                        help="Also capture viewport-sized PNGs for the selected paths")
+    parser.add_argument("--reflow", action="store_true",
+                        help="Navigate once per page, then resize Chromium for the other widths")
     parser.add_argument(
         "--retry",
         action="store_true",
@@ -489,6 +526,8 @@ if __name__ == "__main__":
         help="Test archive gates and render synthetic content only",
     )
     args = parser.parse_args()
+    if not 1 <= len(args.widths) <= 3 or any(w < 200 for w in args.widths):
+        parser.error("--widths accepts one to three widths of at least 200 pixels")
     identity = {"username": "layout_fixture", "role": "admin", "id": 1}
     with ExitStack() as stack:
         args.study_db = (

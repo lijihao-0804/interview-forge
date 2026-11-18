@@ -184,7 +184,7 @@ class FeedbackAuthTests(unittest.TestCase):
             thread.join(timeout=5)
 
     def test_server_injects_the_new_feedback_script_version(self) -> None:
-        self.assertIn("/assets/feedback-widget.js?v=5", study_server.StudyHandler.WIDGET_SCRIPTS)
+        self.assertIn("/assets/feedback-widget.js?v=6", study_server.StudyHandler.WIDGET_SCRIPTS)
         self.assertNotIn("/assets/feedback-widget.js?v=3", study_server.StudyHandler.WIDGET_SCRIPTS)
 
 

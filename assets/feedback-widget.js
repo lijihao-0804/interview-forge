@@ -108,8 +108,8 @@
   function showFallbackPrompt(feature) {
     if (!root.document) return;
     var previous = root.document.getElementById("forge-feedback-auth-modal");
-    if (previous) previous.remove();
-    var modal = root.document.createElement("div");
+    if (previous && previous.open) return;
+    var modal = root.document.createElement("dialog");
     modal.id = "forge-feedback-auth-modal";
     modal.className = "forge-feedback-auth-mask";
     modal.setAttribute("role", "dialog");
@@ -126,15 +126,14 @@
     modal.querySelector("[data-login]").href = authHref("/pages/login.html");
     modal.querySelector("[data-register]").href = authHref("/pages/register.html");
     function close() {
-      modal.remove();
-      root.document.removeEventListener("keydown", onKeydown);
+      modal.close();
     }
-    function onKeydown(event) { if (event.key === "Escape") close(); }
+    modal.addEventListener("close", function () { modal.remove(); }, { once: true });
     modal.querySelector("[data-close]").onclick = close;
     modal.addEventListener("click", function (event) { if (event.target === modal) close(); });
-    root.document.addEventListener("keydown", onKeydown);
     root.document.body.appendChild(modal);
-    modal.querySelector(".forge-feedback-auth-dialog").focus();
+    modal.showModal();
+    modal.querySelector("[data-close]").focus();
   }
 
   function promptLogin(feature) {
@@ -238,7 +237,7 @@
       "#forge-fb-panel .fap-hint{font-size:12px;color:#66748a;margin-top:6px;min-height:16px}" +
       "#forge-fb-panel .fap-hint.err{color:#b3372f}#forge-fb-panel .fap-hint.ok{color:#157a52}" +
       "#forge-fb-panel summary{cursor:pointer;color:#4543bd}#forge-fb-panel .fap-replies p{border-top:1px solid #dfe4ee;padding-top:8px;white-space:pre-wrap;overflow-wrap:anywhere}" +
-      ".forge-feedback-auth-mask{position:fixed;inset:0;z-index:10020;display:grid;place-items:center;padding:20px;background:rgba(12,18,30,.52);backdrop-filter:blur(3px)}" +
+      ".forge-feedback-auth-mask{position:fixed;inset:0;width:100%;height:100%;max-width:none;max-height:none;margin:0;border:0;box-sizing:border-box;display:grid;place-items:center;padding:20px;background:transparent;overscroll-behavior:contain}.forge-feedback-auth-mask::backdrop{background:rgba(12,18,30,.52);backdrop-filter:blur(3px)}" +
       ".forge-feedback-auth-dialog{width:min(100%,430px);padding:23px;border:1px solid var(--line,#dfe4ee);border-radius:16px;color:var(--text,#182235);background:var(--panel,#fff);box-shadow:0 24px 70px rgba(10,14,22,.28);font:14px/1.65 -apple-system,'Segoe UI','Microsoft YaHei',sans-serif}" +
       ".forge-feedback-auth-dialog h2{margin:0;font-size:20px}.forge-feedback-auth-dialog p{margin:10px 0 0;color:var(--muted,#66748a)}" +
       ".forge-feedback-auth-actions{display:flex;justify-content:flex-end;gap:9px;flex-wrap:wrap;margin-top:20px}" +
@@ -250,18 +249,24 @@
     var btn = document.createElement("button");
     btn.type = "button";
     btn.setAttribute("aria-label", "提交反馈（需要登录）");
+    btn.setAttribute("aria-controls", "forge-fb-panel");
+    btn.setAttribute("aria-expanded", "false");
     btn.id = "forge-fb-btn";
     btn.title = "反馈问题（需要登录）";
     btn.textContent = "🐞";
 
     var panel = null;
+    var opening = false;
     function closePanel() {
       if (!panel) return;
       draft.content = panel.querySelector("#fb-content").value;
       draft.contact = panel.querySelector("#fb-contact").value;
       rememberDraft();
+      var returnFocus = panel.contains(document.activeElement);
       panel.remove();
       panel = null;
+      btn.setAttribute("aria-expanded", "false");
+      if (returnFocus) btn.focus();
     }
 
     function setHint(message, kind) {
@@ -307,11 +312,14 @@
       loadDraft();
       panel = document.createElement("div");
       panel.id = "forge-fb-panel";
+      panel.setAttribute("role", "dialog");
+      panel.setAttribute("aria-label", "反馈问题");
+      btn.setAttribute("aria-expanded", "true");
       panel.innerHTML =
         '<h3>反馈问题 🐞</h3>' +
         '<div class="fap-page"></div>' +
-        '<textarea id="fb-content" placeholder="遇到什么问题？（必填，1~2000 字）&#10;例如：某某页面打不开 / 复习日期不对 / 显示错乱…"></textarea>' +
-        '<input id="fb-contact" placeholder="联系方式（选填：QQ / 微信 / 邮箱）" autocomplete="off">' +
+        '<textarea aria-label="问题描述" id="fb-content" placeholder="遇到什么问题？（必填，1~2000 字）&#10;例如：某某页面打不开 / 复习日期不对 / 显示错乱…"></textarea>' +
+        '<input aria-label="联系方式（选填）" id="fb-contact" placeholder="联系方式（选填：QQ / 微信 / 邮箱）" autocomplete="off">' +
         '<div class="fap-actions"><button class="fap-close" type="button">取消</button>' +
         '<button class="fap-send" type="button">提交反馈</button></div>' +
         '<div class="fap-hint" id="fb-hint" role="status"></div>' +
@@ -330,6 +338,12 @@
       panel.querySelector("#fb-content").value = draft.content;
       panel.querySelector("#fb-contact").value = draft.contact;
       panel.querySelector(".fap-close").onclick = closePanel;
+      panel.addEventListener("keydown", function (event) {
+        if (event.key !== "Escape" || event.isComposing || btn.disabled) return;
+        event.preventDefault();
+        event.stopPropagation();
+        closePanel();
+      });
       panel.querySelector("#fb-content").focus();
 
       panel.querySelector(".fap-send").onclick = function () {
@@ -381,14 +395,14 @@
     }
 
     btn.onclick = function () {
-      if (btn.disabled) return;
+      if (btn.disabled || opening) return;
       if (panel) { closePanel(); return; }
-      btn.disabled = true;
+      opening = true;
       requireAuthenticated("提交反馈").then(function () {
-        btn.disabled = false;
+        opening = false;
         openPanel();
       }, function () {
-        btn.disabled = false;
+        opening = false;
       });
     };
 

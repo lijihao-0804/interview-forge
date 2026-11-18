@@ -77,6 +77,7 @@ import markdown
 from interview_forge.core.paths import ROOT as HOT100_ROOT
 from scripts.build import build_cache, build_hot200_extra, exam_shelf
 from scripts.build.asset_version import ASSET_VERSION
+from scripts.build.reader_fragment_links import repair_contents
 from pygments import highlight as pygments_highlight
 from pygments.formatters import HtmlFormatter
 from pygments.lexers import get_lexer_by_name
@@ -1245,14 +1246,14 @@ def document(
     )
     ai_assets = (
         f'<script src="{time_asset_base}/time-utils.js?v=2"></script>'
-        f'<script src="{time_asset_base}/guest-auth.js?v=2"></script>'
+        f'<script src="{time_asset_base}/guest-auth.js?v=3"></script>'
         f'<script src="{time_asset_base}/ui.js?v={ASSET_VERSION}" defer></script>'
         # 导航策略构建期写入：离线（file://）打开时服务端不注入，书架页顶栏
         # /面包屑/上一章下一章才不会被历史 target=_blank 全部新开标签。
         f'<script src="{time_asset_base}/navigation-policy.js?v=2" defer></script>'
         f'<link rel="stylesheet" data-interviewforge-ai href="{asset_base}/ai-launcher.css?v=5">'
         f'<script src="{asset_base}/ai-page-context.js?v=2" defer data-interviewforge-ai></script>'
-        f'<script src="{asset_base}/ai-launcher.js?v=4" defer data-interviewforge-ai></script>'
+        f'<script src="{asset_base}/ai-launcher.js?v=5" defer data-interviewforge-ai></script>'
     )
     page = f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>{html.escape(title)}</title><link rel="stylesheet" href="{css_href}?v={css_version}">{extra_head}{ai_assets}</head><body class="auth-checking">{body}
 <script>
@@ -2496,6 +2497,7 @@ otpMap.forEach(function(a,id){{var h=document.getElementById(id);if(h)io.observe
 }})();
 loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{{try{{const css=await (await fetch('../assets/library.css?v={ASSET_VERSION}')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{{type:'text/html'}});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}}catch(_){{toast.textContent='导出失败，请检查网络后重试'}}}});</script>'''
             reader = apply_chapter_reader_layout(reader, topic_nav_html)
+            reader = repair_contents(reader, (chapter["title"] for chapter in raw_chapters))
             # 章节脚本写在单行模板中，为避免重复维护整段 HTML，在生成前统一注入
             # 请求超时、状态检查和线上错误提示。这样所有章节页都由同一权威源产生。
             chapter_helpers = (
@@ -2873,7 +2875,7 @@ def build_bookshelf(modules: list[dict[str, object]]) -> None:
     <p class="shelf-result" id="shelfResult" aria-live="polite"></p>
   </div>
 </div>
-<h2 id="shelfBookHeading" hidden>书籍</h2><main class="module-grid" id="moduleGrid">{module_cards}</main><section id="chapterHits" class="chapter-hits" aria-label="章节和题目搜索结果" hidden></section><section class="fav-entry" aria-label="收藏中心"><a class="fav-entry-card" href="../pages/favorites.html"><span class="fav-entry-ico" aria-hidden="true">⭐</span><span class="fav-entry-body"><strong>我的收藏</strong><span>集中查看你在题目和章节里收藏的内容，可按来源筛选</span></span><span class="fav-entry-count" id="favEntryCount" hidden></span><span class="fav-entry-go" aria-hidden="true">→</span></a></section></div><script src="../assets/shelf-filters.js?v=2"></script><script>function fetchWithTimeout(input,options,timeout=12000){{const controller=new AbortController();const request=Object.assign({{}},options||{{}},{{signal:controller.signal}});const timer=setTimeout(()=>controller.abort(),timeout);return fetch(input,request).finally(()=>clearTimeout(timer));}}fetch('/api/library',{{cache:'no-store'}}).then(r=>r.ok?r.json():Promise.reject()).then(data=>document.querySelectorAll('[data-module-progress]').forEach(bar=>{{const info=data.modules[bar.dataset.moduleProgress]||{{completed:0,total:1}};const pct=Math.round(info.completed/info.total*100);bar.style.width=`${{pct}}%`;const pctEl=document.querySelector(`[data-module-pct="${{bar.dataset.moduleProgress}}"]`);if(pctEl)pctEl.textContent=pct+'%'}})).catch(()=>{{}});fetch('/api/favorites',{{cache:'no-store'}}).then(function(r){{return r.ok?r.json():Promise.reject()}}).then(function(d){{var n=(d.stats&&d.stats.__total__)||0;var el=document.getElementById('favEntryCount');if(el&&n){{el.textContent=n+' 条';el.hidden=false;}}}}).catch(function(){{}});fetch('/api/daily',{{cache:'no-store'}}).then(r=>r.ok?r.json():Promise.reject()).then(daily=>{{const summary=daily.summary||{{}};const total=summary.contents||0,overdue=summary.overdue_contents||0;const el=document.getElementById('shelfDueSummary');if(el){{el.innerHTML=total?`<span><strong>全书架待复习 ${{total}} 章</strong>${{overdue?`（逾期 ${{overdue}}）`:''}}，完成一轮后自动推进下次复习</span><a class="shelf-due-go" href="#moduleGrid">去各模块复习 →</a>`:`<span>今日全书架没有到期章节，可以继续学习新内容。</span>`}}document.querySelectorAll('[data-module-due]').forEach(badge=>{{const info=(summary.modules||{{}})[badge.dataset.moduleDue];if(info&&info.due){{badge.hidden=false;badge.textContent=`待复习 ${{info.due}}`;badge.classList.toggle('overdue',(info.overdue||0)>0)}}}})}}).catch(()=>{{}});</script>'''
+<h2 id="shelfBookHeading" hidden>书籍</h2><main class="module-grid" id="moduleGrid">{module_cards}</main><section id="chapterHits" class="chapter-hits" aria-label="章节和题目搜索结果" hidden></section><section class="fav-entry" aria-label="收藏中心"><a class="fav-entry-card" href="../pages/favorites.html"><span class="fav-entry-ico" aria-hidden="true">⭐</span><span class="fav-entry-body"><strong>我的收藏</strong><span>集中查看你在题目和章节里收藏的内容，可按来源筛选</span></span><span class="fav-entry-count" id="favEntryCount" hidden></span><span class="fav-entry-go" aria-hidden="true">→</span></a></section></div><script src="../assets/shelf-filters.js?v=3"></script><script>function fetchWithTimeout(input,options,timeout=12000){{const controller=new AbortController();const request=Object.assign({{}},options||{{}},{{signal:controller.signal}});const timer=setTimeout(()=>controller.abort(),timeout);return fetch(input,request).finally(()=>clearTimeout(timer));}}fetch('/api/library',{{cache:'no-store'}}).then(r=>r.ok?r.json():Promise.reject()).then(data=>document.querySelectorAll('[data-module-progress]').forEach(bar=>{{const info=data.modules[bar.dataset.moduleProgress]||{{completed:0,total:1}};const pct=Math.round(info.completed/info.total*100);bar.style.width=`${{pct}}%`;const pctEl=document.querySelector(`[data-module-pct="${{bar.dataset.moduleProgress}}"]`);if(pctEl)pctEl.textContent=pct+'%'}})).catch(()=>{{}});fetch('/api/favorites',{{cache:'no-store'}}).then(function(r){{return r.ok?r.json():Promise.reject()}}).then(function(d){{var n=(d.stats&&d.stats.__total__)||0;var el=document.getElementById('favEntryCount');if(el&&n){{el.textContent=n+' 条';el.hidden=false;}}}}).catch(function(){{}});fetch('/api/daily',{{cache:'no-store'}}).then(r=>r.ok?r.json():Promise.reject()).then(daily=>{{const summary=daily.summary||{{}};const total=summary.contents||0,overdue=summary.overdue_contents||0;const el=document.getElementById('shelfDueSummary');if(el){{el.innerHTML=total?`<span><strong>全书架待复习 ${{total}} 章</strong>${{overdue?`（逾期 ${{overdue}}）`:''}}，完成一轮后自动推进下次复习</span><a class="shelf-due-go" href="#moduleGrid">去各模块复习 →</a>`:`<span>今日全书架没有到期章节，可以继续学习新内容。</span>`}}document.querySelectorAll('[data-module-due]').forEach(badge=>{{const info=(summary.modules||{{}})[badge.dataset.moduleDue];if(info&&info.due){{badge.hidden=false;badge.textContent=`待复习 ${{info.due}}`;badge.classList.toggle('overdue',(info.overdue||0)>0)}}}})}}).catch(()=>{{}});</script>'''
 
     # 书架总页的两次状态请求使用统一超时，并在失败时给出可重试的可见提示；
     # 这里集中后处理长模板字符串，避免维护难以阅读的单行 HTML。

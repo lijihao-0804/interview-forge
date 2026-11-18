@@ -55,7 +55,8 @@ from interview_forge.core.problem_catalog import (
     problem_filename as hot100_problem_filename,
 )
 from scripts.build import build_cache
-from scripts.build.asset_version import ASSET_VERSION, SITE_CSS_VERSION, SITE_JS_VERSION, SOLUTION_PROGRESS_VERSION
+from scripts.build.asset_version import ASSET_VERSION, DELIVERED_ASSET_VERSIONS, SITE_CSS_VERSION, SITE_JS_VERSION, SOLUTION_PROGRESS_VERSION
+from scripts.build.reader_fragment_links import repair_contents
 
 # 并行渲染进程数：8（或按 CPU 核数自动收敛）。渲染是 CPU+IO 混合，进程池
 # 不受 GIL 限制；仅在逐文件渲染（render_markdown）阶段并行，聚合产物仍串行。
@@ -81,16 +82,10 @@ CONTENT_DIRS = ["books/hot100/00-总览", "books/hot100/01-基础", "books/hot10
 # its source directory is produced by another generator.  Keep this list narrow:
 # only reviewed scripts with an explicit cache-busting version are rewritten.
 SHARED_ASSET_VERSIONS = {
-    "site.js": SITE_JS_VERSION,
-    "site.css": SITE_CSS_VERSION,
+    **DELIVERED_ASSET_VERSIONS,
     "ui.js": ASSET_VERSION,
-    "solution-progress.js": SOLUTION_PROGRESS_VERSION,
     "engagement-tracker.js": ASSET_VERSION,
     "term-tooltip.js": ASSET_VERSION,
-    "ai-launcher.js": "4",
-    "guest-auth.js": "2",
-    "auth-widget.js": "7",
-    "feedback-widget.js": "4",
     "ai-assistant.js": "10",
     "register-flow.js": "5",
     "email-captcha.js": "2",
@@ -702,6 +697,7 @@ document.querySelectorAll('.markdown-body table').forEach((table) => {
   wrapper.appendChild(table);
 });
 
+const narrowCodeLayout = window.matchMedia('(max-width: 720px)');
 document.querySelectorAll('.markdown-body pre').forEach((pre) => {
   if (pre.parentElement?.classList.contains('code-block')) return;
   const wrapper = document.createElement('div');
@@ -731,14 +727,20 @@ document.querySelectorAll('.markdown-body pre').forEach((pre) => {
   const wrapButton = document.createElement('button');
   wrapButton.type = 'button';
   wrapButton.className = 'copy-code';
-  wrapButton.textContent = '换行';
-  wrapButton.setAttribute('aria-pressed', 'false');
   wrapButton.setAttribute('aria-label', '切换代码长行自动换行');
-  wrapButton.addEventListener('click', () => {
-    const nowrap = pre.classList.toggle('code-nowrap');
-    const wrapped = pre.classList.toggle('code-wrap', !nowrap);
+  function updateWrapButton() {
+    const wrapped = pre.classList.contains('code-wrap') ||
+      (narrowCodeLayout.matches && !pre.classList.contains('code-nowrap'));
     wrapButton.setAttribute('aria-pressed', String(wrapped));
     wrapButton.textContent = wrapped ? '原样' : '换行';
+  }
+  updateWrapButton();
+  narrowCodeLayout.addEventListener('change', updateWrapButton);
+  wrapButton.addEventListener('click', () => {
+    const wrap = wrapButton.getAttribute('aria-pressed') !== 'true';
+    pre.classList.toggle('code-wrap', wrap);
+    pre.classList.toggle('code-nowrap', !wrap);
+    updateWrapButton();
   });
   toolbar.append(label, button, wrapButton);
   pre.parentNode.insertBefore(wrapper, pre);
@@ -2823,7 +2825,7 @@ def render_markdown(source: Path, *, output: Path | None = None, raw: str | None
     ai_asset_base = web_rel(output, ROOT / "assets")
     ai_css_href = ai_asset_base + "/ai-launcher.css?v=5"
     ai_context_href = ai_asset_base + "/ai-page-context.js?v=2"
-    ai_launcher_href = ai_asset_base + "/ai-launcher.js?v=4"
+    ai_launcher_href = ai_asset_base + "/ai-launcher.js?v=5"
     policy_href = ai_asset_base + "/navigation-policy.js?v=2"
     ui_href = web_rel(output, ROOT / "assets" / "ui.js") + f"?v={ASSET_VERSION}"
     progress_css_href = web_rel(output, ROOT / "assets" / "solution-progress.css") + "?v=20261009-static"
@@ -2963,7 +2965,7 @@ def render_markdown(source: Path, *, output: Path | None = None, raw: str | None
         )
     page = annotate_language_toc(page)
     page = mark_cross_page_links(page)
-    output.write_text(page, encoding="utf-8")
+    output.write_text(repair_contents(page), encoding="utf-8")
 
 
 # =============================================================================

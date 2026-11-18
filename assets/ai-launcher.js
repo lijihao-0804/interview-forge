@@ -54,6 +54,8 @@
 
     var drawer = null;
     var frame = null;
+    var opener = null;
+    var previousOverflow = "";
     var contextFrame = null;
     function clearDrawerOpenState() {
       document.documentElement.classList.remove("if-ai-drawer-open");
@@ -78,27 +80,49 @@
       });
     }
     function close() {
-      if (drawer) drawer.remove();
+      if (!drawer) return;
+      if (drawer.open) drawer.close();
+      drawer.remove();
       drawer = null;
       frame = null;
       clearDrawerOpenState();
       button.hidden = false;
-      document.body.style.overflow = "";
+      document.body.style.overflow = previousOverflow;
+      if (opener && opener.isConnected) opener.focus();
+      opener = null;
     }
     function open() {
       if (drawer) { sendContext(); return; }
       try {
-        drawer = document.createElement("div");
+        opener = document.activeElement;
+        previousOverflow = document.body.style.overflow;
+        drawer = document.createElement("dialog");
         drawer.className = "if-ai-drawer-wrap";
-        drawer.innerHTML = '<button class="if-ai-drawer-backdrop" type="button" aria-label="关闭 AI 助手"></button>' +
-          '<aside class="if-ai-drawer" aria-label="AI 助手" role="dialog"><header class="if-ai-drawer-head"><span>AI 助手</span><span class="if-ai-drawer-actions"><a href="/pages/ai-assistant.html" target="_blank" rel="noopener noreferrer">打开完整页面</a><button type="button" aria-label="关闭">×</button></span></header><iframe title="AI 助手对话" src="/pages/ai-assistant.html?embedded=1"></iframe></aside>';
+        drawer.setAttribute("aria-label", "AI 助手");
+        drawer.style.cssText = "position:fixed;inset:0;margin:0;padding:0;border:0;width:100%;height:100%;max-width:none;max-height:none;background:transparent";
+        drawer.innerHTML = '<button class="if-ai-drawer-backdrop" type="button" tabindex="-1" aria-hidden="true"></button>' +
+          '<aside class="if-ai-drawer"><header class="if-ai-drawer-head"><span>AI 助手</span><span class="if-ai-drawer-actions"><a href="/pages/ai-assistant.html" target="_blank" rel="noopener noreferrer">打开完整页面</a><button type="button" aria-label="关闭">×</button></span></header><iframe title="AI 助手对话" src="/pages/ai-assistant.html?embedded=1"></iframe></aside>';
         document.body.appendChild(drawer);
         document.documentElement.classList.add("if-ai-drawer-open");
         button.hidden = true;
         frame = drawer.querySelector("iframe");
         drawer.querySelector(".if-ai-drawer-backdrop").addEventListener("click", close);
-        drawer.querySelector(".if-ai-drawer-actions button").addEventListener("click", close);
-        frame.addEventListener("load", sendContext);
+        var closeButton = drawer.querySelector(".if-ai-drawer-actions button");
+        closeButton.addEventListener("click", close);
+        drawer.addEventListener("cancel", function (event) { event.preventDefault(); close(); });
+        frame.addEventListener("load", function () {
+          sendContext();
+          // Keyboard events in the same-origin conversation do not bubble into the outer document.
+          var inner = frame && frame.contentDocument;
+          if (inner) inner.addEventListener("keydown", function (event) {
+            if (event.key === "Escape" && !event.defaultPrevented && !event.isComposing && !inner.querySelector("dialog[open]")) {
+              event.preventDefault();
+              close();
+            }
+          });
+        });
+        drawer.showModal();
+        closeButton.focus();
         document.body.style.overflow = "hidden";
         sendContext();
       } catch (error) {
