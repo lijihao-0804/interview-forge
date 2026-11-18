@@ -44,6 +44,7 @@ def register_builtin_tools(registry: ToolRegistry) -> ToolRegistry:
         get_review_queue,
     )
     from interview_forge.ai.tools.builtins.weather import GetWeatherArgs, get_weather
+    from interview_forge.ai.tools.builtins.observations import RecallLearningObservationArgs, recall_learning_observation
     from interview_forge.ai.tools.contracts import ToolKind, ToolSpec
 
     registry.register(ToolSpec(
@@ -53,7 +54,8 @@ def register_builtin_tools(registry: ToolRegistry) -> ToolRegistry:
         args_model=GetAcmExamplesArgs,
         handler=get_acm_examples,
         timeout_seconds=2.0,
-        max_result_tokens=700,
+        max_result_tokens=780,
+        observation_receipt_tokens=80,
     ))
     registry.register(ToolSpec(
         name="get_problem",
@@ -99,7 +101,18 @@ def register_builtin_tools(registry: ToolRegistry) -> ToolRegistry:
         args_model=GetProblemProgressArgs,
         handler=get_problem_progress,
         timeout_seconds=4.0,
-        max_result_tokens=700,
+        max_result_tokens=780,
+        observation_receipt_tokens=80,
+    ))
+    registry.register(ToolSpec(
+        name="recall_learning_observation",
+        display_name="回读历史学习记录",
+        description="回读本会话先前轮次的原始题目进度或公开样例。按 problem_id 和 source_tool 取最近的旧记录，或按 observation_id 精确回读。excerpt 为当时数据 JSON，按 next_offset 和 observation_id 翻页。不要用实时进度代替历史记录。",
+        args_model=RecallLearningObservationArgs,
+        handler=recall_learning_observation,
+        timeout_seconds=4.0,
+        max_result_tokens=1800,
+        cache_within_turn=False,
     ))
     registry.register(ToolSpec(
         name="get_review_queue",

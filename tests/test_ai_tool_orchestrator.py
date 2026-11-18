@@ -274,6 +274,41 @@ class ToolOrchestratorTests(unittest.TestCase):
             ["first", "second"],
         )
 
+    def test_colliding_provider_ids_preserve_each_read_and_its_result(self):
+        async def read(_context, args):
+            return {"value": args.value}
+
+        registry = ToolRegistry([ToolSpec("lookup", "查阅", "查阅", ValueArgs, read)])
+        for fragmented in (False, True):
+            with self.subTest(fragmented=fragmented):
+                calls = [
+                    {"id": call_id, "name": "lookup", "args": {"value": value}}
+                    for call_id, value in zip(("dup", "dup", "tool-call-1"), ("a", "b", "c"))
+                ]
+                chunks = [FakeChunk(tool_calls=calls)]
+                if fragmented:
+                    first, last = FakeChunk(), FakeChunk()
+                    first.tool_call_chunks = [
+                        {**call, "index": index, "args": '{"value":'}
+                        for index, call in enumerate(calls)
+                    ]
+                    last.tool_call_chunks = [
+                        {"index": index, "args": json.dumps(call["args"]["value"]) + "}"}
+                        for index, call in enumerate(calls)
+                    ]
+                    chunks = [first, last]
+                model = ScriptedModel([chunks, [FakeChunk("完成")]])
+                events = asyncio.run(_collect(ToolOrchestrator(registry=registry), model, _context(self.db)))
+                ids = [item["data"]["call_id"] for item in events if item["event"] == "tool.done"]
+                self.assertEqual(len(set(ids)), 3)
+                self.assertEqual((ids[0], ids[2]), ("dup", "tool-call-1"))
+                messages = model.seen[1]
+                requested = next(m["tool_calls"] for m in messages if m.get("tool_calls"))
+                self.assertEqual([call["id"] for call in requested], ids)
+                responses = [m for m in messages if m["role"] == "tool"]
+                self.assertEqual([m["tool_call_id"] for m in responses], ids)
+                self.assertEqual([json.loads(m["content"])["data"]["value"] for m in responses], ["a", "b", "c"])
+
     def test_unknown_tool_and_max_rounds_reach_tools_disabled_final(self):
         model = ScriptedModel([
             [FakeChunk("", [{"id": "x", "name": "missing", "args": {}}])],

@@ -172,6 +172,62 @@ class MemoryDomainTests(unittest.TestCase):
                 self.assertEqual(extractor.extract(message, model=model), [])
         self.assertEqual(model.calls, 0)
 
+    def test_study_material_and_other_speakers_never_replace_a_personal_preference(self):
+        source = "记住我喜欢用 Python"
+        store = MemoryStore()
+        store.save_candidate(user_db=self.db, candidate=self.candidate(source),
+                             source_session_id="a", source_message_id=1)
+        model = StructuredExtractorModel()
+        extractor = MemoryExtractor()
+        for index, message in enumerate((
+            "请走查我的代码。\n\n当前练习 两数之和\n\n语言 python\n\n编辑器代码\nprint('我喜欢用 Rust')",
+            "我希望弄懂这段输出\n```java\nSystem.out.println(\"我喜欢 Rust\");\n```",
+            "我同学喜欢用 Java，帮我解释一下他的做法。", "请记住我同学喜欢用 Java。",
+            "我希望了解这道题为什么用 Python 的字典。",
+            "这道 Python 题为什么要使用哈希表，目标和如何计算？", "我喜欢用 Java 吗？",
+            "> 我以后都用 Rust\n这是题目里的对话。",
+        ), start=2):
+            with self.subTest(message=message):
+                self.assertFalse(extractor.can_extract(message))
+                service = ChatService(memory_extractor=extractor, config_loader=lambda: None)
+                service._process_memory(user_db=self.db, session_id="a", message_id=index,
+                                        message=message, model=model)
+        self.assertEqual(model.calls, 0)
+        active = store.list_active(user_db=self.db)
+        self.assertEqual([(item.source_message_id, item.display_text) for item in active], [(1, "我喜欢用 Python")])
+        implied = extractor.extract("以后用 Java 解释算法")
+        self.assertEqual(len(implied), 1)
+        self.assertFalse(implied[0].explicit)
+
+    def test_model_aliases_produce_one_update_per_fact(self):
+        class RepeatedFactModel(StructuredExtractorModel):
+            def invoke(self, messages):
+                base = super().invoke(messages)["candidates"][0]
+                return {"candidates": [dict(base, canonical_key=key, display_text=value)
+                                       for key, value in [("language", "日常用 Python"),
+                                                          ("preferred_language", "面试用 Java")]]}
+
+        candidates = MemoryExtractor().extract("记住我希望日后从项目背景出发复盘算法。", model=RepeatedFactModel())
+        self.assertEqual([(c.canonical_key, c.display_text) for c in candidates],
+                         [("preference.programming_language", "面试用 Java")])
+
+    def test_background_inference_respects_chat_capacity_and_local_facts_need_no_slot(self):
+        from interview_forge.ai.tasks import _try_claim_model_slot, _release_model_slot
+
+        model = StructuredExtractorModel()
+        service = ChatService(config_loader=lambda: None)
+        args = dict(user_db=self.db, session_id="s", model=model, fallback_limit=1)
+        self.assertTrue(_try_claim_model_slot(1))
+        try:
+            service._process_memory(**args, message_id=1, message="以后我希望从项目经历出发分析风险。")
+            self.assertEqual(model.calls, 0)
+            service._process_memory(**args, message_id=2, message="我通常喜欢用 Python")
+            self.assertEqual([m.display_text for m in MemoryStore().list_active(user_db=self.db)], ["我通常喜欢用 Python"])
+        finally:
+            _release_model_slot()
+        service._process_memory(**args, message_id=3, message="以后我希望从项目经历出发分析风险。")
+        self.assertEqual(model.calls, 1)
+
     def test_structured_extractor_preserves_qualified_wording_and_enforces_delete_intent(self):
         class ParaphrasingModel(StructuredExtractorModel):
             def invoke(self, messages):
@@ -460,9 +516,11 @@ class MemoryDomainTests(unittest.TestCase):
 
     def test_explicit_forget_is_persisted_before_answer(self):
         store = MemoryStore()
+        original = ChatService.create_session(user_db=self.db)
+        first = ChatService._save_user_message(user_db=self.db, session_id=original["id"], content="记住我喜欢先讲思路")
         store.save_candidate(
             user_db=self.db, candidate=self.candidate("记住我喜欢先讲思路"),
-            source_session_id="old", source_message_id=1,
+            source_session_id=original["id"], source_message_id=first["id"],
         )
         config = AIConfig(
             enabled=True, provider="openai-compatible", model="test", base_url="https://example.invalid",

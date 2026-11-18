@@ -54,6 +54,7 @@ from interview_forge.ai.memory import (
 )
 from interview_forge.ai.provider import stream_chat_chunks
 from interview_forge.ai.memory.extractor import extraction_budget
+from interview_forge.ai.memory.store import MemorySourceSuperseded
 from interview_forge.ai.token_counting import StructuredRequestBudget, canonical_json, generation_reserve
 from interview_forge.ai.tasks import _release_model_slot, _try_claim_model_slot
 from interview_forge.core.runtime import server_runtime
@@ -353,7 +354,10 @@ class ChatService:
         model: Any,
         trace_recorder: TraceRecorder | None = None,
         fallback_budget: StructuredRequestBudget | None = None,
+        fallback_limit: int,
     ) -> None:
+        if not MemoryExtractor.can_extract(message):
+            return
         task = asyncio.create_task(asyncio.to_thread(
             self._process_memory,
             user_db=user_db,
@@ -363,6 +367,7 @@ class ChatService:
             model=model,
             trace_recorder=trace_recorder,
             fallback_budget=fallback_budget,
+            fallback_limit=fallback_limit,
         ))
         self._background_memory_tasks.add(task)
         task.add_done_callback(self._background_memory_tasks.discard)
@@ -427,33 +432,42 @@ class ChatService:
         model: Any,
         trace_recorder: TraceRecorder | None = None,
         fallback_budget: StructuredRequestBudget | None = None,
+        fallback_limit: int | None = None,
     ) -> None:
         if not MemoryExtractor.can_extract(message):
             return
         try:
-            memory_model = model
-            budget = fallback_budget
-            if self.runtime_loader is not None:
-                try:
-                    memory_runtime = self.runtime_loader("memory_extraction")
-                    memory_model = self.model_factory(memory_runtime.config)
-                    budget = extraction_budget(runtime=memory_runtime)
-                except Exception as exc:
-                    debug_ai_event("chat_memory_runtime_unavailable", error_type=type(exc).__name__)
+            candidates = []
+            if isinstance(self.memory_extractor, MemoryExtractor):
+                candidates = self._extract_memory(message, model=None, budget=fallback_budget)
+            if not candidates:
+                memory_model, budget, limit = model, fallback_budget, fallback_limit
+                if self.runtime_loader is not None:
+                    try:
+                        memory_runtime = self.runtime_loader("memory_extraction")
+                        memory_model = self.model_factory(memory_runtime.config)
+                        budget = extraction_budget(runtime=memory_runtime)
+                        limit = memory_runtime.config.max_concurrent_requests
+                    except Exception as exc:
+                        debug_ai_event("chat_memory_runtime_unavailable", error_type=type(exc).__name__)
+                        if trace_recorder is not None:
+                            trace_recorder.record(
+                                event_type="memory", name="memory_runtime_fallback", status="fallback",
+                                metadata={"requested_business": "memory_extraction", "fallback": True,
+                                          "fallback_reason": type(exc).__name__, "fallback_provider": trace_recorder.provider,
+                                          "fallback_model": trace_recorder.model},
+                            )
+                # An optional profile inference must obey the same provider capacity
+                # as foreground chat and must not queue after the user has moved on.
+                if not _try_claim_model_slot(limit or load_ai_config().max_concurrent_requests):
                     if trace_recorder is not None:
-                        trace_recorder.record(
-                            event_type="memory",
-                            name="memory_runtime_fallback",
-                            status="fallback",
-                            metadata={
-                                "requested_business": "memory_extraction",
-                                "fallback": True,
-                                "fallback_reason": type(exc).__name__,
-                                "fallback_provider": trace_recorder.provider,
-                                "fallback_model": trace_recorder.model,
-                            },
-                        )
-            candidates = self._extract_memory(message, model=memory_model, budget=budget)
+                        trace_recorder.record(event_type="memory", name="memory_inference", status="skipped",
+                                              metadata={"reason": "model_slots_busy"})
+                    return
+                try:
+                    candidates = self._extract_memory(message, model=memory_model, budget=budget)
+                finally:
+                    _release_model_slot()
             store = MemoryStore()
             for candidate in candidates:
                 store.save_candidate(
@@ -493,6 +507,7 @@ class ChatService:
             return None
         if not MemoryExtractor.can_extract(message):
             return MemoryPersistenceResult(explicit=True, success=False, error_code="source_restricted")
+        operation = None
         try:
             candidates = self._extract_memory(message, model=model, budget=budget)
             if not candidates:
@@ -503,28 +518,19 @@ class ChatService:
                 )
             store = MemoryStore()
             operation = candidates[0].operation
-            saved_count = 0
-            for candidate in candidates:
-                stored = store.save_candidate(
-                    user_db=user_db,
-                    candidate=candidate,
-                    source_session_id=session_id,
-                    source_message_id=message_id,
-                    attempt=attempt,
-                )
-                if candidate.operation == "upsert" and stored is None:
-                    return MemoryPersistenceResult(
-                        explicit=True,
-                        success=False,
-                        operation=operation,
-                        error_code="store_empty",
-                    )
-                saved_count += 1
+            store.save_candidates(
+                user_db=user_db, candidates=candidates, source_session_id=session_id,
+                source_message_id=message_id, attempt=attempt,
+            )
             return MemoryPersistenceResult(
                 explicit=True,
                 success=True,
                 operation=operation,
-                count=saved_count,
+                count=len(candidates),
+            )
+        except MemorySourceSuperseded:
+            return MemoryPersistenceResult(
+                explicit=True, success=False, operation=operation, error_code="source_superseded",
             )
         except Exception as exc:
             debug_ai_event(
@@ -556,6 +562,8 @@ class ChatService:
 
     @staticmethod
     def _explicit_failure_message(result: MemoryPersistenceResult) -> str:
+        if result.error_code == "source_superseded":
+            return "这条请求涉及的记忆已有更新。已保留当前状态，本次请求未更改记忆。"
         if result.error_code == "source_restricted":
             return "这条消息的内容或使用范围不适合保存为长期记忆，本次没有写入。"
         if result.operation == "forget":
@@ -1011,6 +1019,7 @@ class ChatService:
                         model=model,
                         trace_recorder=trace_recorder,
                         fallback_budget=extraction_budget(runtime=runtime, config=config),
+                        fallback_limit=config.max_concurrent_requests,
                     )
                 yield _event("message.done", done_payload)
             except asyncio.CancelledError:

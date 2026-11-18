@@ -69,6 +69,7 @@ class ToolSpec:
     max_result_tokens: int = 1500
     confirmation_builder: ConfirmationBuilder | None = None
     cache_within_turn: bool = True
+    observation_receipt_tokens: int = 0
 
     def __post_init__(self) -> None:
         if not self.name or not self.name.replace("_", "").isalnum():

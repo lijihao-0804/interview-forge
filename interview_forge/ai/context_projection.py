@@ -294,7 +294,9 @@ def _trim_chat_projection(projection: dict[str, Any], max_chars: int) -> dict[st
     def serialized() -> str:
         return json.dumps(projection, ensure_ascii=False, separators=(",", ":"))
 
-    for key in ("selected_facts", "related_problem_facts", "signals"):
+    # The related list is a subset of the ranked facts. Discard duplicates
+    # before evicting a higher-ranked module, content item, or problem.
+    for key in ("related_problem_facts", "signals", "selected_facts"):
         while len(serialized()) > limit and projection.get(key):
             projection[key].pop()
     digest = projection.get("diagnostic_digest")
@@ -358,8 +360,8 @@ def project_learning_context_for_chat(
         base = _build_llm_context(context, include_user_request=include_user_request)
         digest = base.get("diagnostic_digest", {})
     else:
-        digest = context.get("diagnostic_digest", {})
-        if not isinstance(digest, Mapping):
+        digest = context.get("diagnostic_digest")
+        if not isinstance(digest, Mapping) or not digest:
             digest = {"overview": context.get("summary", {})}
     facts = [
         safe

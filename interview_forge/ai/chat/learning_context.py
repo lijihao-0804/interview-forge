@@ -105,7 +105,7 @@ def _unavailable_result(
     quality = _quality_from_analytics(analytics)
     if not quality.get("notes"):
         quality["notes"] = ["学习数据不足，无法生成该学习上下文。"]
-    quality.setdefault("status", "unavailable")
+    quality["status"] = "unavailable"
     projection = {
         "context_schema_version": "context-v1",
         "task": selection["task"],
@@ -209,7 +209,7 @@ class LearningContextProvider:
             "task": selection["task"],
             "target_problem_id": selection.get("target_problem_id"),
             "budget_tier": selection["budget_tier"],
-            "available": True,
+            "available": compiled.get("summary", {}).get("availability") != "unavailable",
             "context": compiled,
             "projection": projection,
             "data_quality": compiled.get("data_quality", {}),

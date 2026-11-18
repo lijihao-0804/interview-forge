@@ -246,6 +246,11 @@ async function stopAndTerminalEffect() {
   assert.ok(ui.get("messages").querySelector(".action-card"));
   assert.match(ui.get("error").textContent, /已保存/);
   assert.equal(server.posts.length, 2);
+  server.lookup = () => json({ status: "interrupted", memory_changed: true, action_recorded: true });
+  await ui.submit("保存记忆并创建一个待确认操作");
+  assert.match(ui.get("error").textContent, /长期记忆已更新/);
+  assert.match(ui.get("error").textContent, /待确认的操作/);
+  assert.equal(ui.get("retryTurn").hidden, true);
 }
 
 async function staleCallbacksAndEdit() {

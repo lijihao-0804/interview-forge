@@ -281,7 +281,7 @@ class ToolRuntime:
             payload = _result_envelope(spec.name, result)
             serialized = _safe_json(payload)
             result_tokens = estimate_json_tokens(payload)
-            if result_tokens > spec.max_result_tokens:
+            if result_tokens > spec.max_result_tokens - spec.observation_receipt_tokens:
                 return self._failure(
                     context=context, call=call, kind=spec.kind, run_id=run_id,
                     status="error", code="result_too_large", started=started,
@@ -289,6 +289,15 @@ class ToolRuntime:
                     result_chars=len(serialized),
                     result_tokens_estimated=result_tokens,
                 )
+            if spec.observation_receipt_tokens:
+                from interview_forge.ai.tools.builtins.observations import save_observation
+
+                receipt = await asyncio.to_thread(save_observation, context, spec.name, arguments["problem_id"],
+                                                  result.data, uuid.uuid4().hex)
+                result = ToolResult({**result.data, "observation": receipt}, result.display_text, result.library_sources)
+                payload = _result_envelope(spec.name, result)
+                serialized = _safe_json(payload)
+                result_tokens = estimate_json_tokens(payload)
         except asyncio.TimeoutError:
             return self._failure(
                 context=context, call=call, kind=spec.kind, run_id=run_id,

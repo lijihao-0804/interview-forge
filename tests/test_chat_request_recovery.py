@@ -136,10 +136,11 @@ def test_same_transaction_rolls_back_quota_and_reply_on_receipt_failure(db):
 
 
 @pytest.mark.parametrize("existing", [True, False])
-def test_forget_only_records_an_effect_when_it_deletes_a_memory(db, existing):
+def test_forget_records_a_durable_effect_even_before_a_delayed_extraction(db, existing):
     store = MemoryStore()
     if existing:
-        store.save_candidate(user_db=db, source_session_id="s", source_message_id=6,
+        previous = ChatService._save_user_message(user_db=db, session_id="s", content="记住我喜欢 Python")
+        store.save_candidate(user_db=db, source_session_id="s", source_message_id=previous["id"],
                              candidate=_deterministic_candidate("记住我喜欢 Python"))
     turn = RequestAttempt.new("s", "forget")
     turn.reserve(db, payload_hash("forget", None), "user")
@@ -148,6 +149,6 @@ def test_forget_only_records_an_effect_when_it_deletes_a_memory(db, existing):
                          candidate=_deterministic_candidate("不要再记住我喜欢 Python"), attempt=turn)
     reconcile_session(db, "s")
     result = read_request(db, "s", "forget")
-    assert result["status"] == ("interrupted" if existing else "retryable")
-    assert result["quota_state"] == ("charged" if existing else "refunded")
+    assert result["status"] == "interrupted"
+    assert result["quota_state"] == "charged"
     assert not store.list_active(user_db=db)

@@ -14,6 +14,14 @@ from interview_forge.core.runtime import server_runtime
 from tests.test_ai_tool_orchestrator import FakeChunk, ScriptedModel, _collect
 
 
+def test_text_quoted_from_another_message_cannot_select_a_second_range():
+    items = [dict(message_id=4, offset=0, excerpt="先写测试"),
+             dict(message_id=4, offset=25, excerpt="先画图"),
+             dict(message_id=9, offset=0, excerpt="先画图")]
+    refs = cited_history_sources("#4「先写测试」\n#9「先画图」", items)
+    assert [(ref['message_id'], ref['offset']) for ref in refs] == [(4, 0), (9, 0)]
+
+
 def test_cited_recall_links_open_scoped_source_and_survive_reload(tmp_path, monkeypatch):
     db = tmp_path / "alice.db"
     source = "🙂当时的原话是「先讲直觉，再画图」。"
@@ -55,3 +63,11 @@ def test_only_admitted_and_cited_ids_get_an_original_text_link():
     assert [item["message_id"] for item in cited_history_sources("见消息 #11 和捏造的 #25", visible)] == [11]
     assert not cited_history_sources("你的原话是某某。", visible)
     assert not cited_history_sources("来源：消息 #11", [])
+
+
+def test_same_message_id_does_not_attach_unrelated_excerpt():
+    visible = [{"message_id": 4, "offset": 0, "excerpt": "当时讨论了二叉树遍历"},
+               {"message_id": 4, "offset": 400, "excerpt": "原先约定先写出边界条件"}]
+    refs = cited_history_sources("消息 #4 里写着「先写出边界条件」。", visible)
+    assert [ref["offset"] for ref in refs] == [400]
+    assert not cited_history_sources("详见消息 #4。", visible)

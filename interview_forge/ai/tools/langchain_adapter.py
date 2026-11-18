@@ -48,6 +48,24 @@ class NormalizedToolCall:
     arguments: dict[str, Any]
 
 
+def _unique_call_ids(calls: list[NormalizedToolCall]) -> list[NormalizedToolCall]:
+    """Preserve provider IDs and give each missing or repeated ID a free slot."""
+    reserved = {call.call_id for call in calls if call.call_id}
+    used: set[str] = set()
+    result = []
+    for index, call in enumerate(calls):
+        if not call.call_id or call.call_id in used:
+            candidate = f"tool-call-{index}"
+            suffix = 0
+            while candidate in reserved or candidate in used:
+                suffix += 1
+                candidate = f"tool-call-{index}-{suffix}"
+            call = NormalizedToolCall(candidate, call.name, call.arguments)
+        used.add(call.call_id)
+        result.append(call)
+    return result
+
+
 def _value(item: Any, key: str, default: Any = None) -> Any:
     if isinstance(item, Mapping):
         return item.get(key, default)
@@ -70,14 +88,14 @@ def normalize_tool_calls(message: Any) -> list[NormalizedToolCall]:
     """Normalize complete AIMessage tool calls without exposing provider details."""
     raw_calls = _value(message, "tool_calls", ()) or ()
     result: list[NormalizedToolCall] = []
-    for index, raw in enumerate(raw_calls):
+    for raw in raw_calls:
         name = str(_value(raw, "name", ""))
         if not name:
             continue
-        call_id = str(_value(raw, "id", "") or f"tool-call-{index}")
+        call_id = str(_value(raw, "id", "") or "")
         args = _value(raw, "args", _value(raw, "arguments", {}))
         result.append(NormalizedToolCall(call_id, name, _arguments(args)))
-    return result
+    return _unique_call_ids(result)
 
 
 def visible_text(message: Any) -> str:
@@ -133,18 +151,18 @@ class ToolCallAccumulator:
 
     def finish(self) -> list[NormalizedToolCall]:
         result: list[NormalizedToolCall] = []
-        for index, key in enumerate(self._order):
+        for key in self._order:
             state = self._calls[key]
             if not state.get("name"):
                 continue
             result.append(
                 NormalizedToolCall(
-                    str(state.get("id") or f"tool-call-{index}"),
+                    str(state.get("id") or ""),
                     str(state["name"]),
                     _arguments(state.get("args", {})),
                 )
             )
-        return result
+        return _unique_call_ids(result)
 
 
 __all__ = [

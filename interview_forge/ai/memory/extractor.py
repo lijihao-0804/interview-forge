@@ -57,6 +57,18 @@ _QUALIFIED_PREFERENCE_RE = re.compile(
 )
 MEMORY_DISPLAY_LIMIT = 240
 
+# Treat the editor's editable transcript, Markdown code blocks and quotations as
+# study material. They travel to chat intact, but never to the profile extractor.
+_STUDY_MATERIAL = re.compile(r"^\s*(?:`{3,}|~{3,}|>|编辑器代码\s*$)", re.MULTILINE)
+_OTHER_LEARNER = re.compile(r"^我(?:的)?(?:同学|朋友|同事|室友|老师|队友|学生|家人)")
+_SELF_STATEMENT = re.compile(
+    r"^(?:(?:通常|一般|平时|以后|今后|后续|日后|一直|长期)[\s，,]*)?"
+    r"我(?:本人|自己)?(?:通常|一般|平时|一直|长期|以后|更|比较|最|不|每天|每日)*"
+    r"(?:喜欢|偏好|习惯|希望(?:以后|今后|长期|日后|每次|默认)|打算|计划|用|使用|学|练|只有|只能|想成为|的(?:长期)?(?:目标|偏好|习惯|计划|学习时间))"
+    r"|^(?:以后|今后|后续|日后|长期)[\s，,]*我希望"
+    r"|^(?:以后|今后|后续|日后)(?:[\s，,]*(?:请你|请|帮我|给我))?\s*(?:默认|优先|都|先|用|回答|讲解|解释)"
+)
+
 
 def _blocked_source(text: str) -> bool:
     if contains_secret(text):
@@ -111,7 +123,7 @@ def _deterministic_candidate(message: str) -> MemoryCandidate | None:
         return MemoryCandidate("forget", kind, key, {}, "删除相关长期记忆", True, 1.0, importance)
     return MemoryCandidate(
         "upsert", kind, key, {"text": display},
-        display, any(marker in text for marker in ("记住", "以后", "目标", "希望")),
+        display, is_explicit_memory_request(message),
         1.0 if "记住" in text else 0.82,
         importance,
     )
@@ -189,17 +201,29 @@ class MemoryExtractor:
         candidates = [deterministic] if deterministic is not None else []
         if not candidates and model is not None:
             candidates = self._provider_candidates(model, message, budget or extraction_budget())
-        accepted = []
+        accepted = {}
         for candidate in candidates[:4]:
             value = self.policy.accept(candidate)
             if value is not None:
-                accepted.append(value)
-        return accepted
+                # Models may repeat a fact under aliases. A source message
+                # can establish only one value per normalized profile key.
+                accepted[(value.kind, value.canonical_key)] = value
+        return list(accepted.values())
 
     @staticmethod
     def can_extract(message: str) -> bool:
-        """Check secret and persistence boundaries on the complete source."""
-        return memory_worthy(message) and not _blocked_source(" ".join(message.split()))
+        """Only the learner's own statements are eligible for profile updates."""
+        text = " ".join(message.split())
+        if not memory_worthy(text) or _blocked_source(text) or _STUDY_MATERIAL.search(message):
+            return False
+        remember = _EXPLICIT_MEMORY_RE.match(text)
+        if remember:
+            return not _OTHER_LEARNER.match(text[remember.end():].lstrip(" ：:，,"))
+        if _EXPLICIT_FORGET_RE.match(text):
+            return True
+        if text.endswith(("?", "？")) or text.rstrip("。！!").endswith(("吗", "么")):
+            return False
+        return bool(_SELF_STATEMENT.match(text))
 
 
 def extraction_budget(*, runtime: Any = None, config: Any = None) -> StructuredRequestBudget:

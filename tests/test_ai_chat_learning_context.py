@@ -141,6 +141,35 @@ class LearningContextSelectorTests(unittest.TestCase):
         for forbidden in ("trace_map", "evidence", "metric:", "signal_id", "evidence_ids"):
             self.assertNotIn(forbidden, serialized)
 
+    def test_budget_keeps_ranked_items_before_duplicate_problem_views(self):
+        context = _compiled_context("today_plan")
+        context["facts"].reverse()  # A module ranked ahead of a problem.
+        full = project_learning_context_for_chat(context)
+        expected = {**full, "related_problem_facts": []}
+        limit = len(json.dumps(expected, ensure_ascii=False, separators=(",", ":")))
+        compact = project_learning_context_for_chat(context, max_chars=limit)
+        self.assertEqual(compact["selected_facts"], full["selected_facts"])
+        self.assertEqual(compact["signals"], full["signals"])
+
+    def test_unavailable_route_remains_explicit_with_no_digest(self):
+        context = _compiled_context("learning_route")
+        del context["diagnostic_digest"]
+        with patch("interview_forge.ai.chat.learning_context.analytics_cached"), patch(
+            "interview_forge.ai.chat.learning_context.compile_learning_context", return_value=context
+        ):
+            result = LearningContextProvider().build_for_task(user_db=Path("unused.db"), task="learning_route")
+        self.assertFalse(result["available"])
+        self.assertEqual(result["projection"]["diagnostic_digest"]["overview"]["availability"], "unavailable")
+
+    def test_good_source_quality_cannot_mask_failed_compilation(self):
+        with patch("interview_forge.ai.chat.learning_context.analytics_cached",
+                   return_value={"data_quality": {"status": "ok"}}), patch(
+            "interview_forge.ai.chat.learning_context.compile_learning_context", side_effect=ValueError()
+        ):
+            result = LearningContextProvider().build_for_task(user_db=Path("unused.db"), task="today_plan")
+        self.assertFalse(result["available"])
+        self.assertEqual(result["projection"]["data_quality"]["status"], "unavailable")
+
 
 class ChatLearningContextIntegrationTests(unittest.TestCase):
     def setUp(self):

@@ -149,6 +149,10 @@ CREATE INDEX IF NOT EXISTS ix_user_memories_status ON user_memories(status);
 CREATE INDEX IF NOT EXISTS ix_user_memories_kind ON user_memories(kind);
 CREATE INDEX IF NOT EXISTS ix_user_memories_canonical_key ON user_memories(canonical_key);
 CREATE INDEX IF NOT EXISTS ix_user_memories_updated_at ON user_memories(updated_at DESC);
+CREATE TABLE IF NOT EXISTS memory_forget_watermarks (
+    key_digest BLOB PRIMARY KEY,
+    source_message_id INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS chat_action_requests (
     id TEXT PRIMARY KEY,
     session_id TEXT NOT NULL,
@@ -195,6 +199,19 @@ CREATE INDEX IF NOT EXISTS ix_ai_trace_events_finished
     ON ai_trace_events(finished_at DESC);
 CREATE INDEX IF NOT EXISTS ix_ai_trace_events_type
     ON ai_trace_events(event_type, finished_at DESC);
+CREATE TABLE IF NOT EXISTS chat_learning_observations (
+    sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+    id TEXT NOT NULL UNIQUE,
+    session_id TEXT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    user_message_id INTEGER NOT NULL REFERENCES chat_messages(id) ON DELETE CASCADE,
+    source_tool TEXT NOT NULL,
+    problem_id INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    data_json TEXT NOT NULL,
+    sha256 TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_chat_learning_observations_lookup
+    ON chat_learning_observations(session_id, source_tool, problem_id, sequence DESC);
 """
 
 

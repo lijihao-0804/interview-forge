@@ -20,13 +20,14 @@ class HistorySource(TypedDict):
 _CITED_ID = re.compile(
     r"[#＃]\s*(\d{1,19})(?!\d)|(?:消息|message)\s*(?:ID|编号)?\s*[：:]?\s*(\d{1,19})(?!\d)", re.I,
 )
+_QUOTED_TEXT = re.compile(r"「([^」\n]+)」|『([^』\n]+)』|“([^”\n]+)”|\"([^\"\n]+)\"")
 
 
 def cited_history_sources(answer: str, visible_items: list[dict]) -> tuple[HistorySource, ...]:
     if not visible_items:
         return ()
     cited = {int(a or b) for a, b in _CITED_ID.findall(answer)}
-    sources = {}
+    ranges: dict[int, dict[tuple[int, str], None]] = {}
     # The caller supplies only results still visible at final model admission.
     for item in visible_items:
         if not isinstance(item, dict):
@@ -36,11 +37,26 @@ def cited_history_sources(answer: str, visible_items: list[dict]) -> tuple[Histo
             continue
         if not isinstance(excerpt, str) or not 0 < len(excerpt) <= 320:
             continue
-        sources[(mid, start, len(excerpt))] = HistorySource(
-            message_id=mid, offset=start, length=len(excerpt),
-            sha256=hashlib.sha256(excerpt.encode("utf-8")).hexdigest(),
-        )
-    return tuple(sources.values())
+        ranges.setdefault(mid, {})[(start, excerpt)] = None
+    passages: dict[int, list[str]] = {}
+    for passage in ([answer] if len(cited) == 1 else re.split(r"[\n；;]", answer)):
+        ids = {int(a or b) for a, b in _CITED_ID.findall(passage)}
+        if len(ids) == 1:
+            passages.setdefault(ids.pop(), []).append(passage)
+    sources = []
+    for mid, candidates in ranges.items():
+        associated = "\n".join(passages.get(mid, ()))
+        quotations = [next(part for part in match if part) for match in _QUOTED_TEXT.findall(associated)]
+        for start, excerpt in candidates:
+            # An ID alone cannot identify which of several disjoint ranges
+            # in the same message supports the answer. Require quoted text.
+            if len(candidates) > 1 and not (excerpt in associated or any(q in excerpt for q in quotations)):
+                continue
+            sources.append(HistorySource(
+                message_id=mid, offset=start, length=len(excerpt),
+                sha256=hashlib.sha256(excerpt.encode("utf-8")).hexdigest(),
+            ))
+    return tuple(sources)
 
 
 def read_source(database: Path, session_id: str, mid: int, offset: int, length: int, expected: str) -> dict | None:

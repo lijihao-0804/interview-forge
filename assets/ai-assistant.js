@@ -909,7 +909,7 @@
       if (result.status === "interrupted") {
         var details = [];
         if (result.action_recorded) details.push("此轮已记录操作，待确认的操作会显示在会话中。");
-        if (result.memory_saved) details.push("已保存的记忆可在“记忆”中查看。");
+        if (result.memory_changed) details.push("长期记忆已更新，可在“记忆”中查看当前内容。");
         setError("本轮回答已中断。" + (details.join("") || "此轮已保存操作或记忆。"));
       }
       else if (turn.cancelRequested && result.status === "retryable") setError("已停止生成。");
