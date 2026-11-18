@@ -1,3 +1,4 @@
+from io import BytesIO
 import os
 from unittest.mock import patch
 
@@ -28,3 +29,32 @@ def test_bounded_process_receives_fixed_thread_environment(tmp_path):
         assert callable(process.call_args.kwargs["preexec_fn"])
     assert practice_runner.PYTHON_TIMEOUT_MS == 3000
     assert practice_runner.JAVA_RUN_TIMEOUT_MS == 3000
+
+
+def test_stdout_and_stderr_are_drained_if_readers_first_run_after_exit(tmp_path):
+    class LateReader:
+        def __init__(self, target, args, daemon):
+            self.read = lambda: target(*args)
+
+        def start(self):
+            pass  # The OS has created the reader; the child exits before it runs.
+
+        def join(self, timeout):
+            self.read()
+
+        def is_alive(self):
+            return False
+
+    stdout = (b"[1,2,3,6,9,8,7,4,5]\n" * 300)
+    with patch.object(practice_runner.subprocess, "Popen") as popen, \
+         patch.object(practice_runner.threading, "Timer"), \
+         patch.object(practice_runner.threading, "Thread", LateReader):
+        proc = popen.return_value
+        proc.stdin, proc.stdout, proc.stderr = BytesIO(), BytesIO(stdout), BytesIO(b"diagnostic\n")
+        proc.returncode = 0
+        result = practice_runner._bounded_run(["example"], stdin_text="", timeout_seconds=3,
+                                              cpu_seconds=3, workdir=tmp_path)
+
+    assert result["stdout"] == stdout.decode()
+    assert result["stderr"] == "diagnostic\n"
+    assert not result["timed_out"] and not result["output_truncated"]

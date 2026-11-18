@@ -1,4 +1,5 @@
 """Language-scoped mock exams use synthetic submission metadata only."""
+from contextlib import closing
 import sqlite3
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -18,7 +19,7 @@ class MockLanguagesTests(TestCase):
         self.addCleanup(patch.stopall)
         patch('interview_forge.services.study.PROBLEM_BY_ID', self.problems).start()
         patch('interview_forge.services.study.problem_note', return_value='').start()
-        with sqlite3.connect(self.db) as con:
+        with closing(sqlite3.connect(self.db)) as con, con:
             con.executescript(SCHEMA)
             con.executemany('INSERT INTO submissions(problem_id,status,lang,submitted_at) VALUES (?,?,?,?)', [
                 (1,'ac','Python3','2026-01-01T12:00:00Z'),
@@ -50,7 +51,7 @@ class MockLanguagesTests(TestCase):
         for _ in range(2):
             self.assertEqual(self.exam(language='python', category='missing', preview=True)['scope_pool'], 0)
             self.exam(language='python', preview=True)
-        with sqlite3.connect(self.db) as con:
+        with closing(sqlite3.connect(self.db)) as con:
             self.assertEqual(con.execute('SELECT COUNT(*) FROM mock_exam_records').fetchone()[0], 0)
             self.assertEqual(con.execute("SELECT COUNT(*) FROM settings WHERE key LIKE '%mock%'").fetchone()[0], 0)
         with self.assertRaises(ValueError):

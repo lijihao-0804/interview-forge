@@ -207,9 +207,16 @@ def _bounded_run(
         except subprocess.TimeoutExpired:
             pass
     timer.cancel()
-    stop.set()
+    # A short-lived process can exit before either reader has been scheduled.
+    # Its pipes still hold the complete output. Let the threads drain them to
+    # EOF; the output-limit path above remains the early cancellation signal.
     for thread in threads:
         thread.join(timeout=2)
+    if any(thread.is_alive() for thread in threads):
+        # A pipe that does not close in the bounded drain window cannot yield a
+        # trustworthy verdict from the partial bytes captured so far.
+        result["timed_out"] = True
+        stop.set()
 
     result["stdout"] = bytes(chunks["stdout"]).decode("utf-8", "replace")
     result["stderr"] = bytes(chunks["stderr"]).decode("utf-8", "replace")
