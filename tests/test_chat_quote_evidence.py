@@ -52,6 +52,12 @@ class QuoteEvidenceTests(unittest.TestCase):
         self.assertFalse(quotes.identity_required(query))
         self.assertFalse(quotes.requested("引用诗集里的半句，附编号。"))
 
+    def test_current_attachment_is_not_a_history_source(self):
+        for query in ("当前这条消息附上的代码里，注释原文是什么？", "把本条消息里我贴的注释原文给我。"):
+            self.assertFalse(quotes.requested(query))
+        self.assertTrue(quotes.requested("比较本条消息附上的代码和上一条消息的注释原文。"))
+        self.assertTrue(quotes.requested("请回查我之前发过的代码，引用当时的注释原文。"))
+
     def test_positive_labels_restore_both_complete_records_and_readable_cards(self):
         rows = ["周三停演时，我收手灯会先包住电线。", "晚场暂停时，老师说先把灯架放倒。",
                 "库房里也有备用手灯。"]

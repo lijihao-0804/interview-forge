@@ -5,7 +5,7 @@ from interview_forge.ai.chat.context_blocks import ContextBlock
 _GUIDANCE = {
     "hint": "只给一个简短启发性问题就停下，等用户追问再给算法步骤或代码。",
     "review": "学习复盘：结合相关记录梳理已掌握内容、困惑和下一步练习；资料不足时说明。",
-    "code": "代码走查：短问只用一段，引用代码解释原因和一种改法。耗时以实测为准。",
+    "code": "代码走查，短问一段，用代码解释原因和一种改法。耗时以实测为准。",
 }
 
 
@@ -27,6 +27,8 @@ def study_blocks(mode: str, snapshot: str | None) -> list[ContextBlock]:
     if mode == "auto":
         return []
     guidance = "本轮要求优先，只用相关资料。" + _GUIDANCE[mode]
+    if mode == "code" and not snapshot:
+        guidance += "本轮未附练习快照；问当前附件时说明未收到，正文代码可分析。"
     blocks = [ContextBlock("study_mode", guidance, 95, 160, trusted=True, alternatives=())]
     if snapshot:
         # Editor text comes first and judge output last. Keep both ends when

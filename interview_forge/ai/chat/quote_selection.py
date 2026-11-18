@@ -32,6 +32,10 @@ _COPY_SENTENCE = re.compile(
 _ID = re.compile(r"(?:消息|留言|发言|记录|出处|来源|message|source)[\s的原始]*[#＃]?(?:id(?![a-z0-9_])|编号|号\b|number\b)|"
                  r"\b(?:id|number)\s+of\s+(?:the\s+)?message|(?:原话|原句).{0,12}编号", re.I)
 _ATTACHED_ID = re.compile(r"(?:附(?:上)?|加上|连同|配上|带上|标(?:出|明)|给出)(?:对应的?|各自的?)?(?:编号|ID\b)", re.I)
+_CURRENT_MESSAGE_INPUT = re.compile(
+    r"(?:当前这条|本条|本轮的?|这条)消息(?:中|里)?(?:我)?(?:附上|附带|所附|附的|粘贴|贴出|贴的)|"
+    r"(?:当前这条|本条|本轮的?)消息|\b(?:attached to|pasted in) (?:this|the current) message\b", re.I,
+)
 _CITATION_ACTION = re.compile(r"引用|引文|引述|摘(?:录|引|出)|(?:再|才|别|不[用要必]?|只|仅|请|附)[^。！？\n]{0,6}(?:抄|贴|引|给.{0,3}(?:句|编号))|"
                               r"\b(?:cite|citation|quote|quotation|quoting|paste|reproduce)\b", re.I)
 _HISTORY = re.compile(r"历史|会话|聊天|之前|先前|以前|前面|此前|上[次回]|当时|刚才|最初|最早|"
@@ -103,7 +107,11 @@ def no_quote(query: str) -> str:
 def requested(query: str) -> bool:
     copying = _QUOTE.search(query) or _COPY_SENTENCE.search(query)
     conditional = identity_required(query)
-    source_scope = _HISTORY.search(query) or (_ATTACHED_ID.search(query) and _SPEAKER_QUESTION.search(query))
+    # A reference to the current input supplies no historical source. Other
+    # references in the same request (e.g. comparing a previous turn) still do.
+    source_scope = _HISTORY.search(_CURRENT_MESSAGE_INPUT.sub("", query)) or (
+        _ATTACHED_ID.search(query) and _SPEAKER_QUESTION.search(query)
+    )
     explicit = (_ID.search(query) or (copying and (source_scope or conditional))
                 or (_CITATION_ACTION.search(query) and (conditional or (_ATTACHED_ID.search(query) and source_scope))))
     return bool(explicit and (conditional or not _WRITE.search(query)))

@@ -118,6 +118,8 @@ class LearningContextSelectorTests(unittest.TestCase):
             self.assertFalse(rejected)
             self.assertIn("存在仍在等待用户确认的操作", system)
             self.assertIn("persistence_success=true", system)
+            if mode == "code":
+                self.assertIn("本轮未附练习快照", system)
             self.assertLessEqual(builder.estimator.estimate_text(system), builder.budget.system_tokens)
 
     def test_selector_is_explicit_and_normal_chat_is_none(self):
