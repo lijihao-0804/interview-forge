@@ -42,6 +42,7 @@ _WIDGET_SCRIPTS = (
 _AUTH_WIDGET_SKIP = {"/pages/login.html", "/pages/register.html", "/pages/forgot-password.html", "/pages/account.html", "/pages/admin.html", "/pages/ai-assistant.html"}
 _FEEDBACK_WIDGET_SKIP = {"/pages/login.html", "/pages/register.html", "/pages/forgot-password.html", "/pages/account.html", "/pages/admin.html", "/pages/ai-assistant.html"}
 _AI_LAUNCHER_SKIP = {"/pages/login.html", "/pages/register.html", "/pages/forgot-password.html", "/pages/account.html", "/pages/admin.html", "/pages/ai-assistant.html"}
+_RESEARCH_APPS = ("/library/ai-employment-research/", "/library/communications-research/", "/research/market/")
 
 
 # 内容页 404 的品牌化兜底页：只给浏览器（Accept: text/html）返回；
@@ -148,17 +149,37 @@ def private_reader_widget_tags(body: bytes) -> bytes:
 
 
 def _inject_html(path: str, body: bytes, *, embedded: bool = False) -> bytes:
-    if path.startswith(("/library/ai-employment-research/", "/library/communications-research/")):
+    if path.startswith(_RESEARCH_APPS):
         # Keep the standalone application's theme and Worker lifecycle intact.
         # Inject at delivery time so the supplied package hashes remain valid.
         navigation = (
-            '<nav aria-label="Interview Forge 学习书架" style="display:flex;justify-content:flex-end;align-items:center;min-height:44px;padding:8px clamp(16px,3vw,48px);'
-            'font:14px system-ui;text-align:right">'
-            '<a href="/library/index.html" style="color:inherit">← 返回学习书架</a></nav>'
+            '<nav aria-label="就业研究导航" style="display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;min-height:44px;padding:8px clamp(16px,3vw,48px);font:14px/1.6 system-ui">'
+            '<a href="/library/index.html" style="color:inherit">← 返回学习书架</a>'
+            '<a href="/research/market/" style="color:inherit">广覆盖就业研究</a>'
+            '<a href="/research/jobs/" style="color:inherit">历史：AI 就业数据台</a>'
+            '<a href="/research/communications/" style="color:inherit">历史：通信工程专题</a></nav>'
         ).encode("utf-8")
         if path.startswith("/library/communications-research/"):
             body = body.replace(b'href="data/communications.sqlite"', b'href="data/communications.sqlite.zip"')
             body = body.replace("SQLite分析数据库</a>".encode(), "SQLite分析数据库（ZIP）</a>".encode())
+        if path.startswith("/research/market/"):
+            # The public analysis export is separate from application databases.
+            body = body.replace(b"data/jobs.sqlite", b"data/jobs.sqlite.zip")
+            body = body.replace(b">SQLite</a>", ">SQLite（ZIP）</a>".encode())
+        else:
+            scope = "通信工程与通信专业组" if path.startswith("/library/communications-research/") else "AI应用与智能体开发"
+            links = (
+                '<p data-research-upgrade style="display:flex;flex-wrap:wrap;gap:12px;font:14px/1.7 system-ui">'
+                '<a href="/research/market/report.html">阅读广覆盖版研究结论</a>'
+                f'<a href="/research/market/?scope={quote(scope)}">在广覆盖版筛选岗位 →</a></p>'
+            ).encode()
+            for marker in (
+                b'<section id="explore" class="tab-panel" role="tabpanel" hidden>',
+                b'<section id="research" class="tab-panel" role="tabpanel" hidden>',
+                '<h2 id="filterHeading">专业与学生入口筛选</h2>'.encode(),
+                '<h2>研究结论</h2>'.encode(),
+            ):
+                body = body.replace(marker, marker + links)
         start = body.find(b"<body")
         end = body.find(b">", start) if start >= 0 else -1
         return body[:end + 1] + navigation + body[end + 1:] if end >= 0 else body
@@ -242,6 +263,21 @@ def static_path(request: Request, path: str):
     decoded = canonical_url_path(request.url.path or "/")
     if decoded is None or _sensitive(decoded):
         return _not_found_response(request, decoded or "/")
+    # Historical aliases retain filters while resolving relative assets against
+    # their original package. Only the three reviewed research roots are public.
+    for alias, destination in (
+        ("/research/jobs", "/library/ai-employment-research/"),
+        ("/research/communications", "/library/communications-research/"),
+    ):
+        if decoded == alias or decoded.startswith(alias + "/"):
+            tail = decoded[len(alias):].lstrip("/") or "index.html"
+            query = f"?{request.url.query}" if request.url.query else ""
+            return RedirectResponse(destination + quote(tail, safe="/") + query, status_code=307, headers={"Cache-Control": "no-store"})
+    if decoded == "/research/market":
+        if not request.url.path.endswith("/"):
+            query = f"?{request.url.query}" if request.url.query else ""
+            return RedirectResponse("/research/market/" + query, status_code=307, headers={"Cache-Control": "no-store"})
+        decoded += "/index.html"
     if decoded == "/":
         return RedirectResponse("/cockpit.html", status_code=307, headers={"Cache-Control": "no-store"})
     if decoded.startswith("/api/"):
@@ -281,8 +317,8 @@ def static_path(request: Request, path: str):
             return Response(status_code=304, headers=headers)
         return Response(content=body, media_type="text/html", headers=headers)
     media_type = None
-    if decoded.startswith(("/library/ai-employment-research/", "/library/communications-research/")):
-        media_type = {".mjs": "text/javascript", ".json": "application/json", ".gz": "application/gzip"}.get(target.suffix.lower())
+    if decoded.startswith(_RESEARCH_APPS):
+        media_type = {".mjs": "text/javascript", ".json": "application/json", ".gz": "application/gzip", ".zip": "application/zip"}.get(target.suffix.lower())
     return FileResponse(target, media_type=media_type, headers=_security_headers(decoded))
 
 

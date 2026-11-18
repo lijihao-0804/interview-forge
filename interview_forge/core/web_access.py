@@ -14,6 +14,7 @@ from urllib.parse import unquote
 from interview_forge.core.public_api import PUBLIC_API_OPERATIONS
 
 PUBLIC_FILES = frozenset({
+    "/research/market", "/research/jobs", "/research/communications",
     "/docs/面试准备/项目面试报告.html",
     "/",
     "/index.html",
@@ -28,13 +29,14 @@ PUBLIC_FILES = frozenset({
     "/pages/forgot-password.html",
     "/pages/account.html",
 }) | frozenset(path for _method, path in PUBLIC_API_OPERATIONS)
-PUBLIC_PREFIXES = ("/assets/", "/books/", "/library/")
+RESEARCH_PREFIXES = ("/research/market/", "/research/jobs/", "/research/communications/")
+PUBLIC_PREFIXES = ("/assets/", "/books/", "/library/", *RESEARCH_PREFIXES)
 PUBLIC_DOCUMENTS = frozenset({
     "/docs/qa-report.html",
     "/docs/深度审查与修复报告-2026-09-08.html",
     "/docs/学情分析ai专项审查报告.html",
 })
-_WEB_PREFIXES = ("/books/", "/library/", "/pages/", "/assets/", "/api/")
+_WEB_PREFIXES = ("/books/", "/library/", "/pages/", "/assets/", "/api/", *RESEARCH_PREFIXES)
 _ADMIN_FILES = frozenset({"/pages/admin.html", "/pages/tools.html"})
 _ADMIN_PREFIXES = ("/pages/tools/", "/api/admin/")
 _DENIED_SUFFIXES = (

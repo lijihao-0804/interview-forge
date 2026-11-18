@@ -1,4 +1,5 @@
 """Register the independently delivered public employment research books."""
+from posixpath import normpath
 
 MODULE_ID = "ai-employment-research"
 COMMUNICATIONS_MODULE_ID = "communications-research"
@@ -12,6 +13,14 @@ ABOUT = (
 
 
 RESEARCH_BOOKS = (
+    {
+        "id": "employment-market",
+        "title": "AI 应用与电子信息就业研究",
+        "chapter_title": "广覆盖就业研究 · 专业、技能与岗位筛选",
+        "url": "../research/market/index.html",
+        "about": "8,474 条去重岗位发布记录，覆盖 547 个归并雇主名称。按 AI 方向、通信与电子信息专业、城市、员工规模和技术筛选，阅读完整 JD、研究结论与采集方法。",
+        "keywords": "就业研究 AI应用 智能体 Agent 通信工程 电子信息 学生招聘 城市 员工规模 雇主 技术词表 JD SQLite CSV",
+    },
     {
         "id": MODULE_ID,
         "title": TITLE,
@@ -53,7 +62,7 @@ def register(modules, routes, search_entries):
             "unit": "研究入口",
             "chapters": [chapter],
         })
-        routes[f"/library/{book['url']}"] = {"module_id": module_id, "content_id": content_id}
+        routes[normpath(f"/library/{book['url']}")] = {"module_id": module_id, "content_id": content_id}
         search_entries[:] = [entry for entry in search_entries if entry.get("module_id") != module_id]
         search_entries.append({
             "id": content_id,
