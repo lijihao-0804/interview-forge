@@ -302,6 +302,22 @@ async function editablePracticeReview() {
   assert.match(body.practice_snapshot, /当前输入\n4/);
   assert.match(body.practice_snapshot, /输出区\n7/);
   assert.doesNotMatch(body.practice_snapshot, /stale fallback/);
+  const recovered = await boot(server, ui.tab, ui.local, true, page);
+  assert.equal(recovered.get("attachPractice").checked, true);
+  assert.equal(recovered.get("attachPractice").disabled, true);
+  await recovered.click("editTurn");
+  assert.equal(recovered.get("attachPractice").disabled, false);
+  recovered.get("attachPractice").checked = false;
+  await recovered.submit("再看一次");
+  const edited = JSON.parse(server.posts[1].body);
+  assert.notEqual(edited.client_request_id, body.client_request_id);
+  assert.equal(edited.study_mode, "code");
+  assert.equal(edited.practice_snapshot, undefined);
+  const withoutAttachment = await boot(server, ui.tab, ui.local, true, page);
+  assert.equal(withoutAttachment.get("attachPractice").checked, false);
+  assert.equal(withoutAttachment.get("attachPractice").disabled, true);
+  await withoutAttachment.click("retryTurn");
+  assert.equal(server.posts[2].body, server.posts[1].body);
 }
 
 (async () => {

@@ -34,6 +34,7 @@
   var status = document.getElementById("status");
   var error = document.getElementById("error");
   var input = document.getElementById("messageInput");
+  var attachment = document.getElementById("attachPractice");
   var studyButtons = ["studyAuto", "studyHint", "studyReview", "studyCode"].map(function (id) {
     return document.getElementById(id);
   });
@@ -194,6 +195,7 @@
     state.phase = phase;
     var ready = phase === "ready" && !!state.current;
     input.disabled = !ready;
+    attachment.disabled = !ready;
     studyButtons.forEach(function (button) { if (button) button.disabled = !ready; });
     send.disabled = !ready;
     send.hidden = phase === "retry" || phase === "check";
@@ -719,7 +721,6 @@
 
   async function selectSession(id) {
     if (id === state.current && state.phase !== "loadFailed") return;
-    var attachment = document.getElementById("attachPractice");
     if (state.current) {
       state.drafts[state.current] = {
         text: state.pending ? "" : input.value,
@@ -735,9 +736,10 @@
     if (state.assistantNode) cancelStreamRender(state.assistantNode.querySelector(".bubble"));
     state.assistantNode = null;
     state.current = id;
-    selectMode(draft ? draft.mode : "auto");
     attachment.checked = draft ? draft.attachPractice : true;
     state.pending = readPending(id);
+    if (state.pending) restoreTurnOptions(JSON.parse(state.pending.body));
+    else selectMode(draft ? draft.mode : "auto");
     state.autoFollow = true;
     input.value = draft && !state.pending ? draft.text : "";
     messages.replaceChildren();
@@ -844,6 +846,10 @@
   }
 
   var modes = ["auto", "hint", "review", "code"];
+  function restoreTurnOptions(body) {
+    selectMode(body.study_mode || "auto");
+    if (state.studyMode === "code") attachment.checked = Boolean(body.practice_snapshot);
+  }
   var welcomeTitle = document.getElementById("welcomeTitle");
   var welcomeDetail = document.getElementById("welcomeDetail");
   var modeCopy = {
@@ -968,7 +974,7 @@
       if (result.status === "retryable" && !turn.cancelRequested) {
         var draft = JSON.parse(turn.body);
         input.value = draft.message;
-        selectMode(draft.study_mode || "auto");
+        restoreTurnOptions(draft);
         setError((reason ? reason.replace(/[。.!]+$/, "") + "。" : "") + "可重试原消息，或编辑后作为新消息发送。");
         setPhase("retry");
         return;
@@ -1009,7 +1015,7 @@
       }).join("");
       var requestBody = { client_request_id: key, message: text };
       if (state.studyMode !== "auto") requestBody.study_mode = state.studyMode;
-      var practice = state.studyMode === "code" && document.getElementById("attachPractice").checked && practiceDocument();
+      var practice = state.studyMode === "code" && attachment.checked && practiceDocument();
       if (practice) requestBody.practice_snapshot = practiceSnapshot(practice).slice(0, 8000);
       if (pageContext) requestBody.page_context = pageContext;
       var turn = { sessionId: id, key: key, body: JSON.stringify(requestBody), cancelRequested: false };
@@ -1100,7 +1106,7 @@
           setPhase("ready");
           var draft = JSON.parse(turn.body);
           input.value = draft.message;
-          selectMode(draft.study_mode || "auto");
+          restoreTurnOptions(draft);
           setError("该请求标识已用于其他内容。请核对会话后再发送。");
         }
         return;
