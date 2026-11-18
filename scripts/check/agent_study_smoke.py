@@ -9,6 +9,92 @@ from interview_forge.api.routers.static import _inject_html
 from interview_forge.core.paths import ROOT
 
 
+def check_session_recovery(browser, serve):
+    chat = "http://localhost/pages/ai-assistant.html"
+    for failure, width in [("offline", 390), ("busy", 2560), ("guest", 390)]:
+        page = browser.new_page(viewport={"width": width, "height": 860}, service_workers="block")
+        page.route("**/*", serve)
+        available = False
+
+        def identity(route):
+            if available:
+                return route.fulfill(json={"username": "smoke"})
+            if failure == "offline":
+                return route.abort()
+            return route.fulfill(status=401 if failure == "guest" else 503, json={})
+
+        page.route("**/api/me", identity)
+        page.goto(chat)
+        if failure == "guest":
+            expect(page.locator("#ai-auth-gate")).to_be_visible()
+            expect(page.locator("#messageInput")).to_be_disabled()
+        else:
+            retry = page.get_by_role("button", name="重新连接")
+            expect(retry).to_be_visible()
+            expect(page.locator("#ai-auth-gate")).to_have_count(0)
+            available = True
+            if failure == "offline":
+                page.evaluate("window.dispatchEvent(new Event('online'))")
+            else:
+                retry.click()
+            expect(page.locator("#messageInput")).to_be_enabled()
+        page.close()
+
+    page = browser.new_page(viewport={"width": 2560, "height": 1440}, service_workers="block")
+    page.route("**/*", serve)
+    sessions = [{"id": "one", "title": "第一段"}, {"id": "two", "title": "第二段"}]
+    creates = []
+    refreshes = []
+    hold_list = False
+
+    def session_list(route):
+        if route.request.method == "POST":
+            creates.append(route)
+        elif hold_list:
+            refreshes.append(route)
+        else:
+            route.fulfill(json={"items": sessions})
+
+    page.route("**/api/chat/sessions", session_list)
+    page.route("**/api/chat/sessions/two/actions?*", lambda route: route.fulfill(
+        json={"items": [{"action_id": "mark", "display_name": "标记为复习中"}]}))
+    confirm_calls = []
+
+    def confirm(route):
+        confirm_calls.append(route.request.method)
+        if len(confirm_calls) == 1:
+            return route.abort()
+        return route.fulfill(json={"ok": True, "status": "succeeded", "display": "已标记为复习中"})
+
+    page.route("**/api/chat/actions/mark/confirm", confirm)
+    page.goto(chat)
+    expect(page.locator("#messageInput")).to_be_enabled()
+    hold_list = True
+    page.locator("#messageInput").fill("触发会话列表刷新")
+    with page.expect_request(lambda req: req.url.endswith("/api/chat/sessions") and req.method == "GET"):
+        page.locator("#send").click()
+    with page.expect_request(lambda req: req.url.endswith("/api/chat/sessions") and req.method == "POST"):
+        page.locator("#newSession").evaluate("button => { button.click(); button.click(); }")
+    page.locator('[data-session="two"]').click()
+    draft = page.locator("#messageInput")
+    draft.fill("还没发送的草稿")
+    assert len(creates) == 1, "连续点击只应提交一次建会话请求"
+    created = {"id": "three", "title": "新对话"}
+    creates[0].fulfill(json=created)
+    expect(page.locator('[data-session="three"]')).to_have_count(1)
+    with page.expect_request_finished(lambda req: req.url.endswith("/api/chat/sessions") and req.method == "GET"):
+        refreshes[0].fulfill(json={"items": sessions})
+    expect(page.locator('[data-session="three"]')).to_have_count(1)
+    expect(page.locator('[data-session="two"]')).to_have_class("session-item active")
+    expect(draft).to_have_value("还没发送的草稿")
+    page.get_by_role("button", name="确认", exact=True).click()
+    expect(page.get_by_role("button", name="取消", exact=True)).to_be_disabled()
+    page.get_by_role("button", name="重试确认").click()
+    expect(page.locator(".action-state")).to_contain_text("已标记为复习中")
+    assert confirm_calls == ["POST", "POST"]
+    page.close()
+
+
 def run():
     posts = []
     sessions = [{"id": "s1", "title": "Smoke"}]
@@ -53,6 +139,8 @@ def run():
 
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch()
+        check_session_recovery(browser, serve)
+        posts.clear()
         page = browser.new_page(service_workers="block")
         page.route("**/*", serve)
         practice_url = "http://localhost/books/ai-exam/acm-playground.html?id="
@@ -154,7 +242,8 @@ def run():
         composer.press("Enter")
         expect(page.get_by_text("review ready")).to_be_visible()
         browser.close()
-    print("PASS: practice context, study modes, mobile history, 2K layout, long history and code copying")
+    print("PASS: reconnect, session races, action receipt retry, practice context, study modes, "
+          "mobile history, 2K layout, long history and code copying")
 
 
 if __name__ == "__main__":

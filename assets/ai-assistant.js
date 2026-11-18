@@ -29,6 +29,9 @@
   var STREAM_DIAGNOSTICS_ENABLED = window.__INTERVIEW_FORGE_STREAM_DIAGNOSTICS__ === true;
   if (STREAM_DIAGNOSTICS_ENABLED) window.__interviewForgeStreamDiagnostics = state.streamDiagnostics;
   var list = document.getElementById("sessionList");
+  var newSessionButton = document.getElementById("newSession");
+  var retryConnection = document.getElementById("retryConnection");
+  var sessionListSerial = 0, selectionIntent = 0;
   var messages = document.getElementById("messages");
   var title = document.getElementById("chatTitle");
   var status = document.getElementById("status");
@@ -101,12 +104,27 @@
   }
 
   function inline(value) {
-    var text = esc(value);
-    text = text.replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+[^)]*)?\)/g, function (_, label, url) {
-      var decoded = String(url).replace(/&amp;/g, "&"); var safe = /^(https?:\/\/|mailto:|\/|#)/i.test(decoded) && !/^(javascript|data|vbscript):/i.test(decoded);
-      return safe ? "<a href=\"" + esc(decoded) + "\" target=\"_blank\" rel=\"noopener noreferrer\">" + label + "</a>" : label;
-    });
-    return text.replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>").replace(/__([^_]+)__/g, "<strong>$1</strong>").replace(/(^|[^*])\*([^*]+)\*/g, "$1<em>$2</em>").replace(/(^|[^_])_([^_]+)_/g, "$1<em>$2</em>");
+    var text = String(value), parts = [], literals = [], start = 0, match;
+    var token = /`([^`\n]+)`|\[([^\]\n]+)\]\(([^)\s]+)(?:\s+[^)]*)?\)/g;
+    while ((match = token.exec(text))) {
+      // Escaped prose cannot contain a literal <number>. Keep code and link targets
+      // out of the emphasis pass, including when the entire link or span is bold.
+      parts.push(esc(text.slice(start, match.index)), "<" + literals.length + ">");
+      start = token.lastIndex;
+      if (match[1] !== undefined) {
+        literals.push("<code>" + esc(match[1]) + "</code>");
+      } else {
+        var label = inline(match[2]), url = match[3];
+        var safe = /^(https?:\/\/|mailto:|\/|#)/i.test(url) && !/^(javascript|data|vbscript):/i.test(url);
+        literals.push(safe ? "<a href=\"" + esc(url) + "\" target=\"_blank\" rel=\"noopener noreferrer\">" + label + "</a>" : label);
+      }
+    }
+    parts.push(esc(text.slice(start)));
+    return parts.join("").replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+      .replace(/(^|[^\w])__([^_]+)__(?!\w)/g, "$1<strong>$2</strong>")
+      .replace(/\*([^*]+)\*/g, "<em>$1</em>")
+      .replace(/(^|[^\w])_([^_]+)_(?!\w)/g, "$1<em>$2</em>")
+      .replace(/<(\d+)>/g, function (_, index) { return literals[index]; });
   }
 
   function authError() {
@@ -164,7 +182,10 @@
             return !!state.account;
           });
         })
-        .catch(function () { return false; });
+        .catch(function () {
+          authPromise = null;
+          throw new Error("暂时无法确认登录状态，请重新连接");
+        });
     }
     return authPromise.then(function (authenticated) {
       if (!authenticated) showAuthGate();
@@ -198,13 +219,14 @@
     attachment.disabled = !ready;
     studyButtons.forEach(function (button) { if (button) button.disabled = !ready; });
     send.disabled = !ready;
-    send.hidden = phase === "retry" || phase === "check";
+    retryConnection.hidden = phase !== "connectionFailed" && phase !== "loadFailed";
+    send.hidden = phase === "retry" || phase === "check" || !retryConnection.hidden;
     stop.hidden = phase !== "preparing" && phase !== "stream";
     stop.disabled = !!(state.pending && state.pending.cancelRequested);
     retryTurn.hidden = phase !== "retry" && phase !== "check";
     retryTurn.textContent = phase === "retry" ? "重试原消息" : "检查状态";
     editTurn.hidden = phase !== "retry";
-    var labels = { loading: "读取会话中…", loadFailed: "读取失败，请重新选择会话", ready: "已连接", preparing: "正在发送…",
+    var labels = { loading: "读取会话中…", connectionFailed: "暂时无法连接", loadFailed: "读取会话失败", ready: "已连接", preparing: "正在发送…",
       stream: "生成中…", checking: "正在核对原请求…", active: "原请求仍在处理…",
       retry: "等待重试", check: "等待核对" };
     status.textContent = labels[phase];
@@ -341,12 +363,14 @@
     poll();
   }
 
-  function decideAction(card, actionId, decision) {
+  function decideAction(card, actionId, decision, button) {
+    if (button.disabled) return;
     card.querySelectorAll("button").forEach(function (button) { button.disabled = true; });
     setActionState(card, decision === "confirm" ? "正在确认操作…" : "正在取消操作…");
     api("/api/chat/actions/" + encodeURIComponent(actionId) + "/" + decision, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: "{}"
     }).then(function (payload) {
+      if (!payload.status) throw new Error("未收到操作回执");
       if (decision === "confirm" && payload.ok && payload.status === "succeeded") {
         var taskId = actionTaskId(payload);
         if (taskId && payload.result && payload.result.tool === "sync_leetcode") {
@@ -363,6 +387,13 @@
         finishActionCard(card, "error", "× " + String(payload.display || "操作未完成"));
       }
     }).catch(function (err) {
+      if (err.code === "AUTH_REQUIRED") return;
+      if (!err.status || err.status >= 500 || err.status === 408 || err.status === 429 || err.category === "in_progress") {
+        setActionState(card, err.category === "in_progress" ? "操作正在执行，可稍后重试以查看结果。" : "还没收到回执，可重试刚才的操作。");
+        button.textContent = decision === "confirm" ? "重试确认" : "重试取消";
+        button.disabled = false;
+        return;
+      }
       finishActionCard(card, "error", "× " + String(err.message || "操作暂时不可用"));
     });
   }
@@ -376,8 +407,8 @@
     var actions = document.createElement("div"); actions.className = "action-actions";
     var confirm = document.createElement("button"); confirm.className = "button primary"; confirm.type = "button"; confirm.textContent = "确认";
     var cancel = document.createElement("button"); cancel.className = "button"; cancel.type = "button"; cancel.textContent = "取消";
-    confirm.addEventListener("click", function () { decideAction(card, action.action_id, "confirm"); });
-    cancel.addEventListener("click", function () { decideAction(card, action.action_id, "cancel"); });
+    confirm.addEventListener("click", function () { decideAction(card, action.action_id, "confirm", confirm); });
+    cancel.addEventListener("click", function () { decideAction(card, action.action_id, "cancel", cancel); });
     actions.appendChild(confirm); actions.appendChild(cancel);
     card.appendChild(heading); card.appendChild(text); card.appendChild(stateText); card.appendChild(actions);
     host.appendChild(card);
@@ -429,6 +460,7 @@
     list.querySelectorAll("[data-session]").forEach(function (node) {
       node.addEventListener("click", function () {
         var id = node.getAttribute("data-session");
+        selectionIntent++;
         closeDrawer();
         if (id !== state.current || state.phase === "loadFailed") {
           selectSession(id).catch(function (err) { if (id === state.current) setError(err.message); });
@@ -762,7 +794,9 @@
   }
 
   async function refreshSessionList() {
+    var serial = ++sessionListSerial;
     var payload = await api("/api/chat/sessions");
+    if (serial !== sessionListSerial) return;
     state.sessions = payload.items || [];
     renderSessions();
     var current = state.sessions.find(function (item) { return item.id === state.current; });
@@ -771,6 +805,7 @@
 
   async function loadSessions() {
     await refreshSessionList();
+    newSessionButton.disabled = false;
     if (!state.sessions.length) return newSession();
     var saved = null;
     try { saved = sessionStorage.getItem(storageKey()); } catch (_) { }
@@ -894,12 +929,27 @@
   if (window.matchMedia) window.matchMedia("(max-width: 760px)").addEventListener("change", closeDrawer);
 
   async function newSession() {
+    if (newSessionButton.disabled) return;
+    newSessionButton.disabled = true;
+    var intent = selectionIntent;
     setError("");
-    var item = await api("/api/chat/sessions", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
-    closeDrawer();
-    state.sessions.unshift(item);
-    await selectSession(item.id);
-    input.focus();
+    try {
+      var item = await api("/api/chat/sessions", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      // A list requested before this acknowledgement can omit the new conversation.
+      sessionListSerial++;
+      if (!state.sessions.some(function (session) { return session.id === item.id; })) state.sessions.unshift(item);
+      if (intent !== selectionIntent) {
+        renderSessions();
+        return;
+      }
+      closeDrawer();
+      await selectSession(item.id);
+      if (state.current === item.id && intent === selectionIntent) input.focus();
+    } catch (err) {
+      if (intent === selectionIntent) throw err;
+    } finally {
+      newSessionButton.disabled = !state.account;
+    }
   }
 
   async function readEvents(body, signal, onEvent) {
@@ -1125,7 +1175,7 @@
     }
   }
 
-  document.getElementById("newSession").addEventListener("click", function () { newSession().catch(function (err) { setError(err.message); }); });
+  newSessionButton.addEventListener("click", function () { newSession().catch(function (err) { setError(err.message); }); });
   memoryButton.addEventListener("click", function () { memoryDialog.showModal(); loadMemories().catch(function (err) { memoryList.textContent = err.message || "读取失败"; }); });
   memoryClose.addEventListener("click", function () { memoryDialog.close(); });
   document.getElementById("composer").addEventListener("submit", sendMessage);
@@ -1158,7 +1208,8 @@
     input.focus();
   });
   window.addEventListener("online", function () {
-    if (state.pending && state.phase === "check") recoverTurn(state.pending, state.sessionLoadSerial);
+    if (!retryConnection.hidden) reconnect();
+    else if (state.pending && state.phase === "check") recoverTurn(state.pending, state.sessionLoadSerial);
   });
   messages.addEventListener("click", async function (event) {
     var button = event.target.closest(".copy-code");
@@ -1184,14 +1235,35 @@
     }
   });
   if (embedded) requestFreshPageContext();
-  ensureAuthenticated().then(function (authenticated) {
-    if (!authenticated) {
-      list.innerHTML = '<div class="empty">登录后可查看 AI 会话。</div>';
-      return;
+  function reconnect() {
+    if (state.phase === "loadFailed" && state.current) {
+      var id = state.current;
+      selectSession(id).catch(function (err) { if (state.current === id) setError(err.message); });
+    } else if (state.phase === "connectionFailed") {
+      connectChat();
     }
-    return loadSessions();
-  }).catch(function (err) {
-    if (err.code !== "AUTH_REQUIRED") setError(err.message || "读取会话失败");
-    list.innerHTML = '<div class="empty">读取失败，请刷新重试。</div>';
-  });
+  }
+  async function connectChat() {
+    setError("");
+    setPhase("loading");
+    newSessionButton.disabled = true;
+    try {
+      if (!(await ensureAuthenticated())) {
+        list.innerHTML = '<div class="empty">登录后可查看 AI 会话。</div>';
+        return;
+      }
+      await loadSessions();
+    } catch (err) {
+      if (err.code === "AUTH_REQUIRED") return;
+      if (state.current && state.phase !== "loadFailed") return;
+      setError(err.message || "读取会话失败");
+      if (!state.current) {
+        newSessionButton.disabled = true;
+        setPhase("connectionFailed");
+        list.innerHTML = '<div class="empty">尚未载入会话。</div>';
+      }
+    }
+  }
+  retryConnection.addEventListener("click", reconnect);
+  connectChat();
 }());

@@ -320,7 +320,76 @@ async function editablePracticeReview() {
   assert.equal(server.posts[2].body, server.posts[1].body);
 }
 
+async function doubleClickCreatesOneSession() {
+  const server = backend();
+  const fetchNormally = server.fetch.bind(server);
+  const creates = [];
+  server.fetch = function (path, options = {}) {
+    if (path === "/api/chat/sessions" && options.method === "POST") {
+      return new Promise((resolve) => creates.push(resolve));
+    }
+    return fetchNormally(path, options);
+  };
+  const ui = await boot(server);
+  await Promise.all([ui.click("newSession"), ui.click("newSession")]);
+  await until(() => creates.length > 0, "create request started");
+  assert.equal(creates.length, 1, "rapid clicks must create only one new session");
+  creates[0](json({ id: "s2", title: "s2" }));
+  await until(() => ui.get("chatTitle").textContent === "s2", "created session selected");
+}
+
+async function codeAndLinksSurviveRendering() {
+  const server = backend(), ui = await boot(server);
+  const answer = "**检查 `list_node_values`** 和 [示例](/books/my_code_notes.html)。";
+  server.post = () => stream(event("message.start", {}) + event("message.delta", { delta: answer }) +
+    event("message.done", { message_id: "m" }));
+  await ui.submit("查看示例");
+  const expected = '<p><strong>检查 <code>list_node_values</code></strong> 和 ' +
+    '<a href="/books/my_code_notes.html" target="_blank" rel="noopener noreferrer">示例</a>。</p>';
+  assert.equal(ui.bubbles()[1], expected);
+  server.rows = [{ role: "assistant", content: answer }];
+  const reloaded = await boot(server, ui.tab, ui.local);
+  assert.equal(reloaded.bubbles()[0], expected);
+  for (const scheme of ["javascript", "data", "vbscript"]) {
+    server.rows = [{ role: "assistant", content: "[文档](" + scheme + ":placeholder)" }];
+    assert.deepEqual((await boot(server)).bubbles(), ["<p>文档</p>"]);
+  }
+}
+
+async function lostActionReceiptsCanBeRetried() {
+  for (const decision of ["confirm", "cancel"]) {
+    const server = backend(), paths = [];
+    server.actions = [{ action_id: "a1", display_name: "标记" }];
+    const fetchNormally = server.fetch.bind(server);
+    server.fetch = function (path, options) {
+      if (!path.startsWith("/api/chat/actions/")) return fetchNormally(path, options);
+      paths.push(path);
+      if (paths.length === 1) throw new Error("connection closed before receipt");
+      if (decision === "confirm" && paths.length === 2) return json({ error_category: "in_progress" }, 409);
+      return json({ ok: true, status: decision === "confirm" ? "succeeded" : "cancelled" });
+    };
+    const ui = await boot(server);
+    const card = ui.get("messages").querySelector(".action-card");
+    const buttons = card.querySelectorAll("button");
+    const selected = buttons[decision === "confirm" ? 0 : 1], opposite = buttons[decision === "confirm" ? 1 : 0];
+    for (let i = 0; i < (decision === "confirm" ? 2 : 1); i++) {
+      await selected.dispatch("click");
+      await until(() => !selected.disabled, "original decision should be available for retry");
+      assert.ok(opposite.disabled);
+      assert.equal(card.querySelector(".action-actions").hidden, false);
+    }
+    await selected.dispatch("click");
+    await until(() => card.querySelector(".action-actions").hidden, "terminal receipt");
+    assert.ok(card.classes.has(decision === "confirm" ? "success" : "cancelled"));
+    assert.ok(paths.every((p) => p === "/api/chat/actions/a1/" + decision));
+    assert.equal(server.posts.length, 0);
+  }
+}
+
 (async () => {
+  await lostActionReceiptsCanBeRetried();
+  await codeAndLinksSurviveRendering();
+  await doubleClickCreatesOneSession();
   await editablePracticeReview();
   await lostDoneAndNewTurn();
   await frozenRetryAndReader();

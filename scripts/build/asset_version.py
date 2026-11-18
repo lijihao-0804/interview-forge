@@ -17,7 +17,7 @@ DELIVERED_ASSET_VERSIONS = {
     "auth-widget.js": "9",
     "feedback-widget.js": "6",
     "guest-auth.js": "3",
-    "ai-assistant.js": "19",
+    "ai-assistant.js": "20",
     "ai-assistant.css": "11",
     "ai-launcher.js": "6",
     "ai-launcher.css": "6",
