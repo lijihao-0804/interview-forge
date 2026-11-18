@@ -345,9 +345,9 @@ class ToolOrchestrator:
 
     async def _quote_answer_round(self, model, context, batches, round_index, *, partial, review=False,
                                  direct_selection=False):
-        # When the user named the retrieved message there is no cross-source
-        # ranking to perform. The shorter selector still validates exact quotes.
-        direct_selection = direct_selection or quote_selection.names_single_source(context.current_query, batches)
+        # Explicit message IDs already define the source set. The selector
+        # still checks the requested text and speaker for each passage.
+        direct_selection = direct_selection or quote_selection.names_retrieved_sources(context.current_query, batches)
         window, reserve = self._context_budget_inputs(context)
         deepseek = context.artifacts.get("deepseek_chat_completions") is True
         if deepseek:
@@ -596,9 +596,16 @@ class ToolOrchestrator:
             final = await self._final_answer_round(model, grounded, context=context, round_index=1,
                                                    recalled=False, pending=False)
             answer, usage, sources = final.text, final.usage, execution.result.library_sources
-            title = data["items"][0]["title"]
-            if (answer.strip() and answer != _UNCONFIRMED_RESULT and title and title not in answer
-                    and any(word in context.current_query for word in ("标题", "章名", "章节名", "篇名"))):
+            chapter = data["items"][0]
+            title = chapter["title"]
+            if not answer.strip() or answer == _UNCONFIRMED_RESULT:
+                answer = f"资料卡第 {ordinal} 项" + (f" · 《{title}》" if title else "")
+                snippet = chapter.get("snippet", "").strip()
+                if snippet:
+                    answer += "\n\n当前索引摘录\n" + "\n".join("> " + line for line in snippet.splitlines())
+            elif title and title not in answer and any(
+                word in context.current_query for word in ("标题", "章名", "章节名", "篇名")
+            ):
                 answer = f"《{title}》\n\n{answer}"
         self.last_result = ToolTurnResult(
             usage=usage, tool_calls_count=1, tool_names=(call.name,),

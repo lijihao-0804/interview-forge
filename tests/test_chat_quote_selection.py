@@ -113,9 +113,33 @@ class ChatQuoteSelectionTests(unittest.TestCase):
         self.assertEqual([ref["message_id"] for ref in refs], [1])
         passages = json.loads(model.seen[-1][-1]["content"])["passages"]
         self.assertEqual([p["message_id"] for p in passages], [1])
-        self.assertFalse(quotes.names_single_source(self.ctx.current_query, [[self.b]]))
-        self.assertFalse(quotes.names_single_source("比较消息 #1 和消息 #2", [[self.a]]))
-        self.assertFalse(quotes.names_single_source("比较消息 #1 和 #2", [[self.a]]))
+        self.assertFalse(quotes.names_retrieved_sources(self.ctx.current_query, [[self.b]]))
+        self.assertFalse(quotes.names_retrieved_sources("比较消息 #1 和消息 #2", [[self.a]]))
+        self.assertFalse(quotes.names_retrieved_sources("比较消息 #1 和 #2", [[self.a]]))
+        self.assertFalse(quotes.names_retrieved_sources("比较消息 #1 和 LeetCode #2", [[self.a], [self.b]]))
+
+    def test_multiple_named_messages_reach_selector_with_verified_ids(self):
+        for reference in ("消息 #1 和消息 #2", "消息 #1 和 #2", "messages #1 and #2"):
+            self.ctx.current_query = f"分别给出{reference}里的行程原话。"
+            # Tool completion order can differ from the order in the question.
+            model = JudgeModel([[FakeChunk(json.dumps({"picks": ["B", "A"], "relation": "parts"}))]])
+            _, refs = asyncio.run(ToolOrchestrator()._quote_answer_round(
+                model, self.ctx, [[self.b], [self.a]], 2, partial=False))
+            passages = json.loads(model.seen[-1][-1]["content"])["passages"]
+            self.assertEqual([(p.get("message_id"), p["role"]) for p in passages], [(2, "assistant"), (1, "user")])
+            self.assertEqual([ref["message_id"] for ref in refs], [1, 2])
+
+    def test_number_in_direct_pick_must_agree_with_its_letter(self):
+        picks = [{"source": "B", "quote": self.two, "message_id": 2},
+                 {"source": "A", "quote": self.one, "message_id": 1}]
+        self.ctx.current_query = "请分别引用消息 #1 和 #2 的原话"
+        def render():
+            return quotes.render(self.ctx, json.dumps({"picks": picks}), [self.a, self.b], direct_selection=True)
+        self.assertEqual([ref["message_id"] for ref in render()[1]], [1, 2])
+        for invalid in (1, True, "2", 7):
+            picks[0]["message_id"] = invalid
+            with self.subTest(invalid=invalid):
+                self.assertEqual(render(), (quotes.NO_QUOTE, ()))
 
     def test_ambiguity_and_earliest_apply_user_scope(self):
         self.ctx.current_query = "将聊天里那句给我，可能有两种，请给原话。"

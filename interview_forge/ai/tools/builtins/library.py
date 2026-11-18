@@ -74,7 +74,7 @@ def requested_card_ordinal(query: str) -> int | None:
         return None
     tail = text[match.end():].strip(" 。！？!?")
     if tail and not re.match(r"^(?:(?:能否|可以|能不能|能)?(?:再)?(?:给我)?(?:打开|读一下|看一下|展开|讲讲|具体讲|说说|介绍|是什么)|"
-                             r"[，,、。]\s*(?:请|写出|告诉我|说明|介绍|解释|概括|总结|如果|若))", tail):
+                             r"[，,、。]\s*(?:请|写出|给出|列出|告诉我|说明|介绍|解释|概括|总结|如果|若))", tail):
         return None
     value = match[1]
     if value.isascii():

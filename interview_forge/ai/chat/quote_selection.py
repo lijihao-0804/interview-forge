@@ -32,7 +32,11 @@ _COPY_SENTENCE = re.compile(
 _ID = re.compile(r"(?:消息|留言|发言|记录|出处|来源|message|source)[\s的原始]*[#＃]?(?:id(?![a-z0-9_])|编号|号\b|number\b)|"
                  r"\b(?:id|number)\s+of\s+(?:the\s+)?message|(?:原话|原句).{0,12}编号", re.I)
 _ATTACHED_ID = re.compile(r"(?:附(?:上)?|加上|连同|配上|带上|标(?:出|明)|给出)(?:对应的?|各自的?)?(?:编号|ID\b)", re.I)
-_NUMBERED_MESSAGE = re.compile(r"(?:消息|留言|message)\s*[#＃]\s*([1-9][0-9]{0,18})(?![0-9])", re.I)
+_MESSAGE_NUMBER = r"[#＃]\s*[1-9][0-9]{0,18}(?![0-9])"
+_NUMBERED_MESSAGES = re.compile(
+    rf"(?:消息|留言|(?<![a-z0-9_])messages?)\s*{_MESSAGE_NUMBER}"
+    rf"(?:\s*(?:[、,，和与及]|\band\b)\s*{_MESSAGE_NUMBER})*", re.I,
+)
 _CURRENT_MESSAGE_INPUT = re.compile(
     r"(?:当前这条|本条|本轮的?|这条)消息(?:中|里)?(?:我)?(?:附上|附带|所附|附的|粘贴|贴出|贴的)|"
     r"(?:当前这条|本条|本轮的?)消息|\b(?:attached to|pasted in) (?:this|the current) message\b", re.I,
@@ -105,12 +109,17 @@ def no_quote(query: str) -> str:
     return _NO_SPEAKER if identity_required(query) else NO_QUOTE
 
 
-def names_single_source(query, batches):
-    named = _NUMBERED_MESSAGE.search(query)
-    if not named or set(re.findall(r"[#＃]\s*([0-9]+)", query)) != {named[1]}:
+def named_message_ids(query):
+    return {int(number) for group in _NUMBERED_MESSAGES.finditer(query)
+            for number in re.findall(r"[#＃]\s*([0-9]+)", group[0])}
+
+
+def names_retrieved_sources(query, batches):
+    named = named_message_ids(query)
+    # Mixed references such as "消息 #4 和 LeetCode #9" still need the full selector.
+    if not named or {str(mid) for mid in named} != set(re.findall(r"[#＃]\s*([0-9]+)", query)):
         return False
-    sources = {item.get("message_id") for batch in batches for item in batch}
-    return sources == {int(named[1])}
+    return named == {item.get("message_id") for batch in batches for item in batch}
 
 
 def requested(query: str) -> bool:
@@ -174,7 +183,8 @@ def prepare(context, batches, *, input_tokens, result_tokens, review=False, dire
     result_cost = 0
     # Keep the full source pool when the user recalls competing versions.
     # Pruning to the highest few again can discard the second valid record.
-    multiple = _UNCERTAIN.search(context.current_query) or _MULTIPLE.search(context.current_query)
+    named = named_message_ids(context.current_query)
+    multiple = len(named) > 1 or _UNCERTAIN.search(context.current_query) or _MULTIPLE.search(context.current_query)
     limit = _DIRECT_PASSAGES if direct_selection and not multiple else _MAX_PASSAGES
     # Each admitted lookup gets a chance before longer result sets fill the window.
     ordered = (item for row in zip_longest(*batches) for item in row if item is not None)
@@ -193,8 +203,8 @@ def prepare(context, batches, *, input_tokens, result_tokens, review=False, dire
     while visible:
         labelled = [{"source": chr(ord("A") + i), "role": p["role"], "excerpt": p["excerpt"]}
                     for i, p in enumerate(visible)]
-        if direct_selection and names_single_source(context.current_query, [visible]):
-            for label, passage in zip(labelled, visible):
+        for label, passage in zip(labelled, visible):
+            if passage["message_id"] in named:
                 label["message_id"] = passage["message_id"]
         body = {"request": context.current_query, "passages": labelled}
         messages = [{"role": "system", "content": prompt}, {"role": "user", "content": json.dumps(body, ensure_ascii=False)}]
@@ -266,8 +276,13 @@ def _choices(value, visible, *, direct_selection=False):
                 choices.append({"source": pick, "quote": labels[pick]["excerpt"]})
             elif (isinstance(pick, dict) and isinstance(pick.get("source"), str)
                   and pick["source"] in labels and "quote" in pick
-                  and set(pick) <= {"source", "quote", "speaker", "attribution", "context"}):
-                choices.append(pick)
+                  and set(pick) <= {"source", "quote", "speaker", "attribution", "context", "message_id"}):
+                # Providers can echo the displayed ID together with its letter.
+                # Treat it as a consistency check, never as a replacement locator.
+                if "message_id" in pick and (type(pick["message_id"]) is not int
+                                             or pick["message_id"] != labels[pick["source"]]["message_id"]):
+                    return None
+                choices.append({key: value for key, value in pick.items() if key != "message_id"})
             else:
                 return None
         if relation == "none" and choices:

@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict
 from interview_forge.ai.chat.final_tool_reply import visible_final_reply
 from interview_forge.ai.chat.request_budget import estimate_json_tokens
 from interview_forge.ai.chat.tool_orchestrator import ToolOrchestrator
+from interview_forge.ai.tools.builtins.library import SearchLibraryArgs
 from interview_forge.ai.tools.contracts import (
     ToolExecutionContext,
     ToolResult,
@@ -108,6 +109,27 @@ class ToolOrchestratorTests(unittest.TestCase):
         self.assertEqual(events[0]["data"]["delta"], "你好")
         self.assertEqual(orchestrator.last_result.tool_calls_count, 0)
         self.assertEqual(orchestrator.last_result.usage["output_tokens"], 2)
+
+    def test_verified_library_card_survives_an_empty_or_tool_only_final_reply(self):
+        source = {"title": "其他 Map 与 Set 家族", "url": "/library/java-core/chapter-09.html",
+                  "module_title": "Java", "body_match": "双向链表"}
+        snippet = "LinkedHashMap 用双向链表维护顺序。"
+        def read_selected(_context, args):
+            self.assertEqual(args.previous_source, 2)
+            return ToolResult({"items": [{**source, "snippet": snippet}]}, library_sources=(source,))
+        registry = ToolRegistry([ToolSpec("search_library", "书架", "回读", SearchLibraryArgs, read_selected)])
+        ctx = _context(self.db)
+        ctx.current_query = "请回读资料卡第 2 项，给出章节标题和索引片段。"
+        for chunk in (FakeChunk(""), FakeChunk(tool_calls=[{"id": "unused", "name": "search_library",
+                                                           "args": {"query": "其他章节"}}])):
+            with self.subTest(chunk=chunk):
+                engine = ToolOrchestrator(registry=registry)
+                events = asyncio.run(_collect(engine, ScriptedModel([[chunk]]), ctx))
+                text = "".join(event["data"]["delta"] for event in events if event["event"] == "message.delta")
+                self.assertIn(source["title"], text)
+                self.assertIn(snippet, text)
+                self.assertEqual(engine.last_result.library_sources, (source,))
+                self.assertEqual(engine.last_result.tool_calls_count, 1)
 
     def test_forced_round_keeps_real_answer_and_excludes_call_ids_from_sources(self):
         items = [

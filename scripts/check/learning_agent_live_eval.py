@@ -157,6 +157,25 @@ def run_mode_cases(client, show_answers):
         print(json.dumps({"mode": mode, **result, "checks": checks,
                           **({"answer": answer} if show_answers else {})}, ensure_ascii=False), flush=True)
         passed &= all(checks.values())
+        if mode == "hint":
+            unrelated = {
+                "message": "HTTP/1.1 和 HTTP/2 处理并发请求有什么区别？", "study_mode": mode,
+                "client_request_id": "eval.unrelated",
+                "page_context": {"path": "/books/ai-exam/acm-playground.html", "page_type": "problem",
+                                 "title": "1. 两数之和", "problem_id": 1},
+            }
+            reply, turn, outcome = chat(client, url + "/stream", unrelated)
+            trace = client.get(url + f"/turns/{turn}/context") if turn else None
+            blocks = trace.json().get("preparation", {}).get("context_blocks") if trace and trace.is_success else None
+            checks = {
+                "completed": bool(turn and reply and not outcome["errors"]),
+                "no_unrelated_page": isinstance(blocks, list) and "current_page" not in blocks,
+                "answered_new_topic": bool(re.search(r"HTTP|连接|复用|请求", reply, re.I))
+                                      and not re.search(r"两数之和|字母异位词", reply),
+            }
+            print(json.dumps({"case": "http_on_problem_one", "checks": checks, **outcome,
+                              **({"answer": reply} if show_answers else {})}, ensure_ascii=False), flush=True)
+            passed &= all(checks.values())
     return passed
 
 
@@ -400,7 +419,47 @@ def run_cases(client, db, service, show_answers):
                 ),
                 flush=True,
             )
-    return passed
+    return check_original_sources(client, show_answers) and passed
+
+
+def check_original_sources(client, show_answers):
+    session = client.post("/api/chat/sessions", json={}).json()["id"]
+    url = f"/api/chat/sessions/{session}"
+    originals = {}
+    for text in ("链表走查先画出哨兵，再标出断点。", "二叉树走查先写空树用例，再标出递归出口。"):
+        _, turn, result = chat(client, url + "/stream", {"message": text})
+        if not turn or result["errors"]:
+            print(json.dumps({"case": "two_original_sources", "fixture_turn": result}, ensure_ascii=False))
+            return False
+        rows = client.get(url + "/messages").json()["items"]
+        user_row = next(row for row in rows if row["role"] == "user" and row["content"] == text)
+        originals[user_row["id"]] = text
+
+    ids = " 和 ".join(f"消息 #{mid}" for mid in originals)
+    answer, turn, result = chat(client, url + "/stream", {
+        "message": f"请分别逐字引用我在{ids}里写的走查顺序，给出各自的消息编号。只引用我的发言。",
+    })
+    rows = client.get(url + "/messages").json()["items"]
+    refs = rows[-1]["metadata"].get("history_sources", []) if turn else []
+    excerpts = {}
+    for ref in refs:
+        mid = ref["message_id"]
+        source = client.get(f"{url}/messages/{mid}/excerpt", params={
+            k: ref[k] for k in ("offset", "length", "sha256")
+        })
+        if source.is_success:
+            record = source.json()
+            if record.get("role") == "user" and record.get("message_id") == mid:
+                excerpts[mid] = record["excerpt"]
+    checks = {
+        "completed": bool(turn and not result["errors"]),
+        "both_quotes": all(text.rstrip("。") in answer for text in originals.values()),
+        "both_sources": (len(refs) == len(originals) and excerpts.keys() == originals.keys()
+                         and all(text.rstrip("。") in excerpts[mid] for mid, text in originals.items())),
+    }
+    print(json.dumps({"case": "two_original_sources", **result, "checks": checks,
+                      **({"answer": answer} if show_answers else {})}, ensure_ascii=False), flush=True)
+    return all(checks.values())
 
 
 def main():
