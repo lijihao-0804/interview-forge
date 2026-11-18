@@ -13,10 +13,26 @@ from datetime import datetime, timedelta, timezone
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from interview_forge.ai.chat.page_context import PageContext
 
-POLICY_VERSION = "chat-relevance-v2"
+
+POLICY_VERSION = "chat-relevance-v3"
 _RESET = re.compile(r"^(?:换个(?:话题|问题)|另一个问题|新的问题|不谈(?:这个|之前)|先不聊|重新开始|new topic\b|unrelated question\b)", re.I)
-_RECALL = re.compile(r"之前|先前|前面|刚才|上次|前文|earlier|previous|before", re.I)
+_PAST = r"(?:之前|此前|先前|以前|前面|刚才|上次|上回)"
+# A time or ordering word inside a technical question need not refer to chat.
+_RECALL = re.compile(
+    rf"前文|(?:回顾|回查|回忆|还记得|比较|对照)(?:一下)?(?:我们?|你|咱们)?{_PAST}|"
+    rf"{_PAST}(?:我们?|你|咱们)?(?:曾经?|已经|给我|所)?(?:说|讲|聊|讨论|提[到过的]|问过|回答|写过|约定|建议|学过|做过)|"
+    rf"{_PAST}(?:的|那[个条道段种份])(?:答案|回答|话题|问题|消息|对话|要求|约定|计划|做法|提示|例子|代码)|"
+    rf"(?:^|[，,。！？])\s*{_PAST}(?=的|那|[，,。！？]|$)|"
+    r"\b(?:earlier|previous|prior|last)\s+(?:messages?|answers?|repl(?:y|ies)|chats?|discussions?|conversations?|"
+    r"questions?|examples?|agreements?|topics?|suggestions?|time)\b|"
+    r"\b(?:earlier|previously|last time)\s*,?\s*(?:we|you|I)\b|\b(?:we|you|I)\s+(?:earlier|previously)\b|"
+    r"\b(?:we|you|I)\s+(?:(?:had|have|already|previously)\s+)?(?:say|said|ask(?:ed)?|"
+    r"discuss(?:ed)?|mention(?:ed)?|suggest(?:ed)?|recommend(?:ed)?|agree(?:d)?|wrote|learn(?:ed|t)?)"
+    r"\b[^.?!\n]{0,48}\b(?:before|earlier|previously)\b",
+    re.I,
+)
 _EARLIEST_RECORD = re.compile(
     r"(?:最早|最初|最先)的?(?:(?:那|第)?一[条句则段]|那[条句则段]|约定|消息|原话|留言)|"
     r"(?:第一[条句则段]|一开始)(?:的)?(?:[^。！？\n]{0,12})(?:记录|消息|约定|原话|留言)|"
@@ -74,7 +90,19 @@ _ACTION = re.compile(
     r"^(?:确认|取消|重试)[。！？?]*$|"
     r"\b(?:confirm|cancel)\b", re.I,
 )
-_PAGE = re.compile(r"这(?:个|道|一)?(?:题|页|章|段)|(?:当前|本)(?:页|题|章)|选中|划选|页面|\b(?:this page|this problem|selected text)\b", re.I)
+_PAGE = re.compile(
+    r"这(?:个|道|一)?(?:题|页|章|段)|(?:当前|(?<!基)本)(?:页|题|章)|选中|划选|"
+    r"页面(?:上|里|中|标题|内容|题号)|\b(?:(?:this|current) (?:page|problem|chapter)|selected text)\b", re.I,
+)
+_NUMBERED_PROBLEM = re.compile(
+    r"第\s*(\d{1,9})\s*(?:道)?题|"
+    r"(?:题号|题目|题|力扣|(?<![a-z0-9_])(?:leetcode|lc|problem|exercise))\s*[#＃:：]?\s*(\d{1,9})(?![\d.])|"
+    r"(?<![\d.])(\d{1,9})\s*号题|(?<![\d.])(?P<shorthand>\d{1,9})\s*题", re.I,
+)
+_PROBLEM_COUNT = re.compile(
+    r"(?:[了共剩够满这那前后]|做完|刷完|总计|合计|只有|完成|累计|至少|至多|最多|最少|超过|仅有|"
+    r"(?:每[日天周月]|一[天周月]|[只仅])(?:要|只|至少)?(?:[做刷写练]|复习|重做|回顾))\s*$",
+)
 _GREETING = re.compile(r"^(?:你好|您好|嗨|哈喽|早上好|晚上好|在吗|谢谢|hello|hi|hey)[!！。.，,？?\s]*$", re.I)
 _ACKNOWLEDGEMENT = re.compile(r"^(?:嗯|好|好的|好吧|是的|可以|开始吧)[。！？?\s]*$")
 _IMPLICIT_PAGE = re.compile(r"^(?:它(?:呢|怎么做|怎么理解)?|继续|接着(?:讲|说)?)[。！？?\s]*$")
@@ -90,6 +118,22 @@ def _study_page_start(query: str) -> bool:
     return bool(_STUDY_PAGE_START.fullmatch(query.strip().rstrip("。！？!?")))
 
 
+def referenced_problem_ids(query: str) -> tuple[int, ...]:
+    """Read problem labels and the site's '146题' shorthand, excluding exercise counts."""
+    number = re.fullmatch(r"\s*[#＃]?\s*(\d{1,9})\s*[?？]?\s*", query)
+    if number:
+        value = int(number[1])
+        return (value,) if value > 0 else ()
+    ids = []
+    for match in _NUMBERED_PROBLEM.finditer(query):
+        if match["shorthand"] and _PROBLEM_COUNT.search(query, max(0, match.start() - 32), match.start()):
+            continue
+        value = int(next(group for group in match.groups() if group is not None))
+        if value > 0:
+            ids.append(value)
+    return tuple(ids)
+
+
 def topic_terms(text: str) -> set[str]:
     """Use word anchors and Chinese bigrams, excluding generic question words."""
     text = _FILLER.sub(" ", str(text).casefold())
@@ -99,9 +143,11 @@ def topic_terms(text: str) -> set[str]:
     return terms
 
 
-def topics_overlap(left: str, right: str) -> bool:
+def topics_overlap(left: str, right: str, *, ignore_numbers: bool = False) -> bool:
     a, b = topic_terms(left), topic_terms(right)
     shared = a & b
+    if ignore_numbers:
+        shared = {term for term in shared if not term.isdecimal()}
     # One exact technical word/number is useful; one common Chinese bigram
     # alone is too weak unless it constitutes most of the shorter subject.
     return any(re.fullmatch(r"[a-z0-9_+#.-]+", term) for term in shared) or (
@@ -110,7 +156,7 @@ def topics_overlap(left: str, right: str) -> bool:
 
 
 def _dependent(text: str) -> bool:
-    return bool(_REFERENCE.search(text) or _RECALL.search(text))
+    return bool(_REFERENCE.search(text) or _RECALL.search(text) or _PAGE.search(text))
 
 
 def _standalone(text: str) -> bool:
@@ -141,7 +187,13 @@ def _historical_page(row: Mapping[str, Any]) -> tuple[str | None, bool]:
         metadata = json.loads(str(row["metadata_json"])) if "metadata_json" in row.keys() else {}
         page = metadata.get("page_context")
         if isinstance(page, dict):
-            selected = (metadata.get("study_mode") in ("hint", "review", "code")
+            mode = metadata.get("study_mode", "auto")
+            # Browser metadata is stored even when it was irrelevant to the
+            # turn. An unrelated question on a problem page never starts that
+            # problem's episode. Older path-only entries retain their boundary.
+            if page.get("title") and not page_is_relevant(str(row["content"]), PageContext.from_payload(page), mode):
+                return None, False
+            selected = (mode in ("hint", "review", "code")
                         and page.get("page_type") in ("problem", "library/chapter"))
             return page_identity(page.get("path"), page.get("problem_id")), selected
     except (ValueError, TypeError, AttributeError):
@@ -188,16 +240,6 @@ def select_history(
     # Explicit cross-episode references may need more than the latest topic.
     if _RECALL.search(query):
         return HistorySelection(tuple(rows), "recall", "explicit_history_reference")
-    if current_page_path and (_PAGE.search(query) or _IMPLICIT_PAGE.fullmatch(query.strip()) or _study_page_start(query)):
-        previous_page = None
-        for row in reversed(rows):
-            if str(row["role"]) != "user":
-                continue
-            previous_page, _ = _historical_page(row)
-            break
-        if previous_page != current_page_path:
-            return HistorySelection((), "independent", "new_page_reference")
-
     episodes: list[list[Any]] = []
     anchors: list[str] = []
     last_page = None
@@ -222,13 +264,20 @@ def select_history(
                 anchors.append(content)
             elif _standalone(content):
                 anchors[-1] += "\n" + content
-            last_page = row_page
+            # Short follow-ups can continue an established page topic even
+            # when this turn had no independent reason to attach the page.
+            if row_page or starts_topic:
+                last_page = row_page
         if episodes:
             episodes[-1].append(row)
         previous_row = row
 
     if not episodes:
         return HistorySelection((), "independent", "no_user_anchor")
+    if current_page_path and last_page != current_page_path and (
+        _PAGE.search(query) or _IMPLICIT_PAGE.fullmatch(query.strip()) or _study_page_start(query)
+    ):
+        return HistorySelection((), "independent", "new_page_reference")
     if current_page_path and _study_page_start(query):
         return HistorySelection(tuple(episodes[-1]), "followup", "latest_topic_reference")
     if not _dependent(query) and not _standalone(query):
@@ -250,10 +299,9 @@ def page_is_relevant(query: str, page: Any, study_mode: str = "auto") -> bool:
         if _IMPLICIT_PAGE.fullmatch(query.strip()) or (study_mode != "auto" and _study_page_start(query)):
             return True
     subject = " ".join(str(getattr(page, key, "") or "") for key in ("title", "heading"))
-    if topics_overlap(query, subject):
+    if topics_overlap(query, subject, ignore_numbers=True):
         return True
-    problem_id = getattr(page, "problem_id", None)
-    return problem_id is not None and bool(re.search(rf"(?<!\d){problem_id}(?!\d)", query))
+    return getattr(page, "problem_id", None) in referenced_problem_ids(query)
 
 
 def action_context_is_relevant(query: str, selection: HistorySelection, *, pending: bool = False) -> bool:

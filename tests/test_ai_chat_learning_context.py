@@ -2,7 +2,6 @@ import asyncio
 import json
 import tempfile
 import unittest
-from contextlib import closing
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -74,6 +73,11 @@ class LearningContextSelectorTests(unittest.TestCase):
                 return provider.build(user_db=Path("unused"), query=query, study_mode="review", page_problem_id=page_id)
 
             self.assertEqual(select("第146题", 1)["target_problem_id"], 146)
+            self.assertEqual(select("146", 1)["target_problem_id"], 146)
+            self.assertEqual(select("今天刷了 3 题，想复习第 146 道题")["target_problem_id"], 146)
+            self.assertEqual(select("重做146题")["target_problem_id"], 146)
+            for query in ("本周我只做了 1 题，该怎么复习？", "每天复习 3 题合适吗？", "今天完成了 3 道题", "复习前 3 题"):
+                self.assertIsNone(select(query), query)
             self.assertEqual(select("这题呢", 1)["target_problem_id"], 1)
             self.assertEqual(select("今天做什么", 1)["task"], "today_plan")
             self.assertEqual(select("复盘一下最近的学习情况")["task"], "learning_diagnosis")

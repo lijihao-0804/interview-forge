@@ -71,3 +71,42 @@ def test_same_message_id_does_not_attach_unrelated_excerpt():
     refs = cited_history_sources("消息 #4 里写着「先写出边界条件」。", visible)
     assert [ref["offset"] for ref in refs] == [400]
     assert not cited_history_sources("详见消息 #4。", visible)
+
+
+def test_multiple_sources_in_one_sentence_keep_their_own_quotes():
+    items = [dict(message_id=4, offset=0, excerpt="先写测试"),
+             dict(message_id=4, offset=25, excerpt="先画图"),
+             dict(message_id=9, offset=0, excerpt="先提问题")]
+    for answer in ("消息 #4「先写测试」，消息 #9「先提问题」。",
+                   "「先写测试」（消息 #4），「先提问题」（消息 #9）。"):
+        refs = cited_history_sources(answer, items)
+        assert [(r["message_id"], r["offset"]) for r in refs] == [(4, 0), (9, 0)]
+
+
+def test_single_excerpt_cannot_substantiate_an_incorrect_quote_or_an_id_inside_a_quote():
+    items = [dict(message_id=4, offset=0, excerpt="请翻看消息 #9。"),
+             dict(message_id=9, offset=0, excerpt="先写测试")]
+    for answer in ("消息 #9 写的是「直接给代码」。", "消息 #9 写的是‘直接给代码’。"):
+        assert not cited_history_sources(answer, items)
+    refs = cited_history_sources("消息 #4 写的是「请翻看消息 #9。」", items)
+    assert [r["message_id"] for r in refs] == [4]
+    refs = cited_history_sources("上次刷的是 LeetCode #4，参见消息 #9。", items)
+    assert [r["message_id"] for r in refs] == [9]
+    assert [r["message_id"] for r in cited_history_sources("详见消息 #9。", items)] == [9]
+
+
+def test_a_quoted_label_elsewhere_is_not_a_claim_by_the_cited_message():
+    items = [dict(message_id=4, offset=0, excerpt="待办"), dict(message_id=4, offset=12, excerpt="先写测试")]
+    for answer in ("「待办」是个分类；消息 #4 的原话是「先写测试」。",
+                   "「待办」是个分类。消息 #4 的原话是「先写测试」。",
+                   "「待办」分类里消息 #4 的原话是「先写测试」。",
+                   "「先写测试」（消息 #4）属于「待办」分类。",
+                   "「待办」是个分类；当时的原话是「先写测试」。\n来源：消息 #4。",
+                   "消息 #4 写道：\n「先写测试」。"):
+        assert [r["offset"] for r in cited_history_sources(answer, items)] == [12]
+    assert not cited_history_sources("「待办」是个分类；消息 #4 的原话是「已经做完」。", items)
+
+
+def test_ambiguous_shared_citation_does_not_bind_quotes_to_individual_messages():
+    items = [dict(message_id=4, offset=0, excerpt="先测试"), dict(message_id=9, offset=0, excerpt="先绘图")]
+    assert not cited_history_sources("「先测试」和「先绘图」见消息 #4 和消息 #9。", items)

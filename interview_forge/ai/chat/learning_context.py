@@ -8,6 +8,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from interview_forge.ai.chat.context_blocks import ContextBlock
+from interview_forge.ai.chat.relevance import referenced_problem_ids
 from interview_forge.ai.context_projection import project_learning_context_for_chat
 from interview_forge.ai.telemetry import debug_ai_event
 from interview_forge.analytics.cache import analytics_cached
@@ -18,9 +19,6 @@ from interview_forge.analytics.context_compiler import (
 )
 
 
-_PROBLEM_QUERY_RE = re.compile(
-    r"(?:第\s*([0-9]{1,9})\s*题|([0-9]{1,9})\s*题|题\s*([0-9]{1,9}))"
-)
 _PROBLEM_REVIEW_MARKERS = ("复习", "为什么错", "掌握情况")
 _TODAY_MARKERS = ("今天做什么", "今天复习什么", "今日计划")
 _DIAGNOSIS_MARKERS = ("最近状态", "我的弱项", "最近学得怎么样")
@@ -50,14 +48,11 @@ def select_learning_task(query: str) -> dict[str, Any] | None:
     if not text:
         return None
 
-    problem_match = _PROBLEM_QUERY_RE.search(text)
-    if problem_match and any(marker in text for marker in _PROBLEM_REVIEW_MARKERS):
-        raw_problem_id = next(
-            group for group in problem_match.groups() if group is not None
-        )
+    problem_ids = referenced_problem_ids(text)
+    if problem_ids and any(marker in text for marker in _PROBLEM_REVIEW_MARKERS):
         return {
             "task": "problem_review",
-            "target_problem_id": int(raw_problem_id),
+            "target_problem_id": problem_ids[0],
             "budget_tier": CHAT_TASK_POLICIES["problem_review"],
         }
     for marker in _TODAY_MARKERS:
@@ -227,8 +222,8 @@ class LearningContextProvider:
               page_problem_id: int | None = None) -> dict[str, Any] | None:
         selection = select_learning_task(query)
         if selection is None and study_mode == "review":
-            match = _PROBLEM_QUERY_RE.search(query)
-            problem_id = next((int(group) for group in match.groups() if group), None) if match else page_problem_id
+            problem_ids = referenced_problem_ids(query)
+            problem_id = problem_ids[0] if problem_ids else page_problem_id
             if problem_id and problem_id > 0:
                 return self.build_for_task(user_db=user_db, task="problem_review", problem_id=problem_id)
             if _PERSONAL_REVIEW.fullmatch(query.strip()):

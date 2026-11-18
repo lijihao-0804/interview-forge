@@ -69,6 +69,16 @@ class TopicSelectionTests(unittest.TestCase):
         self.assertEqual(selected.mode, "recall")
         self.assertEqual(len(selected.rows), 4)
 
+    def test_technical_time_order_does_not_recall_unrelated_conversation(self):
+        for query in ("为什么 TCP 连接关闭之前要等待？", "比较 TCP 握手之前和之后的报文长度", "What happens before TCP teardown?",
+                      "Which pointer stores the previous node in a linked list?"):
+            with self.subTest(query=query):
+                self.assertFalse(select_history(self.rows, query).rows)
+        for query in ("我之前说过哪些要求？", "回顾之前的线程池", "你前面提的例子是什么？", "What did we discuss before?",
+                      "Compare your previous answers", "Earlier you suggested a heap.", "You previously mentioned Redis."):
+            with self.subTest(query=query):
+                self.assertEqual(select_history(self.rows, query).mode, "recall")
+
     def test_ambiguous_query_does_not_guess_a_subject(self):
         self.assertEqual(select_history(self.rows, "123").mode, "ambiguous")
 
@@ -142,6 +152,19 @@ class TopicSelectionTests(unittest.TestCase):
         self.assertEqual(len(selected.rows), 2)
         self.assertIn("双向链表", selected.rows[-1]["content"])
 
+    def test_attached_but_unrelated_page_does_not_establish_a_page_episode(self):
+        page = PageContext("/lru", "146 LRU 缓存", "problem", 146)
+        rows = history(("user", "解释 TCP 三次握手"), ("assistant", "客户端先发 SYN。"))
+        rows[0]["metadata_json"] = json.dumps({"page_context": page.to_dict()})
+        self.assertFalse(select_history(rows, "这题还有别的解法吗？", current_page_path=page.path).rows)
+        rows += history(("user", "这道题还有别的解法吗？"), ("assistant", "一种方法是双向链表。"))
+        rows[2]["metadata_json"] = json.dumps({"page_context": page.to_dict()})
+        for query, path in (("这道题还有什么解法？", page.path), ("继续", None)):
+            self.assertEqual(select_history(rows, query, current_page_path=path).rows, tuple(rows[2:]))
+        rows += history(("user", "空间复杂度呢？"), ("assistant", "空间与缓存容量有关。"))
+        self.assertEqual(select_history(rows, "这道题还能怎样优化？", current_page_path=page.path).rows,
+                         tuple(rows[2:]))
+
     def test_acm_problem_switch_is_scoped_across_short_study_turns(self):
         path = "/books/ai-exam/acm-playground.html"
         first, second = page_identity(path, 49), page_identity(path, 146)
@@ -175,6 +198,17 @@ class TopicSelectionTests(unittest.TestCase):
         # A stale selection is not proof that the new question refers to it.
         selected_page = PageContext(path="/lru", title="LRU 缓存", selected_text="TCP 的三次握手")
         self.assertFalse(page_is_relevant("解释 TCP 的三次握手", selected_page))
+
+    def test_page_requires_a_page_reference_or_a_topical_match(self):
+        page = PageContext("/two-sum", "1 两数之和", "problem", 1)
+        for query in ("为什么 HTTP/1.1 与 HTTP/2 不同？", "操作系统的页面置换算法是什么？",
+                      "基本页面置换算法是什么？", "1 + 2 等于多少？", "本周我只做了 1 题，该怎么复习？"):
+            with self.subTest(query=query):
+                self.assertFalse(page_is_relevant(query, page, "review"))
+        for query in ("本页的题号是什么？", "请概括页面内容", "Explain the current problem",
+                      "第 1 题还能优化吗？", "LeetCode 1", "LC1", "problem #1", "1", "两数之和怎么做？"):
+            with self.subTest(query=query):
+                self.assertTrue(page_is_relevant(query, page, "review"))
 
 
 class ScopedContextIntegrationTests(unittest.TestCase):
