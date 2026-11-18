@@ -48,6 +48,7 @@ def nary(value):
 
 def nested(value):
     return SimpleNamespace(
+        value=value,
         isInteger=lambda: isinstance(value, int),
         getInteger=lambda: value,
         getList=lambda: [nested(item) for item in value],

@@ -5,12 +5,15 @@ evaluated by the site or browser. A trace is published only after output verific
 """
 import itertools
 import dis
+import io
 import json
 import math
 import os
 import random
 import sys
+import tokenize
 from collections import deque
+from collections.abc import ValuesView
 from pathlib import Path
 from types import ModuleType
 
@@ -20,6 +23,8 @@ from scripts.check.check_hot200_acm_examples import (
 
 
 def snapshot(value, depth=0):
+    if isinstance(value, ValuesView):
+        value = list(value)
     if value is None or isinstance(value, (bool, int)):
         return value
     if isinstance(value, float):
@@ -102,10 +107,34 @@ def publish(target, content):
         target.write_text(content, encoding="utf-8")
 
 
+def multiline_statements(code, used):
+    """Resolve continuation lines to the complete Python statement they belong to."""
+    lines = code.splitlines()
+    result = {}
+    start = None
+    for token in tokenize.generate_tokens(io.StringIO(code).readline):
+        if token.type in (tokenize.INDENT, tokenize.DEDENT, tokenize.COMMENT, tokenize.NL):
+            continue
+        if start is None:
+            start = token.start[0]
+        if token.type == tokenize.NEWLINE:
+            end = token.start[0]
+            if start < end:
+                statement = "\n".join(lines[start - 1:end])
+                for line in used.intersection(range(start, end + 1)):
+                    result[line] = statement
+            start = None
+    return result
+
+
 def publish_problem(folder, pid, title, code, cases):
     lines = code.splitlines()
     used = {step[1] for case in cases for step in case["steps"]}
     payload = {"id": pid, "title": title, "lines": {i: lines[i - 1].strip() for i in sorted(used)}, "cases": cases}
+    if folder.parent.name == "hot200-extra":
+        statements = multiline_statements(code, used)
+        if statements:
+            payload["statements"] = statements
     content = "window.Hot200Execution=" + json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + ";\n"
     publish(folder / f"{pid}.js", content)
 

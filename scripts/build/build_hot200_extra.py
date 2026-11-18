@@ -90,6 +90,13 @@ def load_chapters(root, hot100_ids):
         int(path.name.split("-", 1)[0]): path
         for path in company_dir.glob("*/*.md") if re.match(r"^\d+-", path.name)
     }
+    def versioned(path):
+        content = (root / path).read_text(encoding="utf-8")
+        stamp = hashlib.sha256(content.encode("utf-8")).hexdigest()[:12]
+        return f"../../../{path}?v={stamp}"
+
+    kit = versioned("books/hot100/05-可视化/assets/demo-kit.js")
+    player = versioned("assets/hot200-example.js")
     chapters = []
     modified = manifest.stat().st_mtime
     for entry in problems:
@@ -102,7 +109,8 @@ def load_chapters(root, hot100_ids):
         source = root / f"books/hot200-extra/solutions/{number}.md"
         if company and not company.with_suffix(".html").is_file():
             raise FileNotFoundError(company.with_suffix(".html"))
-        body, example = prepare_body(source.read_text(encoding="utf-8-sig"), entry,
+        manuscript = source.read_text(encoding="utf-8-sig")
+        body, example = prepare_body(manuscript, entry,
                             company.relative_to(root) if company else None)
         trace_path = root / f"books/hot200-extra/traces/{number}.json"
         trace = json.loads(trace_path.read_text(encoding="utf-8"))
@@ -114,10 +122,18 @@ def load_chapters(root, hot100_ids):
             for frame in trace
         ):
             raise ValueError(f"LC {number}: incomplete example trace")
+        lines = FENCE.search(sections(manuscript)["Python"])[2].splitlines()
+        numbered = {f"{i:>2}  {line}" for i, line in enumerate(lines, 1) if line.strip()}
+        for frame in trace:
+            if not isinstance(frame.get("code"), list) or not frame["code"] or any(
+                line not in numbered for line in frame["code"]
+            ):
+                raise ValueError(f"LC {number}, {frame['label']}: stale Python source excerpt")
         chapters.append({
             "title": f"LC {number} · {entry['title']}", "body": body, "category": entry["topic"],
             "difficulty": entry["difficulty"], "position": entry["position"],
             "trace": trace, "example": example, "number": number,
+            "demo_scripts": [kit, versioned(f"books/hot200-extra/executions/{number}.js"), player],
             "content_id": f"{MODULE_ID}:{number:04d}",
         })
         modified = max(modified, source.stat().st_mtime)
@@ -127,13 +143,8 @@ def load_chapters(root, hot100_ids):
     return chapters, digest.hexdigest(), modified
 
 
-def render_problem(root, module_dir, chapters, index):
-    from scripts.build.build_html_site import SolutionCollectionPage, render_markdown
-
-    chapter = chapters[index]
+def render_demo(module_dir, chapter):
     number = chapter["number"]
-    source = root / f"books/hot200-extra/solutions/{number}.md"
-    filename = f"chapter-{index + 1:02d}.html"
     demo_dir = module_dir / "demos"
     demo_dir.mkdir(exist_ok=True)
     demo_name = f"{number}.html"
@@ -145,11 +156,22 @@ def render_problem(root, module_dir, chapters, index):
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         f'<title>{html.escape(chapter["title"])} · 交互演示</title></head><body>'
         '<div id="app"></div><script type="application/json" id="problemExample">'
-        + payload + '</script><script src="../../../books/hot100/05-可视化/assets/demo-kit.js"></script>'
-        f'<script src="../../../books/hot200-extra/executions/{number}.js"></script>'
-        '<script src="../../../assets/hot200-example.js"></script></body></html>'
+        + payload + '</script>'
+        + ''.join(f'<script src="{html.escape(url)}"></script>' for url in chapter["demo_scripts"])
+        + '</body></html>'
     )
     (demo_dir / demo_name).write_text(demo, encoding="utf-8")
+    return demo_name
+
+
+def render_problem(root, module_dir, chapters, index):
+    from scripts.build.build_html_site import SolutionCollectionPage, render_markdown
+
+    chapter = chapters[index]
+    number = chapter["number"]
+    source = root / f"books/hot200-extra/solutions/{number}.md"
+    filename = f"chapter-{index + 1:02d}.html"
+    demo_name = render_demo(module_dir, chapter)
     siblings = [(f"chapter-{j + 1:02d}.html", other["title"], j == index)
                 for j, other in enumerate(chapters) if other["category"] == chapter["category"]]
     nav = ['<a href="index.html">返回题目面板</a>']

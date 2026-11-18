@@ -15,6 +15,15 @@
     return "即将执行 " + line;
   }
 
+  function formatExcerpt(lines) {
+    const parts = lines.map(line => /^\s*(\d+)  ( *)(.*)$/.exec(line));
+    const base = Math.min(...parts.map(part => part[2].length));
+    return parts.map(([, number, spaces, code]) => {
+      const indent = " ".repeat(Math.floor((spaces.length - base) / 2));
+      return number + " " + indent + code;
+    }).join("\n");
+  }
+
   function showValue(value) {
     if (value && Array.isArray(value.$set) && typeof value.$size === "number") {
       const contents = value.$set.map(text).join(", ") + (value.$size > value.$set.length ? ", …" : "");
@@ -64,12 +73,13 @@
         let previous = null;
         selected.steps.forEach(([position, lineNo, method, locals, returning]) => {
           const line = execution.lines[lineNo];
+          const statement = execution.statements?.[lineNo];
           const changed = previous && previous.method === method ? Object.keys(locals).filter(
             key => text(previous.locals[key]) !== text(locals[key])) : [];
           const why = Object.hasOwn(locals, "产出") ? method + " 产出一个值，保留游标供下次继续。" :
-            explain(line, returning, method);
+            explain(statement ? statement.trim().replace(/\s*\n\s*/g, " ") : line, returning, method);
           ctx.step(why, {
-            position, count: selected.count, method, lineNo, line, locals, changed
+            position, count: selected.count, method, lineNo, line, statement, locals, changed
           }, {phase: returning ? "recursive_return" : "visit"});
           previous = {method, locals};
         });
@@ -83,7 +93,7 @@
     render(frame, stage) {
       if ("input" in frame || "output" in frame) {
         const input = "input" in frame;
-        stage.append(kit.el("h2", "dk-head", input ? "输入参数" : (example ? "实际输出" : "判题结果")),
+        stage.append(kit.el("h2", "dk-head", input ? "输入参数" : "判题输出"),
                      kit.el("pre", "dk-trace-code", input ? frame.input : text(frame.output)));
         return;
       }
@@ -92,6 +102,10 @@
                      kit.el("pre", "dk-trace-code", frame.line),
                      kit.el("p", "dk-note", "执行位置 " + frame.position + " / " + frame.count +
                        (frame.count > 20 ? "（选取 20 个位置）" : "")));
+        if (frame.statement) {
+          stage.append(kit.el("h3", "dk-note", "完整 Python 语句"),
+                       kit.el("pre", "dk-trace-code", frame.statement));
+        }
         const variables = kit.el("dl", "dk-trace-vars");
         Object.entries(frame.locals).forEach(([name, value]) => {
           const label = kit.el("dt", null, name);
@@ -113,6 +127,10 @@
         cells.appendChild(kit.keyed("span", value + ":" + count, "dk-cell", value));
       });
       stage.append(cells, kit.el("p", "dk-log", frame.state));
+      if (frame.code?.length) {
+        stage.append(kit.el("h3", "dk-note", "对应 Python 代码"),
+                     kit.el("pre", "dk-trace-code", formatExcerpt(frame.code)));
+      }
     }
   });
 

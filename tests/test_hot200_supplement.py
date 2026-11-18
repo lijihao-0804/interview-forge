@@ -60,7 +60,9 @@ def test_supplement_has_independent_question_ids_links_and_bilingual_solutions()
         demo = page.parent / (iframe["src"].split("?")[0])
         payload = json.loads(BeautifulSoup(demo.read_bytes(), "html.parser", from_encoding="utf-8").select_one("#problemExample").string)
         assert payload["no"] == str(row["id"]) and len(payload["frames"]) >= 3
-        assert all(f["cells"] and f["why"] for f in payload["frames"])
+        trace_file = ROOT / f"books/hot200-extra/traces/{row['id']}.json"
+        assert payload["frames"] == json.loads(trace_file.read_bytes())
+        assert all(f["cells"] and f["why"] and f["code"] for f in payload["frames"])
         assert reader.find("a", href=f"https://leetcode.cn/problems/{row['slug']}/")
         for link in reader.select('a[href*="/company-solutions/"]'):
             assert (page.parent / unquote(link["href"])).is_file()
