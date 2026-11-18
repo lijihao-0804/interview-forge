@@ -109,6 +109,12 @@ class LibrarySearchModel(FakeAsyncModel):
         return self
 
     async def astream(self, messages):
+        if messages[-1].get("role") == "user" and "当前章节索引" in messages[-1]["content"]:
+            if any(item.get("role") == "tool" or item.get("tool_calls") for item in messages):
+                raise ValueError("provider does not accept synthetic assistant/tool history")
+            self.grounded = json.loads(messages[-1]["content"])
+            yield FakeChunk("这里介绍了相关的实现方法。")
+            return
         self.observations = [
             json.loads(item["content"]) for item in messages if item["role"] == "tool"
         ]
@@ -345,9 +351,12 @@ class AIChatContractTests(unittest.TestCase):
         failing = FakeAsyncModel(error=RuntimeError("provider secret detail"))
         self.service.model_factory = lambda _config: failing
         created = self.client.post("/api/chat/sessions", json={}).json()
-        response = self.client.post(
-            f"/api/chat/sessions/{created['id']}/stream", json={"message": "测试失败"}
-        )
+        with self.assertLogs("interview_forge.ai.chat.service", level="WARNING") as diagnostic:
+            response = self.client.post(
+                f"/api/chat/sessions/{created['id']}/stream", json={"message": "测试失败"}
+            )
+        self.assertIn("type=RuntimeError", diagnostic.output[0])
+        self.assertNotIn("secret detail", diagnostic.output[0])
         events = parse_sse(response.text)
         self.assertEqual([name for name, _ in events], ["message.start", "error"])
         self.assertEqual(events[-1][1]["code"], "provider_error")
@@ -521,10 +530,20 @@ class AIChatContractTests(unittest.TestCase):
         self.assertIn("资料卡有 2 项", "".join(p["delta"] for e, p in uncertain if e == "message.delta"))
         recall = LibrarySearchModel()  # This model cannot initiate its own retrieval.
         self.service.model_factory = lambda _config: recall
-        events = parse_sse(self.client.post(base + "/stream", json={"message": "请回读资料卡第2项"}).text)
+        events = parse_sse(self.client.post(base + "/stream", json={"message": "请回读资料卡第2项，写出标题。"}).text)
         self.assertEqual(events[-1][1]["library_sources"], [sources[1]])
-        self.assertEqual(recall.observations[0]["data"]["edition"], "current_index")
-        self.assertTrue(recall.observations[0]["data"]["items"][0]["snippet"])
+        self.assertEqual(recall.grounded["资料卡序号"], 2)
+        self.assertTrue(recall.grounded["当前章节索引"]["snippet"])
+        self.assertEqual([p["name"] for e, p in events if e == "tool.start"], ["search_library"])
+        answer = "".join(p["delta"] for e, p in events if e == "message.delta")
+        self.assertEqual(answer.count(sources[1]["title"]), 1)
+        self.assertIn("这里介绍了相关的实现方法", answer)
+        policy = self.service.tool_policy
+        self.service.tool_policy = ToolPolicy(max_total_result_tokens=1)
+        clipped = parse_sse(self.client.post(base + "/stream", json={"message": "打开资料卡第1项"}).text)
+        self.assertNotIn("library_sources", clipped[-1][1])
+        self.assertIn("预算", "".join(p["delta"] for e, p in clipped if e == "message.delta"))
+        self.service.tool_policy = policy
         other = self.client.post("/api/chat/sessions", json={}).json()["id"]
         for path, expected_count in ((base, 1), (f"/api/chat/sessions/{other}", 0)):
             events = parse_sse(self.client.post(path + "/stream", json={"message": "打开资料卡第57项"}).text)

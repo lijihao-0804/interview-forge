@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
 import sqlite3
 import threading
 import time
@@ -1029,6 +1030,13 @@ class ChatService:
                 raise
             except Exception as exc:
                 code, safe_message = _safe_provider_error(exc)
+                if code == "provider_error":
+                    # Provider exceptions can contain request headers and message text.
+                    status = getattr(exc, "status_code", None)
+                    logging.getLogger(__name__).warning(
+                        "chat provider_error type=%s http_status=%s",
+                        type(exc).__name__, status if isinstance(status, int) else "unknown",
+                    )
                 debug_ai_event("chat_stream_failed", session_id=session_id, message_id=stream_message_id, code=code)
                 if trace_recorder is not None:
                     await record_chat_trace(status="failed", usage=usage, error_code=code)
