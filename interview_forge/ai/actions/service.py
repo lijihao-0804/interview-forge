@@ -55,14 +55,13 @@ class ActionService:
         try:
             request = await asyncio.shield(claim_task)
         except asyncio.CancelledError:
-            # Let the SQLite claim finish before checking whether it actually
-            # moved the row to executing; otherwise the recovery query could
-            # race the worker thread and miss the transition.
+            # Only the caller that acquired the claim may settle it.
             try:
-                await asyncio.shield(claim_task)
+                request = await asyncio.shield(claim_task)
             except Exception:
-                pass
-            await self._recover_cancelled_confirmation(user_db=path, action_id=action_id)
+                request = None
+            if request and request.get("_claimed"):
+                await self._recover_cancelled_confirmation(user_db=path, action_id=action_id)
             raise
         if request is None:
             raise ActionRequestError("操作不存在", 404, "not_found")
@@ -80,6 +79,16 @@ class ActionService:
         if not request.get("_claimed"):
             raise ActionRequestError("操作正在执行，请稍后查看结果", 409, "in_progress")
 
+        # The learner has confirmed. Finish the operation and commit its receipt
+        # even if the HTTP client disconnects after the handler starts.
+        execution = asyncio.create_task(self._execute_claimed(path, action_id, request))
+        try:
+            return await asyncio.shield(execution)
+        except asyncio.CancelledError:
+            await asyncio.shield(execution)
+            raise
+
+    async def _execute_claimed(self, path: Path, action_id: str, request: dict[str, Any]) -> dict[str, Any]:
         context = ToolExecutionContext(
             user_db=path,
             session_id=str(request["session_id"]),
@@ -93,7 +102,7 @@ class ActionService:
             result = await runtime.execute_confirmed_action(action_request=request, context=context)
             payload = result.model_payload()
             final_status = "succeeded" if result.status in {"ok", "cache_hit"} else "failed"
-            meta = {"result": payload, "display": result.display_text or ""}
+            meta = {"result": payload, "display": result.display_text or result.error_message or "操作已处理"}
             await asyncio.to_thread(
                 self.store.complete,
                 user_db=path,
@@ -103,18 +112,14 @@ class ActionService:
                 result_meta=meta,
             )
         except asyncio.CancelledError:
-            # A disconnected/cancelled confirmation must not leave the row in
-            # executing forever.  The underlying sync handler may still finish
-            # its worker thread, so expose a conservative failed result rather
-            # than claiming that the action succeeded.
+            # The executor itself was stopped (for example during shutdown).
             await self._recover_cancelled_confirmation(user_db=path, action_id=action_id)
             raise
         return {
             "ok": final_status == "succeeded",
             "action_id": action_id,
             "status": final_status,
-            "result": payload,
-            "display": result.display_text or result.error_message or "操作已处理",
+            **meta,
         }
 
     async def cancel(self, *, user_db: Path | str, action_id: str) -> dict[str, Any]:

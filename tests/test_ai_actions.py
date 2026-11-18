@@ -234,6 +234,54 @@ class ActionToolTests(unittest.TestCase):
         self.assertEqual(row["status"], "failed")
         self.assertEqual(row["error_code"], "cancelled")
 
+    def test_disconnect_during_confirmation_preserves_the_owners_result(self):
+        async def exercise(disconnect_owner):
+            started, finish = asyncio.Event(), asyncio.Event()
+            writes = []
+
+            async def handler(_context, _args):
+                writes.append("mark")
+                started.set()
+                await finish.wait()
+                return ToolResult({"written": True}, "已标记")
+
+            registry = ToolRegistry([ToolSpec(
+                name="mark_test", display_name="标记", description="标记", args_model=SyncArgs,
+                handler=handler, kind=ToolKind.ACTION, requires_confirmation=True,
+            )])
+            store = ActionRequestStore()
+            service = ActionService(store=store, registry=registry)
+            item = store.create(user_db=self.db, session_id="session", turn_id=str(disconnect_owner),
+                                user_message_id=1, tool_name="mark_test", arguments={}, confirmation_text="标记")
+            key = dict(user_db=self.db, action_id=item["action_id"])
+            owner = asyncio.create_task(service.confirm(**key))
+            await asyncio.wait_for(started.wait(), 5)
+            try:
+                if disconnect_owner:
+                    owner.cancel()
+                    finish.set()
+                    with self.assertRaises(asyncio.CancelledError):
+                        await owner
+                else:
+                    duplicate = asyncio.create_task(service.confirm(**key))
+                    await asyncio.sleep(0)  # The duplicate is waiting for its SQLite claim.
+                    duplicate.cancel()
+                    with self.assertRaises(asyncio.CancelledError):
+                        await duplicate
+                    self.assertEqual(store.get(**key)["status"], "executing")
+                    finish.set()
+                    self.assertEqual((await owner)["status"], "succeeded")
+                replay = await service.confirm(**key)
+                self.assertEqual((replay["status"], replay["display"]), ("succeeded", "已标记"))
+                self.assertEqual(writes, ["mark"])
+            finally:
+                finish.set()
+                await asyncio.gather(owner, return_exceptions=True)
+
+        for disconnect_owner in (False, True):
+            with self.subTest(disconnect_owner=disconnect_owner):
+                asyncio.run(exercise(disconnect_owner))
+
     def test_result_metadata_is_valid_bounded_json(self):
         store = ActionRequestStore()
         action = store.create(
