@@ -52,7 +52,7 @@ class M7ToolPackTests(unittest.TestCase):
         self.assertEqual(
             {spec.name for spec in registry.list_specs() if spec.kind.value == "read"},
             {"get_problem", "get_acm_examples", "get_learning_context", "get_weather", "get_problem_progress",
-             "get_review_queue", "search_library", "recall_chat_history"},
+             "get_review_queue", "search_library", "recall_chat_history", "recall_learning_observation"},
         )
         self.assertEqual(
             {spec.name for spec in registry.list_specs() if spec.kind.value == "action"},
