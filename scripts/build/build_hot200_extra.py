@@ -70,6 +70,7 @@ def prepare_body(markdown, problem, existing_path):
             "### 思路推导", parts["思路"], before,
             f"### {language} 实现", code.group(), after,
             "### 复杂度", parts["复杂度"], "### 易错点", parts["边界检查"],
+            "### 反例推演", parts["反例推演"],
             "### 面试追问", parts["面试追问"], "</section>",
         ])
     intro.extend(["## 力扣原题", sources])
@@ -145,6 +146,7 @@ def render_problem(root, module_dir, chapters, index):
         f'<title>{html.escape(chapter["title"])} · 交互演示</title></head><body>'
         '<div id="app"></div><script type="application/json" id="problemExample">'
         + payload + '</script><script src="../../../books/hot100/05-可视化/assets/demo-kit.js"></script>'
+        f'<script src="../../../books/hot200-extra/executions/{number}.js"></script>'
         '<script src="../../../assets/hot200-example.js"></script></body></html>'
     )
     (demo_dir / demo_name).write_text(demo, encoding="utf-8")

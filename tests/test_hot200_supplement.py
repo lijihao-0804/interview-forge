@@ -7,6 +7,22 @@ from bs4 import BeautifulSoup
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_published_supplement_catalog_and_search_match_the_lessons():
+    from scripts.build.build_hot200_dashboard import render_dashboard
+    from scripts.build.build_hot200_extra import load_chapters
+    from scripts.build.build_library import PROBLEMS, clean_search_text
+
+    library = ROOT / "library"
+    assert (library / "hot200-extra/index.html").read_text(encoding="utf-8") == render_dashboard(ROOT)
+    lessons, _, _ = load_chapters(ROOT, (problem["id"] for problem in PROBLEMS))
+    index = json.loads((library / "search-index.json").read_bytes())
+    actual = {entry["id"]: entry["text"] for entry in index if entry["module_id"] == "hot200-extra"}
+    assert actual == {
+        lesson["content_id"]: clean_search_text(f'{lesson["category"]} {lesson["difficulty"]}\n{lesson["body"]}')
+        for lesson in lessons
+    }
+
+
 def test_supplement_has_independent_question_ids_links_and_bilingual_solutions():
     library = ROOT / "library"
     rows = json.loads((ROOT / "data/hot200-extra.json").read_bytes())
@@ -37,6 +53,8 @@ def test_supplement_has_independent_question_ids_links_and_bilingual_solutions()
             assert panel.select_one("pre code") and panel.select_one("h4")
             assert panel.select_one(".aside-warn") and panel.select_one(".aside-note")
             assert panel.select_one("table tbody tr")
+            counterexample = panel.find("h3", string="反例推演")
+            assert counterexample and counterexample.find_next_sibling("p").get_text(strip=True)
         iframe = reader.select_one("iframe.reader-visual-frame")
         assert iframe["loading"] == "lazy"
         demo = page.parent / (iframe["src"].split("?")[0])

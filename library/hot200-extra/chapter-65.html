@@ -62,8 +62,8 @@
 <nav aria-label="当前位置" class="page-kicker page-breadcrumb"><a href="index.html" target="_blank" rel="noopener noreferrer">Hot 200 面板</a><span aria-hidden="true">›</span><span>题解</span><span aria-hidden="true">›</span><span aria-current="page">数组专题</span></nav>
 <h1 id="311">311. 稀疏矩阵的乘法</h1><section aria-label="本题学习状态" class="solution-progress" data-content-id="hot200-extra:0311" data-module-id="hot200-extra" data-problem-id="311" id="solutionProgress"><div class="solution-progress-copy"><strong>本题学习状态</strong><span id="solutionProgressSummary">正在读取学习记录…</span><span id="solutionProgressDue">下次复习：—</span><button aria-label="复习间隔说明：下次复习时间由 FSRS 记忆模型根据本次评分动态计算，不是固定间隔表。" class="solution-progress-help" title="下次复习时间由 FSRS 记忆模型根据本次评分动态计算，不是固定间隔表。" type="button">?</button></div><label for="solutionProgressMark">本题标记<select disabled="" id="solutionProgressMark"><option value="">无标记</option><option value="mastered">已掌握</option><option value="reviewing">复习中</option><option value="weak">薄弱</option></select></label><button aria-pressed="false" disabled="" id="solutionWeakToggle" type="button">标记薄弱</button><button aria-pressed="false" class="solution-fav-toggle" data-problem-id="311" id="solutionFavoriteToggle" type="button">⭐ 收藏</button><div aria-label="本次复习记忆情况" class="solution-review-ratings" role="group"><span>本次复习：</span><button data-review-rating="1" disabled="" type="button">忘了</button><button data-review-rating="2" disabled="" type="button">有点困难</button><button data-review-rating="3" disabled="" type="button">记得</button><button data-review-rating="4" disabled="" type="button">很轻松</button></div><button aria-controls="solutionProgressHistory" aria-expanded="false" id="solutionProgressHistoryButton" type="button">查看 AC 记录</button><div aria-live="polite" class="solution-progress-history" hidden="" id="solutionProgressHistory"></div><span class="solution-shortcut">按 M 快速切换薄弱标记</span></section><div class="selftest-bar" id="selftestBar"><button aria-pressed="false" class="selftest-toggle" id="selftestToggle" type="button">自测模式</button><span class="selftest-hint">遮住推导与代码，先自己想，再逐段揭示</span></div><div aria-live="polite" class="toast solution-progress-toast" id="solutionProgressToast"></div>
 <div class="meta-badges"><span class="mb diff-中等"><span class="mb-k">难度</span><b>中等</b></span><span class="mb"><span class="mb-k">专题</span><b>数组</b></span><span class="mb"><span class="mb-k">题单位置</span><b>第 165 位</b></span></div>
-<div class="meta-badges problem-meta" data-lang="java" data-lang-scope="true"><span class="mb"><span class="mb-k">Java 主方法</span><b>一项系数更新整行结果</b></span><span class="mb"><span class="mb-k">复杂度</span><b>左矩阵为 m×k、右矩阵 k×n，左矩阵有 z 个非零值。时间 O(mk+mn+zn)，结果占 O(mn)，额外空间 O(1)。</b></span></div>
-<div class="meta-badges problem-meta" data-lang="python" data-lang-scope="true"><span class="mb"><span class="mb-k">Python 主方法</span><b>用 enumerate 展开非零系数</b></span><span class="mb"><span class="mb-k">复杂度</span><b>左矩阵为 m×k、右矩阵 k×n，左矩阵有 z 个非零值。时间 O(mk+mn+zn)，结果占 O(mn)，额外空间 O(1)。</b></span></div>
+<div class="meta-badges problem-meta" data-lang="java" data-lang-scope="true"><span class="mb"><span class="mb-k">Java 主方法</span><b>按右矩阵的行建立稀疏索引</b></span><span class="mb"><span class="mb-k">复杂度</span><b>左矩阵 m×k、右矩阵 k×n，右矩阵有 z 个非零，实际相乘的非零项配对数为 P。时间 O(mk+kn+mn+P)，索引空间 O(k+z)，返回的稠密结果占 O(mn)。</b></span></div>
+<div class="meta-badges problem-meta" data-lang="python" data-lang-scope="true"><span class="mb"><span class="mb-k">Python 主方法</span><b>按右矩阵的行建立稀疏索引</b></span><span class="mb"><span class="mb-k">复杂度</span><b>左矩阵 m×k、右矩阵 k×n，右矩阵有 z 个非零，实际相乘的非零项配对数为 P。时间 O(mk+kn+mn+P)，索引空间 O(k+z)，返回的稠密结果占 O(mn)。</b></span></div>
 <h2 id="_1">题目与约束</h2>
 <p>给定维数兼容的两个稀疏矩阵，求普通矩阵乘积。</p>
 <p>左矩阵为 m×k、右矩阵为 k×n，整数值可能为负或零。返回普通矩阵乘积的 m×n 稠密表示。</p>
@@ -73,127 +73,127 @@
 <section class="language-panel java-solution-panel" data-lang="java" data-lang-scope="true">
 <h2 id="java">Java 完整推导</h2>
 <h3 id="_3">核心不变量</h3>
-<p>处理完左行的第 k 个系数，输出行每格等于此前所有已处理内维乘积的和。</p>
+<p>处理完一行的前 k 个系数，输出对应行等于这些系数与右矩阵对应行的线性组合。右矩阵行没有登记的列贡献恒为 0。</p>
 <h3 id="_4">思路推导</h3>
-<p>固定左矩阵一行，在每个非零系数处扫描右矩阵对应的一行，把乘积累加进结果。跳过零系数可省去整行乘法。</p>
-<p>按输出格逐个做点积时，同一个左侧零系数会在所有输出列中反复出现。交换内两层循环，把结果行视为若干右矩阵行的线性组合；一个零系数直接取消整行贡献。</p>
-<h4 id="_5">乘出两行不同符号的结果</h4>
+<p>先为右矩阵每行列出非零的 (列号,值)。再扫左矩阵；发现非零 a[i][k] 时，仅访问右矩阵第 k 行登记的非零项 b[k][j]，把乘积加到结果 [i][j]。</p>
+<p>例如 [0,2] 乘 [[9,8],[0,3]]，左侧只激活第 1 行，右侧该行只登记 (1,3)，于是只做一次乘加，得到 [0,6]。</p>
+<h4 id="_5">按右矩阵的行建立稀疏索引</h4>
+<p>每个二元数组记录原列号和系数。输出仍是二维数组，可直接按原坐标累加。</p>
 <table>
 <thead>
 <tr>
 <th>步骤</th>
 <th>当前状态</th>
-<th>为什么这样走</th>
+<th>判断依据</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>跳过零系数</td>
-<td>结果第 0 行 [0,0]，左系数 mat1[0][0]=0</td>
-<td>右矩阵第 0 行不产生贡献。</td>
+<td>建右行索引</td>
+<td>B=[[9,8],[0,3]]</td>
+<td>第 1 行非零项只有 (1,3)</td>
 </tr>
 <tr>
-<td>展开系数 2</td>
-<td>第 0 行加上 2×[4,5]，得到 [8,10]</td>
-<td>左侧第 1 列对应右侧第 1 行。</td>
+<td>读左行</td>
+<td>A[0]=[0,2]</td>
+<td>系数 0 跳过；2 激活 B 的第 1 行</td>
 </tr>
 <tr>
-<td>处理第二行</td>
-<td>−1×[3,0]=[−3,0]，另一个系数为 0</td>
-<td>两行组合成 [[8,10],[−3,0]]。</td>
+<td>累加配对</td>
+<td>out[0][1]+=2×3</td>
+<td>该行结果为 [0,6]</td>
 </tr>
 </tbody>
 </table>
-<h4 id="_6">一项系数更新整行结果</h4>
-<p><code>product[row]</code> 初始全零。处理到 k 之后，它已包含来自左行前 k+1 个系数的全部贡献。非零项的正负都保留，判断只跳过 value==0。</p>
 <h3 id="java_1">Java 实现</h3>
-<div class="codehilite" data-lang="java"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="nf">multiply</span><span class="p">(</span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">mat1</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">mat2</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">cols</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mat2</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">.</span><span class="na">length</span><span class="p">;</span>
-<span class="w">        </span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">product</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">mat1</span><span class="p">.</span><span class="na">length</span><span class="o">][</span><span class="n">cols</span><span class="o">]</span><span class="p">;</span>
-<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">row</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">row</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">mat1</span><span class="p">.</span><span class="na">length</span><span class="p">;</span><span class="w"> </span><span class="n">row</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">k</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">k</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">mat2</span><span class="p">.</span><span class="na">length</span><span class="p">;</span><span class="w"> </span><span class="n">k</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">                </span><span class="kt">int</span><span class="w"> </span><span class="n">value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mat1</span><span class="o">[</span><span class="n">row</span><span class="o">][</span><span class="n">k</span><span class="o">]</span><span class="p">;</span>
-<span class="w">                </span><span class="c1">// 左边系数为零时，它对整行结果的贡献都是零。</span>
-<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">value</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">continue</span><span class="p">;</span>
-<span class="w">                </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">col</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">col</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">cols</span><span class="p">;</span><span class="w"> </span><span class="n">col</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="n">product</span><span class="o">[</span><span class="n">row</span><span class="o">][</span><span class="n">col</span><span class="o">]</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">value</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">mat2</span><span class="o">[</span><span class="n">k</span><span class="o">][</span><span class="n">col</span><span class="o">]</span><span class="p">;</span>
-<span class="w">            </span><span class="p">}</span>
+<div class="codehilite" data-lang="java"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.*</span><span class="p">;</span>
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="nf">multiply</span><span class="p">(</span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">b</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">List</span><span class="o">&lt;</span><span class="n">List</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">[]&gt;&gt;</span><span class="w"> </span><span class="n">right</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">row</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">b</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">List</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">[]&gt;</span><span class="w"> </span><span class="n">entries</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">row</span><span class="p">.</span><span class="na">length</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="o">++</span><span class="p">)</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">row</span><span class="o">[</span><span class="n">j</span><span class="o">]</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="n">entries</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="p">{</span><span class="n">j</span><span class="p">,</span><span class="w"> </span><span class="n">row</span><span class="o">[</span><span class="n">j</span><span class="o">]</span><span class="p">});</span>
+<span class="w">            </span><span class="n">right</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="n">entries</span><span class="p">);</span>
 <span class="w">        </span><span class="p">}</span>
-<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">product</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">out</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">a</span><span class="p">.</span><span class="na">length</span><span class="o">][</span><span class="n">b</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">.</span><span class="na">length</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">a</span><span class="p">.</span><span class="na">length</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">k</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">k</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">a</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="p">.</span><span class="na">length</span><span class="p">;</span><span class="w"> </span><span class="n">k</span><span class="o">++</span><span class="p">)</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">a</span><span class="o">[</span><span class="n">i</span><span class="o">][</span><span class="n">k</span><span class="o">]</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span>
+<span class="w">                    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">entry</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">right</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">k</span><span class="p">))</span>
+<span class="w">                        </span><span class="n">out</span><span class="o">[</span><span class="n">i</span><span class="o">][</span><span class="n">entry</span><span class="o">[</span><span class="mi">0</span><span class="o">]]</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">a</span><span class="o">[</span><span class="n">i</span><span class="o">][</span><span class="n">k</span><span class="o">]</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">entry</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">out</span><span class="p">;</span>
 <span class="w">    </span><span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div>
-<h3 id="_7">复杂度</h3>
-<p>左矩阵为 m×k、右矩阵 k×n，左矩阵有 z 个非零值。时间 O(mk+mn+zn)，结果占 O(mn)，额外空间 O(1)。</p>
-<p>先看完 mk 个左格并初始化 mn 个输出格。每个非零左系数再处理 n 个右列，故出现 zn 项。</p>
-<div class="aside aside-warn" id="_8"><span class="aside-title">易错点</span>
+<h3 id="_6">复杂度</h3>
+<p>左矩阵 m×k、右矩阵 k×n，右矩阵有 z 个非零，实际相乘的非零项配对数为 P。时间 O(mk+kn+mn+P)，索引空间 O(k+z)，返回的稠密结果占 O(mn)。</p>
+<div class="aside aside-warn" id="_7"><span class="aside-title">易错点</span>
 <p>固定第一个矩阵的某一行和其中一个非零系数后，只需要把第二个矩阵对应行乘上该系数累加。先过滤零系数能省去整行无效乘法。</p>
-</div><div class="aside aside-note" id="_9"><span class="aside-title">面试追问</span>
-<p><strong>右矩阵本身也几乎全是零呢？</strong> 可事先把它的每一行压成 (列号,非零值) 对。命中左系数后只访问该行的非零项，代价是预处理和额外索引。</p>
+</div><h3 id="_8">反例推演</h3>
+<p>计算 <code>[[0,2]] × [[9,8],[0,3]]</code>，结果是 <code>[[0,6]]</code>。左系数为零时可跳过对应整行；左系数非零时不能把它加到右行的零列。</p>
+<div class="aside aside-note" id="_9"><span class="aside-title">面试追问</span>
+<p><strong>什么时候只跳过左侧零值就够了？</strong> 如果右矩阵几乎全非零，建立索引无法显著减少乘法，直接扫描右行可省索引空间。两边都稀疏时，预处理可让乘加次数恰等于非零项的配对数。</p>
 </div></section>
 <section class="language-panel python-solution-panel" data-lang="python" data-lang-scope="true">
 <h2 id="python">Python 完整推导</h2>
 <h3 id="_10">核心不变量</h3>
-<p>处理完左行的第 k 个系数，输出行每格等于此前所有已处理内维乘积的和。</p>
+<p>处理完一行的前 k 个系数，输出对应行等于这些系数与右矩阵对应行的线性组合。右矩阵行没有登记的列贡献恒为 0。</p>
 <h3 id="_11">思路推导</h3>
-<p>固定左矩阵一行，在每个非零系数处扫描右矩阵对应的一行，把乘积累加进结果。跳过零系数可省去整行乘法。</p>
-<p>按输出格逐个做点积时，同一个左侧零系数会在所有输出列中反复出现。交换内两层循环，把结果行视为若干右矩阵行的线性组合；一个零系数直接取消整行贡献。</p>
-<h4 id="_12">乘出两行不同符号的结果</h4>
+<p>先为右矩阵每行列出非零的 (列号,值)。再扫左矩阵；发现非零 a[i][k] 时，仅访问右矩阵第 k 行登记的非零项 b[k][j]，把乘积加到结果 [i][j]。</p>
+<p>例如 [0,2] 乘 [[9,8],[0,3]]，左侧只激活第 1 行，右侧该行只登记 (1,3)，于是只做一次乘加，得到 [0,6]。</p>
+<h4 id="_12">按右矩阵的行建立稀疏索引</h4>
+<p>右行的非零项写成 (列号,值) 列表；左行某个系数为零时，连这个列表也不用访问。</p>
 <table>
 <thead>
 <tr>
 <th>步骤</th>
 <th>当前状态</th>
-<th>为什么这样走</th>
+<th>判断依据</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>跳过零系数</td>
-<td>结果第 0 行 [0,0]，左系数 mat1[0][0]=0</td>
-<td>右矩阵第 0 行不产生贡献。</td>
+<td>建右行索引</td>
+<td>B=[[9,8],[0,3]]</td>
+<td>第 1 行非零项只有 (1,3)</td>
 </tr>
 <tr>
-<td>展开系数 2</td>
-<td>第 0 行加上 2×[4,5]，得到 [8,10]</td>
-<td>左侧第 1 列对应右侧第 1 行。</td>
+<td>读左行</td>
+<td>A[0]=[0,2]</td>
+<td>系数 0 跳过；2 激活 B 的第 1 行</td>
 </tr>
 <tr>
-<td>处理第二行</td>
-<td>−1×[3,0]=[−3,0]，另一个系数为 0</td>
-<td>两行组合成 [[8,10],[−3,0]]。</td>
+<td>累加配对</td>
+<td>out[0][1]+=2×3</td>
+<td>该行结果为 [0,6]</td>
 </tr>
 </tbody>
 </table>
-<h4 id="enumerate">用 enumerate 展开非零系数</h4>
-<p>列表推导为每个输出行创建独立列表。对 mat2[k] 用 enumerate 可同时拿列号及乘数；product[row][col] 用 +=，让不同 k 在同一结果格相加。</p>
 <h3 id="python_1">Python 实现</h3>
-<div class="codehilite" data-lang="python"><pre><span></span><code><span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
-
-
-<span class="k">class</span> <span class="nc">Solution</span><span class="p">:</span>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="k">class</span> <span class="nc">Solution</span><span class="p">:</span>
     <span class="k">def</span> <span class="nf">multiply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mat1</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]],</span> <span class="n">mat2</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]]:</span>
-        <span class="n">columns</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">mat2</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
-        <span class="n">product</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">columns</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">mat1</span><span class="p">]</span>
-        <span class="k">for</span> <span class="n">row</span><span class="p">,</span> <span class="n">values</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">mat1</span><span class="p">):</span>
-            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">values</span><span class="p">):</span>
-                <span class="c1"># 左边系数为零时，它对整行结果的贡献都是零。</span>
-                <span class="k">if</span> <span class="n">value</span><span class="p">:</span>
-                    <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">factor</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">mat2</span><span class="p">[</span><span class="n">k</span><span class="p">]):</span>
-                        <span class="n">product</span><span class="p">[</span><span class="n">row</span><span class="p">][</span><span class="n">col</span><span class="p">]</span> <span class="o">+=</span> <span class="n">value</span> <span class="o">*</span> <span class="n">factor</span>
-        <span class="k">return</span> <span class="n">product</span>
+        <span class="n">right</span> <span class="o">=</span> <span class="p">[[(</span><span class="n">j</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">j</span><span class="p">,</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">row</span><span class="p">)</span> <span class="k">if</span> <span class="n">x</span><span class="p">]</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">mat2</span><span class="p">]</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">mat2</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">mat1</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">mat1</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">a</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">row</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">a</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">j</span><span class="p">,</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">right</span><span class="p">[</span><span class="n">k</span><span class="p">]:</span>
+                        <span class="n">out</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">j</span><span class="p">]</span> <span class="o">+=</span> <span class="n">a</span> <span class="o">*</span> <span class="n">b</span>
+        <span class="k">return</span> <span class="n">out</span>
 </code></pre></div>
 <h3 id="_13">复杂度</h3>
-<p>左矩阵为 m×k、右矩阵 k×n，左矩阵有 z 个非零值。时间 O(mk+mn+zn)，结果占 O(mn)，额外空间 O(1)。</p>
-<p>先看完 mk 个左格并初始化 mn 个输出格。每个非零左系数再处理 n 个右列，故出现 zn 项。</p>
+<p>左矩阵 m×k、右矩阵 k×n，右矩阵有 z 个非零，实际相乘的非零项配对数为 P。时间 O(mk+kn+mn+P)，索引空间 O(k+z)，返回的稠密结果占 O(mn)。</p>
 <div class="aside aside-warn" id="_14"><span class="aside-title">易错点</span>
 <p>固定第一个矩阵的某一行和其中一个非零系数后，只需要把第二个矩阵对应行乘上该系数累加。先过滤零系数能省去整行无效乘法。</p>
-</div><div class="aside aside-note" id="_15"><span class="aside-title">面试追问</span>
-<p><strong>右矩阵本身也几乎全是零呢？</strong> 可事先把它的每一行压成 (列号,非零值) 对。命中左系数后只访问该行的非零项，代价是预处理和额外索引。</p>
+</div><h3 id="_15">反例推演</h3>
+<p>计算 <code>[[0,2]] × [[9,8],[0,3]]</code>，结果是 <code>[[0,6]]</code>。左系数为零时可跳过对应整行；左系数非零时不能把它加到右行的零列。</p>
+<div class="aside aside-note" id="_16"><span class="aside-title">面试追问</span>
+<p><strong>什么时候只跳过左侧零值就够了？</strong> 如果右矩阵几乎全非零，建立索引无法显著减少乘法，直接扫描右行可省索引空间。两边都稀疏时，预处理可让乘加次数恰等于非零项的配对数。</p>
 </div></section>
-<h2 id="_16">力扣原题</h2>
+<h2 id="_17">力扣原题</h2>
 <p><a href="https://leetcode.cn/problems/sparse-matrix-multiplication/" target="_blank" rel="noopener noreferrer">力扣原题 · LC 311</a> · <a href="https://leetcode.cn/problem-list/qg88wci/" target="_blank" rel="noopener noreferrer">原题单第 165 位</a> · <a href="../../books/company-solutions/Array/0311-%E7%A8%80%E7%96%8F%E7%9F%A9%E9%98%B5%E7%9A%84%E4%B9%98%E6%B3%95.html" target="_blank" rel="noopener noreferrer">本站企业高频题解</a></p>
-<p>参考实现来自 Peng-Yu Chen 的 walkccc/LeetCode。<a href="https://github.com/walkccc/LeetCode/blob/9b85aa15e086d0b5dc1ead7184bca547942e6ff6/solutions/311.%20Sparse%20Matrix%20Multiplication/311.java" target="_blank" rel="noopener noreferrer">Java 参考源码</a> · <a href="https://github.com/walkccc/LeetCode/blob/9b85aa15e086d0b5dc1ead7184bca547942e6ff6/solutions/311.%20Sparse%20Matrix%20Multiplication/311.py" target="_blank" rel="noopener noreferrer">Python 参考源码</a> · <a href="LICENSE-walkccc.txt" target="_blank" rel="noopener noreferrer">MIT 许可证</a></p>
+<p>原参考实现来自 Peng-Yu Chen 的 walkccc/LeetCode。本页 Java 与 Python 教学实现已按上文算法改写。<a href="https://github.com/walkccc/LeetCode/blob/9b85aa15e086d0b5dc1ead7184bca547942e6ff6/solutions/311.%20Sparse%20Matrix%20Multiplication/311.java" target="_blank" rel="noopener noreferrer">Java 参考源码</a> · <a href="https://github.com/walkccc/LeetCode/blob/9b85aa15e086d0b5dc1ead7184bca547942e6ff6/solutions/311.%20Sparse%20Matrix%20Multiplication/311.py" target="_blank" rel="noopener noreferrer">Python 参考源码</a> · <a href="LICENSE-walkccc.txt" target="_blank" rel="noopener noreferrer">MIT 许可证</a></p>
 <section aria-labelledby="interactive-demo-title" class="reader-visual">
 <h2 id="interactive-demo-title">交互演示</h2>
 <iframe class="reader-visual-frame" loading="lazy" scrolling="no" src="demos/311.html?embed=1" title="311. 稀疏矩阵的乘法的交互演示"></iframe>
@@ -209,30 +209,30 @@
 <li><a data-lang="java" data-lang-scope="true" href="#java">Java 完整推导</a><ul>
 <li><a data-lang="java" data-lang-scope="true" href="#_3">核心不变量</a></li>
 <li><a data-lang="java" data-lang-scope="true" href="#_4">思路推导</a><ul>
-<li><a data-lang="java" data-lang-scope="true" href="#_5">乘出两行不同符号的结果</a></li>
-<li><a data-lang="java" data-lang-scope="true" href="#_6">一项系数更新整行结果</a></li>
+<li><a data-lang="java" data-lang-scope="true" href="#_5">按右矩阵的行建立稀疏索引</a></li>
 </ul>
 </li>
 <li><a data-lang="java" data-lang-scope="true" href="#java_1">Java 实现</a></li>
-<li><a data-lang="java" data-lang-scope="true" href="#_7">复杂度</a></li>
-<li><a data-lang="java" data-lang-scope="true" href="#_8">易错点</a></li>
+<li><a data-lang="java" data-lang-scope="true" href="#_6">复杂度</a></li>
+<li><a data-lang="java" data-lang-scope="true" href="#_7">易错点</a></li>
+<li><a data-lang="java" data-lang-scope="true" href="#_8">反例推演</a></li>
 <li><a data-lang="java" data-lang-scope="true" href="#_9">面试追问</a></li>
 </ul>
 </li>
 <li><a data-lang="python" data-lang-scope="true" href="#python">Python 完整推导</a><ul>
 <li><a data-lang="python" data-lang-scope="true" href="#_10">核心不变量</a></li>
 <li><a data-lang="python" data-lang-scope="true" href="#_11">思路推导</a><ul>
-<li><a data-lang="python" data-lang-scope="true" href="#_12">乘出两行不同符号的结果</a></li>
-<li><a data-lang="python" data-lang-scope="true" href="#enumerate">用 enumerate 展开非零系数</a></li>
+<li><a data-lang="python" data-lang-scope="true" href="#_12">按右矩阵的行建立稀疏索引</a></li>
 </ul>
 </li>
 <li><a data-lang="python" data-lang-scope="true" href="#python_1">Python 实现</a></li>
 <li><a data-lang="python" data-lang-scope="true" href="#_13">复杂度</a></li>
 <li><a data-lang="python" data-lang-scope="true" href="#_14">易错点</a></li>
-<li><a data-lang="python" data-lang-scope="true" href="#_15">面试追问</a></li>
+<li><a data-lang="python" data-lang-scope="true" href="#_15">反例推演</a></li>
+<li><a data-lang="python" data-lang-scope="true" href="#_16">面试追问</a></li>
 </ul>
 </li>
-<li><a href="#_16">力扣原题</a></li>
+<li><a href="#_17">力扣原题</a></li>
 </ul>
 </div>
 </aside>

@@ -1,5 +1,6 @@
 """Check the supplemental ACM fixtures against this repository's published Python solutions."""
 
+import itertools
 import json
 import math
 from collections import deque, namedtuple
@@ -189,7 +190,7 @@ def run_reference(pid, env, args):
         args[0] = [nested(v) for v in args[0]]
     if pid in (369, 708, 1265):
         nodes = [Node(v) for v in args[0]]
-        for node, nxt in zip(nodes, nodes[1:]):
+        for node, nxt in itertools.pairwise(nodes):
             node.next = nxt
         printed = []
         for node in nodes:
@@ -225,8 +226,24 @@ def run_reference(pid, env, args):
     return result
 
 
-def check():
+def catalog_with_teaching_edges():
     catalog = json.loads((ROOT / "data/acm/hot200-extra.json").read_bytes())
+    by_id = {row["id"]: row for row in catalog}
+    for case in json.loads(
+        (ROOT / "tests/fixtures/hot200_teaching_edges.json").read_bytes()
+    ):
+        by_id[f"hot200-{case['problem_id']}"]["samples"].append(
+            {
+                "name": case["name"],
+                "input": "\n".join(json.dumps(arg) for arg in case["args"]),
+                "expected": json.dumps(case["expected"]),
+            }
+        )
+    return catalog
+
+
+def check():
+    catalog = catalog_with_teaching_edges()
     expected_ids = {
         p["id"] for p in json.loads((ROOT / "data/hot200-extra.json").read_bytes())
     }
@@ -240,10 +257,14 @@ def check():
         pid = int(entry["id"].split("-")[1])
         path = ROOT / f"books/hot200-extra/solutions/{pid}.md"
         code = FENCE.search(sections(path.read_text(encoding="utf-8-sig"))["Python"])[2]
-        env = dict(
-            Node=Node, TreeNode=Node, ListNode=ListNode, Point=Point, Interval=Interval
-        )
-        exec(compile(code, str(path), "exec"), env)
+        env = {
+            "Node": Node,
+            "TreeNode": Node,
+            "ListNode": ListNode,
+            "Point": Point,
+            "Interval": Interval,
+        }
+        exec(compile(code, str(path), "exec"), env)  # noqa: S102 -- trusted published reference
         for sample in entry["samples"]:
             count += 1
             args = [json.loads(line) for line in sample["input"].splitlines()]
@@ -256,7 +277,7 @@ def check():
                     else actual == want
                 )
                 assert good, (actual, want)
-            except Exception as error:
+            except Exception as error:  # noqa: BLE001 -- report every failing fixture together
                 failed.append((pid, sample["name"], repr(error)))
     if failed:
         raise AssertionError(failed)
