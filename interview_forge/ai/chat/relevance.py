@@ -78,6 +78,15 @@ _PAGE = re.compile(r"这(?:个|道|一)?(?:题|页|章|段)|当前(?:页|题|章
 _GREETING = re.compile(r"^(?:你好|您好|嗨|哈喽|早上好|晚上好|在吗|谢谢|hello|hi|hey)[!！。.，,？?\s]*$", re.I)
 _ACKNOWLEDGEMENT = re.compile(r"^(?:嗯|好|好的|好吧|是的|可以|开始吧)[。！？?\s]*$")
 _IMPLICIT_PAGE = re.compile(r"^(?:它(?:呢|怎么做|怎么理解)?|继续|接着(?:讲|说)?)[。！？?\s]*$")
+_STUDY_PAGE_START = re.compile(
+    r"(?:我?(?:有点)?(?:卡住了?|没思路)[，,。\s]*)?"
+    r"(?:(?:请)?(?:给我?|来)(?:一个|一点|个|点)?(?:提示|思路|线索)|"
+    r"第一步(?:呢|怎么做|是什么)?|从哪(?:里|儿)?(?:入手|开始)|怎么(?:入手|起步|开始))"
+)
+
+
+def _study_page_start(query: str) -> bool:
+    return bool(_STUDY_PAGE_START.fullmatch(query.strip().rstrip("。！？!?")))
 
 
 def topic_terms(text: str) -> set[str]:
@@ -120,13 +129,23 @@ class HistorySelection:
     reason: str
 
 
-def _page_path(row: Mapping[str, Any]) -> str | None:
+def page_identity(path: str | None, problem_id: int | None = None) -> str | None:
+    if path == "/books/ai-exam/acm-playground.html" and type(problem_id) is int and problem_id > 0:
+        return f"{path}#problem-{problem_id}"
+    return path
+
+
+def _historical_page(row: Mapping[str, Any]) -> tuple[str | None, bool]:
     try:
         metadata = json.loads(str(row["metadata_json"])) if "metadata_json" in row.keys() else {}
         page = metadata.get("page_context")
-        return page.get("path") if isinstance(page, dict) else None
+        if isinstance(page, dict):
+            selected = (metadata.get("study_mode") in ("hint", "review", "code")
+                        and page.get("page_type") in ("problem", "library/chapter"))
+            return page_identity(page.get("path"), page.get("problem_id")), selected
     except (ValueError, TypeError, AttributeError):
-        return None
+        pass
+    return None, False
 
 
 def _message_time(row: Mapping[str, Any]) -> datetime | None:
@@ -168,12 +187,12 @@ def select_history(
     # Explicit cross-episode references may need more than the latest topic.
     if _RECALL.search(query):
         return HistorySelection(tuple(rows), "recall", "explicit_history_reference")
-    if current_page_path and (_PAGE.search(query) or _IMPLICIT_PAGE.fullmatch(query.strip())):
+    if current_page_path and (_PAGE.search(query) or _IMPLICIT_PAGE.fullmatch(query.strip()) or _study_page_start(query)):
         previous_page = None
         for row in reversed(rows):
             if str(row["role"]) != "user":
                 continue
-            previous_page = _page_path(row)
+            previous_page, _ = _historical_page(row)
             break
         if previous_page != current_page_path:
             return HistorySelection((), "independent", "new_page_reference")
@@ -185,16 +204,17 @@ def select_history(
     for row in rows:
         content = str(row["content"])
         if str(row["role"]) == "user":
-            row_page = _page_path(row)
+            row_page, selected_study_page = _historical_page(row)
+            page_start = selected_study_page and _study_page_start(content)
             page_changed = row_page and row_page != last_page and (
-                _PAGE.search(content) or _IMPLICIT_PAGE.fullmatch(content.strip())
+                _PAGE.search(content) or _IMPLICIT_PAGE.fullmatch(content.strip()) or page_start
             ) and not _RECALL.search(content)
             row_time = _message_time(row)
             stale_ack = previous_row is not None and row_time is not None and _stale_acknowledgement(
                 [previous_row], content, as_of=row_time,
             )
             starts_topic = stale_ack or page_changed or _GREETING.fullmatch(content.strip()) or _RESET.search(content.strip()) or (
-                _standalone(content) and anchors and not topics_overlap(content, anchors[-1])
+                not page_start and _standalone(content) and anchors and not topics_overlap(content, anchors[-1])
             )
             if not episodes or starts_topic:
                 episodes.append([])
@@ -208,6 +228,8 @@ def select_history(
 
     if not episodes:
         return HistorySelection((), "independent", "no_user_anchor")
+    if current_page_path and _study_page_start(query):
+        return HistorySelection(tuple(episodes[-1]), "followup", "latest_topic_reference")
     if not _dependent(query) and not _standalone(query):
         return HistorySelection(tuple(rows), "ambiguous", "insufficient_topic_signal")
     if _dependent(query):
@@ -218,13 +240,14 @@ def select_history(
     return HistorySelection((), "independent", "new_standalone_question")
 
 
-def page_is_relevant(query: str, page: Any) -> bool:
+def page_is_relevant(query: str, page: Any, study_mode: str = "auto") -> bool:
     if page is None:
         return False
     if _PAGE.search(query):
         return True
-    if getattr(page, "page_type", None) in {"problem", "library/chapter"} and _IMPLICIT_PAGE.fullmatch(query.strip()):
-        return True
+    if getattr(page, "page_type", None) in {"problem", "library/chapter"}:
+        if _IMPLICIT_PAGE.fullmatch(query.strip()) or (study_mode != "auto" and _study_page_start(query)):
+            return True
     subject = " ".join(str(getattr(page, key, "") or "") for key in ("title", "heading"))
     if topics_overlap(query, subject):
         return True

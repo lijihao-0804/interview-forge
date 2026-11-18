@@ -65,7 +65,7 @@ def chat(client, url, payload):
     )
 
 
-def run(root, model, base, show_answers):
+def run(root, model, base, show_answers, modes_only=False):
     os.environ["AI_CHAT_DAILY_LIMIT"] = "20"
     from fastapi.testclient import TestClient
 
@@ -102,8 +102,51 @@ def run(root, model, base, show_answers):
 
     with patch.object(app.router, "lifespan_context", fixture_lifespan), TestClient(app) as client:
         client.cookies.set("forge_session", create_session(user["id"]))
+        if modes_only:
+            return run_mode_cases(client, show_answers)
         return run_cases(client, default_runtime.USERS_DIR / "SyntheticLearner" / "hot100-study.db",
                          router.chat_service, show_answers)
+
+
+def run_mode_cases(client, show_answers):
+    cases = [
+        ("auto", "栈和队列分别从哪端取出元素？", None, [r"后进先出|LIFO|栈顶", r"先进先出|FIFO|队头"]),
+        ("hint", "卡住了，第一步呢？", None, [r"字母|字符", r"顺序|排序|频次|次数|个数|相同|一致"]),
+        ("review", "最近哪些题值得再做？", None, [r"复习|再做|重做|复盘|练习|记录|题"]),
+        ("code", "为什么会慢？", "编辑器代码（Python）\ndef count_pairs(items):\n"
+         "    return sum(items.count(x) for x in items)\n",
+         [r"count\s*\(", r"O\s*[（(]\s*n\s*(?:\^?2|²|\*\*2)|平方|二次"]),
+    ]
+    passed = True
+    for mode, question, snapshot, patterns in cases:
+        session = client.post("/api/chat/sessions", json={}).json()["id"]
+        url = f"/api/chat/sessions/{session}"
+        payload = {"message": question, "study_mode": mode, "client_request_id": "eval." + mode}
+        if mode == "hint":
+            payload["page_context"] = {
+                "path": "/books/hot100/03-题解/01-哈希表/0049-字母异位词分组.html",
+                "page_type": "problem", "title": "49. 字母异位词分组", "problem_id": 49,
+            }
+        if snapshot:
+            payload["practice_snapshot"] = snapshot
+        answer, mid, result = chat(client, url + "/stream", payload)
+        history = client.get(url + "/messages").json()["items"]
+        checks = {
+            "completed": bool(mid and answer and not result["errors"]),
+            "grounded": all(re.search(pattern, answer, re.I) for pattern in patterns),
+            "plain_question": bool(history and history[0]["content"] == question and
+                                   history[0]["metadata"].get("study_mode", "auto") == mode),
+        }
+        if mode == "hint":
+            checks["one_hint"] = len(answer.strip()) <= 270 and "```" not in answer
+        if mode in {"hint", "review"} and mid:
+            selection = client.get(url + f"/turns/{mid}/context").json()
+            block = "current_page" if mode == "hint" else "learning"
+            checks[block] = block in selection.get("preparation", {}).get("context_blocks", [])
+        print(json.dumps({"mode": mode, **result, "checks": checks,
+                          **({"answer": answer} if show_answers else {})}, ensure_ascii=False), flush=True)
+        passed &= all(checks.values())
+    return passed
 
 
 def run_cases(client, db, service, show_answers):
@@ -352,6 +395,7 @@ def run_cases(client, db, service, show_answers):
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--model", required=True)
+    p.add_argument("--modes-only", action="store_true", help="exercise the four study mode turns")
     p.add_argument(
         "--show-answers",
         action="store_true",
@@ -376,7 +420,7 @@ def main():
             p.error("Requested model is absent from the local gateway")
     print(json.dumps({"model": args.model}), flush=True)
     with tempfile.TemporaryDirectory() as folder:
-        return 0 if run(Path(folder), args.model, base, args.show_answers) else 1
+        return 0 if run(Path(folder), args.model, base, args.show_answers, args.modes_only) else 1
 
 
 if __name__ == "__main__":

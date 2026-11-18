@@ -16,6 +16,7 @@ from interview_forge.ai.actions.store import ActionRequestStore
 from interview_forge.ai.chat.diagnostics import turn_context
 from interview_forge.ai.chat.history_sources import read_source
 from interview_forge.ai.chat.page_context import PageContext
+from interview_forge.ai.chat.study_modes import validate_practice_snapshot, validate_study_mode
 from interview_forge.ai.chat.request_ledger import (
     RequestAttempt, check_identity, payload_hash, public_status, read_request, reconcile_owned_session,
     reconcile_session, replay, validate_request_id,
@@ -292,12 +293,15 @@ async def stream_session(request: Request, session_id: str):
         return denied
     try:
         payload = await read_json(request, max_length=MAX_CHAT_BODY_BYTES)
-        if set(payload) - {"message", "page_context", "client_request_id"} or "message" not in payload:
+        allowed = {"message", "page_context", "client_request_id", "study_mode", "practice_snapshot"}
+        if "message" not in payload or set(payload) - allowed:
             raise ValueError("请求参数不正确")
         message = normalize_message(payload.get("message"))
         page_context = PageContext.from_payload(payload.get("page_context"))
         key = validate_request_id(payload["client_request_id"]) if "client_request_id" in payload else None
-        fingerprint = payload_hash(message, page_context.to_dict() if page_context else None)
+        mode = validate_study_mode(payload.get("study_mode", "auto"))
+        snapshot = validate_practice_snapshot(payload.get("practice_snapshot"), mode)
+        fingerprint = payload_hash(message, page_context.to_dict() if page_context else None, mode, snapshot)
         db_path = user_db(user)
         if chat_service.get_session(user_db=db_path, session_id=session_id) is None:
             return error_response("会话不存在", 404)
@@ -324,6 +328,7 @@ async def stream_session(request: Request, session_id: str):
             await admission.acquire_quota(fingerprint, role)
             source = chat_service.stream_reply(
                 user_db=db_path, session_id=session_id, message=message, page_context=page_context,
+                study_mode=mode, practice_snapshot=snapshot,
                 request_id=str(getattr(request.state, "request_id", "")), session_claimed_by_route=True,
                 attempt=attempt,
             )

@@ -13,7 +13,7 @@ from interview_forge.ai.chat.recent_action_context import RecentActionContextPro
 from interview_forge.ai.chat.service import ChatService
 from interview_forge.ai.memory.contracts import MemoryPersistenceResult
 from interview_forge.ai.actions.store import ActionRequestStore
-from interview_forge.ai.chat.relevance import page_is_relevant, select_history
+from interview_forge.ai.chat.relevance import page_identity, page_is_relevant, select_history
 from interview_forge.ai.chat.token_budget import ChatTokenBudget, DEFAULT_TOKEN_ESTIMATOR, budget_for_context_window
 from interview_forge.core import default_runtime
 from interview_forge.core.runtime import server_runtime
@@ -112,6 +112,18 @@ class TopicSelectionTests(unittest.TestCase):
                 self.assertFalse(selected.rows)
                 self.assertEqual(selected.reason, "new_page_reference")
 
+    def test_unspecified_hint_refers_only_to_selected_learning_pages(self):
+        for kind in ("problem", "library/chapter"):
+            page = PageContext(path="/new", title="字母异位词分组", page_type=kind)
+            for query in ("给个提示", "卡住了，第一步呢？", "从哪里入手？"):
+                self.assertTrue(page_is_relevant(query, page, "hint"))
+                self.assertFalse(page_is_relevant(query, page, "auto"))
+                self.assertEqual(select_history(self.rows, query, current_page_path=page.path).reason,
+                                 "new_page_reference")
+            for other_topic in ("解释 TCP 的三次握手", "TCP 握手从哪里入手？", "给个提示，怎么学习 TCP？"):
+                self.assertFalse(page_is_relevant(other_topic, page, "hint"))
+        self.assertFalse(page_is_relevant("给个提示", PageContext("/home", "主页", "other"), "hint"))
+
     def test_changed_page_reference_starts_a_new_topic(self):
         selected = select_history(self.rows, "这题怎么做", current_page_path="/new-problem")
         self.assertEqual(selected.reason, "new_page_reference")
@@ -126,6 +138,24 @@ class TopicSelectionTests(unittest.TestCase):
         selected = select_history(rows, "它的空间复杂度呢", current_page_path="/lru")
         self.assertEqual(len(selected.rows), 2)
         self.assertIn("双向链表", selected.rows[-1]["content"])
+
+    def test_acm_problem_switch_is_scoped_across_short_study_turns(self):
+        path = "/books/ai-exam/acm-playground.html"
+        first, second = page_identity(path, 49), page_identity(path, 146)
+        self.assertNotEqual(first, second)
+        self.assertEqual(page_identity(path), path)
+        self.assertEqual(page_identity("/chapter", 49), "/chapter")
+        rows = history(("user", "给个提示"), ("assistant", "A：字母频次"),
+                       ("user", "给个提示"), ("assistant", "B：双向链表"))
+        for row, pid in ((rows[0], 49), (rows[2], 146)):
+            row["metadata_json"] = json.dumps({"study_mode": "hint", "page_context": {
+                "path": path, "problem_id": pid, "page_type": "problem"}})
+        self.assertEqual(select_history(rows[:2], "给个提示", current_page_path=first).rows, tuple(rows[:2]))
+        self.assertFalse(select_history(rows[:2], "给个提示", current_page_path=second).rows)
+        for query in ("继续", "卡住了，第一步呢？"):
+            self.assertEqual(select_history(rows, query, current_page_path=second).rows, tuple(rows[2:]))
+        recalled = select_history(rows, "回顾刚才第49题的提示", current_page_path=second)
+        self.assertIn(rows[1], recalled.rows)
 
     def test_multilingual_estimate_and_small_window_budget(self):
         self.assertGreater(DEFAULT_TOKEN_ESTIMATOR.estimate_text("中文上下文"), DEFAULT_TOKEN_ESTIMATOR.estimate_text("abcdef"))

@@ -25,6 +25,14 @@ _PROBLEM_REVIEW_MARKERS = ("复习", "为什么错", "掌握情况")
 _TODAY_MARKERS = ("今天做什么", "今天复习什么", "今日计划")
 _DIAGNOSIS_MARKERS = ("最近状态", "我的弱项", "最近学得怎么样")
 _ROUTE_MARKERS = ("学习路线", "接下来学什么")
+_PERSONAL_REVIEW = re.compile(
+    r"(?:请|帮我|请帮我)?(?:复盘|回顾)(?:一下)?(?:我的)?(?:近期|最近|本周)?"
+    r"的?(?:学习|练习)?(?:情况|记录|进度)?[。！？?]*"
+)
+_REVIEW_RECOMMENDATION = re.compile(
+    r"(哪些题|哪几(?:道)?题|哪(?:道|些)错题|我的错题).{0,14}(重做|再做|复习|复盘|再练)|"
+    r"(重做|再做|复习|复盘|再练).{0,12}(哪些题|哪几(?:道)?题|哪(?:道|些)错题|我的错题)"
+)
 
 CHAT_TASK_POLICIES: dict[str, str] = {
     "today_plan": "small",
@@ -215,8 +223,18 @@ class LearningContextProvider:
             "data_quality": compiled.get("data_quality", {}),
         }
 
-    def build(self, *, user_db: Path | str, query: str) -> dict[str, Any] | None:
+    def build(self, *, user_db: Path | str, query: str, study_mode: str = "auto",
+              page_problem_id: int | None = None) -> dict[str, Any] | None:
         selection = select_learning_task(query)
+        if selection is None and study_mode == "review":
+            match = _PROBLEM_QUERY_RE.search(query)
+            problem_id = next((int(group) for group in match.groups() if group), None) if match else page_problem_id
+            if problem_id and problem_id > 0:
+                return self.build_for_task(user_db=user_db, task="problem_review", problem_id=problem_id)
+            if _PERSONAL_REVIEW.fullmatch(query.strip()):
+                return self.build_for_task(user_db=user_db, task="learning_diagnosis")
+            if _REVIEW_RECOMMENDATION.search(query):
+                return self.build_for_task(user_db=user_db, task="today_plan")
         if selection is None:
             return None
         return self._build_selection(user_db=user_db, selection=selection)

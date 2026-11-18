@@ -67,6 +67,59 @@ def _compiled_context(task="learning_diagnosis"):
 
 
 class LearningContextSelectorTests(unittest.TestCase):
+    def test_review_mode_only_uses_relevant_learning_records(self):
+        provider = LearningContextProvider()
+        with patch.object(provider, "_build_selection", side_effect=lambda **kw: kw["selection"]):
+            def select(query, page_id=None):
+                return provider.build(user_db=Path("unused"), query=query, study_mode="review", page_problem_id=page_id)
+
+            self.assertEqual(select("第146题", 1)["target_problem_id"], 146)
+            self.assertEqual(select("这题呢", 1)["target_problem_id"], 1)
+            self.assertEqual(select("今天做什么", 1)["task"], "today_plan")
+            self.assertEqual(select("复盘一下最近的学习情况")["task"], "learning_diagnosis")
+            self.assertEqual(select("最近哪些题值得再做？")["task"], "today_plan")
+            self.assertIsNone(select("解释 TCP 慢启动"))
+
+    def test_mode_blocks_fit_system_slot_and_compact_code_keeps_output(self):
+        from interview_forge.ai.chat.context_builder import ContextBuilder
+        from interview_forge.ai.chat.study_modes import study_blocks
+
+        for mode in ("hint", "review", "code"):
+            blocks = study_blocks(mode, None)
+            builder = ContextBuilder(context_blocks=blocks)
+            system, data, admitted, rejected = builder._contextual_content()
+            self.assertEqual((admitted, rejected, data), (["study_mode"], [], ""))
+            self.assertLessEqual(builder.estimator.estimate_text(system), builder.budget.system_tokens)
+        snapshot = "编辑器头部" + "代码" * 3500 + "运行结果尾部"
+        block = study_blocks("code", snapshot)[-1]
+        compact = block.fit(500, builder.estimator)
+        self.assertIn("编辑器头部", compact)
+        self.assertIn("运行结果尾部", compact)
+        self.assertLessEqual(builder.estimator.estimate_text(compact), 500)
+
+    def test_small_window_keeps_mode_pending_confirmation_and_write_receipt(self):
+        from interview_forge.ai.chat.context_builder import ContextBuilder
+        from interview_forge.ai.chat.recent_action_context import RecentActionContextProvider
+        from interview_forge.ai.chat.study_modes import study_blocks
+        from interview_forge.ai.chat.token_budget import budget_for_context_window
+        from interview_forge.ai.memory.contracts import MemoryPersistenceResult
+
+        with patch("interview_forge.ai.chat.recent_action_context.ActionRequestStore") as store:
+            pending = {"tool_name": "mark_problem", "created_at": "2026-01-02T04:00:00Z"}
+            store.return_value.list_pending.return_value = [pending] * 4
+            store.return_value.list_recent.return_value = []
+            action = RecentActionContextProvider().build(user_db="unused", session_id="test")
+        receipt = ChatService._memory_persistence_block(MemoryPersistenceResult(True, True, "upsert", 1))
+        for mode in ("hint", "review", "code"):
+            blocks = [receipt, action, *study_blocks(mode, None)]
+            builder = ContextBuilder(context_blocks=blocks, budget=budget_for_context_window(4096))
+            system, _, admitted, rejected = builder._contextual_content()
+            self.assertCountEqual(admitted, ["memory_persistence", "recent_actions", "study_mode"])
+            self.assertFalse(rejected)
+            self.assertIn("存在仍在等待用户确认的操作", system)
+            self.assertIn("persistence_success=true", system)
+            self.assertLessEqual(builder.estimator.estimate_text(system), builder.budget.system_tokens)
+
     def test_selector_is_explicit_and_normal_chat_is_none(self):
         self.assertIsNone(select_learning_task("你好"))
         self.assertIsNone(select_learning_task("解释TCP"))

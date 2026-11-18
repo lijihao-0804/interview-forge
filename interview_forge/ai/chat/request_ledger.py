@@ -52,8 +52,15 @@ def validate_request_id(value: Any) -> str:
     return value
 
 
-def payload_hash(message: str, page_context: dict | None) -> str:
-    return hashlib.sha256(canonical_json({"message": message, "page_context": page_context}).encode()).hexdigest()
+def payload_hash(message: str, page_context: dict | None, study_mode: str = "auto",
+                 practice_snapshot: str | None = None) -> str:
+    payload = {"message": message, "page_context": page_context}
+    # Existing receipts use the original two-field representation.
+    if study_mode != "auto":
+        payload["study_mode"] = study_mode
+    if practice_snapshot:
+        payload["practice_snapshot"] = practice_snapshot
+    return hashlib.sha256(canonical_json(payload).encode()).hexdigest()
 
 
 def read_request(db_path: Path, session_id: str, key: str) -> sqlite3.Row | None:

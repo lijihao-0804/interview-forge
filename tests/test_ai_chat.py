@@ -304,10 +304,10 @@ class AIChatContractTests(unittest.TestCase):
         events = parse_sse(self.client.post(base + "/stream", json=body).text)
         self.assertEqual(events[-1][0], "message.done")
         self.assertNotEqual(events[0][1]["message_id"], failed[0][1]["message_id"])
-        for changed in ({"message": "改动"}, {"page_context": {"path": "/other", "title": "当前 页面"}}):
+        for changed in ({"message": "改动"}, {"study_mode": "hint"}, {"page_context": {"path": "/other", "title": "当前 页面"}}):
             response = self.client.post(base + "/stream", json={**body, **changed})
             self.assertEqual((response.status_code, response.json()["error_category"]), (409, "idempotency_conflict"))
-        replay = parse_sse(self.client.post(base + "/stream", json=body).text)
+        replay = parse_sse(self.client.post(base + "/stream", json={**body, "study_mode": "auto"}).text)
         self.assertEqual(replay, [events[0], ("message.delta", {"delta": " \n答案\t"}), events[-1]])
         self.assertEqual(self.client.get(base + "/requests/retry.1").json(),
                          {"status": "completed", "message_id": events[0][1]["message_id"]})
@@ -317,6 +317,51 @@ class AIChatContractTests(unittest.TestCase):
                              [("completed", "charged", 2)])
             self.assertEqual(conn.execute("SELECT role,content FROM chat_messages ORDER BY id").fetchall(),
                              [("user", "继续"), ("assistant", "答案")])
+
+    def test_study_mode_and_practice_evidence_are_per_turn(self):
+        session = self.client.post("/api/chat/sessions", json={}).json()
+        base = f"/api/chat/sessions/{session['id']}"
+        body = {"message": "复杂度能降到线性吗？", "study_mode": "code", "practice_snapshot": "print(98765)",
+                "client_request_id": "practice-review"}
+        for invalid in ({"study_mode": "system"}, {"study_mode": []}, {"study_mode": None},
+                        {"study_mode": "hint"}, {"practice_snapshot": "x" * 8001}):
+            self.assertEqual(self.client.post(base + "/stream", json={**body, **invalid}).status_code, 400)
+        events = parse_sse(self.client.post(base + "/stream", json=body).text)
+        self.assertEqual(events[-1][0], "message.done")
+        messages = self.model.messages
+        self.assertIn("代码走查", messages[0]["content"])
+        self.assertNotIn("98765", messages[0]["content"])
+        self.assertTrue(any(m["role"] == "user" and "print(98765)" in m["content"] for m in messages[:-1]))
+        self.assertEqual(messages[-1], {"role": "user", "content": body["message"]})
+        stored = self.client.get(base + "/messages").json()["items"][0]
+        self.assertEqual((stored["content"], stored["metadata"]), (body["message"], {"study_mode": "code"}))
+        self.assertEqual(parse_sse(self.client.post(base + "/stream", json=body).text)[-1], events[-1])
+        self.assertEqual(self.client.post(base + "/stream", json={**body, "practice_snapshot": "new"}).status_code, 409)
+        second = {"message": "讲讲 TCP 慢启动", "study_mode": "code"}
+        self.assertEqual(parse_sse(self.client.post(base + "/stream", json=second).text)[-1][0], "message.done")
+        self.assertFalse(any("98765" in m["content"] for m in self.model.messages))
+
+    def test_utf8_message_snapshot_and_page_fit_the_bounded_http_envelope(self):
+        from dataclasses import replace
+        from interview_forge.ai.chat.service import MAX_CHAT_BODY_BYTES
+
+        runtime = self.service.runtime_loader("chat")
+        self.service.runtime_loader = lambda _: replace(runtime, capabilities={"context_window": 131072})
+        session = self.client.post("/api/chat/sessions", json={}).json()
+        base = f"/api/chat/sessions/{session['id']}"
+        body = {"message": "问" * 12000, "study_mode": "code", "practice_snapshot": "码" * 8000,
+                "page_context": {"path": "/a", "title": "页" * 200, "selected_text": "文" * 2000,
+                                 "chapter_excerpt": "章" * 1200}}
+        raw = json.dumps(body, ensure_ascii=False).encode()
+        headers = {"Content-Type": "application/json"}
+        response = self.client.post(base + "/stream", content=raw, headers=headers)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(parse_sse(response.text)[-1][0], "message.done", response.text)
+        history = self.client.get(base + "/messages").json()["items"]
+        self.assertEqual(history[0]["content"], body["message"])
+        self.assertEqual(self.client.post(base + "/stream", json={**body, "message": "问" * 12001}).status_code, 400)
+        oversized = raw.ljust(MAX_CHAT_BODY_BYTES + 1, b" ")
+        self.assertEqual(self.client.post(base + "/stream", content=oversized, headers=headers).status_code, 400)
 
     def test_completed_action_only_replays_original_confirmation_and_no_empty_assistant(self):
         class ActionOnlyModel(FakeAsyncModel):

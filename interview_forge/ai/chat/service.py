@@ -33,6 +33,7 @@ from interview_forge.ai.chat.context_blocks import ContextBlock
 from interview_forge.ai.chat.history_sources import HistorySource
 from interview_forge.ai.chat.learning_context import LearningContextProvider, learning_projection_block
 from interview_forge.ai.chat.page_context import PageContext, PageContextProvider
+from interview_forge.ai.chat.study_modes import study_blocks, validate_practice_snapshot, validate_study_mode
 from interview_forge.ai.chat.recent_action_context import RecentActionContextProvider
 from interview_forge.ai.chat.request_ledger import (
     DEFAULT_SESSION_TITLE,
@@ -43,7 +44,7 @@ from interview_forge.ai.chat.request_ledger import (
     delete_failed_user,
     release_chat_session,
 )
-from interview_forge.ai.chat.relevance import POLICY_VERSION, page_is_relevant
+from interview_forge.ai.chat.relevance import POLICY_VERSION, page_identity, page_is_relevant
 from interview_forge.ai.chat.tool_orchestrator import ToolOrchestrator
 from interview_forge.ai.chat.token_budget import DEFAULT_CHAT_TOKEN_BUDGET, budget_for_context_window
 from interview_forge.ai.memory import (
@@ -66,7 +67,9 @@ from interview_forge.observability.ai_trace import TraceRecorder, utc_now_iso
 
 
 MAX_CHAT_MESSAGE_CHARS = 12_000
-MAX_CHAT_BODY_BYTES = 20_000
+# Bounded transport envelope for 12k question + 8k snapshot + page fields.
+# JSON.stringify can encode a single control character in six ASCII bytes.
+MAX_CHAT_BODY_BYTES = 160 * 1024
 MAX_CHAT_TITLE_CHARS = 64
 MAX_SESSION_ID_CHARS = 128
 CHAT_PROMPT_POLICY_VERSION = "chat-prompt-policy-v2"
@@ -574,11 +577,15 @@ class ChatService:
     @staticmethod
     def _save_user_message(
         *, user_db: Path, session_id: str, content: str, page_context: PageContext | None = None,
+        study_mode: str = "auto",
         attempt: RequestAttempt | None = None,
     ) -> dict[str, Any]:
         timestamp = _now()
+        fields: dict[str, Any] = {"page_context": page_context.to_dict()} if page_context is not None else {}
+        if study_mode != "auto":
+            fields["study_mode"] = study_mode
         metadata = json.dumps(
-            {"page_context": page_context.to_dict()} if page_context is not None else {},
+            fields,
             ensure_ascii=False,
             separators=(",", ":"),
         )
@@ -643,6 +650,8 @@ class ChatService:
         session_id: str,
         message: str,
         page_context: PageContext | Mapping[str, Any] | None = None,
+        study_mode: str = "auto",
+        practice_snapshot: str | None = None,
         request_id: str = "",
         session_claimed_by_route: bool = False,
         attempt: RequestAttempt | None = None,
@@ -650,6 +659,8 @@ class ChatService:
         """Persist the user turn, stream the provider, then persist success only."""
         try:
             clean_message = normalize_message(message)
+            study_mode = validate_study_mode(study_mode)
+            practice_snapshot = validate_practice_snapshot(practice_snapshot, study_mode)
             normalized_page_context = (
                 page_context
                 if isinstance(page_context, PageContext)
@@ -717,6 +728,7 @@ class ChatService:
                     session_id=session_id,
                     content=clean_message,
                     page_context=normalized_page_context,
+                    study_mode=study_mode,
                     attempt=attempt,
                 )
                 current_message_id = int(saved_user["id"])
@@ -792,12 +804,15 @@ class ChatService:
                     durable_turn_state = True
                 if model is None and (explicit_result is None or explicit_result.success):
                     model = await asyncio.to_thread(self.model_factory, config)
+                relevant_page = normalized_page_context if page_is_relevant(clean_message, normalized_page_context, study_mode) else None
                 learning_context = await asyncio.to_thread(
                     LearningContextProvider().build,
                     user_db=path,
                     query=clean_message,
+                    study_mode=study_mode,
+                    page_problem_id=relevant_page.problem_id if relevant_page else None,
                 )
-                context_blocks: list[ContextBlock] = []
+                context_blocks = study_blocks(study_mode, practice_snapshot)
                 if explicit_result is not None:
                     context_blocks.append(self._memory_persistence_block(explicit_result))
                 memory_block = await asyncio.to_thread(
@@ -814,10 +829,7 @@ class ChatService:
                 )
                 if recent_action_block is not None:
                     context_blocks.append(recent_action_block)
-                page_context_block = (
-                    PageContextProvider().build(normalized_page_context)
-                    if page_is_relevant(clean_message, normalized_page_context) else None
-                )
+                page_context_block = PageContextProvider().build(relevant_page) if relevant_page else None
                 if page_context_block is not None:
                     context_blocks.append(page_context_block)
                 learning_task = None
@@ -844,8 +856,8 @@ class ChatService:
                     tool_schema_status = "unavailable"
                 context_builder = ContextBuilder(
                     budget=context_budget, context_blocks=context_blocks,
-                    current_page_path=normalized_page_context.path
-                    if normalized_page_context is not None and page_context_block is not None else None,
+                    current_page_path=page_identity(relevant_page.path, relevant_page.problem_id)
+                    if relevant_page else None,
                 )
                 config_fingerprint = _runtime_config_fingerprint(
                     config,

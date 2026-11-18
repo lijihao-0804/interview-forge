@@ -7,7 +7,8 @@ from pathlib import Path
 
 from interview_forge.core.runtime import server_runtime
 
-_BLOCKS = {"learning", "memory", "memory_persistence", "recent_actions", "current_page", "legacy_context"}
+_BLOCKS = {"learning", "memory", "memory_persistence", "recent_actions", "current_page", "legacy_context",
+           "study_mode", "practice_snapshot"}
 _MODES = {"independent", "followup", "related", "ambiguous", "recall"}
 _SELECTION_COUNTS = ("history_message_count", "history_selected_count", "history_archived_count", "recent_message_count")
 _ROUND_COUNTS = ("original_prompt_tokens", "admitted_prompt_tokens", "reserved_output_tokens", "context_window",
