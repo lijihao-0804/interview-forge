@@ -644,7 +644,59 @@ function renderRows(view, stage) {
 }
 var r0 = 0;
 
+function orderedBoundaryDemo(range) {
+  var sizes = range ? [
+    {label:"连续重复", nums:[5,7,7,8,8,10], target:8},
+    {label:"目标缺失", nums:[1,3,5], target:2},
+    {label:"全部相同", nums:[4,4,4], target:4},
+    {label:"空数组", nums:[], target:1}
+  ] : [
+    {label:"插入中间", nums:[1,3,5,6], target:2},
+    {label:"命中已有元素", nums:[1,3,5,6], target:5},
+    {label:"插入末尾", nums:[1,3,5,6], target:9},
+    {label:"插入开头", nums:[1], target:0}
+  ];
+  return {no:range ? "34" : "35", title:range ? "在排序数组中查找元素的第一个和最后一个位置" : "搜索插入位置",
+    tag:"二分查找 · 半开区间", sizes:sizes, render:renderRows,
+    build:function(ctx, selected) {
+      var input = selected || sizes[0], nums = input.nums, target = input.target;
+      function emit(desc, lo, hi, mid, note) {
+        var values = nums.concat(["终点"]);
+        var pointers = [];
+        values.forEach(function(_, i) {
+          var marks = [i === lo ? "L" : "", i === hi ? "R" : "", i === mid ? "M" : ""].filter(Boolean);
+          if (marks.length) pointers.push({i:i, label:marks.join("/")});
+        });
+        ctx.step(desc, {rows:[row("nums", values, {ptrs:pointers, st:st1(mid, "target")})],
+          note:"target = " + target + "，候选区间 [" + lo + ", " + hi + ")。" + (note || "")});
+      }
+      function bound(upper) {
+        var lo = 0, hi = nums.length, test = upper ? ">" : "≥";
+        emit("寻找第一个值 " + test + " " + target + " 的下标。", lo, hi, -1);
+        while (lo < hi) {
+          var mid = Math.floor((lo + hi) / 2);
+          var discardLeft = upper ? nums[mid] <= target : nums[mid] < target;
+          emit("检查中点 " + mid + "，值为 " + nums[mid] + "。" +
+            (discardLeft ? "它及左边都不满足条件，左界移到 " + (mid + 1) + "。" :
+              "它满足条件，右界收至 " + mid + "，继续向左找更早的位置。"), lo, hi, mid);
+          if (discardLeft) lo = mid + 1; else hi = mid;
+        }
+        emit("两界相遇，下标 " + lo + (lo === nums.length ? " 位于数组末尾之后。" : " 是本次边界。"), lo, hi, -1);
+        return lo;
+      }
+      var first = bound(false);
+      var answer = first;
+      if (range) answer = nums[first] === target ? [first, bound(true) - 1] : [-1, -1];
+      var result = JSON.stringify(answer);
+      ctx.step(range ? "把两个边界换成闭区间，结果为 " + result + "；未命中时返回 [-1,-1]。" :
+        "将目标放在下标 " + first + " 可以保持升序，这就是返回值。",
+        {rows:[row("nums", nums)], note:"输出 " + result, answer:answer}, {phase:"done"});
+    }};
+}
+
 var DEMOS = {
+  "0034": orderedBoundaryDemo(true),
+  "0035": orderedBoundaryDemo(false),
 
   "0033": { no: "33", title: "搜索旋转排序数组", tag: "二分 · 半有序判断",
     example: "输入：nums = [4,5,6,7,0,1,2]，target = 0　输出：4",

@@ -53,7 +53,14 @@ code,pre{font-family:var(--font-mono)!important}
 <style>
         * { box-sizing: border-box; font-family: "Microsoft Yahei", sans-serif; }
         body { max-width: 1100px; margin: 20px auto; padding: 0 20px; background: #f5f7fa; }
-        h2 { color: #222; text-align: center; }
+        body h1.partition-title {
+            color: var(--hot-text);
+            text-align: center;
+            font-size: 1.5em;
+            line-height: 1.3;
+            letter-spacing: -.01em;
+            margin-block: .83em;
+        }
         .wrap { display: flex; gap: 30px; flex-wrap: wrap; justify-content: center; }
         .box { background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px #ddd; flex: 1; min-width: 480px; }
         .info { margin: 10px 0; line-height: 1.6; }
@@ -609,10 +616,13 @@ html.hot100-embedded .ds-tabs { margin-top: 0 !important; }
 </script></head>
 <body>
 <nav aria-label="学习导航" class="hot100-topnav" data-hot100-nav=""><strong>01背包 倒序/正序 遍历演示 | 分割等和子集</strong><span class="hot100-links"><a href="../../../index.html" target="_blank" rel="noopener noreferrer">学习面板</a><a href="index.html" target="_blank" rel="noopener noreferrer">可视化中心</a></span></nav>
-<h2>01 背包 倒序 VS 正序 遍历演示（nums=[1,5,11,5], target=11）</h2>
-<div class="info" style="text-align:center;">
-        规则：每个数字<strong>只能选 1 次</strong> | 总和=22 → 目标 target = 11
-    </div>
+<h1 class="partition-title">分割等和子集：同一个数能否被重复使用？</h1>
+<label>输入 <select id="exampleSelect">
+<option value="1,5,11,5">[1, 5, 11, 5] · 可分割</option>
+<option value="1,2,5">[1, 2, 5] · 正序误判</option>
+<option value="1,2,4">[1, 2, 4] · 总和为奇数</option>
+</select></label>
+<p id="caseNote" class="info"></p>
 <div class="wrap">
 <!-- 左侧：正确倒序遍历 -->
 <div class="box">
@@ -636,149 +646,82 @@ html.hot100-embedded .ds-tabs { margin-top: 0 !important; }
 </div>
 </div>
 <div class="btn-group">
+<button id="prevBtn">上一步</button>
 <button id="nextBtn">下一步</button>
-<button id="resetBtn">重置重来</button>
+<button id="playBtn">自动播放</button>
+<button id="resetBtn">重置</button>
 </div>
 <script>
-// 全局配置
-const nums = [1, 5, 11, 5];
-const target = 11;
-const totalLen = target + 1;
-
-// 状态变量
-let dpReverse = new Array(totalLen).fill(false); // 倒序dp
-let dpForward = new Array(totalLen).fill(false); // 正序dp
-let itemIdx = 0;    // 当前遍历第几个物品
-let jReverse = -1;  // 倒序j指针
-let jForward = -1; // 正序j指针
-let stepState = "itemStart"; // 阶段：itemStart / jRun / end
-
-// DOM
-const dpContainer1 = document.getElementById('dpContainer1');
-const dpContainer2 = document.getElementById('dpContainer2');
-const itemDesc1 = document.getElementById('itemDesc1');
-const jDesc1 = document.getElementById('jDesc1');
-const desc1 = document.getElementById('desc1');
-const itemDesc2 = document.getElementById('itemDesc2');
-const jDesc2 = document.getElementById('jDesc2');
-const desc2 = document.getElementById('desc2');
-const nextBtn = document.getElementById('nextBtn');
-const resetBtn = document.getElementById('resetBtn');
-
-// 渲染dp数组
-function renderDp(container, dpArr, currJ) {
-    container.innerHTML = '';
-    for (let i = 0; i < dpArr.length; i++) {
-        const cell = document.createElement('div');
-        cell.className = `dp-cell ${dpArr[i] ? 'true' : 'false'}`;
-        if (i === currJ) cell.classList.add('curr');
-        cell.innerText = dpArr[i] ? 'T' : 'F';
-        container.appendChild(cell);
+const byId = id => document.getElementById(id);
+let frames = [], position = 0, timer = null;
+function build(nums) {
+  const sum = nums.reduce((a,b) => a+b, 0);
+  const target = Math.floor(sum / 2);
+  byId("caseNote").textContent = "每个数字只能选一次。总和 " + sum +
+    (sum % 2 ? " 为奇数，两份整数和不可能相等。" : "，每份的目标和是 " + target + "。");
+  const rev = Array(target+1).fill(false), fwd = rev.slice(), result = [];
+  rev[0] = fwd[0] = true;
+  function record(item, j, k, left, right) {
+    result.push({item,j,k,left,right,rev:rev.slice(),fwd:fwd.slice()});
+  }
+  record("暂无",-1,-1,"dp[0] 为真：空集的和等于 0。","对照组也从空集开始。");
+  if (sum % 2) {
+    record("无需取数",-1,-1,"总和为奇数，直接返回 false。","无需建立目标容量或遍历数组。");
+    return result;
+  }
+  nums.forEach((num, idx) => {
+    const item = "第 " + (idx+1) + " 个数 " + num;
+    record(item,-1,-1,"倒序从容量 " + target + " 开始，容量小于 " + num + " 时跳过。",
+                       "正序从容量 " + num + " 开始。观察较小的格子何时写入。");
+    for (let j=target, k=num; j>=num; j--, k++) {
+      const fromRev=rev[j-num], fromFwd=fwd[k-num];
+      rev[j] ||= fromRev;
+      fwd[k] ||= fromFwd;
+      record(item,j,k,"读 dp["+(j-num)+"] = "+fromRev+"（仍是上一轮）；dp["+j+"] 更新为 "+rev[j]+"。",
+                      "读 dp["+(k-num)+"] = "+fromFwd+"（可能本轮刚写过）；dp["+k+"] 更新为 "+fwd[k]+"。");
     }
+  });
+  record("完成",target,target,"目标 "+target+" 可达性为 "+rev[target]+"，返回 "+rev[target]+"。",
+    "正序给出 "+fwd[target]+(rev[target] !== fwd[target] ? "：重复取数造成误判。" : "：本例最终值相同，中间状态仍可能重复取数。"));
+  return result;
 }
-
-// 初始化
-function init() {
-    dpReverse.fill(false);
-    dpForward.fill(false);
-    dpReverse[0] = true;
-    dpForward[0] = true;
-    itemIdx = 0;
-    jReverse = -1;
-    jForward = -1;
-    stepState = "itemStart";
-
-    renderDp(dpContainer1, dpReverse, -1);
-    renderDp(dpContainer2, dpForward, -1);
-
-    itemDesc1.innerText = "暂无";
-    jDesc1.innerText = "-";
-    desc1.innerText = "初始状态：dp[0] = true（和为0一定能凑出）";
-
-    itemDesc2.innerText = "暂无";
-    jDesc2.innerText = "-";
-    desc2.innerText = "初始状态：dp[0] = true";
-
-    nextBtn.disabled = false;
+function show() {
+  const f=frames[position];
+  [1,2].forEach(side => {
+    const values = side === 1 ? f.rev : f.fwd, index = side === 1 ? f.j : f.k;
+    const container=byId("dpContainer"+side);
+    container.replaceChildren(...values.map((v,j) => {
+      const cell=document.createElement("div");
+      cell.className="dp-cell "+v+(j===index?" curr":"");
+      cell.textContent=j+":"+(v?"T":"F");
+      cell.setAttribute("aria-label","和 "+j+(v?" 可达":" 不可达"));
+      return cell;
+    }));
+    byId("itemDesc"+side).textContent=f.item;
+    byId("jDesc"+side).textContent=index<0?"—":index;
+    byId("desc"+side).textContent=side===1?f.left:f.right;
+  });
+  byId("prevBtn").disabled=position===0;
+  byId("nextBtn").disabled=position===frames.length-1;
 }
-
-// 单步逻辑
-function nextStep() {
-    if (itemIdx >= nums.length) {
-        desc1.innerText = "✅ 所有物品遍历完成，最终结果";
-        desc2.innerText = "❌ 正序遍历重复选数，结果失真";
-        nextBtn.disabled = true;
-        return;
-    }
-
-    const currNum = nums[itemIdx];
-
-    // 阶段1：开始处理当前物品
-    if (stepState === "itemStart") {
-        itemDesc1.innerText = `第 ${itemIdx+1} 件物品：${currNum}`;
-        itemDesc2.innerText = `第 ${itemIdx+1} 件物品：${currNum}`;
-
-        // 倒序从 target 往下
-        jReverse = target;
-        // 正序从 currNum 往上
-        jForward = currNum;
-
-        desc1.innerText = `开始处理物品 ${currNum}，倒序 j 从 ${target} 向前遍历`;
-        desc2.innerText = `开始处理物品 ${currNum}，正序 j 从 ${currNum} 向后遍历`;
-
-        stepState = "jRun";
-        renderDp(dpContainer1, dpReverse, jReverse);
-        renderDp(dpContainer2, dpForward, jForward);
-        return;
-    }
-
-    // 阶段2：逐个 j 执行状态转移
-    if (stepState === "jRun") {
-        // ========== 倒序更新（正确） ==========
-        if (jReverse >= currNum) {
-            const old = dpReverse[jReverse];
-            dpReverse[jReverse] = dpReverse[jReverse] || dpReverse[jReverse - currNum];
-            jDesc1.innerText = `j = ${jReverse}`;
-            desc1.innerText =
-                `倒序 j=${jReverse}：dp[${jReverse}] = dp[${jReverse}] || dp[${jReverse}-${currNum}]`
-                + (old !== dpReverse[jReverse] ? " → 状态变为 TRUE" : " → 状态不变");
-            renderDp(dpContainer1, dpReverse, jReverse);
-            jReverse--;
-        }
-
-        // ========== 正序更新（错误，会重复选） ==========
-        if (jForward <= target) {
-            const old = dpForward[jForward];
-            dpForward[jForward] = dpForward[jForward] || dpForward[jForward - currNum];
-            jDesc2.innerText = `j = ${jForward}`;
-            desc2.innerText =
-                `正序 j=${jForward}：dp[${jForward}] = dp[${jForward}] || dp[${jForward}-${currNum}]`
-                + (old !== dpForward[jForward] ? " → 状态变为 TRUE" : " → 状态不变（易重复选当前物品）");
-            renderDp(dpContainer2, dpForward, jForward);
-            jForward++;
-        }
-
-        // 当前物品的 j 遍历全部结束
-        if (jReverse < currNum && jForward > target) {
-            // 提前终止：已经找到 target
-            if (dpReverse[target]) {
-                desc1.innerText = `🎉 已凑出目标 ${target}，可以分割子集！`;
-                nextBtn.disabled = true;
-                return;
-            }
-            itemIdx++;
-            stepState = "itemStart";
-            return;
-        }
-    }
+function stop() {clearTimeout(timer);timer=null;byId("playBtn").textContent="自动播放";}
+function advance() {
+  if(position<frames.length-1) {position++;show();}
+  if(position===frames.length-1) stop();
+  else timer=setTimeout(advance,850);
 }
-
-// 绑定事件
-nextBtn.addEventListener('click', nextStep);
-resetBtn.addEventListener('click', init);
-
-// 页面加载初始化
-window.onload = init;
+function reset() {stop();frames=build(byId("exampleSelect").value.split(",").map(Number));position=0;show();}
+byId("prevBtn").onclick=()=>{stop();position--;show();};
+byId("nextBtn").onclick=()=>{stop();position++;show();};
+byId("playBtn").onclick=()=>{
+  if(timer){stop();return;}
+  if(position===frames.length-1) position=0;
+  byId("playBtn").textContent="暂停";advance();
+};
+byId("exampleSelect").onchange=reset;
+byId("resetBtn").onclick=reset;
+window.addEventListener("pagehide",stop);
+reset();
 </script>
 <script id="hot100-a11y" src="assets/embed-runtime.js"></script>
 </body>

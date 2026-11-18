@@ -51,6 +51,20 @@
   });
   const embedParams = new URLSearchParams(location.search);
   if (embedParams.get('embed') === '1') {
+    const routeScript = document.createElement('script');
+    routeScript.src = '../executions/routes.js';
+    routeScript.onload = () => {
+      const filename = decodeURIComponent(location.pathname.split('/').pop());
+      const key = [filename, embedParams.get('mode') || '', embedParams.get('panel') || ''].join('/');
+      const pid = window.Hot100ExecutionRoutes[key];
+      if (!pid) return;
+      const link = document.createElement('a');
+      link.href = 'assets/checked-example.html?problem=' + pid;
+      link.textContent = '查看本题输入与 Python 执行过程';
+      link.className = 'hot100-trace-switch';
+      document.body.prepend(link);
+    };
+    document.head.appendChild(routeScript);
     const panelIndex = embedParams.get('panel');
     if (panelIndex !== null) {
       const panelTab = [...document.querySelectorAll('.sort-tab, .ds-tab')]

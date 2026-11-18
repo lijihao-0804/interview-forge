@@ -131,18 +131,25 @@ const created = [];
 const app = new FakeElement("main");
 const head = new FakeElement("head");
 const body = new FakeElement("body");
+const docListeners = {};
 const document = {
   head,
   body,
   createElement(tag) { const item = new FakeElement(tag); created.push(item); return item; },
   getElementById(id) { return id === "app" ? app : null; },
-  addEventListener() {},
+  addEventListener(name, callback) { (docListeners[name] ||= []).push(callback); },
+  removeEventListener(name, callback) {
+    docListeners[name] = docListeners[name].filter(listener => listener !== callback);
+  },
 };
 
 const windowListeners = {};
 const storage = new Map();
 const window = {
   addEventListener(name, callback) { (windowListeners[name] ||= []).push(callback); },
+  removeEventListener(name, callback) {
+    windowListeners[name] = windowListeners[name].filter(listener => listener !== callback);
+  },
   dispatchEvent(event) { (windowListeners[event.type] || []).forEach((callback) => callback(event)); },
 };
 window.localStorage = {
@@ -330,6 +337,12 @@ assert.strictEqual(javaLines.length, 4, "returning to Java must restore one node
 assert.deepStrictEqual(javaLines.map((item) => has(item, "on")), [false, true, true, false],
   "returning to Java must restore current line highlighting");
 assert(restoredByClass("dk-code-empty")[0].hidden, "language note must hide when code is available");
+
+assert.strictEqual(docListeners.keydown.length, 1, "switching problems keeps one keyboard handler");
+assert.strictEqual(windowListeners.pagehide.length, 1, "switching problems releases old playback listeners");
+const beforeSelectKey = window.__dk.idx;
+docListeners.keydown[0]({key: "ArrowRight", target: {tagName: "SELECT"}});
+assert.strictEqual(window.__dk.idx, beforeSelectKey, "the input selector owns its arrow keys");
 
 console.log(JSON.stringify({
   ok: true,

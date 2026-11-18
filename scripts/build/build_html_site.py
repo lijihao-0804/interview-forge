@@ -214,7 +214,8 @@ VISUAL_EMBEDS: dict[str, tuple[str, dict[str, str]]] = {
     "books/hot100/03-题解/10-回溯/0022-括号生成.md": ("10-回溯.html", {"panel": "4"}),
     "books/hot100/03-题解/10-回溯/0079-单词搜索.md": ("10-回溯.html", {"panel": "5"}),
     "books/hot100/03-题解/10-回溯/0051-N 皇后.md": ("10-回溯.html", {"panel": "6"}),
-    "books/hot100/03-题解/11-二分查找/0035-搜索插入位置.md": ("查找算法可视化.html", {"panel": "1"}),
+    "books/hot100/03-题解/11-二分查找/0034-在排序数组中查找元素的第一个和最后一个位置.md": ("二分数组演示.html", {"mode": "0034"}),
+    "books/hot100/03-题解/11-二分查找/0035-搜索插入位置.md": ("二分数组演示.html", {"mode": "0035"}),
     "books/hot100/03-题解/11-二分查找/0004-寻找两个正序数组的中位数.md": ("困难题核心状态实验室.html", {"mode": "0004"}),
     "books/hot100/03-题解/12-栈/0084-柱状图中最大的矩形.md": ("单调栈实验室.html", {"mode": "0084"}),
     "books/hot100/03-题解/12-栈/0739-每日温度.md": ("单调栈实验室.html", {"mode": "0739"}),
@@ -1589,6 +1590,20 @@ VISUAL_RUNTIME_JS = r"""
   });
   const embedParams = new URLSearchParams(location.search);
   if (embedParams.get('embed') === '1') {
+    const routeScript = document.createElement('script');
+    routeScript.src = '../executions/routes.js';
+    routeScript.onload = () => {
+      const filename = decodeURIComponent(location.pathname.split('/').pop());
+      const key = [filename, embedParams.get('mode') || '', embedParams.get('panel') || ''].join('/');
+      const pid = window.Hot100ExecutionRoutes[key];
+      if (!pid) return;
+      const link = document.createElement('a');
+      link.href = 'assets/checked-example.html?problem=' + pid;
+      link.textContent = '查看本题输入与 Python 执行过程';
+      link.className = 'hot100-trace-switch';
+      document.body.prepend(link);
+    };
+    document.head.appendChild(routeScript);
     const panelIndex = embedParams.get('panel');
     if (panelIndex !== null) {
       const panelTab = [...document.querySelectorAll('.sort-tab, .ds-tab')]

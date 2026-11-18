@@ -165,6 +165,18 @@ background:color-mix(in srgb,var(--dk-err) 11%,var(--dk-panel))}
 .dk-toggle{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border:1px solid var(--dk-line);
 border-radius:9px;background:var(--dk-panel);color:var(--dk-text);font-size:13px;font-weight:600;cursor:pointer}
 .dk-toggle input{accent-color:var(--dk-brand);cursor:pointer}
+.dk-trace-code,.dk-trace-vars dd{white-space:pre-wrap;overflow-wrap:anywhere;font-family:ui-monospace,monospace}
+.dk-trace-code{background:var(--dk-soft);padding:10px;border-radius:8px}
+.dk-trace-vars{display:grid;grid-template-columns:minmax(4em,max-content) minmax(0,1fr);gap:5px 12px}
+.dk-trace-vars dt{font-weight:650;overflow-wrap:anywhere}.dk-trace-vars dd{margin:0}
+.dk-trace-strip{display:flex;flex-wrap:wrap;gap:3px;padding:0;margin:0;list-style:none}
+.dk-trace-strip li,.dk-trace-grid td{border:1px solid var(--dk-line);padding:2px 5px;border-radius:4px}
+.dk-trace-strip small{display:block;color:var(--dk-muted);font-size:10px}
+.dk-trace-grid{border-collapse:separate;border-spacing:2px;max-width:100%;table-layout:fixed}
+.dk-trace-map{display:grid;grid-template-columns:minmax(2em,auto) 1fr;margin:0;gap:2px 8px}
+.dk-trace-map dt{color:var(--dk-muted)}.dk-trace-change{display:block;color:var(--dk-brand-strong);font-size:11px}
+.dk-trace-player .dk-log:empty,.dk-trace-player .dk-vars:empty{display:none}
+@media(max-width:560px){.dk-bar{flex-wrap:wrap;white-space:normal}.dk-trace-vars{grid-template-columns:minmax(4em,30%) minmax(0,1fr)}}
 @media(prefers-reduced-motion:reduce){.dk-flip,.dk-enter,.dk-pulse,.dk-exit{animation:none!important;
 transition:none!important;transform:none!important}}
 `;
@@ -382,7 +394,9 @@ transition:none!important;transform:none!important}}
     } catch (e) {}
   })();
 
+  var disposeMount = null;
   function mount(cfg) {
+    if (disposeMount) disposeMount();
     var wrap = document.getElementById("app") || document.body;
     wrap.textContent = "";
     wrap.classList.add("dk-wrap");
@@ -409,8 +423,10 @@ transition:none!important;transform:none!important}}
     var sizeSel = null;
     if (cfg.sizes && cfg.sizes.length > 1) {
       var srow = el("div", "dk-bar");
-      srow.appendChild(el("span", "dk-var", "规模选择"));
+      var sizeLabel = cfg.sizeLabel || "规模选择";
+      srow.appendChild(el("span", "dk-var", sizeLabel));
       sizeSel = el("select", "dk-select");
+      sizeSel.setAttribute("aria-label", sizeLabel);
       cfg.sizes.forEach(function (s, i) {
         var o = el("option", null, s.label);
         o.value = i;
@@ -562,6 +578,8 @@ transition:none!important;transform:none!important}}
     }
 
     var desc = el("div", "dk-desc");
+    desc.setAttribute("aria-live", "polite");
+    desc.setAttribute("aria-atomic", "true");
     wrap.appendChild(desc);
 
     var bar = el("div", "dk-bar");
@@ -588,11 +606,9 @@ transition:none!important;transform:none!important}}
     bar.appendChild(progress);
     bar.appendChild(el("span", null, "　"));
     bar.appendChild(speed);
-    if (cfg.sizes && cfg.sizes.length > 1) {
-      var resetBtn = el("button", "dk-btn", "↻ 重置");
-      resetBtn.onclick = rebuild;
-      bar.appendChild(resetBtn);
-    }
+    var resetBtn = el("button", "dk-btn", "↻ 重置");
+    resetBtn.onclick = rebuild;
+    bar.appendChild(resetBtn);
     if (compare) {
       cmpToggle = el("label", "dk-toggle");
       var cbox = document.createElement("input");
@@ -811,12 +827,20 @@ transition:none!important;transform:none!important}}
       show(idx + 1);
       if (idx >= steps.length - 1) stop();
     }
-    function stop() { if (timer) { clearTimeout(timer); timer = null; } playing = false; btnPlay.textContent = "▶ 自动播放"; }
+    function stop() {
+      if (timer) { clearTimeout(timer); timer = null; }
+      playing = false;
+      btnPlay.textContent = "▶ 自动播放";
+      btnPlay.setAttribute("aria-pressed", "false");
+      desc.setAttribute("aria-live", "polite");
+    }
 
     btnPlay.onclick = function () {
       if (playing) { stop(); return; }
       if (idx >= steps.length - 1) show(0);
       playing = true; btnPlay.textContent = "⏸ 暂停";
+      btnPlay.setAttribute("aria-pressed", "true");
+      desc.setAttribute("aria-live", "off");
       playTick();
       scheduleNext();
     };
@@ -828,15 +852,22 @@ transition:none!important;transform:none!important}}
       b.addEventListener("click", reschedule);
     });
     if (sizeSel) sizeSel.onchange = rebuild;
-    document.addEventListener("keydown", function (e) {
-      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+    function keydown(e) {
+      if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || e.target.isContentEditable ||
+          ["INPUT", "TEXTAREA", "BUTTON", "SELECT", "A"].includes(e.target.tagName)) return;
       if (e.key === "ArrowRight") { stop(); show(idx + 1); }
       if (e.key === "ArrowLeft") { stop(); show(idx - 1); }
       if (e.key === " ") { e.preventDefault(); btnPlay.click(); }
-    });
+    }
+    document.addEventListener("keydown", keydown);
 
     rebuild();
     window.addEventListener("pagehide", stop);
+    disposeMount = function () {
+      stop();
+      document.removeEventListener("keydown", keydown);
+      window.removeEventListener("pagehide", stop);
+    };
   }
 
   global.DemoKit = {
