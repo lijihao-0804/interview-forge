@@ -32,7 +32,9 @@ def register_builtin_tools(registry: ToolRegistry) -> ToolRegistry:
         SearchLibraryArgs,
         search_library,
     )
-    from interview_forge.ai.tools.builtins.problem import GetProblemArgs, get_problem
+    from interview_forge.ai.tools.builtins.problem import (
+        GetAcmExamplesArgs, GetProblemArgs, get_acm_examples, get_problem,
+    )
     from interview_forge.ai.tools.builtins.progress import (
         GetProblemProgressArgs,
         get_problem_progress,
@@ -45,9 +47,18 @@ def register_builtin_tools(registry: ToolRegistry) -> ToolRegistry:
     from interview_forge.ai.tools.contracts import ToolKind, ToolSpec
 
     registry.register(ToolSpec(
+        name="get_acm_examples",
+        display_name="查询公开判题样例",
+        description="按力扣题号查本站 ACM 输入输出契约、比较规则和公开样例。statement 源于力扣题面，supplemental 为本站用例。截断字段为节选；按 next_index 翻页。",
+        args_model=GetAcmExamplesArgs,
+        handler=get_acm_examples,
+        timeout_seconds=2.0,
+        max_result_tokens=700,
+    ))
+    registry.register(ToolSpec(
         name="get_problem",
         display_name="查询题目",
-        description="查询本地题库中的题目元数据、站内链接和力扣链接，不返回完整题解。",
+        description="按题号或准确题名读取站内题目的方法、不变量、复杂度和链接。可据此逐步提示、检查代码思路；模糊关键词返回候选题目。",
         args_model=GetProblemArgs,
         handler=get_problem,
         timeout_seconds=2.0,
@@ -84,7 +95,7 @@ def register_builtin_tools(registry: ToolRegistry) -> ToolRegistry:
     registry.register(ToolSpec(
         name="get_problem_progress",
         display_name="查询题目进度",
-        description="查询指定题目的轮次、提交和下次复习日期等精简学习进度。",
+        description="查询本题轮次、力扣提交、复习日期和站内 ACM 记录。native_acm.status 表示是否曾通过，latest_verdict 是最近判定。",
         args_model=GetProblemProgressArgs,
         handler=get_problem_progress,
         timeout_seconds=4.0,

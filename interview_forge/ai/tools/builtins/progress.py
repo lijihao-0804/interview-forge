@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from interview_forge.ai.tools.contracts import ToolExecutionContext, ToolResult
 from interview_forge.core.runtime import server_runtime
-from interview_forge.services import study, submissions
+from interview_forge.services import hot200, native_acm, study, submissions
 
 
 class GetProblemProgressArgs(BaseModel):
@@ -17,6 +17,9 @@ def get_problem_progress(
     context: ToolExecutionContext, args: GetProblemProgressArgs
 ) -> ToolResult:
     problem = server_runtime.PROBLEM_BY_ID.get(int(args.problem_id))
+    if problem is None and args.problem_id in hot200.catalog():
+        detail = hot200.learning_fact(context.user_db, args.problem_id)
+        return ToolResult({"found": True, "problem": detail}, "已读取补充卷学习进度")
     if problem is None:
         return ToolResult(
             {"found": False, "problem_id": int(args.problem_id)},
@@ -44,6 +47,7 @@ def get_problem_progress(
             "last_status": submission.get("last_status") or None,
             "last_submitted_at": submission.get("last_submitted_at") or None,
             "next_due": next_due,
+            "native_acm": native_acm.submission_summary(context.user_db, f"hot100-{args.problem_id}"),
         },
     }
     return ToolResult(payload, "已读取这道题的学习进度")

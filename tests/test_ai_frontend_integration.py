@@ -103,7 +103,7 @@ class AiFrontendIntegrationTests(unittest.TestCase):
         rendered = _inject_html("/library/agent-cli/chapter-01.html", body).decode()
         self.assertEqual(rendered.count("ai-launcher.js"), 1)
         self.assertEqual(rendered.count("ai-page-context.js"), 1)
-        self.assertIn("ai-page-context.js?v=2", rendered)
+        self.assertIn("ai-page-context.js?v=3", rendered)
         collector = Path("assets") / "ai-page-context.js"
         # Git checkouts may use different line endings for the tracked copies.
         self.assertEqual((ROOT / "library" / collector).read_text(encoding="utf-8"),

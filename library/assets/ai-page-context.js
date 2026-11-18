@@ -3,6 +3,7 @@
 
   function pageType(path) {
     if (/\/books\/hot100\/03-题解\//.test(path)) return "problem";
+    if (/\/library\/hot200-extra\/chapter-\d+\.html$/.test(path)) return "problem";
     if (/\/library\/[^/]+\/chapter-\d+\.html$/.test(path)) return "library/chapter";
     if (/\/cockpit\.html$/.test(path)) return "cockpit";
     if (/\/pages\/history\.html$/.test(path)) return "history";
@@ -36,6 +37,11 @@
 
   function problemId(path) {
     if (pageType(path) !== "problem") return null;
+    if (/\/library\/hot200-extra\//.test(path)) {
+      var item = document.querySelector("[data-content-id^='hot200-extra:']");
+      var id = item && /^hot200-extra:(\d+)$/.exec(item.getAttribute("data-content-id"));
+      return id ? Number(id[1]) : null;
+    }
     var match = path.match(/\/([^/]+)\.html$/);
     var number = match && match[1].match(/^(\d{1,6})-/);
     return number ? Number(number[1]) : null;
@@ -43,6 +49,7 @@
 
   function getPageContext() {
     var path = global.location.pathname || "/";
+    try { path = decodeURI(path); } catch (_) {}
     var root = document.querySelector("[data-content-id]");
     var context = {
       path: path,

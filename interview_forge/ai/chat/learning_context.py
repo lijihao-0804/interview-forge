@@ -11,8 +11,9 @@ from interview_forge.ai.chat.context_blocks import ContextBlock
 from interview_forge.ai.context_projection import project_learning_context_for_chat
 from interview_forge.ai.telemetry import debug_ai_event
 from interview_forge.analytics.cache import analytics_cached
+from interview_forge.core.problem_catalog import PROBLEM_BY_ID
+from interview_forge.services import hot200, native_acm
 from interview_forge.analytics.context_compiler import (
-    ContextCompilerError,
     compile_learning_context,
 )
 
@@ -80,6 +81,8 @@ def learning_projection_block(projection: Any) -> ContextBlock:
     # Facts and their qualifiers are indivisible. Avoid duplicating the same
     # problem in selected_facts and related_problem_facts in the smaller view.
     compact = {**essentials, "coverage": "仅列出部分资料"}
+    if "native_acm" in data:
+        compact["native_acm"] = data["native_acm"]
     facts = data.get("selected_facts") or data.get("related_problem_facts") or []
     views = [render({**compact, "selected_facts": facts[:1]})] if facts else []
     views.append(render(compact))
@@ -163,7 +166,20 @@ class LearningContextProvider:
         selection: Mapping[str, Any],
     ) -> dict[str, Any]:
         analytics: Any = None
+        pid = selection.get("target_problem_id")
+        native = None
+        if selection["task"] == "problem_review" and pid in PROBLEM_BY_ID and Path(user_db).is_file():
+            try:
+                native = native_acm.submission_summary(user_db, f"hot100-{pid}")
+            except Exception as exc:
+                _record_compile_failure(selection, exc)
         try:
+            if selection["task"] == "problem_review" and pid in hot200.catalog():
+                fact = hot200.learning_fact(user_db, pid)
+                has_data = fact["last_activity_at"] or fact["mark"] or fact["native_acm"]["attempts"]
+                quality = {"status": "ok" if has_data else "no_learning_data"}
+                return {**selection, "available": True, "data_quality": quality,
+                        "projection": {"task": "problem_review", "selected_facts": [fact], "data_quality": quality}}
             analytics = analytics_cached(Path(user_db))
             compiled = compile_learning_context(
                 analytics,
@@ -172,20 +188,23 @@ class LearningContextProvider:
                 target_problem_id=selection.get("target_problem_id"),
                 budget_tier=str(selection["budget_tier"]),
             )
-        except (ContextCompilerError, ValueError, TypeError) as exc:
-            _record_compile_failure(selection, exc)
-            return _unavailable_result(selection, analytics)
         except Exception as exc:
             # Analytics is a read-only enhancement to chat.  A stale, missing,
             # or temporarily unreadable learning DB must not break ordinary AI.
             _record_compile_failure(selection, exc)
-            return _unavailable_result(selection, analytics)
+            degraded = _unavailable_result(selection, analytics)
+            if native is not None:
+                degraded["projection"]["native_acm"] = native
+                degraded["available"] = True
+            return degraded
 
         projection = project_learning_context_for_chat(
             compiled,
             include_user_request=False,
-            max_chars=1_800,
+            max_chars=1_500 if native is not None else 1_800,
         )
+        if native is not None:
+            projection["native_acm"] = native
         return {
             "task": selection["task"],
             "target_problem_id": selection.get("target_problem_id"),

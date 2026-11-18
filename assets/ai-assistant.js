@@ -21,6 +21,9 @@
   var status = document.getElementById("status");
   var error = document.getElementById("error");
   var input = document.getElementById("messageInput");
+  var studyButtons = ["studyHint", "studyReview", "studyCode"].map(function (id) {
+    return document.getElementById(id);
+  });
   var send = document.getElementById("send");
   var stop = document.getElementById("stop");
   var retryTurn = document.getElementById("retryTurn");
@@ -169,6 +172,7 @@
     state.phase = phase;
     var ready = phase === "ready" && !!state.current;
     input.disabled = !ready;
+    studyButtons.forEach(function (button) { if (button) button.disabled = !ready; });
     send.disabled = !ready;
     send.hidden = phase === "retry" || phase === "check";
     stop.hidden = phase !== "preparing" && phase !== "stream";
@@ -755,6 +759,66 @@
       }, window.location.origin);
     });
   }
+
+  // Read only the visible exercise fields, only when the learner chooses code review.
+  // The resulting snapshot stays in the editable composer until they press Send.
+  function practiceDocument() {
+    try {
+      var parent = window.parent;
+      if (embedded && parent.location.origin === window.location.origin &&
+          parent.location.pathname === "/books/ai-exam/acm-playground.html") return parent.document;
+    } catch (_) {}
+    return null;
+  }
+
+  function practiceSnapshot(page) {
+    function clip(value, limit) {
+      var text = String(value || "");
+      if (text.length <= limit) return text;
+      var edge = Math.floor((limit - 10) / 2);
+      return text.slice(0, edge) + "\n…已截断…\n" + text.slice(-edge);
+    }
+    function field(id) {
+      var el = page.getElementById(id);
+      return el && (el.value == null ? el.textContent : el.value) || "";
+    }
+    var mirror = page.querySelector(".CodeMirror");
+    var code = mirror && mirror.CodeMirror ? mirror.CodeMirror.getValue() : field("code-editor");
+    var parts = ["当前练习 " + field("problem-context"), "语言 " + field("language-select"),
+      "编辑器代码\n" + clip(code, 4200)];
+    [["stdin-area", "当前输入"], ["expected-area", "期望输出"], ["run-status", "页面运行状态"],
+      ["diff-result", "比较结果"], ["suite-summary", "用例汇总"]].forEach(function (entry) {
+      var value = field(entry[0]);
+      if (value) parts.push(entry[1] + "\n" + clip(value, 400));
+    });
+    if (field("run-status")) parts.push("输出区\n" + clip(field("stdout-area"), 600));
+    return parts.join("\n\n");
+  }
+
+  studyButtons.forEach(function (button, index) {
+    if (!button) return;
+    var practice = practiceDocument();
+    if (index === 2 && practice) button.textContent = "附上当前代码与运行结果";
+    button.addEventListener("click", function () {
+      if (input.disabled) return;
+      var context = currentPageContext() || {};
+      var problem = context.problem_id ? "第" + context.problem_id + "题" : "这道题";
+      var prompts = [
+        "请带我思考" + problem + "。先问我一个能找到突破口的问题，等我回答后再给下一步提示。",
+        context.problem_id ? "请根据我的学习记录帮我复习" + problem + "，指出有记录可查的难点，给我一道检验理解的问题。" :
+          "请根据学习记录分析我的弱项，挑一道值得复盘的错题，问我一个能检验解题思路的问题。",
+        "请走查我的代码，先用一个小输入追踪关键变量，区分手工推演和页面的运行记录。指出首个与预期不符的步骤，让我自己修改。"
+      ];
+      var draft = prompts[index];
+      if (index === 2 && practice) draft += "\n\n" + practiceSnapshot(practice);
+      var previous = input.value;
+      var composed = previous ? previous + "\n\n" + draft : draft;
+      if (composed.length > 12000) { setError("草稿过长，请精简后再添加练习资料。"); return; }
+      input.value = composed;
+      setError("");
+      input.focus();
+    });
+  });
 
   async function newSession() {
     setError("");

@@ -49,6 +49,59 @@ class ToolInfrastructureTests(unittest.TestCase):
         server_runtime._values = self.old_values
         self.temp.cleanup()
 
+    def test_native_acm_reviews_are_scoped_to_the_account_and_problem(self):
+        from interview_forge.ai.chat.learning_context import LearningContextProvider
+        from interview_forge.ai.tools.builtins.progress import GetProblemProgressArgs, get_problem_progress
+        from interview_forge.services.native_acm import save_submission
+
+        other_db = Path(self.temp.name) / "bob.db"
+        save_submission(self.db, "hot100-1", "python", "private-code-alice", True)
+        save_submission(self.db, "hot100-1", "java", "private-code-alice", False)
+        save_submission(other_db, "hot200-186", "java", "private-code-bob", False)
+        for db, pid, key, count, status in [
+            (self.db, 1, "hot100-1", 2, "accepted"), (other_db, 1, "hot100-1", 0, "unattempted"),
+            (self.db, 186, "hot200-186", 0, "unattempted"), (other_db, 186, "hot200-186", 1, "attempted"),
+        ]:
+            with self.subTest(db=db.name, pid=pid):
+                args = GetProblemProgressArgs(problem_id=pid)
+                summary = get_problem_progress(_context(db), args).data["problem"]["native_acm"]
+                self.assertEqual((summary["problem_key"], summary["attempts"], summary["status"]), (key, count, status))
+                review = LearningContextProvider().build(user_db=db, query=f"帮我复习第{pid}题")["projection"]
+                visible = review.get("native_acm") or review["selected_facts"][0]["native_acm"]
+                self.assertEqual(visible, summary)
+                self.assertNotIn("private-code", json.dumps(review))
+                if count:
+                    self.assertEqual(summary["latest_language"], "java")
+                    self.assertEqual(summary["latest_verdict"], "not_accepted")
+                    self.assertTrue(summary["latest_submitted_at_utc"])
+                else:
+                    self.assertNotIn("latest_verdict", summary)
+
+    def test_public_acm_examples_keep_origin_paging_and_truncation(self):
+        from interview_forge.ai.tools.registry import build_default_tool_registry
+        spec = build_default_tool_registry().get("get_acm_examples")
+
+        def lookup(pid, **args):
+            return spec.handler(_context(self.db), spec.args_model(problem_id=pid, **args)).data
+
+        first = lookup(1)
+        self.assertEqual(first["examples"][0]["source"], "statement")
+        self.assertEqual(first["examples"][0]["expected"], "[0,1]")
+        self.assertIn("JSON", first["contract"])
+        self.assertEqual(first["checker"]["mode"], "json")
+        self.assertEqual(len(first["examples"]), 1)
+        self.assertEqual([row["index"] for row in lookup(1, start_index=first["next_index"], count=2)["examples"]], [2, 3])
+        self.assertEqual(lookup(186)["examples"][0]["source"], "supplemental")
+        self.assertFalse(lookup(999999)["found"])
+        self.assertEqual(lookup(1, start_index=999)["examples"], [])
+        clipped = lookup(200, start_index=5)["examples"][0]
+        self.assertTrue(clipped["input_truncated"])
+        self.assertEqual(len(clipped["input"]), 240)
+        with self.assertRaises(ValueError):
+            lookup(1, start_index=0)
+        with self.assertRaises(ValueError):
+            lookup(1, count=3)
+
     def test_duplicate_registry_and_schema_boundary(self):
         spec = ToolSpec("read_value", "读取值", "读取一个值", Args, lambda _c, _a: {"ok": True})
         registry = ToolRegistry([spec])
@@ -246,7 +299,7 @@ class ToolInfrastructureTests(unittest.TestCase):
 
         registry = build_default_tool_registry()
         self.assertEqual({spec.name for spec in registry.list_specs()}, {
-            "get_problem", "get_learning_context", "get_problem_progress", "get_review_queue",
+            "get_problem", "get_acm_examples", "get_learning_context", "get_problem_progress", "get_review_queue",
             "get_weather", "sync_leetcode", "mark_problem", "pin_problem_for_tomorrow",
             "set_daily_goal", "search_library", "recall_chat_history",
         })
@@ -254,8 +307,24 @@ class ToolInfrastructureTests(unittest.TestCase):
         problem = get_problem(ctx, GetProblemArgs(problem_id=146))
         self.assertTrue(problem.data["found"])
         self.assertEqual(problem.data["problem"]["problem_id"], 146)
+        for lookup in (GetProblemArgs(problem_id=1), GetProblemArgs(query="1"), GetProblemArgs(query="两数之和")):
+            detail = get_problem(ctx, lookup).data["problem"]
+            self.assertIn("避免元素与自身匹配", detail["study_notes"]["invariant"])
+            self.assertEqual(detail["study_notes"]["time"], "O(n)")
         missing = get_problem(ctx, GetProblemArgs(problem_id=999999))
         self.assertFalse(missing.data["found"])
+        supplement = get_problem(ctx, GetProblemArgs(problem_id=186)).data["problem"]
+        self.assertEqual(supplement["local_url"], "/library/hot200-extra/chapter-01.html")
+        self.assertIn("第二次扫描", supplement["study_notes"]["invariant"])
+        from interview_forge.ai.tools.builtins.progress import GetProblemProgressArgs, get_problem_progress
+        from interview_forge.ai.chat.learning_context import LearningContextProvider
+        from interview_forge.services.study import set_mark
+
+        set_mark("content", "hot200-extra:0186", "weak", self.db)
+        detail = get_problem_progress(ctx, GetProblemProgressArgs(problem_id=186)).data["problem"]
+        self.assertEqual(detail["mark"], "weak")
+        review = LearningContextProvider().build(user_db=self.db, query="帮我复习第186题")
+        self.assertEqual(review["projection"]["selected_facts"], [detail])
 
         with patch(
             "interview_forge.ai.tools.builtins.learning.LearningContextProvider.build_for_task",

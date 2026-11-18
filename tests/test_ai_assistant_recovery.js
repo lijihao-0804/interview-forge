@@ -98,7 +98,7 @@ async function until(condition, label) {
   assert.fail(label);
 }
 
-async function boot(server, tab = storage(), local = storage(), embedded = false) {
+async function boot(server, tab = storage(), local = storage(), embedded = false, practicePage = null) {
   const nodes = new Map();
   function get(id) {
     if (!nodes.has(id)) nodes.set(id, new Element(id));
@@ -125,6 +125,9 @@ async function boot(server, tab = storage(), local = storage(), embedded = false
       type: "interviewforge:page-context", request_id: msg.request_id, context: window.InterviewForgeAI.getPageContext(),
     } });
   } } : window;
+  if (practicePage) Object.assign(window.parent, {
+    document: practicePage, location: new URL("/books/ai-exam/acm-playground.html", url),
+  });
   vm.runInNewContext(source, { window, document, location: window.location, URLSearchParams, AbortController,
     sessionStorage: tab, localStorage: local, fetch: server.fetch.bind(server), performance, TextDecoder });
   await until(() => ["已连接", "等待重试", "等待核对", "原请求仍在处理…"].includes(get("status").textContent), "open chat");
@@ -268,7 +271,29 @@ async function staleCallbacksAndEdit() {
   assert.equal(server.posts[1].session, "s2");
 }
 
+async function editablePracticeReview() {
+  const server = backend();
+  const fields = { "code-editor": { value: "stale fallback" }, "language-select": { value: "python" },
+    "stdin-area": { value: "4" }, "run-status": { textContent: "完成" }, "stdout-area": { textContent: "7" } };
+  const page = { getElementById: (id) => fields[id], querySelector: () => ({
+    CodeMirror: { getValue: () => "def solve():\n    print(7)" },
+  }) };
+  const ui = await boot(server, storage(), storage(), true, page);
+  ui.get("messageInput").value = "哪里错了？";
+  await ui.click("studyCode");
+  const draft = ui.get("messageInput").value;
+  assert.match(draft, /^哪里错了？/);
+  assert.match(draft, /def solve\(\):\n    print\(7\)/);
+  assert.match(draft, /当前输入\n4/);
+  assert.match(draft, /输出区\n7/);
+  assert.doesNotMatch(draft, /stale fallback/);
+  assert.equal(server.posts.length, 0);
+  await ui.submit(draft);
+  assert.equal(JSON.parse(server.posts[0].body).message, draft);
+}
+
 (async () => {
+  await editablePracticeReview();
   await lostDoneAndNewTurn();
   await frozenRetryAndReader();
   await reloadAndIsolation();

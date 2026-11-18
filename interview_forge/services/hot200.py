@@ -39,6 +39,21 @@ def content_key(pid):
     return f"{MODULE}:{pid:04d}"
 
 
+def study_notes(pid):
+    """Read bounded teaching facts from this catalog entry's published source."""
+    content_key(pid)
+    source = ROOT / f"books/hot200-extra/solutions/{pid}.md"
+    if not source.is_file():
+        return {}
+    markdown = source.read_text(encoding="utf-8-sig")
+    notes = {}
+    for key, heading in (("method", "思路"), ("invariant", "核心不变量"), ("complexity", "复杂度")):
+        match = re.search(r"^### " + heading + r"[ \t]*\r?\n\s*([^\r\n]+)", markdown, re.MULTILINE)
+        if match:
+            notes[key] = match[1].strip()[:240]
+    return notes
+
+
 def pin(db, pid):
     key = content_key(pid)
     tomorrow = (runtime.business_now().date() + timedelta(days=1)).isoformat()
@@ -299,6 +314,17 @@ def progress(db, pid):
             )
         ]
     return result
+
+
+def learning_fact(db, pid):
+    from interview_forge.services.native_acm import submission_summary
+
+    record = progress(db, pid)
+    fact = {key: record.get(key) for key in (
+        "rounds", "submits", "ac_submits", "mark", "last_submitted_at", "last_activity_at", "next_due",
+    )}
+    return dict(fact, problem_id=pid, title=catalog()[pid]["title"], catalog=MODULE,
+                native_acm=submission_summary(db, f"hot200-{pid}"))
 
 
 def plan(db, randomize):
