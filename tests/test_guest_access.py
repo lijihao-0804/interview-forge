@@ -26,7 +26,7 @@ class GuestAccessTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.client.close()
 
-    def _assert_code_focus_page(self, status: int, body: bytes) -> None:
+    def _assert_published_reader(self, status: int, body: bytes) -> None:
         self._assert_clean_focus_page(status, body)
         self.assertEqual(body.count(b"theme-toggle.js"), 1)
         self.assertIn(b'data-theme-control="focus-theme"', body)
@@ -40,15 +40,16 @@ class GuestAccessTests(unittest.TestCase):
             with self.subTest(asset=asset):
                 self.assertNotIn(asset, body)
 
-    def test_guest_can_open_code_focus_without_floating_widgets(self) -> None:
+    def test_old_bookmark_sends_guests_to_the_published_reader(self) -> None:
         page = self.client.get("/pages/code-focus.html", follow_redirects=False)
-        self._assert_code_focus_page(page.status_code, page.content)
+        self._assert_clean_focus_page(page.status_code, page.content)
+        self.assertIn('content="0; url=/pages/code-focus-live.html"', page.text)
 
     def test_published_code_reader_and_toolbox_editor_access(self) -> None:
         editor = "/pages/tools/code-focus.html"
         public = "/pages/code-focus-live.html"
         live = self.client.get(public, follow_redirects=False)
-        self._assert_clean_focus_page(live.status_code, live.content)
+        self._assert_published_reader(live.status_code, live.content)
         for user in (None, {"username": "student", "role": "user"}):
             with self.subTest(user=user), patch("interview_forge.api.routers.static.current_user", return_value=user):
                 self.assertEqual(self.client.get(editor, follow_redirects=False).status_code, 403)
@@ -176,11 +177,13 @@ class GuestAccessTests(unittest.TestCase):
 
                 connection.request("GET", "/pages/code-focus.html")
                 focus = connection.getresponse()
-                self._assert_code_focus_page(focus.status, focus.read())
+                old_page = focus.read()
+                self._assert_clean_focus_page(focus.status, old_page)
+                self.assertIn(b'content="0; url=/pages/code-focus-live.html"', old_page)
 
                 connection.request("GET", "/pages/code-focus-live.html")
                 live = connection.getresponse()
-                self._assert_clean_focus_page(live.status, live.read())
+                self._assert_published_reader(live.status, live.read())
 
                 connection.request("GET", "/pages/tools/code-focus.html")
                 editor = connection.getresponse()

@@ -11,6 +11,7 @@ PUBLIC_API_OPERATIONS: frozenset[tuple[str, str]] = frozenset({
     ("GET", "/api/health"),
     ("GET", "/api/catalog"),
     ("GET", "/api/code-focus/publication"),
+    ("GET", "/api/code-focus/publication/events"),
     ("GET", "/api/practice/hot100/problem/{key}"),
     ("GET", "/api/search"),
     ("GET", "/api/register/config"),
