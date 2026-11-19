@@ -66,6 +66,11 @@
     }
     rows = [];
     let lineText;
+    // These grammars leave ordinary calls and many operators as unscoped text.
+    // Keep the extra spans within typical snippets; large pastes retain native scopes.
+    const accentCalls = (syntax === "python" || syntax === "java") && text.length <= 32000;
+    // Consume other words whole so an identifier suffix cannot masquerade as a call.
+    const callOrOperator = /([$_\p{ID_Start}][$_\p{ID_Continue}]*)(?=[ \t]*\()|([!%&*+\-/<=>^|~]+)|[$_\p{ID_Continue}]+/gu;
     function newLine() {
       const row = document.createElement("div");
       row.className = "code-line";
@@ -88,8 +93,23 @@
       });
     }
     function walk(node, classes) {
-      if (node.nodeType === Node.TEXT_NODE) { appendText(node.data, classes); return; }
-      const nested = node.nodeName === "SPAN" ? (classes + " " + node.className).trim() : classes;
+      if (node.nodeType === Node.TEXT_NODE) {
+        const value = node.data;
+        if (accentCalls && (!classes || classes === "hljs-params")) {
+          let offset = 0;
+          for (const match of value.matchAll(callOrOperator)) {
+            if (!match[1] && !match[2]) continue;
+            appendText(value.slice(offset, match.index), classes);
+            appendText(match[0], match[1] ? "hljs-title function_" : "hljs-operator");
+            offset = match.index + match[0].length;
+          }
+          appendText(value.slice(offset), classes);
+        } else {
+          appendText(value, classes);
+        }
+        return;
+      }
+      const nested = node.nodeName === "SPAN" ? node.className || classes : classes;
       for (const child of node.childNodes) walk(child, nested);
     }
     newLine();
@@ -254,5 +274,7 @@
     }
   });
   window.addEventListener("resize", queueLayout);
+  const answerStrip = get("answer-strip");
+  if (answerStrip && window.ResizeObserver) new ResizeObserver(queueLayout).observe(answerStrip);
   document.fonts?.ready.then(queueLayout);
 })();
