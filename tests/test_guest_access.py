@@ -27,11 +27,14 @@ class GuestAccessTests(unittest.TestCase):
         self.client.close()
 
     def _assert_code_focus_page(self, status: int, body: bytes) -> None:
-        self.assertEqual(status, 200)
-        self.assertIn(b"navigation-policy.js", body)
+        self._assert_clean_focus_page(status, body)
         self.assertEqual(body.count(b"theme-toggle.js"), 1)
         self.assertIn(b'data-theme-control="focus-theme"', body)
         self.assertIn(b'<select id="focus-theme"', body)
+
+    def _assert_clean_focus_page(self, status: int, body: bytes) -> None:
+        self.assertEqual(status, 200)
+        self.assertIn(b"navigation-policy.js", body)
         for asset in (b"auth-widget.js", b"feedback-widget.js",
                       b"ai-launcher.js", b"ai-launcher.css", b"ai-page-context.js"):
             with self.subTest(asset=asset):
@@ -40,6 +43,23 @@ class GuestAccessTests(unittest.TestCase):
     def test_guest_can_open_code_focus_without_floating_widgets(self) -> None:
         page = self.client.get("/pages/code-focus.html", follow_redirects=False)
         self._assert_code_focus_page(page.status_code, page.content)
+
+    def test_published_code_reader_and_toolbox_editor_access(self) -> None:
+        editor = "/pages/tools/code-focus.html"
+        public = "/pages/code-focus-live.html"
+        live = self.client.get(public, follow_redirects=False)
+        self._assert_clean_focus_page(live.status_code, live.content)
+        for user in (None, {"username": "student", "role": "user"}):
+            with self.subTest(user=user), patch("interview_forge.api.routers.static.current_user", return_value=user):
+                self.assertEqual(self.client.get(editor, follow_redirects=False).status_code, 403)
+        admin = {"username": "admin", "role": "admin"}
+        with patch("interview_forge.api.routers.static.current_user", return_value=admin):
+            page = self.client.get(editor, follow_redirects=False)
+            self._assert_clean_focus_page(page.status_code, page.content)
+            toolbox = self.client.get("/pages/tools.html")
+            self.assertEqual(toolbox.status_code, 200)
+            self.assertIn(f'href="{editor}"', toolbox.text)
+            self.assertIn(f'href="{public}"', toolbox.text)
 
     def test_guest_can_browse_learning_content_but_me_never_redirects(self) -> None:
         for path in ("/cockpit.html", "/index.html", "/library/index.html"):
@@ -157,6 +177,15 @@ class GuestAccessTests(unittest.TestCase):
                 connection.request("GET", "/pages/code-focus.html")
                 focus = connection.getresponse()
                 self._assert_code_focus_page(focus.status, focus.read())
+
+                connection.request("GET", "/pages/code-focus-live.html")
+                live = connection.getresponse()
+                self._assert_clean_focus_page(live.status, live.read())
+
+                connection.request("GET", "/pages/tools/code-focus.html")
+                editor = connection.getresponse()
+                self.assertEqual(editor.status, 403)
+                editor.read()
 
                 connection.request("GET", "/api/me", headers={"Host": "127.0.0.1"})
                 me = connection.getresponse()

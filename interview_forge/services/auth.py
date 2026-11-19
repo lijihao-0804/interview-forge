@@ -256,6 +256,15 @@ CREATE TABLE IF NOT EXISTS site_settings (
     value TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS code_focus_publication (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    version INTEGER NOT NULL,
+    code TEXT NOT NULL,
+    language TEXT NOT NULL,
+    answers TEXT NOT NULL
+);
+INSERT OR IGNORE INTO code_focus_publication(id, version, code, language, answers)
+VALUES (1, 0, '', 'auto', '');
 """
 
 

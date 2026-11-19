@@ -21,6 +21,7 @@ from fastapi.responses import JSONResponse, Response
 from interview_forge.api.routers.health import router as health_router
 from interview_forge.api.routers.auth import router as auth_router
 from interview_forge.api.routers.catalog import router as catalog_router
+from interview_forge.api.routers.code_focus import router as code_focus_router
 from interview_forge.api.routers.admin import router as admin_router
 from interview_forge.api.routers.analytics import router as analytics_router
 from interview_forge.api.routers.community import router as community_router
@@ -309,6 +310,7 @@ async def request_observability(request, call_next):
 app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(catalog_router)
+app.include_router(code_focus_router)
 app.include_router(study_router)
 app.include_router(leetcode_router)
 app.include_router(analytics_router)

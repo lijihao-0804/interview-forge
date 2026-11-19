@@ -124,13 +124,17 @@ def invalidate_dashboard(db_path: Path) -> None:
     _invalidate_dashboard_cache(db_path)
 
 
-async def read_json(request: Request, *, max_length: int = 4096) -> dict[str, Any]:
+async def read_json(
+    request: Request, *, max_length: int = 4096, too_large_message: str | None = None
+) -> dict[str, Any]:
     """Match the legacy bounded JSON body contract without Pydantic coercion."""
     raw_length = request.headers.get("content-length", "0")
     try:
         length = int(raw_length)
     except (TypeError, ValueError) as exc:
         raise ApiError("请求大小不正确") from exc
+    if length > max_length and too_large_message:
+        raise ApiError(too_large_message, HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
     if length < 1 or length > max_length:
         raise ApiError("请求大小不正确")
     if request.headers.get("transfer-encoding"):

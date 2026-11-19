@@ -25,7 +25,7 @@ DELIVERED_ASSET_VERSIONS = {
     "ai-page-context.js": "4",
     "shelf-filters.js": "3",
 }
-SERVICE_WORKER_VERSION = "hot100-v50-20261119-focus-theme"
+SERVICE_WORKER_VERSION = "hot100-v51-20261119-focus-publication"
 
 
 def library_style_version(previous: str) -> str:
