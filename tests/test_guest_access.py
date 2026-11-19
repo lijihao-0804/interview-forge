@@ -29,7 +29,10 @@ class GuestAccessTests(unittest.TestCase):
     def _assert_code_focus_page(self, status: int, body: bytes) -> None:
         self.assertEqual(status, 200)
         self.assertIn(b"navigation-policy.js", body)
-        for asset in (b"theme-toggle.js", b"auth-widget.js", b"feedback-widget.js",
+        self.assertEqual(body.count(b"theme-toggle.js"), 1)
+        self.assertIn(b'data-theme-control="focus-theme"', body)
+        self.assertIn(b'<select id="focus-theme"', body)
+        for asset in (b"auth-widget.js", b"feedback-widget.js",
                       b"ai-launcher.js", b"ai-launcher.css", b"ai-page-context.js"):
             with self.subTest(asset=asset):
                 self.assertNotIn(asset, body)

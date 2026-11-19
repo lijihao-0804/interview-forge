@@ -16,6 +16,7 @@ DELIVERED_ASSET_VERSIONS = {
     "solution-progress.js": SOLUTION_PROGRESS_VERSION,
     "auth-widget.js": "9",
     "feedback-widget.js": "6",
+    "theme-toggle.js": "3",
     "guest-auth.js": "3",
     "ai-assistant.js": "20",
     "ai-assistant.css": "11",
@@ -24,7 +25,7 @@ DELIVERED_ASSET_VERSIONS = {
     "ai-page-context.js": "4",
     "shelf-filters.js": "3",
 }
-SERVICE_WORKER_VERSION = "hot100-v49-20261119-focus-answers"
+SERVICE_WORKER_VERSION = "hot100-v50-20261119-focus-theme"
 
 
 def library_style_version(previous: str) -> str:

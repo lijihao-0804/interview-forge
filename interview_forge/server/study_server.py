@@ -544,7 +544,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
     # 管理页与登录页不显示反馈悬浮按钮，避免遮挡页面自身的操作区。
     FEEDBACK_WIDGET_SKIP_PATHS = {"/pages/login.html", "/pages/register.html", "/pages/forgot-password.html", "/pages/account.html", "/pages/admin.html", "/pages/ai-assistant.html"}
     # 页面增强脚本清单（v 参数用于更新缓存）：导航策略/认证胶囊/反馈/主题切换。
-    WIDGET_SCRIPTS = ["/assets/navigation-policy.js?v=2", "/assets/role-display.js?v=1", "/assets/auth-widget.js?v=9", "/assets/feedback-widget.js?v=6", "/assets/theme-toggle.js?v=1"]
+    WIDGET_SCRIPTS = ["/assets/navigation-policy.js?v=2", "/assets/role-display.js?v=1", "/assets/auth-widget.js?v=9", "/assets/feedback-widget.js?v=6", "/assets/theme-toggle.js?v=3"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
@@ -1141,6 +1141,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
                 if not (
                     (s.startswith("/assets/auth-widget") and decoded_path in self.AUTH_WIDGET_SKIP_PATHS)
                     or (s.startswith("/assets/feedback-widget") and decoded_path in self.FEEDBACK_WIDGET_SKIP_PATHS)
+                    or (s.startswith("/assets/theme-toggle") and decoded_path == "/books/ai-exam/acm-playground.html")
                 )
             ]
         widget = "".join(f'<script src="{s}" defer></script>' for s in scripts).encode()

@@ -14,7 +14,7 @@ class Element {
   setAttribute(key, value) { this.attrs[key]=value; }
   getAttribute(key) { return this.attrs[key] || ''; }
 }
-async function setup(responses, {guest=false, mode='tokens', samples=3, search='?id=one&lang=python', saved=new Map(), progress={username:'alice',progress:{}}, missing=false, historyCalls=[]}={}) {
+async function setup(responses, {guest=false, mode='tokens', samples=3, search='?id=one&lang=python', saved=new Map(), progress={username:'alice',progress:{}}, missing=false, historyCalls=[], codeMirror}={}) {
   const elements = new Map();
   const get = id => { if(!elements.has(id)) elements.set(id,new Element()); return elements.get(id); };
   const item = {id:'one',title:'测试题',url:'one.html',suite_version:'test',checker:{mode,reason:'多解'},codes:{python:'print(1)',java:'public class Main {}'},samples:Array.from({length:samples},(_,i)=>({input:String(i),expected:String(i),name:'边界'+i,source:i?'supplemental':'statement'}))};
@@ -28,7 +28,12 @@ async function setup(responses, {guest=false, mode='tokens', samples=3, search='
   const events = {};
   const storage = {getItem:key=>saved.get(key) ?? null,setItem:(key,value)=>saved.set(key,String(value)),removeItem:key=>saved.delete(key)};
   const document = {readyState:'loading', documentElement:new Element(), getElementById:get, createElement:()=>new Element(), addEventListener:(n,cb)=>{events[n]=cb;if(n==='DOMContentLoaded')initialize=cb;}};
-  const window = {InterviewForgePracticeChecker:checker,InterviewForgeAcmTemplates:templates,addEventListener:(n,cb)=>{events[n]=cb;},matchMedia:()=>({matches:false}),setTimeout,clearTimeout,
+  const systemDark = new Element();
+  systemDark.matches = false;
+  const window = {CodeMirror:codeMirror,InterviewForgePracticeChecker:checker,InterviewForgeAcmTemplates:templates,addEventListener:(n,cb)=>{
+    const previous=events[n];
+    events[n]=previous ? (...args)=>Promise.all([previous(...args), cb(...args)]) : cb;
+  },matchMedia:()=>systemDark,setTimeout,clearTimeout,
     InterviewForgeAuth:{ready:true,requireUser:async()=>{prompts++;if(guest)throw Object.assign(Error('login'),{code:'AUTH_REQUIRED'});},fetchProtected:async(url,options)=>{
       requests.push(JSON.parse(options.body));
       const response=responses.shift();
@@ -36,7 +41,7 @@ async function setup(responses, {guest=false, mode='tokens', samples=3, search='
       if(response instanceof Error)throw response;
       return {ok:response.http==null || response.http===200,status:response.http||200,json:async()=>response};
     }}};
-  const sandbox = {window,document,localStorage:storage,sessionStorage:storage,location:{search,href:'https://test/acm'+search},history:{replaceState:()=>{}},URL,URLSearchParams,AbortController,Promise,Error,String,Number,Object,Array,setTimeout,clearTimeout,
+  const sandbox = {window,document,CodeMirror:codeMirror,localStorage:storage,sessionStorage:storage,location:{search,href:'https://test/acm'+search},history:{replaceState:()=>{}},URL,URLSearchParams,AbortController,Promise,Error,String,Number,Object,Array,setTimeout,clearTimeout,
     fetch:async url=>{
       if (url.includes('/history/')) {
         historyCalls.push(url);
@@ -54,9 +59,51 @@ async function setup(responses, {guest=false, mode='tokens', samples=3, search='
     el.value=value;
     el.listeners[event].call(el);
   }
-  return {get,requests,change,events,prompts:()=>prompts,click:async id=>get(id).listeners.click()};
+  return {get,requests,change,events,systemDark,root:document.documentElement,prompts:()=>prompts,click:async id=>get(id).listeners.click()};
 }
 (async()=>{
+  const themeStorage = new Map();
+  const codeMirror = {fromTextArea(field, options) {
+    codeMirror.options = options;
+    return {on() {}, setOption(key, value) { options[key] = value; },
+      setValue(value) { field.value = value; }, getValue() { return field.value; }};
+  }};
+  const acm = await setup([], {saved:themeStorage, codeMirror});
+  function expectTheme(theme) {
+    assert.equal(acm.root.getAttribute('data-theme'), theme);
+    assert.equal(codeMirror.options.theme, theme === 'light' ? 'eclipse' : 'material-darker');
+  }
+  expectTheme('light');
+  acm.systemDark.matches = true;
+  acm.systemDark.listeners.change();
+  expectTheme('dark');
+  assert(!themeStorage.has('forge-theme'), 'following the system preserves an unset preference');
+  await acm.click('theme-toggle');
+  expectTheme('light');
+  assert.equal(themeStorage.get('forge-theme'), 'light');
+  acm.systemDark.listeners.change();
+  expectTheme('light');
+  themeStorage.set('forge-theme', 'dark');
+  acm.events.storage({key:'forge-theme'});
+  expectTheme('dark');
+  acm.systemDark.matches = false;
+  themeStorage.set('forge-theme', 'system');
+  acm.events.pageshow();
+  expectTheme('light');
+  assert.equal(themeStorage.get('forge-theme'), 'system');
+  themeStorage.set('forge-theme', 'dark');
+  acm.events.pageshow();
+  expectTheme('dark');
+  themeStorage.clear();
+  acm.events.storage({key:null});
+  expectTheme('light');
+  const blockedStorage = {get() { throw Error('blocked'); }, set() { throw Error('blocked'); }};
+  const offline = await setup([], {saved:blockedStorage, search:''});
+  await offline.click('theme-toggle');
+  offline.events.pageshow();
+  offline.systemDark.listeners.change();
+  assert.equal(offline.root.getAttribute('data-theme'), 'dark');
+
   let ui=await setup([{status:'ok',stdout:'0'},{status:'ok',stdout:'999'},{status:'ok',stdout:'2'}]);
   assert.equal(ui.get('code-editor').value,'print(1)','opening a problem uses its actual solution');
   assert.equal(ui.get('template-select').hidden,true);

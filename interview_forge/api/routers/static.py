@@ -62,7 +62,7 @@ _WIDGET_SCRIPTS = (
     "/assets/navigation-policy.js?v=2",
     "/assets/role-display.js?v=1", f"/assets/auth-widget.js?v={DELIVERED_ASSET_VERSIONS['auth-widget.js']}",
     f"/assets/feedback-widget.js?v={DELIVERED_ASSET_VERSIONS['feedback-widget.js']}",
-    "/assets/theme-toggle.js?v=2",
+    f"/assets/theme-toggle.js?v={DELIVERED_ASSET_VERSIONS['theme-toggle.js']}",
     f"/assets/ai-page-context.js?v={DELIVERED_ASSET_VERSIONS['ai-page-context.js']}",
     f"/assets/ai-launcher.js?v={DELIVERED_ASSET_VERSIONS['ai-launcher.js']}",
 )

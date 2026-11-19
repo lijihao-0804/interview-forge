@@ -5,6 +5,9 @@
   "use strict";
   if (document.getElementById("forge-theme-btn")) return;
   var KEY = "forge-theme";
+  var controlId = document.currentScript && document.currentScript.getAttribute("data-theme-control");
+  var systemScheme = controlId && window.matchMedia("(prefers-color-scheme: dark)");
+  var btn, select, currentMode = "system";
   var MODES = [
     { v: "system", icon: "💻", label: "主题：跟随系统（点击切换浅色）" },
     { v: "light", icon: "☀️", label: "主题：浅色（点击切换深色）" },
@@ -12,40 +15,57 @@
   ];
 
   function stored() {
-    var v = null;
-    try { v = localStorage.getItem(KEY); } catch (e) { }
-    return MODES.some(function (m) { return m.v === v; }) ? v : "system";
+    try { return localStorage.getItem(KEY); } catch (e) { return currentMode; }
   }
 
   function apply(mode, persist) {
+    mode = mode === "light" || mode === "dark" ? mode : "system";
+    currentMode = mode;
     var root = document.documentElement;
     if (mode === "light" || mode === "dark") root.setAttribute("data-theme", mode);
     else root.removeAttribute("data-theme");
+    if (systemScheme) root.toggleAttribute("data-system-dark", systemScheme.matches);
     if (persist !== false) try { localStorage.setItem(KEY, mode); } catch (e) { }
-    paint(mode);
+    if (select) select.value = mode;
+    if (btn) {
+      var m = MODES.find(function (x) { return x.v === mode; });
+      btn.textContent = m.icon;
+      btn.title = m.label;
+    }
   }
 
-  function paint(mode) {
-    var m = MODES.filter(function (x) { return x.v === mode; })[0] || MODES[0];
-    btn.textContent = m.icon;
-    btn.title = m.label;
+  if (controlId) {
+    // This page loads the script before its stylesheet to apply the saved palette on first paint.
+    function bindSelect() {
+      select = document.getElementById(controlId);
+      if (!select) return;
+      select.value = currentMode;
+      select.addEventListener("change", function () { apply(select.value); });
+    }
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bindSelect, { once: true });
+    else bindSelect();
+    var systemChanged = function () { apply(currentMode, false); };
+    if (systemScheme.addEventListener) systemScheme.addEventListener("change", systemChanged);
+    else systemScheme.addListener(systemChanged);
+  } else {
+    var embedded = new URLSearchParams(window.location.search).get("embedded") === "1";
+    btn = document.createElement("button");
+    btn.type = "button";
+    btn.setAttribute("aria-label", "切换主题");
+    btn.id = "forge-theme-btn";
+    btn.style.cssText = "position:fixed;left:16px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:9998;width:34px;height:34px;" +
+      "border-radius:50%;border:1px solid #dfe4ee;background:rgba(255,255,255,.92);cursor:pointer;" +
+      "display:flex;align-items:center;justify-content:center;padding:0;font-size:15px;user-select:none;" +
+      "box-shadow:0 6px 18px rgba(33,45,73,.14);transition:transform .15s";
+    btn.onclick = function () { apply(MODES[(MODES.findIndex(function (m) { return m.v === currentMode; }) + 1) % MODES.length].v); };
+    if (!embedded) document.body.appendChild(btn);
   }
 
-  var embedded = new URLSearchParams(window.location.search).get("embedded") === "1";
-  var btn = document.createElement("button");
-  btn.type = "button";
-  btn.setAttribute("aria-label", "切换主题");
-  btn.id = "forge-theme-btn";
-  btn.style.cssText = "position:fixed;left:16px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:9998;width:34px;height:34px;" +
-    "border-radius:50%;border:1px solid #dfe4ee;background:rgba(255,255,255,.92);cursor:pointer;" +
-    "display:flex;align-items:center;justify-content:center;padding:0;font-size:15px;user-select:none;" +
-    "box-shadow:0 6px 18px rgba(33,45,73,.14);transition:transform .15s";
-  btn.onclick = function () { apply(MODES[(MODES.findIndex(function (m) { return m.v === stored(); }) + 1) % MODES.length].v); };
-
-  // 首帧：先按系统/存储值上色，避免闪烁。嵌入页只同步主题，不渲染悬浮按钮。
   apply(stored(), false);
-  if (!embedded) document.body.appendChild(btn);
   window.addEventListener("storage", function (event) {
-    if (event.key === KEY) apply(event.newValue || "system", false);
+    if (event.key === KEY || event.key === null) apply(stored(), false);
+  });
+  window.addEventListener("pageshow", function (event) {
+    if (event.persisted) apply(stored(), false);
   });
 })();

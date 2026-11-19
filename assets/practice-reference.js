@@ -279,20 +279,40 @@
   function setEditorLanguage(language) {
     if (editor) editor.setOption('mode', language === 'java' ? 'text/x-java' : 'python');
   }
-  function setTheme(theme) {
-    document.documentElement.setAttribute('data-theme', theme);
-    try { localStorage.setItem(THEME_KEY, theme); } catch (_) {}
-    if (editor) editor.setOption('theme', theme === 'light' ? 'eclipse' : 'material-darker');
+  function editorTheme() {
+    return document.documentElement.getAttribute('data-theme') === 'light' ? 'eclipse' : 'material-darker';
   }
   function initTheme() {
     var button = $('theme-toggle');
-    if (!button) return;
-    if (!document.documentElement.getAttribute('data-theme')) {
-      setTheme(window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+    var systemDark = window.matchMedia('(prefers-color-scheme: dark)');
+    var pagePreference = null;
+    function syncTheme() {
+      var theme = pagePreference;
+      if (!theme) {
+        try { theme = localStorage.getItem(THEME_KEY); } catch (_) {}
+      }
+      if (theme !== 'light' && theme !== 'dark') theme = systemDark.matches ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', theme);
+      if (editor) editor.setOption('theme', editorTheme());
     }
-    button.addEventListener('click', function () {
-      setTheme(document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light');
+    syncTheme();
+    if (button) button.addEventListener('click', function () {
+      var theme = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+      try {
+        localStorage.setItem(THEME_KEY, theme);
+        pagePreference = null;
+      } catch (_) { pagePreference = theme; }
+      syncTheme();
     });
+    window.addEventListener('pageshow', syncTheme);
+    window.addEventListener('storage', function (event) {
+      if (event.key !== THEME_KEY && event.key !== null) return;
+      if (event.storageArea && event.storageArea !== localStorage) return;
+      pagePreference = null;
+      syncTheme();
+    });
+    if (systemDark.addEventListener) systemDark.addEventListener('change', syncTheme);
+    else if (systemDark.addListener) systemDark.addListener(syncTheme);
   }
   function setRuntimeStatus(text, state) {
     var status = $('runtime-status');
@@ -731,7 +751,7 @@
       editor = CodeMirror.fromTextArea($('code-editor'), {
         mode: 'python',
         screenReaderLabel: '代码编辑器',
-        theme: document.documentElement.getAttribute('data-theme') === 'light' ? 'eclipse' : 'material-darker',
+        theme: editorTheme(),
         lineNumbers: true,
         indentUnit: 4,
         tabSize: 4,
@@ -789,8 +809,8 @@
   async function init() {
     running = true;
     setBusy(true);
-    await refreshContext();
     initTheme();
+    await refreshContext();
     if (queryId() && !context) {
       $('context-notice').textContent = '题目不存在或用例未能载入。请检查链接或刷新页面重试。';
       $('context-notice').hidden = false;

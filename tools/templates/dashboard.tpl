@@ -9,7 +9,7 @@
 <meta name="theme-color" content="#5654d4">
 <script src="assets/time-utils.js?v=2"></script>
 <script src="assets/navigation-policy.js?v=2" defer></script>
-<script src="assets/theme-toggle.js?v=2" defer></script>
+<script src="assets/theme-toggle.js?v=3" defer></script>
 <script src="assets/guest-auth.js?v=2"></script>
 <link rel="stylesheet" href="assets/uplot.min.css?v=__ASSET_VERSION__">
 <style>

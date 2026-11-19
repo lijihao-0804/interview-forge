@@ -40,14 +40,6 @@
     queueLayout();
   }
 
-  function syncTheme() {
-    try {
-      const theme = localStorage.getItem("forge-theme");
-      if (theme === "dark" || theme === "light") document.documentElement.dataset.theme = theme;
-      else delete document.documentElement.dataset.theme;
-    } catch { /* CSS follows the system theme. */ }
-  }
-
   // A highlighted string can span several original lines. Walk its text nodes
   // and carry token classes across newlines, keeping one readable row per line.
   function renderSource() {
@@ -225,8 +217,6 @@
       back.setAttribute("aria-label", back.title);
     }
   }
-  syncTheme();
-  window.addEventListener("storage", event => { if (event.key === "forge-theme") syncTheme(); });
   try {
     const stored = Number.parseInt(localStorage.getItem(fontKey), 10);
     if (Number.isFinite(stored)) size = stored;
