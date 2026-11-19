@@ -25,6 +25,7 @@ from interview_forge.core.web_access import (
     is_public_get,
     is_sensitive_path,
     target_relative_path,
+    uses_navigation_only,
 )
 from interview_forge.services.catalog import load_library_manifest
 from interview_forge.services.study import record_content_view, record_view
@@ -222,7 +223,7 @@ def _inject_html(path: str, body: bytes, *, embedded: bool = False) -> bytes:
                 style = b'<link rel="stylesheet" href="/assets/research-report.css?v=20261118-layout">'
                 return body[:main] + style + navigation + body[main:]
         return body[:end + 1] + navigation + body[end + 1:] if end >= 0 else body
-    navigation_only = path.startswith("/books/hot100/05-可视化/")
+    navigation_only = uses_navigation_only(path)
     embedded_assistant = path == "/pages/ai-assistant.html" and embedded
     # ?embedded=1：页面被本站 iframe 内嵌（如“重要通知”壳页的子页）。此时只保留导航策略，
     # 认证胶囊/反馈球/AI 启动器均不注入，否则外层壳页与 iframe 内会各有一套 fixed

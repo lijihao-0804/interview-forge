@@ -19,6 +19,7 @@ def hot200_demo_embed_url(path: str, embed: str | None) -> bool:
     return embed == "1" and path.startswith("/library/hot200-extra/demos/") and path.endswith(".html")
 
 
+CODE_FOCUS_PATH = "/pages/code-focus.html"
 PUBLIC_FILES = frozenset({
     "/research/market", "/research/jobs", "/research/communications",
     "/docs/面试准备/项目面试报告.html",
@@ -34,6 +35,7 @@ PUBLIC_FILES = frozenset({
     "/pages/register.html",
     "/pages/forgot-password.html",
     "/pages/account.html",
+    CODE_FOCUS_PATH,
 }) | frozenset(path for _method, path in PUBLIC_API_OPERATIONS)
 RESEARCH_PREFIXES = ("/research/market/", "/research/jobs/", "/research/communications/")
 PUBLIC_PREFIXES = ("/assets/", "/books/", "/library/", *RESEARCH_PREFIXES)
@@ -52,6 +54,11 @@ _DENIED_SUFFIXES = (
     ".key", ".pem", ".p12", ".pfx", ".bak", ".backup", ".dump",
     ".sql", ".py", ".pyc", ".log", ".env",
 )
+
+
+def uses_navigation_only(path: str) -> bool:
+    """Keep floating controls off standalone code readers and Hot 100 animations."""
+    return path.casefold() == CODE_FOCUS_PATH or path.startswith("/books/hot100/05-可视化/")
 
 
 def canonical_url_path(value: str) -> str | None:

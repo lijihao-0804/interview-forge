@@ -295,6 +295,7 @@ from interview_forge.core.web_access import (
     is_public_get,
     is_sensitive_path,
     target_relative_path,
+    uses_navigation_only,
 )
 from interview_forge.runtime.task_manager import task_manager
 from interview_forge.services.catalog import public_catalog
@@ -1117,7 +1118,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
             )
             if self.serve_html_with_widget(
                 decoded_path,
-                navigation_only=embedded or decoded_path.startswith("/books/hot100/05-可视化/"),
+                navigation_only=embedded or uses_navigation_only(decoded_path),
             ):
                 return
         super().do_GET()

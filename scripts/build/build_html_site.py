@@ -88,7 +88,7 @@ SHARED_ASSET_VERSIONS = {
     "term-tooltip.js": ASSET_VERSION,
     "register-flow.js": "5",
     "email-captcha.js": "2",
-    "practice-reference.js": "7",
+    "practice-reference.js": "12",
     "practice-checker.js": "1",
 }
 SHARED_ASSET_VERSION_ROOTS = (ROOT / "books", ROOT / "library")

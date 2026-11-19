@@ -24,7 +24,7 @@ DELIVERED_ASSET_VERSIONS = {
     "ai-page-context.js": "4",
     "shelf-filters.js": "3",
 }
-SERVICE_WORKER_VERSION = "hot100-v47-20261118-embedded-navigation"
+SERVICE_WORKER_VERSION = "hot100-v48-20261119-code-focus"
 
 
 def library_style_version(previous: str) -> str:

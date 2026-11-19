@@ -838,6 +838,17 @@
       });
     }
     $('reset-btn').addEventListener('click', function () { setSample(currentSampleIndex); });
+    var codeFocusLink = $('code-focus-link');
+    if (codeFocusLink) codeFocusLink.addEventListener('click', function (event) {
+      if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      saveDraft();
+      try {
+        sessionStorage.setItem('hot100.codeFocus.transfer', JSON.stringify({ code: getCode(), language: currentLanguage }));
+      } catch (_) {
+        event.preventDefault();
+        location.assign(codeFocusLink.href + '?transfer=unavailable');
+      }
+    });
     $('save-code-btn').addEventListener('click', function () {
       var code = getCode();
       var blob = new Blob([code], { type: 'text/plain;charset=utf-8' });

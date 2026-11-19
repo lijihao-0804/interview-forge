@@ -26,6 +26,18 @@ class GuestAccessTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.client.close()
 
+    def _assert_code_focus_page(self, status: int, body: bytes) -> None:
+        self.assertEqual(status, 200)
+        self.assertIn(b"navigation-policy.js", body)
+        for asset in (b"theme-toggle.js", b"auth-widget.js", b"feedback-widget.js",
+                      b"ai-launcher.js", b"ai-launcher.css", b"ai-page-context.js"):
+            with self.subTest(asset=asset):
+                self.assertNotIn(asset, body)
+
+    def test_guest_can_open_code_focus_without_floating_widgets(self) -> None:
+        page = self.client.get("/pages/code-focus.html", follow_redirects=False)
+        self._assert_code_focus_page(page.status_code, page.content)
+
     def test_guest_can_browse_learning_content_but_me_never_redirects(self) -> None:
         for path in ("/cockpit.html", "/index.html", "/library/index.html"):
             with self.subTest(path=path):
@@ -138,6 +150,10 @@ class GuestAccessTests(unittest.TestCase):
                 page = connection.getresponse()
                 self.assertEqual(page.status, 200)
                 page.read()
+
+                connection.request("GET", "/pages/code-focus.html")
+                focus = connection.getresponse()
+                self._assert_code_focus_page(focus.status, focus.read())
 
                 connection.request("GET", "/api/me", headers={"Host": "127.0.0.1"})
                 me = connection.getresponse()
