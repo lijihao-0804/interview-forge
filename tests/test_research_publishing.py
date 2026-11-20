@@ -70,6 +70,27 @@ def test_sqlite_link_is_updated_without_rewriting_the_frozen_page():
     assert b'data/jobs.sqlite.zip' not in original
 
 
+def test_autumn_report_navigation_and_public_downloads(client):
+    from interview_forge.core.paths import ROOT
+    response = client.get("/research/autumn-2027?city=保定", follow_redirects=False)
+    assert response.status_code == 307
+    assert response.headers["location"].startswith("/research/autumn-2027/?city=")
+    for path in ("/research/autumn-2027/", "/research/market/", "/research/market/report.html"):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert 'href="/research/autumn-2027/"' in response.text
+        assert "no-cache" in response.headers["cache-control"]
+    methods = client.get("/research/autumn-2027/methods.html")
+    assert 'href="data/cases.json" download' in methods.text
+    download = client.get("/research/autumn-2027/data/cases.json")
+    assert download.status_code == 200
+    assert "application/json" in download.headers["content-type"]
+    assert download.headers["cache-control"] == "no-store"
+    assert download.content == (ROOT / "research/autumn-2027/data/cases.json").read_bytes()
+    for path in (".env", "data/auth.db", "collector.py"):
+        assert client.get("/research/autumn-2027/" + path).status_code == 404
+
+
 def test_source_copy_uses_the_complete_dashboard(client):
     response = client.get("/library/communications-research/maintained_sources/frontend_src/index.html?topic=通信",
                           follow_redirects=False)

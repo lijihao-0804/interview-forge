@@ -23,7 +23,7 @@ CODE_FOCUS_PATH = "/pages/code-focus.html"
 CODE_FOCUS_LIVE_PATH = "/pages/code-focus-live.html"
 CODE_FOCUS_EDITOR_PATH = "/pages/tools/code-focus.html"
 PUBLIC_FILES = frozenset({
-    "/research/market", "/research/jobs", "/research/communications",
+    "/research/market", "/research/jobs", "/research/communications", "/research/autumn-2027",
     "/docs/面试准备/项目面试报告.html",
     "/",
     "/index.html",
@@ -40,7 +40,7 @@ PUBLIC_FILES = frozenset({
     CODE_FOCUS_PATH,
     CODE_FOCUS_LIVE_PATH,
 }) | frozenset(path for _method, path in PUBLIC_API_OPERATIONS)
-RESEARCH_PREFIXES = ("/research/market/", "/research/jobs/", "/research/communications/")
+RESEARCH_PREFIXES = ("/research/market/", "/research/jobs/", "/research/communications/", "/research/autumn-2027/")
 PUBLIC_PREFIXES = ("/assets/", "/books/", "/library/", *RESEARCH_PREFIXES)
 PUBLIC_DOCUMENTS = frozenset({
     "/docs/qa-report.html",

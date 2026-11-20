@@ -69,7 +69,7 @@ _WIDGET_SCRIPTS = (
 _AUTH_WIDGET_SKIP = {"/pages/login.html", "/pages/register.html", "/pages/forgot-password.html", "/pages/account.html", "/pages/admin.html", "/pages/ai-assistant.html"}
 _FEEDBACK_WIDGET_SKIP = {"/pages/login.html", "/pages/register.html", "/pages/forgot-password.html", "/pages/account.html", "/pages/admin.html", "/pages/ai-assistant.html"}
 _AI_LAUNCHER_SKIP = {"/pages/login.html", "/pages/register.html", "/pages/forgot-password.html", "/pages/account.html", "/pages/admin.html", "/pages/ai-assistant.html"}
-_RESEARCH_APPS = ("/library/ai-employment-research/", "/library/communications-research/", "/research/market/")
+_RESEARCH_APPS = ("/library/ai-employment-research/", "/library/communications-research/", "/research/market/", "/research/autumn-2027/")
 
 
 # 内容页 404 的品牌化兜底页：只给浏览器（Accept: text/html）返回；
@@ -188,6 +188,7 @@ def _inject_html(path: str, body: bytes, *, embedded: bool = False) -> bytes:
         navigation = (
             '<nav aria-label="就业研究导航" style="display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;min-height:44px;padding:8px clamp(16px,3vw,48px);font:14px/1.6 system-ui">'
             '<a href="/library/index.html" style="color:inherit">← 返回学习书架</a>'
+            '<a href="/research/autumn-2027/" style="color:inherit">2027 届秋招实况 · 11 月 20 日</a>'
             '<a href="/research/market/" style="color:inherit">广覆盖就业研究</a>'
             '<a href="/research/jobs/" style="color:inherit">历史：AI 就业数据台</a>'
             '<a href="/research/communications/" style="color:inherit">历史：通信工程专题</a></nav>'
@@ -199,6 +200,9 @@ def _inject_html(path: str, body: bytes, *, embedded: bool = False) -> bytes:
             # The public analysis export is separate from application databases.
             body = body.replace(b"data/jobs.sqlite", b"data/jobs.sqlite.zip")
             body = body.replace(b">SQLite</a>", ">SQLite（ZIP）</a>".encode())
+        elif path.startswith("/research/autumn-2027/"):
+            # Save the supplied JSON rather than navigating away from the report.
+            body = re.sub(rb'(<a\b[^>]*\bhref=[\x22\x27]data/[^\x22\x27]+\.json[\x22\x27])', rb'\1 download', body)
         else:
             scope = "通信工程与通信专业组" if path.startswith("/library/communications-research/") else "AI应用与智能体开发"
             links = (
@@ -316,10 +320,10 @@ def static_path(request: Request, path: str):
             tail = decoded[len(alias):].lstrip("/") or "index.html"
             query = f"?{request.url.query}" if request.url.query else ""
             return RedirectResponse(destination + quote(tail, safe="/") + query, status_code=307, headers={"Cache-Control": "no-store"})
-    if decoded == "/research/market":
+    if decoded in ("/research/market", "/research/autumn-2027"):
         if not request.url.path.endswith("/"):
             query = f"?{request.url.query}" if request.url.query else ""
-            return RedirectResponse("/research/market/" + query, status_code=307, headers={"Cache-Control": "no-store"})
+            return RedirectResponse(decoded + "/" + query, status_code=307, headers={"Cache-Control": "no-store"})
         decoded += "/index.html"
     if decoded == "/":
         return RedirectResponse("/cockpit.html", status_code=307, headers={"Cache-Control": "no-store"})
