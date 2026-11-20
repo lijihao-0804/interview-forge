@@ -28,6 +28,7 @@ import sqlite3
 import subprocess
 import sys
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -45,11 +46,10 @@ RUN_EARLIEST = (8, 0)
 JOB_SUBPROCESS_TIMEOUT_SECONDS = 35 * 60
 JOB_RUNNING_STALE_GRACE_SECONDS = 5 * 60
 JOB_MAX_ATTEMPTS = 3
-# 重试间隔（在「导航超时就地重试」之外，任务级的兜底重试）：
-# 放号后十来分钟站点都处在过载状态（2026-10-15 两个任务的三次尝试全落在 08:00~08:12，
-# 全部倒在页面导航超时）。改为 4/6 分钟：既能较早做第二次、第三次兜底，又能避开
-# 08:00 那一刻的绝对高峰。配合 robust_goto 的就地重试，多数任务可在 08:04 前成功。
-JOB_RETRY_DELAYS_SECONDS = (4 * 60, 6 * 60)
+MAX_CONCURRENT_JOBS = 4
+# 明确发生在预约提交前的瞬时错误采用短退避。订单状态不明确时不会自动重试。
+JOB_RETRY_DELAYS_SECONDS = (60, 120)
+SCHEDULER_POLL_SECONDS = 5
 MAX_SLOTS_PER_JOB = 6
 SUPPORTED_VENUES = frozenset({"129", "162"})
 SLOT_PATTERN = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d-(?:[01]\d|2[0-3]):[0-5]\d$")
@@ -989,7 +989,15 @@ def _claim_due_jobs(today_iso: str) -> list[dict]:
                 # 先建先跑：按创建时间领取，串行执行时顺序就是排队顺序。
                 "SELECT * FROM gym_jobs WHERE status='pending' ORDER BY created_at, id"
             ).fetchall()
+            active_users = {
+                row["created_by"]
+                for row in conn.execute(
+                    "SELECT created_by FROM gym_jobs WHERE status='running'"
+                ).fetchall()
+            }
             for row in rows:
+                if len(claimed) >= MAX_CONCURRENT_JOBS:
+                    break
                 if row["target_date"] < today_iso:
                     conn.execute(
                         "UPDATE gym_jobs SET status='failed', updated_at=?,"
@@ -999,6 +1007,8 @@ def _claim_due_jobs(today_iso: str) -> list[dict]:
                     expired.append(_row_to_dict(row))
                     continue
                 if row["target_date"] != today_iso:
+                    continue
+                if row["created_by"] in active_users:
                     continue
                 result = _row_to_dict(row).get("result") or {}
                 if not _retry_is_due(result, now):
@@ -1010,6 +1020,7 @@ def _claim_due_jobs(today_iso: str) -> list[dict]:
                 )
                 if cur.rowcount == 1:
                     claimed.append(_row_to_dict(row))
+                    active_users.add(row["created_by"])
             conn.commit()
         finally:
             conn.close()
@@ -1170,11 +1181,13 @@ def _run_job_subprocess(job: dict) -> tuple[str, dict]:
 
 
 def _run_due_jobs(today_iso: str) -> int:
-    """领取到点的任务并逐个执行；返回本轮执行了几个。调用方须持有执行锁。"""
-    executed = 0
-    for job in _claim_due_jobs(today_iso):
-        executed += 1
-        log.info("执行自动预约任务 #%s（%s %s）", job["id"], job["target_date"], job["slots"])
+    """领取不超过四个不同用户的任务并发执行；调用方须持有执行锁。"""
+    jobs = _claim_due_jobs(today_iso)
+    if not jobs:
+        return 0
+
+    def execute(job: dict) -> None:
+        log.info("执行自动预约任务 #%s（创建者 %s）", job["id"], job["created_by"])
         try:
             status, result = _run_job_subprocess(job)
         except subprocess.TimeoutExpired:
@@ -1183,20 +1196,23 @@ def _run_due_jobs(today_iso: str) -> int:
         except Exception as exc:  # noqa: BLE001
             status, result = "failed", {"detail": f"执行异常：{exc}"}
         if _defer_transient_retry(job, status, result):
-            continue
+            return
         _finish_job(job["id"], status, result)
         notify_job_result(job, status, result)
         log.info("任务 #%s 完成：%s %s", job["id"], status, result.get("detail", "")[:120])
-    return executed
+
+    with ThreadPoolExecutor(max_workers=MAX_CONCURRENT_JOBS, thread_name_prefix="gym-job") as executor:
+        futures = [executor.submit(execute, job) for job in jobs]
+        for future in futures:
+            future.result()
+    return len(jobs)
 
 
 def _run_scheduled_batch(today_iso: str) -> int:
-    """串行跑一轮到点任务；已有任务在执行时返回 -1（本轮跳过）。
+    """并发执行到点任务，最多四位不同用户；已有调度器持锁时返回 -1。
 
-    预约子进程彼此串行：多个 worker 共用一把跨进程执行锁，同一时刻只允许一个任务
-    在跑。几个任务同时登录、同时加载场馆页会把站点拖慢到 8 秒页面超时——2026-10-14
-    三个用户的任务同时在 08:00 出发，前两次尝试全部因此失败。任务按创建时间领取，
-    先建先跑；拿不到锁的 worker 直接跳过本轮，下一轮再试。
+    所有 Web worker 共用执行锁，锁内用固定大小的线程池启动独立预约子进程。
+    每批按创建顺序领取最多四个任务，同一用户不会同时运行多个任务。
     """
     acquired = False
     try:
@@ -1218,7 +1234,7 @@ def _scheduler_loop() -> None:
             _run_scheduled_batch(today_iso)
         except Exception:  # noqa: BLE001
             log.exception("调度循环异常")
-        _scheduler_stop.wait(30)
+        _scheduler_stop.wait(SCHEDULER_POLL_SECONDS)
     log.info("健身房预约调度线程已停止")
 
 

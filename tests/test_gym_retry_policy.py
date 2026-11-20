@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import tempfile
 import contextlib
+import threading
 import unittest
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -199,11 +200,11 @@ class GymSchedulerRetryPolicyTests(unittest.TestCase):
         self.assertFalse(gym_automation._retryable_before_submission(
             RuntimeError("南大账号或密码不正确")))
 
-    def test_retry_backoff_grows_so_the_last_attempt_misses_the_0800_rush(self) -> None:
-        self.assertEqual(gym.JOB_RETRY_DELAYS_SECONDS, (4 * 60, 6 * 60))
+    def test_retry_backoff_is_short_and_increases(self) -> None:
+        self.assertEqual(gym.JOB_RETRY_DELAYS_SECONDS, (60, 120))
         now = datetime(2026, 10, 12, 8, 0, tzinfo=gym.SHANGHAI)
 
-        for attempt, minutes in ((1, 4), (2, 6)):
+        for attempt, seconds in ((1, 60), (2, 120)):
             with self.subTest(attempt=attempt):
                 job = {"id": 90, "result": ({} if attempt == 1 else {"attempt": attempt})}
                 with patch.object(gym, "_finish_job") as finish, \
@@ -214,7 +215,7 @@ class GymSchedulerRetryPolicyTests(unittest.TestCase):
                 stored = finish.call_args.args[2]
                 self.assertEqual(
                     stored["retry_after"],
-                    (now + timedelta(minutes=minutes)).isoformat(timespec="seconds"))
+                    (now + timedelta(seconds=seconds)).isoformat(timespec="seconds"))
 
     def test_retry_deadline_is_respected(self) -> None:
         now = datetime(2026, 10, 12, 8, 0, tzinfo=gym.SHANGHAI)
@@ -268,8 +269,8 @@ class GymSchedulerRetryPolicyTests(unittest.TestCase):
         self.assertIn("3 次", result["detail"])
 
 
-class GymSerialExecutionTests(unittest.TestCase):
-    """到点任务串行执行，并按创建时间先来先跑。"""
+class GymParallelExecutionTests(unittest.TestCase):
+    """到点任务最多四个并发，并按创建时间先领取。"""
 
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
@@ -279,14 +280,15 @@ class GymSerialExecutionTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.today = datetime.now(gym.SHANGHAI).date().isoformat()
 
-    def _insert_pending(self, created_at: str) -> int:
+    def _insert_pending(self, created_at: str, created_by: str | None = None) -> int:
         conn = gym.connect()
         try:
             cur = conn.execute(
                 "INSERT INTO gym_jobs (target_date, slots, venue, status, created_by,"
                 " created_at, updated_at, result)"
                 " VALUES (?, ?, ?, 'pending', ?, ?, ?, '{}')",
-                (self.today, '["17:00-18:00"]', "129", "someone", created_at, created_at),
+                (self.today, '["17:00-18:00"]', "129", created_by or created_at,
+                 created_at, created_at),
             )
             conn.commit()
             return int(cur.lastrowid)
@@ -305,6 +307,46 @@ class GymSerialExecutionTests(unittest.TestCase):
         earlier = self._insert_pending(f"{self.today}T09:10:00+08:00")  # id 更大、创建更早
         self.assertGreater(earlier, later, "前提：先插入的那条 id 更小")
         self.assertEqual([j["id"] for j in self._claim_at_9am()], [earlier, later])
+
+    def test_claims_at_most_four_distinct_users_per_batch(self) -> None:
+        ids = [self._insert_pending(f"{self.today}T09:{minute:02d}:00+08:00")
+               for minute in range(10, 16)]
+        claimed = self._claim_at_9am()
+        self.assertEqual([job["id"] for job in claimed], ids[:gym.MAX_CONCURRENT_JOBS])
+        self.assertEqual(gym.MAX_CONCURRENT_JOBS, 4)
+
+    def test_same_user_has_only_one_active_job_in_a_batch(self) -> None:
+        first = self._insert_pending(f"{self.today}T09:10:00+08:00", "same-user")
+        second = self._insert_pending(f"{self.today}T09:11:00+08:00", "same-user")
+        conn = gym.connect()
+        try:
+            conn.execute("UPDATE gym_jobs SET venue='162' WHERE id=?", (second,))
+            conn.commit()
+        finally:
+            conn.close()
+        self.assertEqual([job["id"] for job in self._claim_at_9am()], [first])
+
+    def test_batch_executes_claimed_jobs_concurrently(self) -> None:
+        for minute in range(10, 15):
+            self._insert_pending(f"{self.today}T09:{minute:02d}:00+08:00")
+        barrier = threading.Barrier(4)
+
+        def simulate(job):
+            barrier.wait(timeout=5)
+            return "succeeded", {"status": "succeeded", "detail": "simulated"}
+
+        with patch.object(gym, "_run_job_subprocess", side_effect=simulate), patch.object(
+            gym, "notify_job_result"
+        ):
+            self.assertEqual(gym._run_due_jobs(self.today), 4)
+
+        conn = gym.connect()
+        try:
+            statuses = [row[0] for row in conn.execute(
+                "SELECT status FROM gym_jobs ORDER BY id").fetchall()]
+        finally:
+            conn.close()
+        self.assertEqual(statuses, ["succeeded"] * 4 + ["pending"])
 
     def test_batch_skips_when_another_worker_holds_the_execution_lock(self) -> None:
         with patch.object(gym, "_run_due_jobs") as run, \
