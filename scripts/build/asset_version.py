@@ -14,7 +14,7 @@ DELIVERED_ASSET_VERSIONS = {
     "library.css": LIBRARY_CSS_VERSION,
     "site.js": SITE_JS_VERSION,
     "solution-progress.js": SOLUTION_PROGRESS_VERSION,
-    "auth-widget.js": "9",
+    "auth-widget.js": "10",
     "feedback-widget.js": "6",
     "theme-toggle.js": "3",
     "guest-auth.js": "3",
@@ -25,7 +25,7 @@ DELIVERED_ASSET_VERSIONS = {
     "ai-page-context.js": "4",
     "shelf-filters.js": "3",
 }
-SERVICE_WORKER_VERSION = "hot100-v52-20261119-manual-publish"
+SERVICE_WORKER_VERSION = "hot100-v53-20261121-auth-snapshot"
 
 
 def library_style_version(previous: str) -> str:

@@ -133,7 +133,11 @@ def _security_headers(path: str) -> dict[str, str]:
     elif suffix.endswith((".html", ".json", ".webmanifest")):
         cache = "no-store"
     elif suffix.endswith((".css", ".js")):
-        cache = "no-cache"
+        # Every reviewed script/style is referenced with a ?v= release token
+        # (DELIVERED_ASSET_VERSIONS).  Revalidating each one on every page open
+        # costs a round trip per asset on high-latency links, so let the
+        # browser reuse them for a day; a release changes the URL.
+        cache = "public, max-age=86400"
     elif suffix.endswith((".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg", ".ico", ".woff", ".woff2", ".ttf", ".mp4")):
         cache = "public, max-age=2592000"  # 30 天；文件名含路径 hash，暂不用 immutable
     else:

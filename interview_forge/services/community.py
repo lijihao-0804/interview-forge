@@ -69,7 +69,8 @@ def _feedback_page_title(path: str, *, private_reader: bool) -> str:
         return ""
     project_book = private_reader and re.fullmatch(
         r"/library/(?:development-history/(?:index|chapters/[a-z0-9-]+)|"
-        r"voltedu-study/(?:index|(?:story|claims|interview|notes)/[a-z0-9-]+))\.html", path
+        r"voltedu-study/(?:index|(?:story|claims|interview|notes)/[a-z0-9-]+)|"
+        r"agenthub-study/(?:index|chapter-\d{2}))\.html", path
     )
     if is_sensitive_path(path) and not project_book:
         return ""

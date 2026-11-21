@@ -46,6 +46,7 @@ class PrivateArchiveTests(unittest.TestCase):
         self.stack.enter_context(patch.dict('os.environ',{'INTERVIEW_FORGE_PRIVATE_ARCHIVE':str(self.archive), 'INTERVIEW_FORGE_PRIVATE_ARCHIVE_DIR':''}))
         self.report = self.root / 'report'
         self.stack.enter_context(patch.object(private_archive, 'AGENTHUB_DIR', self.root / 'project-agenthub'))
+        self.stack.enter_context(patch.object(private_archive, 'AGENTHUB_STUDY_DIR', self.root / 'agenthub-study'))
         self.stack.enter_context(patch.object(private_archive, 'VOLTEDU_DIR', self.root / 'voltedu'))
         self.stack.enter_context(patch.object(private_archive, 'REPORT_DIR', self.report))
         self.client = self.stack.enter_context(TestClient(app))
@@ -108,7 +109,9 @@ class PrivateArchiveTests(unittest.TestCase):
         books = ((private_archive.AGENTHUB_DIR, '/api/private-archive/',
                   ('index.html', 'data/recent-history.json', 'assets/hljs.js')),
                  (private_archive.VOLTEDU_DIR, '/library/voltedu-study/',
-                  ('index.html', 'story/01-origin.html', 'media/cover.webp', 'assets/reader.css')))
+                  ('index.html', 'story/01-origin.html', 'media/cover.webp', 'assets/reader.css')),
+                 (private_archive.AGENTHUB_STUDY_DIR, '/library/agenthub-study/',
+                  ('index.html', 'chapter-01.html', 'chapter-37.html')))
         for directory, prefix, members in books:
             for member in members:
                 target = directory / member
@@ -122,7 +125,7 @@ class PrivateArchiveTests(unittest.TestCase):
                             self.assertIn('no-store', result.headers['cache-control'])
                             self.assertEqual(b'PROJECT_FIXTURE' in result.content, method == 'GET' and status == 200)
         urls = [entry['url'] for entry in self.request('/api/private-archive-status', 'owner-token').json()['entries']]
-        self.assertEqual(urls, ['/api/private-archive/index.html', private_archive.VOLTEDU_URL])
+        self.assertEqual(urls, ['/api/private-archive/index.html', private_archive.VOLTEDU_URL, private_archive.AGENTHUB_STUDY_URL])
 
     def test_revocation_and_role_changes_apply_on_next_request(self):
         self.assertEqual(self.request('/api/private-archive/index.html','owner-token').status_code,200)
@@ -138,6 +141,7 @@ class PrivateArchiveTests(unittest.TestCase):
         for directory, prefix, chapter in (
             (self.report, '/library/development-history/', 'chapters/origin.html'),
             (private_archive.VOLTEDU_DIR, '/library/voltedu-study/', 'story/origin.html'),
+            (private_archive.AGENTHUB_STUDY_DIR, '/library/agenthub-study/', 'chapter-01.html'),
         ):
             for name in ('index.html', chapter):
                 file = directory / name

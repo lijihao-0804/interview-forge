@@ -1,0 +1,864 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>第 8 讲补充：上下文投影与 RAG 文档局部修改 · AgentHub 从 0 到 1 深度课程 · InterviewForge</title><link rel="stylesheet" href="../assets/library.css?v=20261118-reader-column"><script src="../../assets/ui.js?v=20261112-guest-python" defer></script></head><body><div class="shell chapter-shell site-shell-cols"><header class="topbar"><a class="topbar-back" href="../../cockpit.html">← 中控台</a><a class="brand" href="../index.html" aria-current="page">学习书架</a><nav aria-label="主导航"><a href="../../pages/favorites.html">我的收藏</a><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
+<details class="shelf-topic-rail" open><summary><span>本专题目录</span><span class="shelf-topic-count">37 节</span></summary><nav class="shelf-topic-links" aria-label="本专题章节"><a class="shelf-topic-link" href="chapter-01.html"><span class="shelf-topic-number">01</span><span class="shelf-topic-label">导读与全书课程导航</span></a><a class="shelf-topic-link" href="chapter-02.html"><span class="shelf-topic-number">02</span><span class="shelf-topic-label">2026-11-20 版本同步：新旧结论对照</span></a><a class="shelf-topic-link" href="chapter-03.html"><span class="shelf-topic-number">03</span><span class="shelf-topic-label">第 1 讲：项目总览、学习路线与工具调用入门</span></a><a class="shelf-topic-link" href="chapter-04.html"><span class="shelf-topic-number">04</span><span class="shelf-topic-label">第 2 讲：把工具调用接成完整的 Agent 循环</span></a><a class="shelf-topic-link" href="chapter-05.html"><span class="shelf-topic-number">05</span><span class="shelf-topic-label">第 3 讲：前端、后端分层与数据库操作</span></a><a class="shelf-topic-link" href="chapter-06.html"><span class="shelf-topic-number">06</span><span class="shelf-topic-label">第 4 讲：工具审批与恢复执行</span></a><a class="shelf-topic-link" href="chapter-07.html"><span class="shelf-topic-number">07</span><span class="shelf-topic-label">第 5 讲：数据库选型、业务分工、事务与崩溃恢复</span></a><a class="shelf-topic-link" href="chapter-08.html"><span class="shelf-topic-number">08</span><span class="shelf-topic-label">第 6 讲：数据库表结构设计与面试</span></a><a class="shelf-topic-link" href="chapter-09.html"><span class="shelf-topic-number">09</span><span class="shelf-topic-label">第 7 讲：异步任务与后台 Worker</span></a><a class="shelf-topic-link" href="chapter-10.html"><span class="shelf-topic-number">10</span><span class="shelf-topic-label">第 8 讲：完整 RAG——从文档分块到带引用的回答</span></a><a class="shelf-topic-link current" href="chapter-11.html" aria-current="page"><span class="shelf-topic-number">11</span><span class="shelf-topic-label">第 8 讲补充：上下文投影与 RAG 文档局部修改</span></a><a class="shelf-topic-link" href="chapter-12.html"><span class="shelf-topic-number">12</span><span class="shelf-topic-label">第 9 讲：上下文、Memory 与 Wiki</span></a><a class="shelf-topic-link" href="chapter-13.html"><span class="shelf-topic-number">13</span><span class="shelf-topic-label">第 10 讲：前端与异步执行</span></a><a class="shelf-topic-link" href="chapter-14.html"><span class="shelf-topic-number">14</span><span class="shelf-topic-label">技术演进需求清单与版本校正</span></a><a class="shelf-topic-link" href="chapter-15.html"><span class="shelf-topic-number">15</span><span class="shelf-topic-label">第 11 讲：评测与独立修改</span></a><a class="shelf-topic-link" href="chapter-16.html"><span class="shelf-topic-number">16</span><span class="shelf-topic-label">第 12 讲：工程地图、依赖方向与发布版本</span></a><a class="shelf-topic-link" href="chapter-17.html"><span class="shelf-topic-number">17</span><span class="shelf-topic-label">第 13 讲：认证、会话与多租户授权</span></a><a class="shelf-topic-link" href="chapter-18.html"><span class="shelf-topic-number">18</span><span class="shelf-topic-label">第 14 讲：工具版本、MCP 与外部系统接入</span></a><a class="shelf-topic-link" href="chapter-19.html"><span class="shelf-topic-number">19</span><span class="shelf-topic-label">第 15 讲：模型网关——可靠性、失败归因与成本账</span></a><a class="shelf-topic-link" href="chapter-20.html"><span class="shelf-topic-number">20</span><span class="shelf-topic-label">第 16 讲：异步可靠性的进阶——状态机、租约与幂等</span></a><a class="shelf-topic-link" href="chapter-21.html"><span class="shelf-topic-number">21</span><span class="shelf-topic-label">第 17 讲：工具审批的进阶与外部副作用</span></a><a class="shelf-topic-link" href="chapter-22.html"><span class="shelf-topic-number">22</span><span class="shelf-topic-label">第 18 讲：文档修订、摄取与索引一致性</span></a><a class="shelf-topic-link" href="chapter-23.html"><span class="shelf-topic-number">23</span><span class="shelf-topic-label">第 19 讲：RAG 的最后一公里——证据预算、引用与拒答</span></a><a class="shelf-topic-link" href="chapter-24.html"><span class="shelf-topic-number">24</span><span class="shelf-topic-label">第 20 讲：Memory 的工程边界</span></a><a class="shelf-topic-link" href="chapter-25.html"><span class="shelf-topic-number">25</span><span class="shelf-topic-label">第 21 讲：Wiki 知识编译</span></a><a class="shelf-topic-link" href="chapter-26.html"><span class="shelf-topic-number">26</span><span class="shelf-topic-label">第 22 讲：前端权限、会话并发与异步选择状态</span></a><a class="shelf-topic-link" href="chapter-27.html"><span class="shelf-topic-number">27</span><span class="shelf-topic-label">第 23 讲：产品业务闭环——Thread、Artifact、工单与接管</span></a><a class="shelf-topic-link" href="chapter-28.html"><span class="shelf-topic-number">28</span><span class="shelf-topic-label">第 24 讲：可信评测——缺失证据、失败归因与发布门禁</span></a><a class="shelf-topic-link" href="chapter-29.html"><span class="shelf-topic-number">29</span><span class="shelf-topic-label">第 25 讲：启动、迁移、密钥与灾难恢复</span></a><a class="shelf-topic-link" href="chapter-30.html"><span class="shelf-topic-number">30</span><span class="shelf-topic-label">第 26 讲：数据库进阶、连接池与性能定位</span></a><a class="shelf-topic-link" href="chapter-31.html"><span class="shelf-topic-number">31</span><span class="shelf-topic-label">第 27 讲：把全部模块连成一次独立开发</span></a><a class="shelf-topic-link" href="chapter-32.html"><span class="shelf-topic-number">32</span><span class="shelf-topic-label">面试问答总览与 220 题索引</span></a><a class="shelf-topic-link" href="chapter-33.html"><span class="shelf-topic-number">33</span><span class="shelf-topic-label">面试问答 A：架构、数据库、认证与交付（SYS01–SYS60）</span></a><a class="shelf-topic-link" href="chapter-34.html"><span class="shelf-topic-number">34</span><span class="shelf-topic-label">面试问答 B：模型网关、异步可靠性与审批（RT01–RT50）</span></a><a class="shelf-topic-link" href="chapter-35.html"><span class="shelf-topic-number">35</span><span class="shelf-topic-label">面试问答 C：知识摄取、RAG、Memory 与 Wiki（KG01–KG60）</span></a><a class="shelf-topic-link" href="chapter-36.html"><span class="shelf-topic-number">36</span><span class="shelf-topic-label">面试问答 D：前端、业务闭环与可信评测（FE01–FE50）</span></a><a class="shelf-topic-link" href="chapter-37.html"><span class="shelf-topic-number">37</span><span class="shelf-topic-label">附录：原始归档整理说明</span></a></nav></details>
+<main class="reader" data-page-type="library/chapter" data-content-id="agenthub-study:11"><nav class="breadcrumb" aria-label="章节导航"><a href="../../cockpit.html">🎛️ 中控台</a><span aria-hidden="true">›</span><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">AgentHub 从 0 到 1 深度课程</a><span aria-hidden="true">›</span><span aria-current="page">第 8 讲补充：上下文投影与 RAG 文档局部修改</span></nav><div class="module-meta">项目学习笔记 · 核心课程（第 1–11 讲） · 第 11 / 37 节 · <span class="muted">仅永久管理员可见</span></div><h1>第 8 讲补充：上下文投影与 RAG 文档局部修改</h1><div class="reader-grid"><div class="reader-body"><blockquote>
+<p>追加日期：2026-11-17。此前内容保持原样，本次仅在文件末尾追加讲解、代码与流程图。</p>
+</blockquote>
+<h4 id="_1">用户提问</h4>
+<blockquote>
+<p>上下文投影是什么意思，总是看到这个词，总是出现在组装上下文正式发送api请求之前，但是本地也无法运算这些上下文吧，解析一下，顺带解析一下RAG里面修改文档，比如只修改部分内容，具体会如何处理呢，这个问题可以补充到md文件后面</p>
+</blockquote>
+<h4 id="_2">讲解原文</h4>
+<h2 id="8-rag">第 8 讲补充：上下文投影，以及 RAG 文档局部修改怎样处理</h2>
+<p>先回答你最关心的两点：</p>
+<ol>
+<li><strong>这里的“上下文投影”，主要是后端用普通代码把已有数据整理成“这一次发给模型的内容”。它不需要先运行一次大模型，也不涉及计算远端模型的隐藏状态。</strong></li>
+<li><strong>AgentHub 当前修改文档正文的方式，是上传完整的新修订，再重新处理这份修订的全部内容。即使只改一段，也不会自动只重算这一段；但它也不会因此重建整个知识库。</strong></li>
+</ol>
+<p>下面仍按我们前面使用的源码提交 <a href="https://github.com/lijihao-0804/AgentHub/commit/fafe4aba0c95fb16d97a9f70ca8b4a2d83bbb1d9"> 0 </a> 解释，并把“当前实现”和“可以进一步做的增量优化”分开。</p>
+<hr />
+<h2 id="_3">第一部分：上下文投影到底是什么？</h2>
+<h3 id="_4">一、把“上下文”先还原成普通程序里的数据</h3>
+<p>你说“本地也无法运算这些上下文”，这里需要区分两类运算。</p>
+<p><strong>处理一段文字的数据结构</strong>，和<strong>让模型理解这段文字并生成回答</strong>，是两件事情。</p>
+<p>在请求发出之前，所谓上下文，通常就是后端内存里的：</p>
+<ul>
+<li>字符串：用户问题、文档正文、系统提示词。</li>
+<li>列表：消息列表、检索结果列表。</li>
+<li>字典或对象：角色、工具名称、来源 ID、检索分数。</li>
+<li>数值：预算、排序位置、长度和时间。</li>
+</ul>
+<p>例如：</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="n">messages</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;system&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;根据提供的材料回答。&quot;</span><span class="p">},</span>
+    <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;定制商品能按七天规则退货吗？&quot;</span><span class="p">},</span>
+<span class="p">]</span>
+
+<span class="n">evidence</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">{</span>
+        <span class="s2">&quot;chunk_id&quot;</span><span class="p">:</span> <span class="s2">&quot;C17&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;定制商品不适用上述七天规则。&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;score&quot;</span><span class="p">:</span> <span class="mf">3.8</span><span class="p">,</span>
+    <span class="p">}</span>
+<span class="p">]</span>
+</code></pre></div>
+<p>这只是教学示意结构。</p>
+<p>Python 可以读取这些字符串，Java 同样可以用 <code>String</code>、<code>List</code>、<code>Map</code> 保存和处理它们。选择列表中的若干项、计算长度、检查 ID、把对象序列化成 JSON，都属于普通程序计算。</p>
+<p><strong>这些操作不要求程序理解“定制商品到底能不能退货”。</strong></p>
+<p>真正根据句子含义进行理解和生成，是后面的模型推理。这里的“本地”指运行 AgentHub 后端的机器，也可能是一台服务器，并不一定是你打开网页的那台电脑。</p>
+<hr />
+<h3 id="_5">二、“投影”可以理解为：从内部数据中，生成一个面向模型的视图</h3>
+<p>这个词在这里强调的是：</p>
+<blockquote>
+<p><strong>同一批内部数据，哪些内容要交给模型看，以及用什么形态给它看。</strong></p>
+</blockquote>
+<p>类似后端有一个很完整的业务对象，但给页面返回数据时，只组装页面需要的字段。</p>
+<p>它也不同于神经网络里“乘一个投影矩阵，把向量映射到另一个空间”的线性投影。AgentHub 这里的相关函数主要在做字段选择、引用配对、预算选择和消息格式转换。<a href="https://github.com/lijihao-0804/AgentHub/blob/fafe4aba0c95fb16d97a9f70ca8b4a2d83bbb1d9/packages/agent_runtime/runtime_projection.py">投影相关代码</a> · <a href="https://github.com/lijihao-0804/AgentHub/blob/fafe4aba0c95fb16d97a9f70ca8b4a2d83bbb1d9/packages/agent_runtime/rag_evidence.py">RAG 投影</a></p>
+<h4 id="1">1. 一个具体例子</h4>
+<p>假设后端已经拿到下面这条信息。为了方便理解，这里把几个内部对象合成一个示意字典：</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="n">internal_record</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;workspace_id&quot;</span><span class="p">:</span> <span class="s2">&quot;W1&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;snapshot_id&quot;</span><span class="p">:</span> <span class="s2">&quot;K3&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;document_revision_id&quot;</span><span class="p">:</span> <span class="s2">&quot;V2&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;chunk_id&quot;</span><span class="p">:</span> <span class="s2">&quot;C17&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;document_name&quot;</span><span class="p">:</span> <span class="s2">&quot;退款规则&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;snippet&quot;</span><span class="p">:</span> <span class="s2">&quot;定制商品不适用上述七天规则。&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;locator&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;page&quot;</span><span class="p">,</span> <span class="s2">&quot;page&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">},</span>
+    <span class="s2">&quot;rerank_score&quot;</span><span class="p">:</span> <span class="mf">3.8</span><span class="p">,</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>模型回答问题时，需要读到正文、来源名称和适当的定位信息。但不一定需要在每一条材料里反复阅读所有长 ID。</p>
+<p>于是我们可以构造一个更紧凑的模型视图：</p>
+<div class="codehilite" data-lang="json"><pre><code class="language-json"><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;E1&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;document_name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;退款规则&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;snippet&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;定制商品不适用上述七天规则。&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;locator&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;page&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;page&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>后端自己保留对应关系：</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="n">registry</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;E1&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s2">&quot;snapshot_id&quot;</span><span class="p">:</span> <span class="s2">&quot;K3&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;document_revision_id&quot;</span><span class="p">:</span> <span class="s2">&quot;V2&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;chunk_id&quot;</span><span class="p">:</span> <span class="s2">&quot;C17&quot;</span><span class="p">,</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>这里发生了什么？</p>
+<ul>
+<li>正文没有被模型重新理解一遍。</li>
+<li>正文没有被改写成摘要。</li>
+<li>后端挑选了一组字段。</li>
+<li>后端给它分配了一个短编号。</li>
+<li>完整来源身份保留在另一个映射中。</li>
+</ul>
+<p><strong>这就已经是一种上下文投影了。</strong></p>
+<p>在 AgentHub 中，显式启用的 <code>compact_v1</code> 路径就有这种设计：<code>assemble_evidence_plan()</code> 生成模型可读的证据视图，并构造内部来源注册表。普通默认 RAG 投影仍可能保留完整的身份字段，不能把“所有 ID 都隐藏到注册表里”当作全部路径的默认行为。<a href="https://github.com/lijihao-0804/AgentHub/blob/fafe4aba0c95fb16d97a9f70ca8b4a2d83bbb1d9/packages/knowledge/evidence_plan.py"> 6 </a></p>
+<h4 id="2-python">2. 用几行普通 Python 就能理解这种操作</h4>
+<p>下面是<strong>教学简化代码</strong>，只演示字段选择和编号，不包含正式实现的权限、来源验证和预算：</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="k">def</span> <span class="nf">project_records</span><span class="p">(</span><span class="n">records</span><span class="p">):</span>
+    <span class="n">model_view</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">registry</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">record</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">records</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="n">evidence_id</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;E</span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">&quot;</span>
+
+        <span class="n">model_view</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
+            <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="n">evidence_id</span><span class="p">,</span>
+            <span class="s2">&quot;document_name&quot;</span><span class="p">:</span> <span class="n">record</span><span class="p">[</span><span class="s2">&quot;document_name&quot;</span><span class="p">],</span>
+            <span class="s2">&quot;snippet&quot;</span><span class="p">:</span> <span class="n">record</span><span class="p">[</span><span class="s2">&quot;snippet&quot;</span><span class="p">],</span>
+            <span class="s2">&quot;locator&quot;</span><span class="p">:</span> <span class="n">record</span><span class="p">[</span><span class="s2">&quot;locator&quot;</span><span class="p">],</span>
+        <span class="p">})</span>
+
+        <span class="n">registry</span><span class="p">[</span><span class="n">evidence_id</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;snapshot_id&quot;</span><span class="p">:</span> <span class="n">record</span><span class="p">[</span><span class="s2">&quot;snapshot_id&quot;</span><span class="p">],</span>
+            <span class="s2">&quot;document_revision_id&quot;</span><span class="p">:</span> <span class="n">record</span><span class="p">[</span><span class="s2">&quot;document_revision_id&quot;</span><span class="p">],</span>
+            <span class="s2">&quot;chunk_id&quot;</span><span class="p">:</span> <span class="n">record</span><span class="p">[</span><span class="s2">&quot;chunk_id&quot;</span><span class="p">],</span>
+        <span class="p">}</span>
+
+    <span class="k">return</span> <span class="n">model_view</span><span class="p">,</span> <span class="n">registry</span>
+</code></pre></div>
+<p>你看这里用到的操作：循环、字典取值、构造列表、字符串格式化。</p>
+<p>它们都可以在普通 CPU 上完成，不需要加载聊天模型的权重。</p>
+<hr />
+<h3 id="_6">三、本地不知道句子的含义，怎么决定保留哪条？</h3>
+<p>答案是：<strong>这一阶段通常使用已经存在的顺序、分数和规则，不是重新理解所有内容。</strong></p>
+<p>以前一节的混合检索加重排路径为例：</p>
+<ol>
+<li>Embedding 和检索已经给出候选。</li>
+<li>Reranker 已经给候选打过相关性分数。</li>
+<li>检索服务已经排出一个顺序。</li>
+<li>投影函数按既有顺序，尝试把完整记录放进预算。</li>
+</ol>
+<p>假设顺序已经是：</p>
+<table>
+<thead>
+<tr>
+<th>记录</th>
+<th style="text-align: right;">已有顺序</th>
+<th style="text-align: right;">假设的完整记录预算成本</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">600</td>
+</tr>
+<tr>
+<td>B</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">700</td>
+</tr>
+<tr>
+<td>C</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">200</td>
+</tr>
+</tbody>
+</table>
+<p>如果可用预算是 1000，简单的顺序选择可以是：</p>
+<ul>
+<li>A 放进去，已使用 600。</li>
+<li>B 放不下，跳过。</li>
+<li>C 能放进去，已使用 800。</li>
+</ul>
+<p>这个过程只需要比较数字。它不需要再次判断 A、B、C 在语义上分别讲什么。</p>
+<p>当然，这样的选择可能漏掉重要证据。因此“投影结构合法”和“交付内容足以回答问题”仍需要分别评估。</p>
+<p>AgentHub 的 <code>project_rag_evidence_payload()</code> 实际会：</p>
+<ol>
+<li>检查证据记录和引用是否能够正确配对。</li>
+<li>按输入顺序尝试加入一条完整记录及其引用。</li>
+<li>对候选结果序列化并计量。</li>
+<li>能放下就保留，放不下就跳过。</li>
+<li>继续尝试后面的记录。</li>
+</ol>
+<p>它不会在这里把一段文字“读懂后压缩成另一句话”。<a href="https://github.com/lijihao-0804/AgentHub/blob/fafe4aba0c95fb16d97a9f70ca8b4a2d83bbb1d9/packages/agent_runtime/rag_evidence.py"> 8 </a></p>
+<p>这里所谓的“无损”也有范围：<strong>被保留的单条记录不被截成半条；被跳过的整条记录仍然没有交付给模型。</strong></p>
+<hr />
+<h3 id="token">四、token 数量为什么也能在本地计算？</h3>
+<p>你可能还会疑惑：</p>
+<blockquote>
+<p>“token 不是模型内部的东西吗？没有运行模型，怎么知道占了多少 token？”</p>
+</blockquote>
+<p>需要区分三个量。</p>
+<h4 id="1_1">1. 字符数：最简单的文本计数</h4>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="nb">len</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+</code></pre></div>
+<p>这是字符串长度。它不是精确的模型 token 数。</p>
+<h4 id="2-tokenizer">2. 使用 tokenizer 分词：不需要运行生成模型</h4>
+<p>Tokenizer 负责按特定算法和词表，把字符串转换成 token ID。</p>
+<p>如果本地已经有匹配的 tokenizer 文件，可以在本地做类似操作：</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="n">token_ids</span> <span class="o">=</span> <span class="n">tokenizer</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">text</span><span class="p">,</span> <span class="n">add_special_tokens</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="n">text_token_count</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">token_ids</span><span class="p">)</span>
+</code></pre></div>
+<p>这一步需要 tokenizer 的算法、词表和配置，<strong>不需要先加载整套回答模型并做生成推理</strong>。Hugging Face 的官方文档也把 tokenizer 明确区分为准备模型输入的组件，并支持从本地文件或目录加载。<a href="https://huggingface.co/docs/transformers/v4.57.2/en/main_classes/tokenizer">Tokenizer 官方文档</a></p>
+<p>但这里还有一个限定：<strong>数出一段正文的 token，不等于已经精确数出整个聊天请求的 token。</strong></p>
+<p>完整请求还可能包含：</p>
+<ul>
+<li>消息角色与聊天模板。</li>
+<li>特殊 token。</li>
+<li>工具定义。</li>
+<li>服务商额外加入的结构。</li>
+</ul>
+<p>因此，想精确匹配服务商计数，需要匹配相应 tokenizer 和输入格式，不能只数 <code>content</code> 字符串。</p>
+<h4 id="3-agenthub">3. AgentHub 当前默认用的是更轻量的估算</h4>
+<p>当前 <code>ApproxTokenEstimator</code> 的思路大致就是：</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">import</span> <span class="nn">math</span>
+<span class="kn">import</span> <span class="nn">unicodedata</span>
+
+<span class="k">def</span> <span class="nf">estimate_tokens</span><span class="p">(</span><span class="n">text</span><span class="p">):</span>
+    <span class="n">wide</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
+        <span class="n">unicodedata</span><span class="o">.</span><span class="n">east_asian_width</span><span class="p">(</span><span class="n">ch</span><span class="p">)</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;W&quot;</span><span class="p">,</span> <span class="s2">&quot;F&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">ch</span> <span class="ow">in</span> <span class="n">text</span>
+    <span class="p">)</span>
+    <span class="n">other</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">text</span><span class="p">)</span> <span class="o">-</span> <span class="n">wide</span>
+
+    <span class="k">return</span> <span class="n">math</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">wide</span> <span class="o">/</span> <span class="mf">1.6</span> <span class="o">+</span> <span class="n">other</span> <span class="o">/</span> <span class="mi">4</span><span class="p">)</span>
+</code></pre></div>
+<p>这是对源码核心算法的简化展示。“宽字符”包括具有相应东亚宽度属性的字符，不是一个严格的“汉字检测器”。</p>
+<p>它做的事情只是：</p>
+<ul>
+<li>遍历字符串。</li>
+<li>查询字符属性。</li>
+<li>加减除法。</li>
+<li>向上取整。</li>
+</ul>
+<p><strong>没有网络请求，没有回答模型权重，也没有执行 Attention。</strong><a href="https://github.com/lijihao-0804/AgentHub/blob/fafe4aba0c95fb16d97a9f70ca8b4a2d83bbb1d9/packages/agent_runtime/context_budget.py"> 11 </a></p>
+<p>这是近似估算，不能保证一定大于或等于服务商的真实计数。因此，本地预算检查通过后，远端仍可能因为实际 token 数超限而拒绝请求。</p>
+<p>前一节说的字段命名问题也在这里：有些配置名仍带 <code>bytes</code> 或 <code>chars</code>，但具体路径实际使用了这个估算器。读代码时要追到计量函数，不能只看名字。</p>
+<hr />
+<h3 id="api">五、为什么总在正式发送 API 请求之前投影？</h3>
+<p>因为这个阶段决定的正是：</p>
+<blockquote>
+<p><strong>这一次请求最终要发送什么。</strong></p>
+</blockquote>
+<p>后端内部保存的运行状态，可能包含历史、工具结果、诊断数据、引用映射、计费信息和各种执行标记。模型调用只需要其中一部分。</p>
+<p>AgentHub 在构造请求时，有这样的核心关系：</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="n">admission</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_admit_context</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+
+<span class="n">request</span> <span class="o">=</span> <span class="n">ModelRequest</span><span class="p">(</span>
+    <span class="n">messages</span><span class="o">=</span><span class="n">admission</span><span class="o">.</span><span class="n">messages</span><span class="p">,</span>
+    <span class="n">tools</span><span class="o">=</span><span class="n">admission</span><span class="o">.</span><span class="n">tool_definitions</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># 后面才交给模型网关，执行实际模型调用。</span>
+</code></pre></div>
+<p>这是源码关键关系的摘示，省略了日志、事件和状态更新。<a href="https://github.com/lijihao-0804/AgentHub/blob/fafe4aba0c95fb16d97a9f70ca8b4a2d83bbb1d9/packages/agent_runtime/runtime_graph.py"> 14 </a></p>
+<p>你可以把几个相邻术语分开：</p>
+<table>
+<thead>
+<tr>
+<th>术语</th>
+<th>主要回答什么问题</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>组装</td>
+<td>把哪些来源的数据收集到一起？</td>
+</tr>
+<tr>
+<td>投影</td>
+<td>把这些内部数据变成什么模型可见形态？</td>
+</tr>
+<tr>
+<td>预算准入</td>
+<td>这一组消息能不能放进本次允许的窗口？</td>
+</tr>
+<tr>
+<td>序列化</td>
+<td>怎样变成可以发送的 JSON 等请求格式？</td>
+</tr>
+<tr>
+<td>模型推理</td>
+<td>模型收到这些输入后怎样生成输出？</td>
+</tr>
+</tbody>
+</table>
+<p>实际函数可能同时承担其中几项，所以你会在请求发送前反复看到“投影”这个词。</p>
+<h4 id="1_2">1. 为什么有时不止投影一次？</h4>
+<p>因为局部预算和总预算不同。</p>
+<p>第一层处理：</p>
+<blockquote>
+<p>“这一次检索工具返回的材料，最多能交付多少？”</p>
+</blockquote>
+<p>第二层处理：</p>
+<blockquote>
+<p>“把这些材料和系统提示词、当前问题、历史消息、工具定义放在一起，总量还能不能接受？”</p>
+</blockquote>
+<p>一份材料单独能放下，加上其他内容之后可能放不下。</p>
+<p>当前上下文策略还会按照消息角色、位置、工具名称和调用 ID 分类。例如，把一次 assistant 工具调用与对应的 tool 结果分成同一组，避免预算处理后留下一个没有对应调用的孤立工具结果。<a href="https://github.com/lijihao-0804/AgentHub/blob/fafe4aba0c95fb16d97a9f70ca8b4a2d83bbb1d9/packages/agent_runtime/runtime_projection.py">消息分类</a> · <a href="https://github.com/lijihao-0804/AgentHub/blob/fafe4aba0c95fb16d97a9f70ca8b4a2d83bbb1d9/packages/agent_runtime/context_budget.py">预算准入</a></p>
+<p>这仍然是结构化数据处理。程序通过 <code>tool_call_id</code> 配对，不需要理解工具结果的自然语言含义。</p>
+<h4 id="2">2. 可以用下面这张图理解两类工作</h4>
+<figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart TD
+    D["数据库正文、历史消息、工具结果"] --&gt; P["后端投影：字段、来源与完整记录"]
+    P --&gt; B["后端准入：合并消息并检查预算"]
+    B --&gt; C{"能形成合法请求吗"}
+    C --&gt;|"否"| X["按策略缩减或返回错误"]
+    C --&gt;|"是"| J["构造并发送模型请求"]
+    J --&gt; M["模型推理"]
+    M --&gt; A["生成回答或工具调用"]
+    P --&gt; R["后端保留来源映射"]</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
+<p>图中的投影和预算检查，主要是普通程序操作。生成回答的计算发生在模型推理阶段。</p>
+<hr />
+<h3 id="embedding">六、那摘要、Embedding 和重排算不算投影？</h3>
+<p>这些概念最好分开，否则容易误以为所有“压缩上下文”都不需要模型。</p>
+<table>
+<thead>
+<tr>
+<th>操作</th>
+<th>当前讨论的计算性质</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>选择字段、改变数据形态</td>
+<td>普通程序处理</td>
+</tr>
+<tr>
+<td>给证据编号、检查来源配对</td>
+<td>普通程序处理</td>
+</tr>
+<tr>
+<td>按既有顺序和预算选完整记录</td>
+<td>普通程序处理</td>
+</tr>
+<tr>
+<td>用启发式估算 token</td>
+<td>普通程序处理</td>
+</tr>
+<tr>
+<td>计算 Embedding</td>
+<td>Embedding 模型推理</td>
+</tr>
+<tr>
+<td>用 BGE Reranker 判断问题与段落的相关性</td>
+<td>Reranker 模型推理</td>
+</tr>
+<tr>
+<td>使用 LLM 把长历史概括成短摘要</td>
+<td>另一次模型推理</td>
+</tr>
+<tr>
+<td>根据证据生成回答</td>
+<td>回答模型推理</td>
+</tr>
+</tbody>
+</table>
+<p>所以，“这些投影函数不运行模型”，并不等于“后端不能运行模型”。</p>
+<p>后端也可以部署适合的 Embedding、Reranker 或语言模型；是否本地部署，是组件的部署选择。<strong>是否需要模型推理，则取决于这个操作本身。</strong></p>
+<p>AgentHub 的摘要能力也有独立路径：在显式启用、满足条件时，可能复用已有摘要，或者通过 <code>SummaryWorker</code> 创建摘要。后者确实会调用 <code>generate_resolved()</code>。</p>
+<p>但这不是每次上下文投影都会发生的隐式步骤。<a href="https://github.com/lijihao-0804/AgentHub/blob/fafe4aba0c95fb16d97a9f70ca8b4a2d83bbb1d9/packages/agent_runtime/runtime_graph.py">摘要节点</a> · <a href="https://github.com/lijihao-0804/AgentHub/blob/fafe4aba0c95fb16d97a9f70ca8b4a2d83bbb1d9/packages/agent_runtime/summary_worker.py">摘要 Worker</a></p>
+<hr />
+<h3 id="_7">七、投影后丢掉的内容，数据库里也没了吗？</h3>
+<p><strong>投影不会因为本次没有选中某条材料，就删除 PostgreSQL 中的文档正文或原文件。</strong></p>
+<p>但还要区分两份数据：</p>
+<table>
+<thead>
+<tr>
+<th>数据</th>
+<th>投影或准入后可能怎样变化</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>文档库中的原文与 Chunk</td>
+<td>不会被这些投影函数删除</td>
+</tr>
+<tr>
+<td>本次运行的工作消息列表</td>
+<td>可能变成筛选后的列表</td>
+</tr>
+</tbody>
+</table>
+<p>当前运行时有明确的状态更新：</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="n">state</span><span class="p">[</span><span class="s2">&quot;messages&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">admission</span><span class="o">.</span><span class="n">messages</span><span class="p">)</span>
+</code></pre></div>
+<p>所以不能说“运行内存里的原始消息永远保持完整”。后续轮次可能沿用已经通过准入的工作上下文。<a href="https://github.com/lijihao-0804/AgentHub/blob/fafe4aba0c95fb16d97a9f70ca8b4a2d83bbb1d9/packages/agent_runtime/runtime_graph.py"> 18 </a></p>
+<p>这也解释了一个常见现象：</p>
+<blockquote>
+<p>页面还能查到完整原文，但模型这一次并没有读到它。</p>
+</blockquote>
+<p>原始资料是否存在，与这一次请求有没有包含它，是两个问题。</p>
+<hr />
+<h2 id="rag">第二部分：RAG 里只修改文档的一部分，会发生什么？</h2>
+<h3 id="_8">八、先区分三件事：编辑文件、上传修订、编辑元数据</h3>
+<p>假设你把《退款规则》里的“七天”改成“五天”。</p>
+<p>这涉及三个不同层次：</p>
+<ol>
+<li><strong>编辑原文件。</strong> 你在本地修改 Markdown、TXT 或 PDF。</li>
+<li><strong>向知识库提交新的正文版本。</strong> 让系统接收这次改动。</li>
+<li><strong>修改文档的业务元数据。</strong> 比如生效日期、被哪份文档替代。</li>
+</ol>
+<p>当前 AgentHub 的正文更新入口是：</p>
+<div class="codehilite" data-lang="http"><pre><code class="language-http"><span class="err">POST /api/v1/workspaces/{workspace_id}/knowledge-bases/{knowledge_base_id}/documents/{document_id}/revisions</span>
+</code></pre></div>
+<p>它接收 multipart 的 <code>file</code>，也就是<strong>完整的新文件内容</strong>，返回 HTTP 202 以及文档、修订和入库任务信息。</p>
+<p>这里没有“只发送第 15 段改动”的正文 patch 协议。仅在电脑上保存了文件，也不会通过这个上传流程自动更新服务器里的既有版本。<a href="https://github.com/lijihao-0804/AgentHub/blob/fafe4aba0c95fb16d97a9f70ca8b4a2d83bbb1d9/apps/api/routes/knowledge.py">修订上传接口</a></p>
+<p>还有一个实用区别：</p>
+<ul>
+<li>调用 <code>.../documents/{document_id}/revisions</code>：给原 Document 增加修订。</li>
+<li>调用 <code>.../documents</code>：创建另一份 Document。</li>
+</ul>
+<p><strong>相同文件名不会自动把两次上传合并成同一份文档。</strong>身份取决于你使用的 Document ID 和入口。<a href="https://github.com/lijihao-0804/AgentHub/blob/fafe4aba0c95fb16d97a9f70ca8b4a2d83bbb1d9/packages/knowledge/services.py">上传服务</a></p>
+<hr />
+<h3 id="revision">九、当前实现：新建 Revision，再完整处理这份修订</h3>
+<p>假设已经有 <code>Document D1</code>，它的 <code>Revision V1</code> 保存了《退款规则》第一版，并生成了 C1、C2、C3 三个 Chunk。</p>
+<p>上传修改后的正文后，同一份 Document 下会有两份修订：</p>
+<table>
+<thead>
+<tr>
+<th>修订</th>
+<th>文件与 Chunks</th>
+<th>本次更新的处理</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>V1</td>
+<td>保留原来的内容和 Chunks</td>
+<td>保留历史版本</td>
+</tr>
+<tr>
+<td>V2</td>
+<td>保存完整的新文件，生成属于 V2 的 Chunks</td>
+<td>创建新的入库任务</td>
+</tr>
+</tbody>
+</table>
+<p><code>KnowledgeService.upload_document()</code> 的关键行为是：</p>
+<ol>
+<li>保存一个新的 blob。</li>
+<li>沿用已有 <code>Document</code>。</li>
+<li>创建新的 <code>DocumentRevision</code>，版本号递增。</li>
+<li>创建新的 <code>IngestionJob</code>。</li>
+<li>提交数据库事务后尝试入队。</li>
+</ol>
+<p>Worker 再对 V2 进行解析、分块、编码和写索引。<a href="https://github.com/lijihao-0804/AgentHub/blob/fafe4aba0c95fb16d97a9f70ca8b4a2d83bbb1d9/packages/knowledge/services.py">上传服务</a> · <a href="https://github.com/lijihao-0804/AgentHub/blob/fafe4aba0c95fb16d97a9f70ca8b4a2d83bbb1d9/apps/worker/tasks/knowledge.py">入库 Worker</a></p>
+<h4 id="1_3">1. 只改一段，也会重新处理其他段吗？</h4>
+<p><strong>在当前这条默认链路里，会。</strong></p>
+<p>准确地说，是：</p>
+<blockquote>
+<p><strong>重新解析这份新修订、重新生成它的所有 Chunks，并为这些 Chunks 重新计算 dense 和 sparse 表示。</strong></p>
+</blockquote>
+<p>不是重新处理整个知识库的所有文档。</p>
+<p>例如知识库有 100 份文档，只更新第 8 份，当前任务的处理范围是第 8 份文档的新修订，其余 99 份不会因为这个上传任务全部重建。</p>
+<h4 id="2-chunk-id">2. 未修改的文字为什么也会得到新的 Chunk ID？</h4>
+<p>因为当前 Chunk ID 包含修订身份：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">chunk_id = Hash(
+    document_revision_id,
+    ordinal,
+    normalized_content_hash
+)
+</code></pre></div>
+<p>为了方便说明，假设本次改动没有跨越分块边界，其余片段的正文完全相同：</p>
+<table>
+<thead>
+<tr>
+<th>片段</th>
+<th>V1 中的文字</th>
+<th>V2 中的文字</th>
+<th>内容哈希</th>
+<th>Chunk ID</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A</td>
+<td>文档介绍</td>
+<td>文档介绍</td>
+<td>可以相同</td>
+<td>因 Revision 不同而改变</td>
+</tr>
+<tr>
+<td>B</td>
+<td>七天内申请</td>
+<td>五天内申请</td>
+<td>改变</td>
+<td>改变</td>
+</tr>
+<tr>
+<td>C</td>
+<td>原路退款</td>
+<td>原路退款</td>
+<td>可以相同</td>
+<td>因 Revision 不同而改变</td>
+</tr>
+</tbody>
+</table>
+<p>这里要分清：</p>
+<p><strong>内容一样，不代表版本身份一样。</strong></p>
+<p>Qdrant 的 point ID 又由 <code>chunk_id</code> 派生，所以新修订会得到自己的索引点身份。<a href="https://github.com/lijihao-0804/AgentHub/blob/fafe4aba0c95fb16d97a9f70ca8b4a2d83bbb1d9/packages/knowledge/chunking.py">分块身份</a> · <a href="https://github.com/lijihao-0804/AgentHub/blob/fafe4aba0c95fb16d97a9f70ca8b4a2d83bbb1d9/packages/knowledge/point_ids.py">索引点身份</a></p>
+<h4 id="3">3. 既然内容哈希相同，为什么不复用向量？</h4>
+<p>技术上可以设计复用，但<strong>当前 Worker 没有按内容哈希查询旧 Embedding 结果的分支</strong>。</p>
+<p>它会加载新修订的 Chunks，逐批调用：</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="n">dense</span><span class="o">.</span><span class="n">embed_documents</span><span class="p">(</span><span class="n">texts</span><span class="p">)</span>
+<span class="n">sparse</span><span class="o">.</span><span class="n">encode_documents</span><span class="p">(</span><span class="n">texts</span><span class="p">)</span>
+</code></pre></div>
+<p>再写入新索引点。<a href="https://github.com/lijihao-0804/AgentHub/blob/fafe4aba0c95fb16d97a9f70ca8b4a2d83bbb1d9/apps/worker/tasks/knowledge.py">编码与索引过程</a></p>
+<p>因此，以下两件事情不能混淆：</p>
+<table>
+<thead>
+<tr>
+<th>能力</th>
+<th>当前含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>同一修订任务重试时，稳定 ID 支持幂等 upsert</td>
+<td>重试可以落到相同索引身份上</td>
+</tr>
+<tr>
+<td>不同修订之间复用未改片段的向量</td>
+<td>需要另外实现内容级结果缓存或复用逻辑</td>
+</tr>
+</tbody>
+</table>
+<p>模型实例被缓存、没有每次重新加载权重，也不等于每段文本的向量结果已被缓存。</p>
+<p>当前上传服务同样没有“整份文件内容相同就直接跳过”的判断分支，因此重复上传相同全文，也会建立新修订。<a href="https://github.com/lijihao-0804/AgentHub/blob/fafe4aba0c95fb16d97a9f70ca8b4a2d83bbb1d9/packages/knowledge/services.py">上传服务</a></p>
+<hr />
+<h3 id="_9">十、新修订还没处理完，旧版能不能继续用？</h3>
+<p><strong>在正常的这条更新流程里，旧的可用修订会保留，新修订准备完成后再决定当前可用版本。</strong></p>
+<p>这里需要同时看两个状态：</p>
+<ul>
+<li><code>ingestion_status</code>：解析和索引是否已经完成。</li>
+<li><code>lifecycle_status</code>：修订在版本生命周期中的状态。</li>
+</ul>
+<p>当前快照选取可用修订时要求：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">lifecycle_status = ACTIVE
+AND ingestion_status = READY
+</code></pre></div>
+<p>一个容易看错的细节是：新修订创建时，生命周期默认可以已经是 <code>ACTIVE</code>，但入库状态仍是 <code>PENDING</code>。<strong>仅看到 ACTIVE，并不说明它已经可以进入当前可用知识集合。</strong><a href="https://github.com/lijihao-0804/AgentHub/blob/fafe4aba0c95fb16d97a9f70ca8b4a2d83bbb1d9/packages/knowledge/models.py">模型默认值</a> · <a href="https://github.com/lijihao-0804/AgentHub/blob/fafe4aba0c95fb16d97a9f70ca8b4a2d83bbb1d9/packages/knowledge/snapshots.py">快照筛选</a></p>
+<h4 id="1_4">1. 正常更新过程</h4>
+<figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart TD
+    A["V1 已可用"] --&gt; B["上传完整 V2"]
+    B --&gt; C["V2 解析、切块、编码"]
+    C --&gt; D{"索引写入全部成功吗"}
+    D --&gt;|"否"| E["V2 重试或失败，保留 V1"]
+    D --&gt;|"是"| F["事务中标记 V2 READY"]
+    F --&gt; G["最高版本号的 READY 修订设为 ACTIVE"]
+    G --&gt; H["其他 READY 修订设为 RETIRED"]
+    G --&gt; I["后续 LATEST 解析可选择新版"]</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
+<p>实际的 <code>finalize_ingestion_ready()</code> 在索引写入得到确认后，才把修订标记为 READY；然后选择<strong>版本号最高的 READY 修订</strong>为 ACTIVE，其余 READY 修订设为 RETIRED。<a href="https://github.com/lijihao-0804/AgentHub/blob/fafe4aba0c95fb16d97a9f70ca8b4a2d83bbb1d9/packages/knowledge/ingestion.py">入库最终确认</a></p>
+<p>因此，旧任务即使晚完成，也不会仅仅因为“完成时间更晚”就把旧版本抢回当前版本。</p>
+<h4 id="2_1">2. 如果新修订处理到一半失败呢？</h4>
+<p>可能出现：</p>
+<ul>
+<li>PostgreSQL 已经保存了新修订的部分处理状态或 Chunks。</li>
+<li>Qdrant 已经写入了新修订的一部分索引点。</li>
+<li>新修订尚未 READY。</li>
+</ul>
+<p>这时，正常的当前快照生成不会把这个未完成修订当成可用版本。</p>
+<p>所以这套设计的关键不是假设“多个存储一定同时成功”，而是：</p>
+<p><strong>即使准备过程中留下中间状态，也通过修订状态与快照范围控制哪些内容能够被正式使用。</strong></p>
+<p>这里并没有把 PostgreSQL 和 Qdrant 变成一个跨系统的原子事务。<a href="https://github.com/lijihao-0804/AgentHub/blob/fafe4aba0c95fb16d97a9f70ca8b4a2d83bbb1d9/apps/worker/tasks/knowledge.py">Worker</a> · <a href="https://github.com/lijihao-0804/AgentHub/blob/fafe4aba0c95fb16d97a9f70ca8b4a2d83bbb1d9/packages/knowledge/ingestion.py">最终确认</a> · <a href="https://github.com/lijihao-0804/AgentHub/blob/fafe4aba0c95fb16d97a9f70ca8b4a2d83bbb1d9/packages/knowledge/snapshots.py">快照服务</a></p>
+<h4 id="3_1">3. 旧版会被马上删除吗？</h4>
+<p>这条更新流程不会立刻删除旧 Revision、旧 Chunks、旧文件或旧 Qdrant 点。<code>RETIRED</code> 表示不再作为当前的活动修订，不等于物理删除。</p>
+<p>旧快照仍然可以指向旧修订，用于历史运行的来源追踪。</p>
+<p>因此，如果新版删除了一句话：</p>
+<ul>
+<li>新版正文可以不再包含它。</li>
+<li>固定在旧快照上的查询，仍可能读到旧版本中的这句话。</li>
+</ul>
+<p>后续如何清理不再需要的历史数据，是另一项保留与清理策略，不能理解为“上传新版会自动清空旧版”。</p>
+<hr />
+<h3 id="agent-latest-pinned">十一、新资料什么时候会进入 Agent？要看 LATEST 和 PINNED</h3>
+<p>这是对上一讲需要进一步展开的一点：</p>
+<p><strong>文档更新后，并不是所有 Agent 都必须重新发布，也不是所有正在运行的 Agent 都会立即看到新版。</strong></p>
+<p>对于原始 RAG 知识绑定，当前行为是：</p>
+<table>
+<thead>
+<tr>
+<th>使用方式</th>
+<th>新修订 READY 后会怎样？</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Agent 固定绑定旧快照 <code>PINNED K1</code></td>
+<td>继续使用 K1；需要明确改变绑定或相应发布配置</td>
+</tr>
+<tr>
+<td>Agent 采用 <code>LATEST</code>，之后创建新 Run</td>
+<td>创建 Run 时解析当前可用修订，可以纳入新版</td>
+</tr>
+<tr>
+<td>已经创建的 Run</td>
+<td>继续使用创建时冻结的快照</td>
+</tr>
+<tr>
+<td>独立 Citation QA 接口</td>
+<td>使用请求明确传入的 <code>knowledge_snapshot_id</code></td>
+</tr>
+</tbody>
+</table>
+<p>对应实现是 <code>_resolve_effective_snapshots()</code>：<strong>创建 Run 时</strong>，把 <code>LATEST</code> 解析成具体 snapshot ID 和 hash，并保存在 <code>AgentRun.effective_knowledge_snapshots</code> 中。<a href="https://github.com/lijihao-0804/AgentHub/blob/fafe4aba0c95fb16d97a9f70ca8b4a2d83bbb1d9/packages/agent_runtime/runtime_service.py">运行创建与快照冻结</a></p>
+<p>例如：</p>
+<table>
+<thead>
+<tr>
+<th>时间</th>
+<th>事件</th>
+<th>使用的知识范围</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>10:00</td>
+<td>创建 Run A</td>
+<td>LATEST 解析为 K1，使用文档 V1</td>
+</tr>
+<tr>
+<td>10:05</td>
+<td>文档 V2 入库完成</td>
+<td>新修订进入可用集合</td>
+</tr>
+<tr>
+<td>10:06</td>
+<td>创建 Run B</td>
+<td>LATEST 解析为 K2，可以使用 V2</td>
+</tr>
+<tr>
+<td>10:07</td>
+<td>Run A 继续执行</td>
+<td>仍使用已经冻结的 K1</td>
+</tr>
+</tbody>
+</table>
+<p>这里的时间是教学例子。</p>
+<p>这同时满足两个需求：</p>
+<ul>
+<li>新的任务可以获得更新后的资料。</li>
+<li>一个已经开始的任务，不会在不同轮次里悄悄换一套知识版本。</li>
+</ul>
+<p>上一讲说 <code>search_knowledge</code> 执行时使用固定快照，指的是工具拿到的<strong>有效执行范围</strong>。发布配置可以表达 <code>LATEST</code>；运行创建阶段先把它解析成具体快照，工具执行时再使用这个固定结果。两者并不矛盾。<a href="https://github.com/lijihao-0804/AgentHub/blob/fafe4aba0c95fb16d97a9f70ca8b4a2d83bbb1d9/packages/agent_runtime/publish.py">发布绑定</a> · <a href="https://github.com/lijihao-0804/AgentHub/blob/fafe4aba0c95fb16d97a9f70ca8b4a2d83bbb1d9/packages/agent_runtime/runtime_service.py">有效快照解析</a> · <a href="https://github.com/lijihao-0804/AgentHub/blob/fafe4aba0c95fb16d97a9f70ca8b4a2d83bbb1d9/packages/tools/builtins/search_knowledge.py">检索工具</a></p>
+<hr />
+<h3 id="embedding_1">十二、只改生效日期等元数据，也要重新 Embedding 吗？</h3>
+<p>在当前 AgentHub 中，不需要走正文入库链路。</p>
+<p>已有的：</p>
+<div class="codehilite" data-lang="http"><pre><code class="language-http"><span class="err">PATCH /.../documents/{document_id}</span>
+</code></pre></div>
+<p>主要修改 <code>effective_date</code>、<code>superseded_by_document_id</code> 等生命周期元数据。它更新 PostgreSQL 并记录审计，不创建新的正文 Revision，也不启动新一轮 Embedding。<a href="https://github.com/lijihao-0804/AgentHub/blob/fafe4aba0c95fb16d97a9f70ca8b4a2d83bbb1d9/packages/knowledge/services.py"> 45 </a></p>
+<p>原因是这些字段在当前实现中不需要通过改写每个向量来生效。检索回读 PostgreSQL 时，会把相关元数据附到证据中。<a href="https://github.com/lijihao-0804/AgentHub/blob/fafe4aba0c95fb16d97a9f70ca8b4a2d83bbb1d9/packages/knowledge/retrieval.py">检索证据构造</a></p>
+<p>但要补充一个准确的边界：</p>
+<blockquote>
+<p><strong>Snapshot 固定的是修订成员和正文身份，不是所有 Document 可变元数据的历史副本。</strong></p>
+</blockquote>
+<p>例如，生效日期与“被哪份文档替代”从当前 Document 行读取。旧快照再次检索时，这些元数据也可能反映后来的更新。</p>
+<p>所以“固定快照”不能被无限扩大成“整个业务世界的所有字段都永远不变”。</p>
+<hr />
+<h3 id="_10">十三、如果想做到“只重算改动的部分”，应该怎么设计？</h3>
+<p>下面是<strong>可以进一步实现的优化方案，当前源码尚未实现这套跨修订的向量结果复用</strong>。</p>
+<p>核心思路是：</p>
+<blockquote>
+<p><strong>新版本继续保留独立的来源身份；相同的编码输入，可以复用相同配置下已经计算过的向量。</strong></p>
+</blockquote>
+<h4 id="1_5">1. 先切块，再判断哪些编码输入真的没变</h4>
+<p>比较新旧分块时，大致有三类：</p>
+<table>
+<thead>
+<tr>
+<th>情况</th>
+<th>新版本要做什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>编码输入没有变化</td>
+<td>可以复用已有向量结果</td>
+</tr>
+<tr>
+<td>编码输入变化或新增</td>
+<td>重新计算</td>
+</tr>
+<tr>
+<td>旧版有、新版没有</td>
+<td>不纳入新版本；旧版本是否保留取决于历史策略</td>
+</tr>
+</tbody>
+</table>
+<p>注意比较的应当是<strong>真正送给编码器的输入</strong>。</p>
+<p>假设 Embedding 输入是：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">文档标题 + 章节标题 + Chunk 正文
+</code></pre></div>
+<p>正文没变，但章节标题改了，实际编码输入就变了。此时不能仅凭正文哈希相同就直接复用。</p>
+<h4 id="2_2">2. 缓存键不应只有文本哈希</h4>
+<p>一个更完整的概念设计是：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">embedding_cache_key = Hash(
+    实际编码输入,
+    Embedding 模型及精确版本,
+    影响编码的预处理配置,
+    前缀与截断配置
+)
+</code></pre></div>
+<p>如果模型、预处理或输入前缀改变，旧向量未必还能复用。</p>
+<p>Dense 和 Sparse 的表示也要分别考虑各自编码配置，不能只缓存一个“笼统的向量”。</p>
+<h4 id="3_2">3. 用伪代码看它和当前实现的区别</h4>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="c1"># 设计示意：不是当前 AgentHub 已有的缓存实现。</span>
+<span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">new_revision_chunks</span><span class="p">:</span>
+    <span class="n">encoder_input</span> <span class="o">=</span> <span class="n">build_encoder_input</span><span class="p">(</span><span class="n">chunk</span><span class="p">)</span>
+
+    <span class="n">key</span> <span class="o">=</span> <span class="n">make_cache_key</span><span class="p">(</span>
+        <span class="n">encoder_input</span><span class="p">,</span>
+        <span class="n">model_revision</span><span class="p">,</span>
+        <span class="n">preprocessing_config</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="n">vector</span> <span class="o">=</span> <span class="n">embedding_cache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">vector</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">vector</span> <span class="o">=</span> <span class="n">embedder</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">encoder_input</span><span class="p">)</span>
+        <span class="n">embedding_cache</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">vector</span><span class="p">)</span>
+
+    <span class="c1"># 即使复用了计算结果，也建立新修订自己的来源身份。</span>
+    <span class="n">write_new_revision_point</span><span class="p">(</span>
+        <span class="n">point_id</span><span class="o">=</span><span class="n">point_id_for</span><span class="p">(</span><span class="n">chunk</span><span class="o">.</span><span class="n">chunk_id</span><span class="p">),</span>
+        <span class="n">vector</span><span class="o">=</span><span class="n">vector</span><span class="p">,</span>
+        <span class="n">revision_id</span><span class="o">=</span><span class="n">new_revision</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
+        <span class="n">locator</span><span class="o">=</span><span class="n">chunk</span><span class="o">.</span><span class="n">locator</span><span class="p">,</span>
+    <span class="p">)</span>
+</code></pre></div>
+<p>这里节省的是模型编码计算。</p>
+<p>它不要求把新旧版本混成同一个会变化的索引身份。沿用现有版本模型时，即使向量数值复用，新修订仍然可以有自己的 Chunk 记录、定位和 Qdrant point。</p>
+<p><strong>复用计算结果，与覆盖旧版本身份，是两件事。</strong></p>
+<h4 id="4-chunk">4. 为什么“只改一个段落”仍可能影响很多 Chunk？</h4>
+<p>因为分块边界也可能变化。</p>
+<p>当前默认是按字符窗口切分。如果你在文档开头插入 100 个字符，后面的固定窗口会相对于原文移动：</p>
+<ul>
+<li>原来一个窗口包含的文本可能变了。</li>
+<li>相邻重叠窗口也可能变化。</li>
+<li>后续多个片段的内容哈希可能一起改变。</li>
+</ul>
+<p>所以：</p>
+<p><strong>业务上只改一段，不保证算法上只影响一个 Chunk。</strong><a href="https://github.com/lijihao-0804/AgentHub/blob/fafe4aba0c95fb16d97a9f70ca8b4a2d83bbb1d9/packages/knowledge/chunking.py">默认窗口分块</a></p>
+<p>结构分块可以让一些局部修改更容易局限在相关段落附近，但也不是保证。标题变化、段落合并、解析顺序变化，都可能扩大影响范围。</p>
+<p>实现增量优化时，必须一起考虑“分块是否稳定”和“编码结果是否可以复用”，不能只加一个哈希字典就认为所有局部更新都能做到最小重算。</p>
+<h4 id="5">5. 增量优化后，版本切换规则仍然需要保留</h4>
+<p>即使未来只给部分新 Chunk 计算了向量，仍然应该在新修订所需的记录和索引全部准备好后，再让它进入可用集合。</p>
+<p>否则用户可能查到：</p>
+<ul>
+<li>一部分新规则。</li>
+<li>一部分旧规则。</li>
+<li>缺失的例外条件。</li>
+</ul>
+<p>因此可以优化准备过程中的计算量，但仍需要明确的修订身份、完整性条件和快照切换规则。</p>
+<hr />
+<h3 id="_11">十四、把这两个问题放到同一次运行里看</h3>
+<p>假设你把政策从“七天”改成“五天”，之后用户发起一个新任务：</p>
+<table>
+<thead>
+<tr>
+<th>步骤</th>
+<th>程序在做什么</th>
+<th>是否属于上下文投影</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>上传完整新文件</td>
+<td>保存 V2 和入库任务</td>
+<td>否，文档管理</td>
+</tr>
+<tr>
+<td>解析、分块</td>
+<td>把新修订变成片段</td>
+<td>否，入库处理</td>
+</tr>
+<tr>
+<td>计算向量并写索引</td>
+<td>让 V2 可被检索</td>
+<td>否，其中编码需要模型推理</td>
+</tr>
+<tr>
+<td>新 Run 解析 LATEST</td>
+<td>固定本次使用的快照</td>
+<td>否，版本范围解析</td>
+</tr>
+<tr>
+<td>检索和重排</td>
+<td>找到相关规则并排序</td>
+<td>否，证据获取</td>
+</tr>
+<tr>
+<td>选择字段、编号、按预算保留材料</td>
+<td>形成模型可读的证据消息</td>
+<td>是</td>
+</tr>
+<tr>
+<td>合并系统提示、历史、问题并检查总预算</td>
+<td>决定最终请求消息</td>
+<td>属于上下文准入，与投影紧密相连</td>
+</tr>
+<tr>
+<td>调用回答模型</td>
+<td>根据可见证据生成回答</td>
+<td>否，模型推理</td>
+</tr>
+</tbody>
+</table>
+<p>你以后再看到“投影”这个词，可以先问三个具体问题：</p>
+<ol>
+<li><strong>输入是什么数据结构？</strong></li>
+<li><strong>输出保留了哪些字段、哪些记录？</strong></li>
+<li><strong>函数里到底有没有调用模型，还是只做容器、字符串和数值处理？</strong></li>
+</ol>
+<p>在 AgentHub 的这些上下文投影函数里，沿着这三个问题读，就能把这个词还原为你已经熟悉的普通程序操作。</p></div></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-prev" data-chapter-nav="prev" href="chapter-10.html">← 上一节</a><a class="nav-toc" href="index.html">目录</a><a class="nav-next" data-chapter-nav="next" href="chapter-12.html">下一节 →</a></nav></main><aside class="sol-rail sol-rail-right shelf-page-rail" aria-label="本页目录"><div class="sol-rail-title">本页目录</div><div class="toc"><ul><li class="lv2"><a href="#8-rag">第 8 讲补充：上下文投影，以及 RAG 文档局部修改怎样处理</a></li><li class="lv2"><a href="#_3">第一部分：上下文投影到底是什么？</a></li><li class="lv3"><a href="#_4">一、把“上下文”先还原成普通程序里的数据</a></li><li class="lv3"><a href="#_5">二、“投影”可以理解为：从内部数据中，生成一个面向模型的视图</a></li><li class="lv3"><a href="#_6">三、本地不知道句子的含义，怎么决定保留哪条？</a></li><li class="lv3"><a href="#token">四、token 数量为什么也能在本地计算？</a></li><li class="lv3"><a href="#api">五、为什么总在正式发送 API 请求之前投影？</a></li><li class="lv3"><a href="#embedding">六、那摘要、Embedding 和重排算不算投影？</a></li><li class="lv3"><a href="#_7">七、投影后丢掉的内容，数据库里也没了吗？</a></li><li class="lv2"><a href="#rag">第二部分：RAG 里只修改文档的一部分，会发生什么？</a></li><li class="lv3"><a href="#_8">八、先区分三件事：编辑文件、上传修订、编辑元数据</a></li><li class="lv3"><a href="#revision">九、当前实现：新建 Revision，再完整处理这份修订</a></li><li class="lv3"><a href="#_9">十、新修订还没处理完，旧版能不能继续用？</a></li><li class="lv3"><a href="#agent-latest-pinned">十一、新资料什么时候会进入 Agent？要看 LATEST 和 PINNED</a></li><li class="lv3"><a href="#embedding_1">十二、只改生效日期等元数据，也要重新 Embedding 吗？</a></li><li class="lv3"><a href="#_10">十三、如果想做到“只重算改动的部分”，应该怎么设计？</a></li><li class="lv3"><a href="#_11">十四、把这两个问题放到同一次运行里看</a></li></ul></div></aside></div><script>
+(function(){
+  var topicRail=document.querySelector('.shelf-topic-rail');
+  if(topicRail&&window.matchMedia('(max-width: 1280px)').matches)topicRail.open=false;
+  var rail=document.querySelector('.shelf-topic-links');
+  if(rail){
+    var focusCurrent=function(){
+      var cur=rail.querySelector('.shelf-topic-link.current');
+      if(!cur)return;
+      var rr=rail.getBoundingClientRect(),cr=cur.getBoundingClientRect();
+      rail.scrollTop=Math.max(0,rail.scrollTop+(cr.top-rr.top)-rr.height/2+cr.height/2);
+    };
+    if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',focusCurrent);
+    else focusCurrent();
+    window.addEventListener('load',focusCurrent);
+  }
+  document.querySelectorAll('.reader-body pre:not(.mermaid)').forEach(function(pre){
+    pre.style.position='relative';
+    var btn=document.createElement('button');
+    btn.type='button';btn.className='copy-btn';btn.textContent='复制';
+    btn.addEventListener('click',function(){
+      var code=pre.querySelector('code');
+      var text=(code||pre).innerText;
+      var done=function(ok){btn.textContent=ok?'已复制':'复制失败';setTimeout(function(){btn.textContent='复制';},1200);};
+      if(navigator.clipboard&&navigator.clipboard.writeText){
+        navigator.clipboard.writeText(text).then(function(){done(true);},function(){done(false);});
+      }else{
+        var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();
+        var ok=document.execCommand('copy');ta.remove();done(ok);
+      }
+    });
+    pre.appendChild(btn);
+  });
+  var otpLinks=[].slice.call(document.querySelectorAll('.sol-rail-right .toc a[href^="#"]'));
+  if(otpLinks.length){
+    var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a];}));
+    var io=new IntersectionObserver(function(es){
+      es.forEach(function(e){
+        if(e.isIntersecting){
+          otpLinks.forEach(function(a){a.classList.remove('active');});
+          var a=otpMap.get(e.target.id);
+          if(a)a.classList.add('active');
+        }
+      });
+    },{rootMargin:'-12% 0px -78% 0px'});
+    otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h);});
+  }
+  document.addEventListener('keydown',function(e){
+    if(!(e.ctrlKey||e.metaKey)||e.altKey||e.shiftKey)return;
+    if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;
+    var el=document.activeElement;
+    if(el&&(/^(input|textarea|select)$/i.test(el.tagName)||el.isContentEditable))return;
+    var link=document.querySelector('[data-chapter-nav="'+(e.key==='ArrowRight'?'next':'prev')+'"]');
+    if(!link||!link.getAttribute('href'))return;
+    e.preventDefault();link.click();
+  });
+})();
+</script><script src="../assets/mermaid-11.16.1.min.js?v=20261010-compact-flowcharts"></script><script src="../assets/library-mermaid.js?v=20261010-compact-flowcharts"></script></body></html>

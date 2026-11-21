@@ -12,6 +12,36 @@
   var resolveAuthReady = null;
   var authSettled = false;
 
+  // Last confirmed identity, kept only to paint the pill (including the
+  // "管理后台" entry) immediately on the next page open.  It is never trusted
+  // for authorization: every request is still checked by the server, and the
+  // snapshot is replaced as soon as /api/me answers.
+  var SNAPSHOT_KEY = "forge.auth.snapshot.v1";
+  var SNAPSHOT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+  function readSessionSnapshot() {
+    try {
+      var raw = window.localStorage.getItem(SNAPSHOT_KEY);
+      if (!raw) return null;
+      var saved = JSON.parse(raw);
+      var user = saved && saved.user;
+      if (!user || !user.username || Date.now() - Number(saved.ts || 0) > SNAPSHOT_TTL_MS) return null;
+      return user;
+    } catch (_) { return null; }
+  }
+
+  function writeSessionSnapshot(user) {
+    try {
+      if (user && user.username) {
+        window.localStorage.setItem(SNAPSHOT_KEY, JSON.stringify({ user: user, ts: Date.now() }));
+      }
+    } catch (_) { }
+  }
+
+  function clearSessionSnapshot() {
+    try { window.localStorage.removeItem(SNAPSHOT_KEY); } catch (_) { }
+  }
+
   function snapshot() {
     return { status: authState.status, user: authState.user, reason: authState.reason };
   }
@@ -114,6 +144,7 @@
 
   function setGuest(reason) {
     installAuthStyles();
+    clearSessionSnapshot();
     publish("guest", null, reason || "unauthorized");
     renderGuestIdentity("guest");
   }
@@ -206,10 +237,12 @@
   authApi = Object.freeze(Object.assign({}, authApi, { ready: authReady }));
   window.InterviewForgeAuth = authApi;
 
-  function checkSession(isRetry) {
-    if (!isRetry && authState.status !== "checking") return authReady;
-    authState = { status: "checking", user: null, reason: "" };
-    emit("interviewforge:auth-change");
+  function checkSession(isRetry, background) {
+    if (!isRetry && !background && authState.status !== "checking") return authReady;
+    if (!background) {
+      authState = { status: "checking", user: null, reason: "" };
+      emit("interviewforge:auth-change");
+    }
     var controller = typeof AbortController === "function" ? new AbortController() : null;
     var timer = controller ? window.setTimeout(function () { controller.abort(); }, 10000) : null;
     return fetch("/api/me", { credentials: "same-origin", cache: "no-store", signal: controller ? controller.signal : undefined })
@@ -221,16 +254,22 @@
       .then(function (me) {
         if (!me) return null;
         publish("authenticated", me, "authenticated");
+        writeSessionSnapshot(me);
         return me;
       })
       .catch(function (error) {
+        // On a background revalidation, a network blip must not hide an
+        // identity the server already confirmed; keep it until 401 arrives.
+        if (background && authState.status === "authenticated") return null;
         setError(error && error.name === "AbortError" ? "timeout" : "session_check_failed");
         return null;
       })
       .finally(function () { if (timer) window.clearTimeout(timer); });
   }
 
-  checkSession(false);
+  var cachedSessionUser = readSessionSnapshot();
+  if (cachedSessionUser) publish("authenticated", cachedSessionUser, "cached");
+  checkSession(false, !!cachedSessionUser);
   if (sessionOnly) return;
   authReady.then(function (session) {
     var me = session && session.user;
@@ -750,6 +789,7 @@
           callProfile({ nickname: panel.querySelector("#fpr-nick").value }).then(function (res) {
             if (!res.ok) { hint.textContent = res.data.error || "保存失败"; hint.style.color = "#b3372f"; return; }
             me.nickname = res.data.nickname;
+            writeSessionSnapshot(me);
             name.textContent = me.nickname || me.username;
             hint.textContent = "已保存"; hint.style.color = "#157a52";
           });
@@ -850,6 +890,7 @@
       logout.textContent = "退出";
       logout.onclick = function () {
         logout.disabled = true;
+        clearSessionSnapshot();
         fetch("/api/logout", {
           method: "POST",
           headers: { "Content-Type": "application/json" },

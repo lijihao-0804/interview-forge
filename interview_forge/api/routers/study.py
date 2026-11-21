@@ -90,8 +90,16 @@ def bootstrap(request: Request):
         return denied
     started = time.perf_counter()
     db = user_db(user)
+    # Read the raw scope so lightweight Request doubles that omit
+    # ``query_string`` (used by worker-cache tests) still work.
+    raw_query = (request.scope.get("query_string") or b"").decode("latin-1")
+    compact = any(
+        part.partition("=")[0] == "compact" and part.partition("=")[2].lower() in ("1", "true", "yes")
+        for part in raw_query.split("&")
+        if part
+    )
     cache_key = (str(Path(db).resolve()), str(user["username"]), str(user["role"]),
-                 server_runtime.now_iso()[:10]) if shared.enabled() else ()
+                 server_runtime.now_iso()[:10], "compact" if compact else "full") if shared.enabled() else ()
     def signature():
         config_path = Path(os.environ.get("INTERVIEW_FORGE_AI_CONFIG_DB") or AI_CONFIG_DB_PATH)
         return (shared.db_signature(db), shared.db_signature(Path(server_runtime.AUTH_DB_PATH)),
@@ -139,6 +147,22 @@ def bootstrap(request: Request):
             request_id=str(getattr(request.state, "request_id", ""))[:96],
         )
     payload["capabilities"] = {"ai_coach": capability}
+    # The cockpit only needs the headline summary plus the first few due items;
+    # the full dashboard/daily payload is ~100 KB of practice history it never
+    # renders.  Returning a compact shape for `?compact=1` keeps first paint
+    # light on slow links while /index.html keeps receiving the full payload.
+    if compact:
+        dashboard = payload.get("dashboard") or {}
+        daily = payload.get("daily") or {}
+        payload["dashboard"] = {
+            "summary": (dashboard.get("summary") if isinstance(dashboard, dict) else {}) or {},
+            "language_summary": (dashboard.get("language_summary") if isinstance(dashboard, dict) else {}) or {},
+        }
+        payload["daily"] = {
+            "today": daily.get("today") if isinstance(daily, dict) else None,
+            "summary": (daily.get("summary") if isinstance(daily, dict) else {}) or {},
+            "problems": list((daily.get("problems") if isinstance(daily, dict) else None) or [])[:3],
+        }
     if shared.enabled() and capability is not unavailable_capability and signature() == before:
         bootstrap_cache.put(cache_key, before, copy.deepcopy(payload))
     return json_response(payload)

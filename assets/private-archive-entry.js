@@ -48,7 +48,10 @@
   }
   async function refresh(background) {
     if (background === true && pending) return;
-    if (background !== true) clear();
+    // Keep the last good cards while revalidating; only clear when there is
+    // nothing rendered yet.  This prevents a slow request or tab switch from
+    // making the whole "项目学习笔记" shelf disappear and reappear.
+    if (background !== true && !snapshot) clear();
     if (document.visibilityState === 'hidden') return;
     const version = generation;
     const controller = new AbortController();
@@ -63,7 +66,7 @@
       if (version !== generation) return;
       const entries = Array.isArray(status.entries) ? status.entries : (status.available ? [status.entry] : []);
       const permitted = new Set(['/api/private-archive/index.html', '/library/development-history/index.html',
-        '/library/voltedu-study/index.html']);
+        '/library/voltedu-study/index.html', '/library/agenthub-study/index.html']);
       const books = entries.filter(entry => entry && permitted.delete(entry.url) &&
         typeof entry.title === 'string' && typeof entry.description === 'string');
       if (!books.length) throw new Error();
@@ -77,26 +80,28 @@
       document.dispatchEvent(new CustomEvent('shelf-books-change'));
     } catch (_) {
       if (version !== generation) return;
-      clear();
-      document.dispatchEvent(new CustomEvent('shelf-books-change', {detail: 'unavailable'}));
+      if (!snapshot) {
+        clear();
+        document.dispatchEvent(new CustomEvent('shelf-books-change', {detail: 'unavailable'}));
+      }
     } finally {
       clearTimeout(timeout);
       if (pending === controller) pending = null;
     }
   }
   document.addEventListener('interviewforge:auth-change', event => {
-    clear();
-    if (event.detail && event.detail.status === 'authenticated') refresh();
-    else if (event.detail && event.detail.status === 'guest') {
+    const detail = event.detail || {};
+    if (detail.status === 'authenticated') { refresh(true); return; }
+    if (detail.status === 'guest' || detail.status === 'error') {
+      clear();
       document.dispatchEvent(new CustomEvent('shelf-books-change', {detail: 'unavailable'}));
     }
   });
-  addEventListener('storage', refresh);
-  addEventListener('focus', refresh);
-  addEventListener('pagehide', clear);
-  addEventListener('pageshow', refresh);
+  addEventListener('storage', () => refresh(true));
+  addEventListener('focus', () => refresh(true));
+  addEventListener('pageshow', () => refresh(true));
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') clear(); else refresh();
+    if (document.visibilityState !== 'hidden') refresh(true);
   });
   setInterval(() => refresh(true), 30000);
   refresh();

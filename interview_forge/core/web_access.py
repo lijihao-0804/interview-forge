@@ -110,7 +110,7 @@ def policy_key(value: str) -> str | None:
 
 def _report_path(key: str) -> bool:
     return key.startswith("/library/") and key.split("/", 3)[2] in {
-        "development-history", "agenthub", "voltedu-study",
+        "development-history", "agenthub", "voltedu-study", "agenthub-study",
     }
 
 

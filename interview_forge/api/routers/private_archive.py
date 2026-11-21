@@ -51,6 +51,8 @@ def _archive_path() -> Path | None:
 
 
 AGENTHUB_DIR = ROOT / "library" / "agenthub"
+AGENTHUB_STUDY_DIR = ROOT / "library" / "agenthub-study"
+AGENTHUB_STUDY_URL = "/library/agenthub-study/index.html"
 VOLTEDU_DIR = ROOT / "library" / "voltedu-study"
 VOLTEDU_URL = "/library/voltedu-study/index.html"
 
@@ -113,6 +115,11 @@ def voltedu_resource(request: Request, path: str):
     return _reader_resource(request, VOLTEDU_DIR, path)
 
 
+@router.api_route("/library/agenthub-study/{path:path}", methods=["GET", "HEAD"], include_in_schema=False)
+def agenthub_study_resource(request: Request, path: str):
+    return _reader_resource(request, AGENTHUB_STUDY_DIR, path)
+
+
 def _reader_resource(request: Request, directory: Path, path: str):
     denied = _denied(request)
     if denied is not None:
@@ -127,6 +134,8 @@ def _reader_resource(request: Request, directory: Path, path: str):
         media_type = "text/html"
     elif directory == VOLTEDU_DIR and re.fullmatch(r"media/[a-z0-9-]+\.webp", path):
         media_type = "image/webp"
+    elif directory == AGENTHUB_STUDY_DIR and re.fullmatch(r"chapter-\d{2}\.html", path):
+        media_type = "text/html"
     else:
         return support.error_response("Not Found", 404, headers=REPORT_HEADERS)
     try:
@@ -161,6 +170,11 @@ def archive_status(request: Request):
         entries = result.setdefault("entries", [result["entry"]] if available else [])
         entries.append({"title": "VoltEdu 毕设手记", "description": "电路课程辅学、LoRA 微调、评测与面试追问",
                         "url": VOLTEDU_URL})
+    if (AGENTHUB_STUDY_DIR / "index.html").is_file():
+        entries = result.setdefault("entries", [result["entry"]] if available else [])
+        entries.append({"title": "AgentHub 从 0 到 1 深度课程",
+                        "description": "27 讲全栈源码演进 + 220 道面试问答 · 一节一页书架版",
+                        "url": AGENTHUB_STUDY_URL})
     return support.json_response(result, headers=HEADERS)
 
 

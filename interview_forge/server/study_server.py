@@ -544,7 +544,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
     # 管理页与登录页不显示反馈悬浮按钮，避免遮挡页面自身的操作区。
     FEEDBACK_WIDGET_SKIP_PATHS = {"/pages/login.html", "/pages/register.html", "/pages/forgot-password.html", "/pages/account.html", "/pages/admin.html", "/pages/ai-assistant.html"}
     # 页面增强脚本清单（v 参数用于更新缓存）：导航策略/认证胶囊/反馈/主题切换。
-    WIDGET_SCRIPTS = ["/assets/navigation-policy.js?v=2", "/assets/role-display.js?v=1", "/assets/auth-widget.js?v=9", "/assets/feedback-widget.js?v=6", "/assets/theme-toggle.js?v=3"]
+    WIDGET_SCRIPTS = ["/assets/navigation-policy.js?v=2", "/assets/role-display.js?v=1", "/assets/auth-widget.js?v=10", "/assets/feedback-widget.js?v=6", "/assets/theme-toggle.js?v=3"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
@@ -1684,6 +1684,27 @@ class StudyHandler(SimpleHTTPRequestHandler):
             print(f"[{self.log_date_time_string()}] {format % args}")
 
 
+def _open_browser_when_ready(url: str, timeout: float = 30.0) -> None:
+    """Open the browser only after /api/health answers, not on a fixed delay.
+
+    A cold Python/FastAPI import can take several seconds after a reboot or an
+    antivirus scan; opening at a fixed 0.5 s makes the first navigation fail or
+    spin, which users experience as "the site is very slow today".
+    """
+    health = url.rstrip("/") + "/api/health"
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            with urlopen(health, timeout=1.0) as response:
+                if int(getattr(response, "status", 200) or 200) == 200:
+                    webbrowser.open(url)
+                    return
+        except (OSError, URLError):
+            pass
+        time.sleep(0.2)
+    webbrowser.open(url)
+
+
 def main() -> None:
     global QUIET
     parser = argparse.ArgumentParser(description="Hot 100 本地学习站")
@@ -1735,8 +1756,10 @@ def main() -> None:
     browser_host = "127.0.0.1" if args.host in ("0.0.0.0", "::") else args.host
     address = f"http://{browser_host}:{args.port}/"
     if args.open:
-        # 延迟 0.5 秒再开浏览器：等服务就绪，避免浏览器首请求落空。
-        threading.Timer(0.5, lambda: webbrowser.open(address)).start()
+        # Wait for actual readiness instead of guessing with a fixed delay.
+        threading.Thread(
+            target=_open_browser_when_ready, args=(address,), daemon=True
+        ).start()
     print(f"Interview Forge：{address}")
     print("账户数据库：" + str(AUTH_DB_PATH))
     print("按 Ctrl+C 停止服务。")
