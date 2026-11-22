@@ -185,8 +185,11 @@ def robust_goto(page, url, attempts=4):
             if "interrupted" in msg or "Execution context" in msg:
                 time.sleep(2)
                 continue
-            # 导航超时：放号高峰站点极慢，短暂等待后就地重试（最后一次仍失败才抛出）
-            if "Timeout" in msg and attempt < attempts:
+            # 导航超时：放号高峰站点极慢，短暂等待后就地重试（最后一次仍失败才抛出）。
+            # Playwright 的网络超时消息是 net::ERR_TIMED_OUT，不含 "Timeout"；
+            # 之前这类超时只尝试一次就抛出，任务级重试全挤在 08:00 高峰。
+            if ("Timeout" in msg or "ERR_TIMED_OUT" in msg or
+                    "ERR_CONNECTION_TIMED_OUT" in msg) and attempt < attempts:
                 log.warning("导航超时（第 %d/%d 次），3 秒后重试：%s", attempt, attempts, url)
                 time.sleep(3)
                 continue

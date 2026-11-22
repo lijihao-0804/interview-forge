@@ -28,6 +28,7 @@ import sqlite3
 import subprocess
 import sys
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -47,6 +48,12 @@ JOB_SUBPROCESS_TIMEOUT_SECONDS = 35 * 60
 JOB_RUNNING_STALE_GRACE_SECONDS = 5 * 60
 JOB_MAX_ATTEMPTS = 3
 MAX_CONCURRENT_JOBS = 4
+# 并发任务错峰启动秒数。多个浏览器同一秒登录/加载场馆页会把站点拖慢，
+# 生产可通过 GYM_JOB_STAGGER_SECONDS 设置（默认 0，测试/本机不延迟）。
+try:
+    JOB_START_STAGGER_SECONDS = max(0.0, float(os.environ.get("GYM_JOB_STAGGER_SECONDS", "0") or 0))
+except ValueError:
+    JOB_START_STAGGER_SECONDS = 0.0
 # 明确发生在预约提交前的瞬时错误采用短退避。订单状态不明确时不会自动重试。
 JOB_RETRY_DELAYS_SECONDS = (60, 120)
 SCHEDULER_POLL_SECONDS = 5
@@ -1202,7 +1209,12 @@ def _run_due_jobs(today_iso: str) -> int:
         log.info("任务 #%s 完成：%s %s", job["id"], status, result.get("detail", "")[:120])
 
     with ThreadPoolExecutor(max_workers=MAX_CONCURRENT_JOBS, thread_name_prefix="gym-job") as executor:
-        futures = [executor.submit(execute, job) for job in jobs]
+        futures = []
+        for index, job in enumerate(jobs):
+            if index and JOB_START_STAGGER_SECONDS:
+                log.info("错峰 %.0f 秒后启动任务 #%s", JOB_START_STAGGER_SECONDS, job["id"])
+                time.sleep(JOB_START_STAGGER_SECONDS)
+            futures.append(executor.submit(execute, job))
         for future in futures:
             future.result()
     return len(jobs)

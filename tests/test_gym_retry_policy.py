@@ -189,6 +189,23 @@ class GymNavigationTimeoutTests(unittest.TestCase):
             gym_automation.robust_goto(page, "https://example.invalid/x", attempts=4)
         self.assertEqual(page.goto.call_count, 2)
 
+    def test_network_timeout_retries_in_place_before_giving_up(self) -> None:
+        """net::ERR_TIMED_OUT 也必须走就地重试，不能第一次就抛。"""
+        page = Mock()
+        page.goto.side_effect = RuntimeError(
+            "Page.goto: net::ERR_TIMED_OUT at https://example.invalid/x")
+        with patch("time.sleep"), self.assertRaises(RuntimeError):
+            gym_automation.robust_goto(page, "https://example.invalid/x", attempts=3)
+        self.assertEqual(page.goto.call_count, 3)
+
+    def test_network_timeout_recovers_within_same_attempt(self) -> None:
+        page = Mock()
+        page.goto.side_effect = [
+            RuntimeError("Page.goto: net::ERR_TIMED_OUT at https://example.invalid/x"), None]
+        with patch("time.sleep"):
+            gym_automation.robust_goto(page, "https://example.invalid/x", attempts=4)
+        self.assertEqual(page.goto.call_count, 2)
+
 
 class GymSchedulerRetryPolicyTests(unittest.TestCase):
     def test_scheduler_does_not_start_before_0800(self) -> None:
@@ -347,6 +364,22 @@ class GymParallelExecutionTests(unittest.TestCase):
         finally:
             conn.close()
         self.assertEqual(statuses, ["succeeded"] * 4 + ["pending"])
+
+    def test_jobs_are_started_with_the_configured_stagger(self) -> None:
+        for minute in range(10, 13):
+            self._insert_pending(f"{self.today}T09:{minute:02d}:00+08:00")
+
+        def simulate(job):
+            return "succeeded", {"status": "succeeded", "detail": "simulated"}
+
+        with patch.object(gym, "JOB_START_STAGGER_SECONDS", 15.0), \
+                patch.object(gym.time, "sleep") as sleep, \
+                patch.object(gym, "_run_job_subprocess", side_effect=simulate), \
+                patch.object(gym, "notify_job_result"):
+            self.assertEqual(gym._run_due_jobs(self.today), 3)
+
+        self.assertEqual(sleep.call_count, 2, "三个任务只应错峰两次")
+        self.assertTrue(all(call.args == (15.0,) for call in sleep.call_args_list))
 
     def test_batch_skips_when_another_worker_holds_the_execution_lock(self) -> None:
         with patch.object(gym, "_run_due_jobs") as run, \
