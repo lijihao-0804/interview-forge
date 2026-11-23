@@ -27,6 +27,9 @@ from scripts.build.build_library import (  # noqa: E402
 )
 
 DEFAULT_SOURCE = Path(r"C:\Users\20303\Downloads\AgentHub_学习讲解原文完整归档 (5).md")
+# 220 道面试题单独维护的新版文件（深答 + 追问答案）。存在时，第 26–30 节
+# （面试总览 + A/B/C/D 四组）改用这个文件的内容，其余章节仍取主归档源。
+DEFAULT_INTERVIEW_SOURCE = Path(r"C:\Users\20303\Downloads\AgentHub_220道面试题_深度回答与追问答案.md")
 # Reference-link definitions that the interview bank (C/D) still cites but whose
 # original definitions lived inside the retired 第 21–27 讲 bodies. The new source
 # keeps the interview answers verbatim but no longer carries those definitions, so
@@ -73,10 +76,10 @@ SECTION_SPECS: list[tuple[int, int | None, str, str]] = [
     (13303, 13633, "第 20 讲：真正值得研究的下一步——Memory、Wiki 与 RAG 的质量工程", "源码深化（第 12–20 讲）"),
     (13634, 13650, "全书工程阅读指南：从旧课到新课怎样衔接", "导读与版本同步"),
     (13655, 13950, "面试问答总览与 220 题索引", "面试问答（220 题）"),
-    (13951, 14446, "面试问答 A：架构、数据库、认证与交付（SYS01–SYS60）", "面试问答（220 题）"),
-    (14447, 14985, "面试问答 B：模型网关、异步可靠性与审批（RT01–RT50）", "面试问答（220 题）"),
-    (14986, 15473, "面试问答 C：知识摄取、RAG、Memory 与 Wiki（KG01–KG60）", "面试问答（220 题）"),
-    (15474, None, "面试问答 D：前端、业务闭环与可信评测（FE01–FE50）", "面试问答（220 题）"),
+    (13951, 14446, "面试问答 A：架构、认证、权限、工具与数据库（SYS01–SYS60）", "面试问答（220 题）"),
+    (14447, 14985, "面试问答 B：模型网关、异步可靠性、审批与外部执行（RT01–RT50）", "面试问答（220 题）"),
+    (14986, 15473, "面试问答 C：文档摄取、检索证据、Memory 与 Wiki（KG01–KG60）", "面试问答（220 题）"),
+    (15474, None, "面试问答 D：前端、业务闭环、评测与交付（FE01–FE50）", "面试问答（220 题）"),
     (5094, 5136, "附录：整理请求与当时的归档进度", "历史归档附录"),
 ]
 
@@ -656,7 +659,27 @@ renderCards();
     )
 
 
-def build(source_path: Path = DEFAULT_SOURCE, output_dir: Path = OUTPUT_DIR) -> dict:
+def _interview_group_slices(lines: list[str]) -> dict[int, list[str]]:
+    """把独立的 220 题文件切成 5 段，对应第 26–30 节（总览 + A/B/C/D）。"""
+    groups: dict[str, int] = {}
+    for no, line in enumerate(lines, 1):
+        m = ANCHOR_LINE_RE.match(line.strip())
+        if m and m.group(1) in ("interview-systems", "interview-runtime", "interview-knowledge", "interview-fe"):
+            groups[m.group(1)] = no
+    required = ("interview-systems", "interview-runtime", "interview-knowledge", "interview-fe")
+    if any(k not in groups for k in required):
+        raise ValueError("interview source missing group anchors")
+    starts = [1, groups["interview-systems"], groups["interview-runtime"],
+              groups["interview-knowledge"], groups["interview-fe"]]
+    ends = [starts[1] - 1, starts[2] - 1, starts[3] - 1, starts[4] - 1, len(lines)]
+    return {26 + i: lines[starts[i] - 1:ends[i]] for i in range(5)}
+
+
+def build(
+    source_path: Path = DEFAULT_SOURCE,
+    output_dir: Path = OUTPUT_DIR,
+    interview_source: Path | None = DEFAULT_INTERVIEW_SOURCE,
+) -> dict:
     raw_text = source_path.read_text(encoding="utf-8")
     all_lines = raw_text.splitlines()
     ref_defs = _collect_ref_defs(all_lines)
@@ -664,6 +687,11 @@ def build(source_path: Path = DEFAULT_SOURCE, output_dir: Path = OUTPUT_DIR) -> 
         for key, value in json.loads(SUPPLEMENTAL_REFS.read_text(encoding="utf-8")).items():
             url, title = value[0], value[1]
             ref_defs.setdefault(key.lower(), (url, title))
+    interview_slices: dict[int, list[str]] = {}
+    if interview_source is not None and Path(interview_source).is_file():
+        interview_slices = _interview_group_slices(
+            Path(interview_source).read_text(encoding="utf-8").splitlines()
+        )
 
     # First pass: slice lines per section & build global anchor_map
     sections: list[dict] = []
@@ -671,7 +699,10 @@ def build(source_path: Path = DEFAULT_SOURCE, output_dir: Path = OUTPUT_DIR) -> 
 
     for idx, (start_line, end_line, title, topic) in enumerate(SECTION_SPECS, 1):
         href = f"chapter-{idx:02d}.html"
-        slice_lines = all_lines[start_line - 1 : end_line] if end_line is not None else all_lines[start_line - 1 :]
+        if idx in interview_slices:
+            slice_lines = interview_slices[idx]
+        else:
+            slice_lines = all_lines[start_line - 1 : end_line] if end_line is not None else all_lines[start_line - 1 :]
         sections.append(
             {
                 "index": idx,
@@ -751,9 +782,10 @@ def build(source_path: Path = DEFAULT_SOURCE, output_dir: Path = OUTPUT_DIR) -> 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build AgentHub private study bookshelf pages.")
     parser.add_argument("--source", type=Path, default=DEFAULT_SOURCE, help="Source Markdown file path")
+    parser.add_argument("--interview-source", type=Path, default=DEFAULT_INTERVIEW_SOURCE, help="Standalone 220-question Markdown file")
     parser.add_argument("--output", type=Path, default=OUTPUT_DIR, help="Output directory")
     args = parser.parse_args()
-    stats = build(args.source, args.output)
+    stats = build(args.source, args.output, args.interview_source)
     print(json.dumps(stats, ensure_ascii=False, indent=2))
 
 
