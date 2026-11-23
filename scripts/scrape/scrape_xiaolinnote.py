@@ -35,6 +35,7 @@ SERIES = [
     ("tujie-agent", "图解 Agent", "/agent/"),
     ("tujie-claude-code", "图解 Claude Code", "/claudecode/"),
     ("coding", "AI 编程面试题", "/ai/coding/"),
+    ("tujie-codex", "图解 Codex", "/codex/"),
 ]
 
 SKIP_IMAGE_HINTS = ("logo", "扫码", "二维码", "qrcode", "wechat", "公众号")
