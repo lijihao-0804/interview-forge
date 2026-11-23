@@ -34,6 +34,7 @@ SERIES = [
     ("langchain", "LangChain 框架面试题", "/ai/langchain/"),
     ("tujie-agent", "图解 Agent", "/agent/"),
     ("tujie-claude-code", "图解 Claude Code", "/claudecode/"),
+    ("coding", "AI 编程面试题", "/ai/coding/"),
 ]
 
 SKIP_IMAGE_HINTS = ("logo", "扫码", "二维码", "qrcode", "wechat", "公众号")
