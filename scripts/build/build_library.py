@@ -1014,10 +1014,25 @@ FENCE_BLOCK = re.compile(
 # data-lang="java" 的整套 Java 配色规则)；未知语言/空语言用 TextLexer 兜底，
 # 失败不抛异常，保证单个代码块异常不影响整页生成。
 # ---------------------------------------------------------------------------
+# 围栏语言名 → Pygments lexer 名的别名表。常见写法（如 tsx/mts/cts）并不是
+# Pygments 的注册名，直接交给 get_lexer_by_name 会抛 ClassNotFound 而退回纯文本；
+# 这里显式映射到等价 lexer，保证代码块仍能着色（data-lang 仍保留原写法）。
+_LEXER_ALIASES = {
+    "tsx": "typescript",
+    "mts": "typescript",
+    "cts": "typescript",
+    "mjs": "javascript",
+    "cjs": "javascript",
+    "sh": "bash",
+    "shell": "bash",
+}
+
+
 def highlight_code(lang: str, source: str) -> str:
     """用 Pygments 给代码上色，并带上语言标记，便于按语言定制配色。"""
+    key = (lang or "").strip().lower()
     try:
-        lexer = get_lexer_by_name(lang) if lang else TextLexer()
+        lexer = get_lexer_by_name(_LEXER_ALIASES.get(key, key)) if key else TextLexer()
     except ClassNotFound:
         lexer = TextLexer()
     body = pygments_highlight(source, lexer, HtmlFormatter(nowrap=True))

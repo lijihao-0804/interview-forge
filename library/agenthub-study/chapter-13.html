@@ -173,21 +173,21 @@
 <h2 id="_3">三、先补前端基础：页面为什么会“自己更新”？</h2>
 <h3 id="31-usestate">3.1 <code>useState</code>：改变显示所依赖的数据</h3>
 <p>假设页面中有：</p>
-<div class="codehilite" data-lang="tsx"><pre><code class="language-tsx">// 教学简化代码，并非项目原文件的完整实现。
-const [runStatus, setRunStatus] = useState&lt;string | null&gt;(null);
-const [assistantOutput, setAssistantOutput] = useState(&quot;&quot;);
+<div class="codehilite" data-lang="tsx"><pre><code class="language-tsx"><span class="c1">// 教学简化代码，并非项目原文件的完整实现。</span>
+<span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">runStatus</span><span class="p">,</span><span class="w"> </span><span class="nx">setRunStatus</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useState</span><span class="o">&lt;</span><span class="kt">string</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="kc">null</span><span class="o">&gt;</span><span class="p">(</span><span class="kc">null</span><span class="p">);</span>
+<span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">assistantOutput</span><span class="p">,</span><span class="w"> </span><span class="nx">setAssistantOutput</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useState</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">);</span>
 
-return (
-  &lt;section&gt;
-    &lt;p&gt;运行状态：{runStatus ?? &quot;尚未开始&quot;}&lt;/p&gt;
-    &lt;article&gt;{assistantOutput}&lt;/article&gt;
-  &lt;/section&gt;
-);
+<span class="k">return</span><span class="w"> </span><span class="p">(</span>
+<span class="w">  </span><span class="o">&lt;</span><span class="nx">section</span><span class="o">&gt;</span>
+<span class="w">    </span><span class="o">&lt;</span><span class="nx">p</span><span class="o">&gt;</span><span class="nx">运行状态</span><span class="err">：</span><span class="p">{</span><span class="nx">runStatus</span><span class="w"> </span><span class="o">??</span><span class="w"> </span><span class="s2">&quot;尚未开始&quot;</span><span class="p">}</span><span class="o">&lt;</span><span class="err">/p&gt;</span>
+<span class="w">    </span><span class="o">&lt;</span><span class="nx">article</span><span class="o">&gt;</span><span class="p">{</span><span class="nx">assistantOutput</span><span class="p">}</span><span class="o">&lt;</span><span class="err">/article&gt;</span>
+<span class="w">  </span><span class="o">&lt;</span><span class="err">/section&gt;</span>
+<span class="p">);</span>
 </code></pre></div>
 <p>收到事件后执行：</p>
-<div class="codehilite" data-lang="tsx"><pre><code class="language-tsx">setRunStatus(&quot;RUNNING&quot;);
+<div class="codehilite" data-lang="tsx"><pre><code class="language-tsx"><span class="nx">setRunStatus</span><span class="p">(</span><span class="s2">&quot;RUNNING&quot;</span><span class="p">);</span>
 
-setAssistantOutput(current =&gt; current + delta);
+<span class="nx">setAssistantOutput</span><span class="p">(</span><span class="nx">current</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">current</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">delta</span><span class="p">);</span>
 </code></pre></div>
 <p>React 会根据新的状态重新计算需要显示的界面，再把变化更新到页面上。</p>
 <p>注意第二行用的是函数形式。流式事件连续到达时，新文本要接在“当前已有文本”后面；如果用某个旧闭包里的字符串去拼接，可能把后来已经到达的内容覆盖掉。</p>
@@ -228,21 +228,21 @@ setAssistantOutput(current =&gt; current + delta);
 <p>这里的“世代编号”很好理解。</p>
 <p>用户原本在看版本 A，网络很慢；随后切到版本 B。A 的请求晚到，如果直接 <code>setState</code>，B 的页面就会突然出现 A 的结果。</p>
 <p>简化写法：</p>
-<div class="codehilite" data-lang="tsx"><pre><code class="language-tsx">const generationRef = useRef(0);
+<div class="codehilite" data-lang="tsx"><pre><code class="language-tsx"><span class="kd">const</span><span class="w"> </span><span class="nx">generationRef</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useRef</span><span class="p">(</span><span class="mf">0</span><span class="p">);</span>
 
-async function loadRun(runId: string) {
-  const generation = generationRef.current;
-  const run = await getRun(runId);
+<span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">loadRun</span><span class="p">(</span><span class="nx">runId</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">generation</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">generationRef</span><span class="p">.</span><span class="nx">current</span><span class="p">;</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">run</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">getRun</span><span class="p">(</span><span class="nx">runId</span><span class="p">);</span>
 
-  if (generation !== generationRef.current) return;
-  setRun(run);
-}
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">generation</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="nx">generationRef</span><span class="p">.</span><span class="nx">current</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="p">;</span>
+<span class="w">  </span><span class="nx">setRun</span><span class="p">(</span><span class="nx">run</span><span class="p">);</span>
+<span class="p">}</span>
 
-function switchVersion() {
-  generationRef.current += 1;
-  streamRef.current?.abort();
-  clearVisibleRun();
-}
+<span class="kd">function</span><span class="w"> </span><span class="nx">switchVersion</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">generationRef</span><span class="p">.</span><span class="nx">current</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="mf">1</span><span class="p">;</span>
+<span class="w">  </span><span class="nx">streamRef</span><span class="p">.</span><span class="nx">current</span><span class="o">?</span><span class="p">.</span><span class="nx">abort</span><span class="p">();</span>
+<span class="w">  </span><span class="nx">clearVisibleRun</span><span class="p">();</span>
+<span class="p">}</span>
 </code></pre></div>
 <p><code>abort()</code> 尽量停止旧连接；世代检查处理“请求已经完成、回调已经排队，或者某些请求根本没有被取消”的情况。</p>
 <p><strong>取消网络操作和拒绝过期结果，是两个互补措施。</strong> 项目的普通数据 Hook 主要靠身份与世代校验忽略过期响应，并不是把所有旧请求都物理取消。<a href="https://github.com/lijihao-0804/AgentHub/blob/fafe4aba0c95fb16d97a9f70ca8b4a2d83bbb1d9/apps/web/app/agents/[agentId]/playground/playground-client.tsx">Playground</a>、<a href="https://github.com/lijihao-0804/AgentHub/blob/fafe4aba0c95fb16d97a9f70ca8b4a2d83bbb1d9/apps/web/hooks/use-workspace-data.ts">工作区数据 Hook</a></p>

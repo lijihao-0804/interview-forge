@@ -655,78 +655,78 @@
 <h3 id="76">7.6 一段接近实际改动的示意</h3>
 <p>下面是<strong>待实施的教学示意</strong>，沿用现有页面的查询对象和变量；它不是已经合并、已经浏览器验收过的补丁。页面还需要接入对应提示和操作后的刷新入口。新增的 Hook 应放在组件顶层、现有条件返回之前，不能只在“当前已展开”分支内调用。</p>
 <p>先把“是否有活动详情”写成一个可解释条件：</p>
-<div class="codehilite" data-lang="tsx"><pre><code class="language-tsx">function isActiveDetail(entry: DocumentRevisionStatus): boolean {
-  return entry.revision.lifecycle_status !== &quot;DELETED&quot; &amp;&amp; (
-    INGESTION_ACTIVE_STATUSES.has(entry.revision.ingestion_status) ||
-    INGESTION_ACTIVE_STATUSES.has(entry.ingestion_job.status)
-  );
-}
+<div class="codehilite" data-lang="tsx"><pre><code class="language-tsx"><span class="kd">function</span><span class="w"> </span><span class="nx">isActiveDetail</span><span class="p">(</span><span class="nx">entry</span><span class="o">:</span><span class="w"> </span><span class="kt">DocumentRevisionStatus</span><span class="p">)</span><span class="o">:</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nx">entry</span><span class="p">.</span><span class="nx">revision</span><span class="p">.</span><span class="nx">lifecycle_status</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="s2">&quot;DELETED&quot;</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="nx">INGESTION_ACTIVE_STATUSES</span><span class="p">.</span><span class="nx">has</span><span class="p">(</span><span class="nx">entry</span><span class="p">.</span><span class="nx">revision</span><span class="p">.</span><span class="nx">ingestion_status</span><span class="p">)</span><span class="w"> </span><span class="o">||</span>
+<span class="w">    </span><span class="nx">INGESTION_ACTIVE_STATUSES</span><span class="p">.</span><span class="nx">has</span><span class="p">(</span><span class="nx">entry</span><span class="p">.</span><span class="nx">ingestion_job</span><span class="p">.</span><span class="nx">status</span><span class="p">)</span>
+<span class="w">  </span><span class="p">);</span>
+<span class="p">}</span>
 </code></pre></div>
 <p>页面现有的 <code>INGESTION_ACTIVE_STATUSES</code> 是 <code>PENDING / PROCESSING</code>。同时看 Revision 与 Job，可以避免只依赖列表的简化投影。</p>
 <p>再安排一次性读取，而不是每隔五秒无条件叠一个请求：</p>
-<div class="codehilite" data-lang="tsx"><pre><code class="language-tsx">const detailKey = `${sessionId}:${scope}:${selectedDocumentId ?? &quot;&quot;}`;
-const reloadRevisions = revisions.reload;
-const failure = useRef({ key: detailKey, error: revisions.error, count: 0 });
-const [pollMode, setPollMode] = useState(&quot;idle&quot;);
+<div class="codehilite" data-lang="tsx"><pre><code class="language-tsx"><span class="kd">const</span><span class="w"> </span><span class="nx">detailKey</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="sb">`</span><span class="si">${</span><span class="nx">sessionId</span><span class="si">}</span><span class="sb">:</span><span class="si">${</span><span class="nx">scope</span><span class="si">}</span><span class="sb">:</span><span class="si">${</span><span class="nx">selectedDocumentId</span><span class="w"> </span><span class="o">??</span><span class="w"> </span><span class="s2">&quot;&quot;</span><span class="si">}</span><span class="sb">`</span><span class="p">;</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">reloadRevisions</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">revisions</span><span class="p">.</span><span class="nx">reload</span><span class="p">;</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">failure</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useRef</span><span class="p">({</span><span class="w"> </span><span class="nx">key</span><span class="o">:</span><span class="w"> </span><span class="kt">detailKey</span><span class="p">,</span><span class="w"> </span><span class="nx">error</span><span class="o">:</span><span class="w"> </span><span class="kt">revisions.error</span><span class="p">,</span><span class="w"> </span><span class="nx">count</span><span class="o">:</span><span class="w"> </span><span class="kt">0</span><span class="w"> </span><span class="p">});</span>
+<span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">pollMode</span><span class="p">,</span><span class="w"> </span><span class="nx">setPollMode</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useState</span><span class="p">(</span><span class="s2">&quot;idle&quot;</span><span class="p">);</span>
 
-function retryRevisions() {
-  failure.current = { key: detailKey, error: null, count: 0 };
-  reloadRevisions(); // 返回 void；请求完成由 query 状态反映
-}
+<span class="kd">function</span><span class="w"> </span><span class="nx">retryRevisions</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">failure</span><span class="p">.</span><span class="nx">current</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">key</span><span class="o">:</span><span class="w"> </span><span class="kt">detailKey</span><span class="p">,</span><span class="w"> </span><span class="nx">error</span><span class="o">:</span><span class="w"> </span><span class="kt">null</span><span class="p">,</span><span class="w"> </span><span class="nx">count</span><span class="o">:</span><span class="w"> </span><span class="kt">0</span><span class="w"> </span><span class="p">};</span>
+<span class="w">  </span><span class="nx">reloadRevisions</span><span class="p">();</span><span class="w"> </span><span class="c1">// 返回 void；请求完成由 query 状态反映</span>
+<span class="p">}</span>
 
-useEffect(() =&gt; {
-  if (failure.current.key !== detailKey) {
-    failure.current = { key: detailKey, error: null, count: 0 };
-    setPollMode(&quot;idle&quot;);
-    return; // 等待查询切换身份，避免使用上一资源的状态
-  }
-  if (!connected || tab !== &quot;documents&quot; || !selectedDocumentId || revisions.loading) return;
+<span class="nx">useEffect</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">failure</span><span class="p">.</span><span class="nx">current</span><span class="p">.</span><span class="nx">key</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="nx">detailKey</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">failure</span><span class="p">.</span><span class="nx">current</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">key</span><span class="o">:</span><span class="w"> </span><span class="kt">detailKey</span><span class="p">,</span><span class="w"> </span><span class="nx">error</span><span class="o">:</span><span class="w"> </span><span class="kt">null</span><span class="p">,</span><span class="w"> </span><span class="nx">count</span><span class="o">:</span><span class="w"> </span><span class="kt">0</span><span class="w"> </span><span class="p">};</span>
+<span class="w">    </span><span class="nx">setPollMode</span><span class="p">(</span><span class="s2">&quot;idle&quot;</span><span class="p">);</span>
+<span class="w">    </span><span class="k">return</span><span class="p">;</span><span class="w"> </span><span class="c1">// 等待查询切换身份，避免使用上一资源的状态</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">connected</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">tab</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="s2">&quot;documents&quot;</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="o">!</span><span class="nx">selectedDocumentId</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">revisions</span><span class="p">.</span><span class="nx">loading</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="p">;</span>
 
-  const error = revisions.error;
-  let delay = INGESTION_POLL_MS;
-  if (error) {
-    if (failure.current.error !== error) {
-      failure.current.error = error;
-      failure.current.count += 1;
-    }
-    const transient = error.status === 0 || error.status === 408 ||
-      error.status === 429 || error.status &gt;= 500;
-    if (!transient || failure.current.count &gt; 3) {
-      setPollMode(&quot;paused&quot;);
-      return;
-    }
-    delay *= 2 ** (failure.current.count - 1); // 5、10、20 秒
-    setPollMode(&quot;backoff&quot;);
-  } else {
-    if (!revisions.loaded) return;
-    failure.current = { key: detailKey, error: null, count: 0 };
-    if (!(revisions.data ?? []).some(isActiveDetail)) {
-      setPollMode(&quot;idle&quot;);
-      reloadDocuments(); // 详情终态或空结果后核对列表
-      return;
-    }
-    setPollMode(&quot;watching&quot;);
-  }
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">error</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">revisions</span><span class="p">.</span><span class="nx">error</span><span class="p">;</span>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">delay</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">INGESTION_POLL_MS</span><span class="p">;</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">failure</span><span class="p">.</span><span class="nx">current</span><span class="p">.</span><span class="nx">error</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="nx">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nx">failure</span><span class="p">.</span><span class="nx">current</span><span class="p">.</span><span class="nx">error</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">error</span><span class="p">;</span>
+<span class="w">      </span><span class="nx">failure</span><span class="p">.</span><span class="nx">current</span><span class="p">.</span><span class="nx">count</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="mf">1</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="kr">transient</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">error</span><span class="p">.</span><span class="nx">status</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="mf">0</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">error</span><span class="p">.</span><span class="nx">status</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="mf">408</span><span class="w"> </span><span class="o">||</span>
+<span class="w">      </span><span class="nx">error</span><span class="p">.</span><span class="nx">status</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="mf">429</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">error</span><span class="p">.</span><span class="nx">status</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mf">500</span><span class="p">;</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="kr">transient</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">failure</span><span class="p">.</span><span class="nx">current</span><span class="p">.</span><span class="nx">count</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">3</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nx">setPollMode</span><span class="p">(</span><span class="s2">&quot;paused&quot;</span><span class="p">);</span>
+<span class="w">      </span><span class="k">return</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="nx">delay</span><span class="w"> </span><span class="o">*=</span><span class="w"> </span><span class="mf">2</span><span class="w"> </span><span class="o">**</span><span class="w"> </span><span class="p">(</span><span class="nx">failure</span><span class="p">.</span><span class="nx">current</span><span class="p">.</span><span class="nx">count</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mf">1</span><span class="p">);</span><span class="w"> </span><span class="c1">// 5、10、20 秒</span>
+<span class="w">    </span><span class="nx">setPollMode</span><span class="p">(</span><span class="s2">&quot;backoff&quot;</span><span class="p">);</span>
+<span class="w">  </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">revisions</span><span class="p">.</span><span class="nx">loaded</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="p">;</span>
+<span class="w">    </span><span class="nx">failure</span><span class="p">.</span><span class="nx">current</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">key</span><span class="o">:</span><span class="w"> </span><span class="kt">detailKey</span><span class="p">,</span><span class="w"> </span><span class="nx">error</span><span class="o">:</span><span class="w"> </span><span class="kt">null</span><span class="p">,</span><span class="w"> </span><span class="nx">count</span><span class="o">:</span><span class="w"> </span><span class="kt">0</span><span class="w"> </span><span class="p">};</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="p">(</span><span class="nx">revisions</span><span class="p">.</span><span class="nx">data</span><span class="w"> </span><span class="o">??</span><span class="w"> </span><span class="p">[]).</span><span class="nx">some</span><span class="p">(</span><span class="nx">isActiveDetail</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nx">setPollMode</span><span class="p">(</span><span class="s2">&quot;idle&quot;</span><span class="p">);</span>
+<span class="w">      </span><span class="nx">reloadDocuments</span><span class="p">();</span><span class="w"> </span><span class="c1">// 详情终态或空结果后核对列表</span>
+<span class="w">      </span><span class="k">return</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="nx">setPollMode</span><span class="p">(</span><span class="s2">&quot;watching&quot;</span><span class="p">);</span>
+<span class="w">  </span><span class="p">}</span>
 
-  let timer: number | undefined;
-  const clear = () =&gt; { window.clearTimeout(timer); timer = undefined; };
-  const arm = () =&gt; {
-    if (!document.hidden &amp;&amp; timer === undefined) {
-      timer = window.setTimeout(() =&gt; {
-        timer = undefined;
-        reloadRevisions();
-      }, delay);
-    }
-  };
-  const onVisibility = () =&gt; { clear(); arm(); };
-  arm();
-  document.addEventListener(&quot;visibilitychange&quot;, onVisibility);
-  return () =&gt; {
-    clear();
-    document.removeEventListener(&quot;visibilitychange&quot;, onVisibility);
-  };
-}, [connected, tab, selectedDocumentId, detailKey, revisions.loading,
-    revisions.loaded, revisions.error, revisions.data, reloadRevisions, reloadDocuments]);
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">timer</span><span class="o">:</span><span class="w"> </span><span class="kt">number</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="kc">undefined</span><span class="p">;</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">clear</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nb">window</span><span class="p">.</span><span class="nx">clearTimeout</span><span class="p">(</span><span class="nx">timer</span><span class="p">);</span><span class="w"> </span><span class="nx">timer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">undefined</span><span class="p">;</span><span class="w"> </span><span class="p">};</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">arm</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nb">document</span><span class="p">.</span><span class="nx">hidden</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">timer</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="kc">undefined</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nx">timer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">window</span><span class="p">.</span><span class="nx">setTimeout</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">timer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">undefined</span><span class="p">;</span>
+<span class="w">        </span><span class="nx">reloadRevisions</span><span class="p">();</span>
+<span class="w">      </span><span class="p">},</span><span class="w"> </span><span class="nx">delay</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">};</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">onVisibility</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">clear</span><span class="p">();</span><span class="w"> </span><span class="nx">arm</span><span class="p">();</span><span class="w"> </span><span class="p">};</span>
+<span class="w">  </span><span class="nx">arm</span><span class="p">();</span>
+<span class="w">  </span><span class="nb">document</span><span class="p">.</span><span class="nx">addEventListener</span><span class="p">(</span><span class="s2">&quot;visibilitychange&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">onVisibility</span><span class="p">);</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">clear</span><span class="p">();</span>
+<span class="w">    </span><span class="nb">document</span><span class="p">.</span><span class="nx">removeEventListener</span><span class="p">(</span><span class="s2">&quot;visibilitychange&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">onVisibility</span><span class="p">);</span>
+<span class="w">  </span><span class="p">};</span>
+<span class="p">},</span><span class="w"> </span><span class="p">[</span><span class="nx">connected</span><span class="p">,</span><span class="w"> </span><span class="nx">tab</span><span class="p">,</span><span class="w"> </span><span class="nx">selectedDocumentId</span><span class="p">,</span><span class="w"> </span><span class="nx">detailKey</span><span class="p">,</span><span class="w"> </span><span class="nx">revisions</span><span class="p">.</span><span class="nx">loading</span><span class="p">,</span>
+<span class="w">    </span><span class="nx">revisions</span><span class="p">.</span><span class="nx">loaded</span><span class="p">,</span><span class="w"> </span><span class="nx">revisions</span><span class="p">.</span><span class="nx">error</span><span class="p">,</span><span class="w"> </span><span class="nx">revisions</span><span class="p">.</span><span class="nx">data</span><span class="p">,</span><span class="w"> </span><span class="nx">reloadRevisions</span><span class="p">,</span><span class="w"> </span><span class="nx">reloadDocuments</span><span class="p">]);</span>
 </code></pre></div>
 <p>不必一下背下所有行，先理解几个设计原因：</p>
 <ol>

@@ -170,6 +170,9 @@ LIBRARY_MODULES = [
     {"id": "ai-exam-index", "title": "AI 岗笔试真题导航（2026 大厂）", "category": "企业题库",
      "source": "外部面经参考/AI岗笔试真题导航.md",
      "about": "2026 年 3—10 月 13 家公司、约 97 套 AI/算法岗笔试公开题页的导航索引：按公司分章列出日期、岗位、题型、主要考点与原始链接；原题正文归原页作者，本模块不复制全文，适合先定位目标公司的笔试，再打开原页做题。另附 450 道已抽取且带答案的选择题，以及独立的 AI 机试题库（169 个题目页，其中 159 道 ACM 代码题：132 道 AI 岗机试、12 道 AI/Agent 手撕题和 25 道企业机试题）。"},
+    {"id": "ai-agent-book", "title": "深入理解 AI Agent：设计原理与工程实践", "category": "大模型应用",
+     "source": "ai-agent-book/ai-agent-book.md",
+     "about": "李博杰《深入理解 AI Agent：设计原理与工程实践》中文版（Apache-2.0 开源，GitHub bojieli/ai-agent-book，固定提交 defacfb · v3.1）。以「Agent = LLM + 上下文 + 工具」为主线，10 章依次讲上下文工程、用户记忆与知识库、工具、Coding/通用 Agent、交互的观测与动作空间、Agent 评估、模型后训练、持续进化与多 Agent 协作，另附思考题参考答案与 100 余幅插图；建议按章顺序精读。"},
 ]
 
 
@@ -248,6 +251,7 @@ MODULE_ORDER = [
     "xiaolin-tujie-codex",
     "agent-cli",
     "deepseek-harness",
+    "ai-agent-book",
     # Agent 岗位面经（外部整合）
     "agent-real-interviews",
     "ai-agent-coding-interview",
