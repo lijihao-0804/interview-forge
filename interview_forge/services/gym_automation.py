@@ -556,9 +556,15 @@ def settle_after_login(page, target_url, max_wait=45):
 def login(page, user, pwd, target_url):
     robust_goto(page, target_url)
     if "authserver" not in page.url:
+        if not is_site_ready(page):
+            raise RuntimeError("进入场馆页后页面未就绪，无法确认登录态")
         log.info("已有登录态，直接进入场馆页")
         return
     log.info("跳转到统一身份认证，开始登录")
+    try:
+        page.wait_for_selector("#username", timeout=10000)
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError("统一身份认证登录页未就绪") from exc
     page.fill("#username", user)
     page.fill("#password", pwd)
     page.locator("#login_submit:visible").click()
@@ -583,8 +589,14 @@ def check_login(page, user, pwd, target_url):
     status: ok / bad_credentials / captcha_failed / error"""
     robust_goto(page, target_url)
     if "authserver" not in page.url:
+        if not is_site_ready(page):
+            return {"status": "error", "detail": "进入场馆页后页面未就绪，无法确认登录态"}
         return {"status": "ok", "detail": "已有登录态"}
     log.info("登录验证：填写凭据并提交")
+    try:
+        page.wait_for_selector("#username", timeout=10000)
+    except Exception:  # noqa: BLE001
+        return {"status": "error", "detail": "统一身份认证登录页未就绪"}
     page.fill("#username", user)
     page.fill("#password", pwd)
     page.locator("#login_submit:visible").click()
@@ -859,6 +871,8 @@ def ensure_target_date(page, target_date):
       const act = document.querySelector('.select_date_box .date_box .active');
       return act ? act.innerText.replace(/\\s+/g, '') : '';
     }""")
+    if not active:
+        raise RuntimeError("场次页日期条未就绪，无法判断目标日期")
     # 按「月/日数字」比较，而不是字符串包含：
     # 站点在每月 1~9 号会把日号补零成「11月01日」，而 date_label_cn 生成「11月1日」，
     # 直接 in 判断会误判失败（2026-11-01 当天所有任务就是这么挂的）。
@@ -912,8 +926,9 @@ def pick_slot(page, slots, ready_timeout_ms=SLOT_TABLE_READY_TIMEOUT_MS):
         time.sleep(0.5)
     log.info("表格解析：时间表头%s，时段块 %d 个",
              "已找到" if headers else "未找到", len(blocks))
-    if not headers:
-        log.warning("场次表未就绪：时间表头未找到，无法判断是否有空位（等待 %.1f 秒）",
+    if not headers or not blocks:
+        log.warning("场次表未就绪：时间表头%s、时段块 %d 个，无法判断是否有空位（等待 %.1f 秒）",
+                    "已找到" if headers else "未找到", len(blocks),
                     max(0, ready_timeout_ms) / 1000)
         return None, False
     for slot in slots:
@@ -922,6 +937,10 @@ def pick_slot(page, slots, ready_timeout_ms=SLOT_TABLE_READY_TIMEOUT_MS):
                 continue
             log.info("时段 %s 状态 class=%s 容量=%s", slot, b["cls"], b["text"])
             cls = b["cls"]
+            if not any(marker in cls.lower() for marker in
+                       ("selected", "disabled", "reserved", "free", "reservation")):
+                log.warning("时段 %s 状态未知（class=%s），按场次表未就绪处理", slot, cls)
+                return None, False
             if "selected" in cls:
                 return (slot, b["text"]), True
             if "disabled" in cls or "reserved" in cls:
@@ -996,7 +1015,12 @@ def _wait_confirm_page_rendered(page, timeout_ms=12000, interval_s=0.4):
 
 
 def read_amount(page):
-    return parse_order_amount(page.evaluate("() => document.body.innerText"))
+    try:
+        text = page.evaluate("() => document.body.innerText")
+    except Exception as exc:  # noqa: BLE001
+        log.warning("预约页面金额读取失败（页面未就绪？）：%s", exc)
+        return None
+    return parse_order_amount(text)
 
 
 def _save_blank_confirm_capture(page, capture_dir):
