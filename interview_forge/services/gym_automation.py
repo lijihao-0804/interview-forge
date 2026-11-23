@@ -22,6 +22,7 @@ import math
 import os
 import re
 import shutil
+import socket
 import sys
 import time
 from datetime import date as date_cls, datetime, timedelta, timezone
@@ -163,6 +164,55 @@ def wait_either(page, css_list, timeout_ms):
         return None
 
 
+BROWSER_IPV4_HOSTS = ("ggtypt.nju.edu.cn", "authserver.nju.edu.cn")
+
+
+def _browser_launch_args() -> list[str]:
+    """把浏览器固定到可验证的 IPv4 直连路径，并避免 QUIC 绕过 TCP 观测。"""
+    args = ["--no-proxy-server"]
+    if os.environ.get("GYM_FORCE_IPV4", "1").strip() != "0":
+        rules = []
+        for host in BROWSER_IPV4_HOSTS:
+            try:
+                infos = socket.getaddrinfo(
+                    host, 443, family=socket.AF_INET, type=socket.SOCK_STREAM)
+                if infos:
+                    rules.append(f"MAP {host} {infos[0][4][0]}")
+            except OSError:
+                continue
+        if rules:
+            args.append("--host-resolver-rules=" + ", ".join(rules))
+    if os.environ.get("GYM_DISABLE_QUIC", "1").strip() != "0":
+        args.append("--disable-quic")
+    return args
+
+
+def _attach_network_diagnostics(page) -> None:
+    """把失败阶段的 URL、HTTP 状态和 Chromium 网络错误写进 attempt 日志。"""
+    def relevant(url: str) -> bool:
+        return any(host in url for host in BROWSER_IPV4_HOSTS)
+
+    def on_response(response) -> None:
+        try:
+            if relevant(response.url) and (
+                    response.status >= 400 or response.status in (301, 302, 303, 307, 308)):
+                log.info("HTTP %s %s", response.status, response.url)
+        except Exception:  # noqa: BLE001
+            pass
+
+    def on_request_failed(request) -> None:
+        try:
+            if relevant(request.url):
+                log.warning("请求失败 URL=%s resource=%s error=%s",
+                            request.url, request.resource_type,
+                            getattr(request, "failure", None))
+        except Exception:  # noqa: BLE001
+            pass
+
+    page.on("response", on_response)
+    page.on("requestfailed", on_request_failed)
+
+
 def robust_goto(page, url, attempts=4):
     """站点常有自动跳转在途，主动导航可能被打断：遇到就等一下重试。
 
@@ -176,11 +226,18 @@ def robust_goto(page, url, attempts=4):
     把「等 20 分钟」压缩到「几秒到一两分钟」。
     """
     for attempt in range(1, attempts + 1):
+        started = time.monotonic()
         try:
             page.goto(url, wait_until="domcontentloaded", timeout=PAGE_NAV_TIMEOUT_MS)
+            log.info("导航成功（%.2fs）：%s -> %s",
+                     time.monotonic() - started, url, str(page.url)[:160])
             return
         except Exception as exc:  # noqa: BLE001
+            elapsed = time.monotonic() - started
             msg = str(exc)
+            log.warning("导航失败（%.2fs，第 %d/%d 次）：%s | %s",
+                        elapsed, attempt, attempts, type(exc).__name__,
+                        msg[:240].replace("\n", " | "))
             # 被页面自身的跳转打断：稍等后重试
             if "interrupted" in msg or "Execution context" in msg:
                 time.sleep(2)
@@ -190,7 +247,8 @@ def robust_goto(page, url, attempts=4):
             # 之前这类超时只尝试一次就抛出，任务级重试全挤在 08:00 高峰。
             if ("Timeout" in msg or "ERR_TIMED_OUT" in msg or
                     "ERR_CONNECTION_TIMED_OUT" in msg) and attempt < attempts:
-                log.warning("导航超时（第 %d/%d 次），3 秒后重试：%s", attempt, attempts, url)
+                log.warning("导航超时（第 %d/%d 次），3 秒后重试：%s",
+                            attempt, attempts, url)
                 time.sleep(3)
                 continue
             raise
@@ -1867,12 +1925,15 @@ def run(args) -> dict:
 
     from playwright.sync_api import sync_playwright
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=args.headless)
+        launch_args = _browser_launch_args()
+        log.info("浏览器连接加固参数：%s", launch_args)
+        browser = p.chromium.launch(headless=args.headless, args=launch_args)
         ctx = browser.new_context(user_agent=USER_AGENT,
                                   viewport={"width": 1280, "height": 800},
                                   locale="zh-CN", timezone_id="Asia/Shanghai")
         page = ctx.new_page()
         page.set_default_timeout(8000)
+        _attach_network_diagnostics(page)
 
         login(page, user, pwd, target_url)
 
@@ -2069,7 +2130,7 @@ def main(argv=None):
             target_url = VENUE_URL_FMT.format(venue=args.venue)
             from playwright.sync_api import sync_playwright
             with sync_playwright() as p:
-                browser = p.chromium.launch(headless=args.headless)
+                browser = p.chromium.launch(headless=args.headless, args=_browser_launch_args())
                 ctx = browser.new_context(user_agent=USER_AGENT,
                                           viewport={"width": 1280, "height": 800},
                                           locale="zh-CN", timezone_id="Asia/Shanghai")

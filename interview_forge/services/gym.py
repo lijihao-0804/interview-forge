@@ -24,7 +24,9 @@ import json
 import logging
 import os
 import re
+import socket
 import sqlite3
+import ssl
 import subprocess
 import sys
 import threading
@@ -46,6 +48,7 @@ RUN_EARLIEST = (8, 0)
 # 执行器无空位时每 5 分钟复查，避免高频重新加载场馆页面。
 JOB_SUBPROCESS_TIMEOUT_SECONDS = 35 * 60
 JOB_RUNNING_STALE_GRACE_SECONDS = 5 * 60
+PREFLIGHT_TIMEOUT_SECONDS = 8
 JOB_MAX_ATTEMPTS = 3
 MAX_CONCURRENT_JOBS = 4
 # 并发任务错峰启动秒数。多个浏览器同一秒登录/加载场馆页会把站点拖慢，
@@ -1141,6 +1144,43 @@ def _defer_transient_retry(job: dict, status: str, result: dict) -> bool:
     return True
 
 
+def preflight_target(venue: str) -> tuple[bool, str]:
+    """用 IPv4 对预约页做一次轻量 TCP/TLS/HTTP 预检；失败时不要启动浏览器。"""
+    host = "ggtypt.nju.edu.cn"
+    path = f"/venue/venue-reservation/{venue}"
+    try:
+        infos = socket.getaddrinfo(
+            host, 443, family=socket.AF_INET, type=socket.SOCK_STREAM)
+        ip = infos[0][4][0] if infos else ""
+        if not ip:
+            return False, "DNS 未返回 IPv4 地址"
+    except OSError as exc:
+        return False, f"DNS 失败：{exc}"
+    try:
+        sock = socket.create_connection((ip, 443), timeout=PREFLIGHT_TIMEOUT_SECONDS)
+        try:
+            context = ssl.create_default_context()
+            with context.wrap_socket(sock, server_hostname=host) as tls:
+                request = (
+                    f"HEAD {path} HTTP/1.1\r\n"
+                    f"Host: {host}\r\n"
+                    "User-Agent: InterviewForge-Gym-Preflight/1\r\n"
+                    "Connection: close\r\n\r\n"
+                )
+                tls.sendall(request.encode("latin-1"))
+                response = tls.recv(512).decode("latin-1", "replace")
+        finally:
+            sock.close()
+    except (OSError, ssl.SSLError, TimeoutError) as exc:
+        return False, f"连接失败：{type(exc).__name__}: {exc}"
+    first = response.split("\r\n", 1)[0]
+    parts = first.split()
+    status = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 0
+    if 200 <= status < 400:
+        return True, f"HTTP {status} via {ip}"
+    return False, f"HTTP {status or '无响应'} via {ip}"
+
+
 def _run_job_subprocess(job: dict) -> tuple[str, dict]:
     """子进程执行一次预约自动化，返回 (状态, 结果)。
 
@@ -1153,6 +1193,14 @@ def _run_job_subprocess(job: dict) -> tuple[str, dict]:
     log_path = run_dir / f"job-{job['id']}-attempt-{attempt}.log"
     # 同一任务会重试；删除上轮结果文件，避免本次进程尚未写结果时误读旧 JSON。
     result_path.unlink(missing_ok=True)
+    if os.environ.get("GYM_PREFLIGHT", "0").strip() == "1":
+        ok, detail = preflight_target(str(job.get("venue") or "129"))
+        log.info("任务 #%s 站点预检：%s（%s）", job["id"], "通过" if ok else "失败", detail)
+        if not ok:
+            return "failed", {
+                "detail": f"站点预检失败：{detail}",
+                "retryable": True,
+            }
     account, password = _load_credentials_decrypted(str(job["created_by"]))
     stdin_payload = json.dumps({"account": account, "password": password}, ensure_ascii=False)
     cmd = [

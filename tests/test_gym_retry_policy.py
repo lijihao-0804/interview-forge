@@ -207,6 +207,55 @@ class GymNavigationTimeoutTests(unittest.TestCase):
         self.assertEqual(page.goto.call_count, 2)
 
 
+class GymPreflightAndBrowserHardeningTests(unittest.TestCase):
+    def test_browser_launch_args_force_ipv4_and_disable_quic(self) -> None:
+        with patch.object(gym_automation.socket, "getaddrinfo", return_value=[
+            (2, 1, 6, "", ("202.119.32.33", 443)),
+            (2, 1, 6, "", ("219.219.115.212", 443)),
+        ]):
+            args = gym_automation._browser_launch_args()
+        self.assertIn("--disable-quic", args)
+        rules = next(a for a in args if a.startswith("--host-resolver-rules="))
+        self.assertIn("MAP ggtypt.nju.edu.cn 202.119.32.33", rules)
+
+    def test_preflight_accepts_redirect_response(self) -> None:
+        class FakeTLS:
+            def __enter__(self): return self
+            def __exit__(self, *args): return False
+            def sendall(self, data): self.sent = data
+            def recv(self, n): return b"HTTP/1.1 302 Moved Temporarily\r\nLocation: /x\r\n\r\n"
+
+        class FakeContext:
+            def wrap_socket(self, sock, server_hostname): return FakeTLS()
+
+        with patch.object(gym.socket, "getaddrinfo", return_value=[
+                (2, 1, 6, "", ("202.119.32.33", 443))]), \
+                patch.object(gym.socket, "create_connection", return_value=Mock()), \
+                patch.object(gym.ssl, "create_default_context", return_value=FakeContext()):
+            ok, detail = gym.preflight_target("129")
+        self.assertTrue(ok)
+        self.assertIn("HTTP 302", detail)
+
+    def test_preflight_connection_error_is_retryable(self) -> None:
+        with patch.object(gym.socket, "getaddrinfo", return_value=[
+                (2, 1, 6, "", ("202.119.32.33", 443))]), \
+                patch.object(gym.socket, "create_connection", side_effect=OSError("timed out")):
+            ok, detail = gym.preflight_target("129")
+        self.assertFalse(ok)
+        self.assertIn("连接失败", detail)
+
+    def test_preflight_failure_returns_without_starting_browser(self) -> None:
+        job = {"id": 999, "target_date": "2026-11-24",
+               "venue": "129", "slots": ["17:00-18:00"], "created_by": "someone",
+               "result": {}}
+        with patch.dict("os.environ", {"GYM_PREFLIGHT": "1"}), \
+                patch.object(gym, "preflight_target", return_value=(False, "HTTP 000")):
+            status, result = gym._run_job_subprocess(job)
+        self.assertEqual(status, "failed")
+        self.assertTrue(result["retryable"])
+        self.assertIn("站点预检失败", result["detail"])
+
+
 class GymSchedulerRetryPolicyTests(unittest.TestCase):
     def test_scheduler_does_not_start_before_0800(self) -> None:
         self.assertEqual(gym.RUN_EARLIEST, (8, 0))
