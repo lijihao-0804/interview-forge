@@ -60,6 +60,12 @@ except ValueError:
 # 明确发生在预约提交前的瞬时错误采用短退避。订单状态不明确时不会自动重试。
 JOB_RETRY_DELAYS_SECONDS = (60, 120)
 SCHEDULER_POLL_SECONDS = 5
+# 任一任务成功后，将在该窗口内忽略其他待办任务的冷却时间，立即进入下一批领取。
+try:
+    FORCE_CLAIM_WINDOW_SECONDS = max(
+        0, int(os.environ.get("GYM_FORCE_CLAIM_WINDOW_SECONDS", "600") or 600))
+except ValueError:
+    FORCE_CLAIM_WINDOW_SECONDS = 600
 MAX_SLOTS_PER_JOB = 6
 SUPPORTED_VENUES = frozenset({"129", "162"})
 SLOT_PATTERN = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d-(?:[01]\d|2[0-3]):[0-5]\d$")
@@ -103,6 +109,10 @@ CREATE TABLE IF NOT EXISTS gym_smtp_config (
     smtp_user TEXT NOT NULL,
     auth_code_encrypted TEXT NOT NULL,
     updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS gym_runtime (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    force_claim_until TEXT NOT NULL DEFAULT ''
 );
 """
 
@@ -982,6 +992,37 @@ _scheduler_stop = threading.Event()
 _scheduler_thread: threading.Thread | None = None
 
 
+def _force_claim_active(conn: sqlite3.Connection, now: datetime) -> bool:
+    try:
+        row = conn.execute(
+            "SELECT force_claim_until FROM gym_runtime WHERE id = 1"
+        ).fetchone()
+        raw = (row["force_claim_until"] if row else "") or ""
+        return bool(raw) and datetime.fromisoformat(raw) > now
+    except (TypeError, ValueError):
+        return False
+
+
+def _signal_success(job_id: int) -> None:
+    """任务成功时写一个跨 worker 的短期信号，唤醒正在冷却的待办任务。"""
+    if FORCE_CLAIM_WINDOW_SECONDS <= 0:
+        return
+    until = datetime.now(SHANGHAI) + timedelta(seconds=FORCE_CLAIM_WINDOW_SECONDS)
+    with mutex("gym", "write", timeout=10):
+        conn = connect()
+        try:
+            conn.execute(
+                "INSERT INTO gym_runtime (id, force_claim_until) VALUES (1, ?)"
+                " ON CONFLICT(id) DO UPDATE SET force_claim_until=excluded.force_claim_until",
+                (until.isoformat(timespec="seconds"),),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+    log.info("任务 #%s 成功，唤醒冷却中的待办任务（至 %s）",
+             job_id, until.isoformat(timespec="seconds"))
+
+
 def _claim_due_jobs(today_iso: str) -> list[dict]:
     """原子领取今天到点的 pending 任务（08:00 之后），多 worker 下只领一次。
     已错过日期的 pending 任务标记失败并同样发通知。"""
@@ -995,6 +1036,9 @@ def _claim_due_jobs(today_iso: str) -> list[dict]:
     with mutex("gym", "scheduler", timeout=15):
         conn = connect()
         try:
+            force_claim = _force_claim_active(conn, now)
+            if force_claim:
+                log.info("检测到成功唤醒信号，本轮忽略冷却时间")
             rows = conn.execute(
                 # 先建先跑：按创建时间领取，串行执行时顺序就是排队顺序。
                 "SELECT * FROM gym_jobs WHERE status='pending' ORDER BY created_at, id"
@@ -1021,7 +1065,7 @@ def _claim_due_jobs(today_iso: str) -> list[dict]:
                 if row["created_by"] in active_users:
                     continue
                 result = _row_to_dict(row).get("result") or {}
-                if not _retry_is_due(result, now):
+                if not force_claim and not _retry_is_due(result, now):
                     continue
                 cur = conn.execute(
                     "UPDATE gym_jobs SET status='running', updated_at=?"
@@ -1253,6 +1297,8 @@ def _run_due_jobs(today_iso: str) -> int:
         if _defer_transient_retry(job, status, result):
             return
         _finish_job(job["id"], status, result)
+        if status == "succeeded":
+            _signal_success(job["id"])
         notify_job_result(job, status, result)
         log.info("任务 #%s 完成：%s %s", job["id"], status, result.get("detail", "")[:120])
 

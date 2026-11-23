@@ -430,6 +430,21 @@ class GymParallelExecutionTests(unittest.TestCase):
         self.assertEqual(sleep.call_count, 2, "三个任务只应错峰两次")
         self.assertTrue(all(call.args == (15.0,) for call in sleep.call_args_list))
 
+    def test_success_signal_wakes_cooling_pending_jobs(self) -> None:
+        jid = self._insert_pending(f"{self.today}T09:10:00+08:00")
+        future = (datetime.now(gym.SHANGHAI) + timedelta(hours=1)).isoformat(timespec="seconds")
+        conn = gym.connect()
+        try:
+            conn.execute("UPDATE gym_jobs SET result=? WHERE id=?",
+                         (json.dumps({"retry_after": future}), jid))
+            conn.commit()
+        finally:
+            conn.close()
+        self.assertEqual(gym._claim_due_jobs(self.today), [])
+        gym._signal_success(999)
+        claimed = gym._claim_due_jobs(self.today)
+        self.assertEqual([job["id"] for job in claimed], [jid])
+
     def test_batch_skips_when_another_worker_holds_the_execution_lock(self) -> None:
         with patch.object(gym, "_run_due_jobs") as run, \
                 patch.object(gym, "mutex", side_effect=TimeoutError("busy")):
