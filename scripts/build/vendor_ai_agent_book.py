@@ -91,6 +91,15 @@ def main() -> None:
         parts.append(_transform((raw / filename).read_text(encoding="utf-8"), template))
     combined = "\n\n".join(parts).strip() + "\n"
     combined = IMG_ATTR_RE.sub(r"\1", combined)
+    # 上游把“消息历史 / messages”这类结构示意也标成 text 纯文本，阅读时没有语法色。
+    # 这些块实际是类 Python 的伪代码（# 注释、字符串、数字、括号），改用 python
+    # 词法器着色更易读；真正是并排示意的 text 块（如 tools/assistant 两栏）保持不动。
+    combined = re.sub(
+        r"^```text[ \t]*\r?\n(?=(?:消息历史 = \[|messages = \[|messages: \[))",
+        "```python\n",
+        combined,
+        flags=re.M,
+    )
 
     # Copy only the figures actually referenced, preserving the images/... layout.
     referenced = sorted(set(IMG_REF_RE.findall(combined)))

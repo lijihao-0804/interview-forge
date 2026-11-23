@@ -344,7 +344,7 @@ repeat:
 
 下面按八月基线运行的顺序节录消息，保留原调用 ID 和参数名，换汇结果只列金额与币种，计算代码也作了简写。读到第二轮时，可以在求和式中逐项找出处：季度收入有四笔，为什么工具只返回了三个换算结果？
 
-```text
+```python
 消息历史 = [
   {role: "user",
    content: "Q1 250万美元，Q2 210万欧元，Q3 180万英镑，Q4 3.8亿日元。用工具换算为美元，计算年度总收入和季度平均收入。"},
@@ -1134,7 +1134,7 @@ else:
 假设模型在第一轮同时请求时间和天气。这里的 `for` 循环会先查时间，把结果追加到 `messages`，再查天气，追加第二条结果。两项都执行完，程序才回到 `while` 开头，发出第二次模型请求。把 `messages` 在这几步的内容展开，就能看到模型每次拿到了什么。
 
 **初始状态（第 1 次调用前）：**
-```text
+```python
 messages = [
   { role: "system",  content: "You are a helpful assistant..." },     # 开发者写的
   { role: "user",    content: "What's the current time and weather in Vancouver?" },  # 用户输入
@@ -1142,7 +1142,7 @@ messages = [
 ```
 
 **第 1 次模型调用与工具执行完成后：**
-```text
+```python
 messages = [
   { role: "system",    content: "..." },
   { role: "user",      content: "What's the current time..." },
@@ -1153,7 +1153,7 @@ messages = [
 ```
 
 **第 2 次调用后（模型返回最终回复，循环结束）：**
-```text
+```python
 messages = [
   { role: "system",    content: "..." },
   { role: "user",      content: "What's the current time..." },
@@ -1697,7 +1697,7 @@ Skill 提供任务知识与操作流程，工具负责读取、执行和获取�
 
 把图中的次序写成消息列表如下。为方便对照，这里略去重复轮次和部分调用字段。
 
-```text
+```python
 messages: [
   { role: "system", content: "You are a customer service assistant..." }
   { role: "user", content: "Help me cancel my Xfinity plan" }
