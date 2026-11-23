@@ -256,6 +256,31 @@ class GymPreflightAndBrowserHardeningTests(unittest.TestCase):
         self.assertIn("站点预检失败", result["detail"])
 
 
+class GymSlotTableReadinessTests(unittest.TestCase):
+    def test_missing_table_headers_is_not_counted_as_no_slot(self) -> None:
+        page = Mock()
+        page.evaluate.return_value = {
+            "headers": None,
+            "blocks": [{"i": 0, "header": "", "cls": "free", "text": ""}],
+        }
+        with patch.object(gym_automation.time, "sleep"):
+            picked, queryable = gym_automation.pick_slot(
+                page, ["17:00-18:00"], ready_timeout_ms=0)
+        self.assertIsNone(picked)
+        self.assertFalse(queryable)
+
+    def test_rendered_table_with_reserved_slot_is_a_real_no_slot(self) -> None:
+        page = Mock()
+        page.evaluate.return_value = {
+            "headers": ["17:00-18:00"],
+            "blocks": [{"i": 0, "header": "17:00-18:00", "cls": "reserved", "text": "50/50"}],
+        }
+        with patch.object(gym_automation.time, "sleep"):
+            picked, queryable = gym_automation.pick_slot(page, ["17:00-18:00"])
+        self.assertIsNone(picked)
+        self.assertTrue(queryable)
+
+
 class GymSchedulerRetryPolicyTests(unittest.TestCase):
     def test_scheduler_does_not_start_before_0800(self) -> None:
         self.assertEqual(gym.RUN_EARLIEST, (8, 0))

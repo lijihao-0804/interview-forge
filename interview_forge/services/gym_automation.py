@@ -48,6 +48,8 @@ USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
 # 页面导航（goto）单独的超时。放号瞬间站点会被挤到响应很慢，8 秒的默认值让三次尝试
 # 全部倒在“页面还没加载出来”；真人用浏览器是会一直等的。
 PAGE_NAV_TIMEOUT_MS = 25000
+# 场次表是 Vue 异步渲染：表头没出来时不能当成“无空位”，要等一下再判断。
+SLOT_TABLE_READY_TIMEOUT_MS = 8000
 
 # ---------------------------------------------------------------- paths / config
 
@@ -875,26 +877,45 @@ def confirm_if_popped(page, texts=("确定",), timeout_ms=2500):
     return False
 
 
-def pick_slot(page, slots):
+def pick_slot(page, slots, ready_timeout_ms=SLOT_TABLE_READY_TIMEOUT_MS):
     """按表头定位目标列，兼容 iview 固定列的拆分表（/129 表头与容量块分属不同
-    <table>，必须全文档找表头行、按时段块所在列号对齐）。返回 (时段, 容量) 或 None。"""
-    dump = page.evaluate("""() => {
-      const timeRe = /^\d{2}:\d{2}-\d{2}:\d{2}$/;
-      let headers = null;
-      for (const row of document.querySelectorAll('tr')) {
-        const cells = [...(row.cells || [])].map(c => (c.innerText || '').trim());
-        if (cells.some(h => timeRe.test(h))) { headers = cells; break; }
-      }
-      const blocks = [...document.querySelectorAll('.reserveBlock')].map((b, i) => {
-        const td = b.closest('td');
-        return { i, header: td && headers ? (headers[td.cellIndex] || '') : '',
-                 cls: b.className, text: (b.innerText || '').trim() };
-      });
-      return { headers, blocks };
-    }""")
-    headers = (dump or {}).get("headers")
-    blocks = (dump or {}).get("blocks") or []
-    log.info("表格解析：时间表头%s，时段块 %d 个", "已找到" if headers else "未找到", len(blocks))
+    <table>，必须全文档找表头行、按时段块所在列号对齐）。
+
+    返回 (picked, queryable)：
+      - ((slot, capacity), True)  选中成功；
+      - (None, True)              表格已就绪，确实没有可用时段；
+      - (None, False)             表格/表头尚未渲染，不能判断是否有空位。
+    """
+    deadline = time.monotonic() + max(0, ready_timeout_ms) / 1000
+    dump = None
+    headers = None
+    blocks = []
+    while True:
+        dump = page.evaluate("""() => {
+          const timeRe = /^\d{2}:\d{2}-\d{2}:\d{2}$/;
+          let headers = null;
+          for (const row of document.querySelectorAll('tr')) {
+            const cells = [...(row.cells || [])].map(c => (c.innerText || '').trim());
+            if (cells.some(h => timeRe.test(h))) { headers = cells; break; }
+          }
+          const blocks = [...document.querySelectorAll('.reserveBlock')].map((b, i) => {
+            const td = b.closest('td');
+            return { i, header: td && headers ? (headers[td.cellIndex] || '') : '',
+                     cls: b.className, text: (b.innerText || '').trim() };
+          });
+          return { headers, blocks };
+        }""")
+        headers = (dump or {}).get("headers")
+        blocks = (dump or {}).get("blocks") or []
+        if headers or time.monotonic() >= deadline:
+            break
+        time.sleep(0.5)
+    log.info("表格解析：时间表头%s，时段块 %d 个",
+             "已找到" if headers else "未找到", len(blocks))
+    if not headers:
+        log.warning("场次表未就绪：时间表头未找到，无法判断是否有空位（等待 %.1f 秒）",
+                    max(0, ready_timeout_ms) / 1000)
+        return None, False
     for slot in slots:
         for b in blocks:
             if b["header"] != slot:
@@ -902,7 +923,7 @@ def pick_slot(page, slots):
             log.info("时段 %s 状态 class=%s 容量=%s", slot, b["cls"], b["text"])
             cls = b["cls"]
             if "selected" in cls:
-                return slot, b["text"]
+                return (slot, b["text"]), True
             if "disabled" in cls or "reserved" in cls:
                 break  # 该时段不可选，试下一个备选
             if "free" in cls:
@@ -916,8 +937,8 @@ def pick_slot(page, slots):
                 if not sel:
                     raise RuntimeError(f"点击 {slot} 后未进入选中状态")
                 log.info("已选中时段 %s（%s）", slot, sel)
-                return slot, sel
-    return None
+                return (slot, sel), True
+    return None, True
 
 
 def _parse_slot_capacity(text) -> tuple[int, int] | None:
@@ -1962,16 +1983,40 @@ def run(args) -> dict:
         if getattr(args, "force_slot", None):
             slot, capacity = force_select_slot(page, args.force_slot)
         else:
-            # 不按时钟放弃：无空位时每 5 分钟重查一次，最多约 30 分钟。
+            # 不按时钟放弃：确实无空位时每 5 分钟重查；表格未渲染时只做短等待和刷新，
+            # 不能被当成“无空位”白等 5 分钟。
             picked = None
-            for attempt in range(1, NO_SLOT_MAX_CHECKS + 1):
-                picked = pick_slot(page, slots)
+            no_slot_checks = 0
+            ready_failures = 0
+            while no_slot_checks < NO_SLOT_MAX_CHECKS:
+                picked, queryable = pick_slot(page, slots)
                 if picked:
                     break
-                if attempt == NO_SLOT_MAX_CHECKS:
+                if not queryable:
+                    ready_failures += 1
+                    log.warning(
+                        "第 %d 次读取场次表未就绪：无法判断空位（不按无空位处理），刷新重试",
+                        ready_failures)
+                    if ready_failures >= 3:
+                        result.update(
+                            status="failed",
+                            detail=(f"场次页连续 {ready_failures} 次未渲染出时段表格，"
+                                    "无法判断空位；这不是无空位，稍后可重试。"),
+                            retryable=True,
+                        )
+                        log.warning(result["detail"])
+                        return result
+                    time.sleep(3)
+                    robust_goto(page, target_url)
+                    settle_after_login(page, target_url)
+                    ensure_target_date(page, target_date)
+                    continue
+                ready_failures = 0
+                no_slot_checks += 1
+                if no_slot_checks >= NO_SLOT_MAX_CHECKS:
                     break
                 log.info("第 %d 次查询无空位，5 分钟后重查（最多 %d 次）",
-                         attempt, NO_SLOT_MAX_CHECKS)
+                         no_slot_checks, NO_SLOT_MAX_CHECKS)
                 time.sleep(NO_SLOT_RECHECK_DELAY_SECONDS)
                 robust_goto(page, target_url)
                 settle_after_login(page, target_url)
