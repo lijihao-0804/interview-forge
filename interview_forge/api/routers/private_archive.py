@@ -173,7 +173,7 @@ def archive_status(request: Request):
     if (AGENTHUB_STUDY_DIR / "index.html").is_file():
         entries = result.setdefault("entries", [result["entry"]] if available else [])
         entries.append({"title": "AgentHub 从 0 到 1 深度课程",
-                        "description": "27 讲全栈源码演进 + 220 道面试问答 · 一节一页书架版",
+                        "description": "20 讲全栈源码演进 + 220 道面试问答 · 一节一页书架版",
                         "url": AGENTHUB_STUDY_URL})
     return support.json_response(result, headers=HEADERS)
 
