@@ -1224,28 +1224,67 @@ document.querySelectorAll('[data-export]').forEach(button=>button.addEventListen
 document.getElementById('goalInput').addEventListener('change',saveGoal);
 const MOCK_SESSION_KEY='forge-mock-session-v1';
 let mockState=null;let mockTimerId=null;let mockInFlight=false;
+let mockSaveChain=Promise.resolve();
+function mockLocalSnapshot(){
+  return {version:1,problemIds:mockState.problems.map(item=>Number(item.id)),index:mockState.index,done:mockState.done,skip:mockState.skip,startedAt:mockState.startedAt,deadline:mockState.deadline};
+}
 function persistMockState(){
   if(!mockState)return;
-  try{sessionStorage.setItem(MOCK_SESSION_KEY,JSON.stringify({version:1,problemIds:mockState.problems.map(item=>Number(item.id)),index:mockState.index,done:mockState.done,skip:mockState.skip,startedAt:mockState.startedAt,deadline:mockState.deadline}))}catch(_error){}
+  const local=mockLocalSnapshot();
+  try{sessionStorage.setItem(MOCK_SESSION_KEY,JSON.stringify(local))}catch(_error){}
+  if(authStatus!=='authenticated')return;
+  const payload={version:1,problem_ids:local.problemIds,index:local.index,done:local.done,skip:local.skip,minutes:Number(mockState.minutes||0),duration_ms:Math.max(1,mockState.deadline-mockState.startedAt),remaining_ms:Math.max(0,mockState.deadline-Date.now())};
+  mockSaveChain=mockSaveChain.then(()=>authenticatedFetch('/api/mock/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)},'保存模拟进度')).catch(()=>{});
 }
 function clearMockSession(){try{sessionStorage.removeItem(MOCK_SESSION_KEY)}catch(_error){}}
+function clearMockSessionRemote(){
+  clearMockSession();
+  if(authStatus!=='authenticated')return;
+  mockSaveChain=mockSaveChain.then(()=>authenticatedFetch('/api/mock/session',{method:'DELETE'},'清除模拟进度')).catch(()=>{});
+}
 function setMockActive(active){document.getElementById('mockAbandon').hidden=!active;document.getElementById('mockStart').textContent=active?'重新开始模拟':'开始模拟'}
-function restoreMockSession(){
-  let saved;
-  try{saved=JSON.parse(sessionStorage.getItem(MOCK_SESSION_KEY)||'null')}catch(_error){clearMockSession();return}
-  if(!saved||saved.version!==1||!Array.isArray(saved.problemIds)||!saved.problemIds.length||saved.problemIds.length>20){clearMockSession();return}
+function applyMockSession(saved,remainingMs){
   const byId=new Map(problems.map(item=>[Number(item.id),item]));
-  const restored=saved.problemIds.map(id=>byId.get(Number(id)));
-  const validIds=new Set(saved.problemIds.map(Number));
+  const ids=Array.isArray(saved.problemIds)?saved.problemIds:(Array.isArray(saved.problem_ids)?saved.problem_ids:[]);
+  const restored=ids.map(id=>byId.get(Number(id)));
+  const validIds=new Set(ids.map(Number));
   const validList=value=>Array.isArray(value)?value.filter(id=>validIds.has(Number(id))).map(Number):[];
-  const index=Number(saved.index),startedAt=Number(saved.startedAt),deadline=Number(saved.deadline);
-  if(restored.some(item=>!item)||!Number.isInteger(index)||index<0||index>=restored.length||!Number.isFinite(startedAt)||!Number.isFinite(deadline)){clearMockSession();return}
-  mockState={problems:restored,index,done:validList(saved.done),skip:validList(saved.skip),startedAt,deadline,finished:false};
-  if(deadline<=Date.now()){mockState.finished=true;mockFinish(true);return}
+  const index=Number(saved.index);
+  if(!restored.length||restored.length>20||restored.some(item=>!item)||!Number.isInteger(index)||index<0||index>=restored.length)return false;
+  const rawDuration=Number(saved.durationMs??saved.duration_ms??0);
+  const duration=Math.max(1,rawDuration||(Number(saved.deadline)-Number(saved.startedAt)));
+  const remainingRaw=Number.isFinite(Number(remainingMs))?Number(remainingMs):(Number(saved.deadline)-Date.now());
+  if(!Number.isFinite(duration)||!Number.isFinite(remainingRaw)||remainingRaw<0)return false;
+  const remaining=Math.max(0,remainingRaw);
+  const deadline=Date.now()+Math.max(0,remaining);
+  mockState={problems:restored,index,done:validList(saved.done),skip:validList(saved.skip),startedAt:deadline-duration,deadline,minutes:Number(saved.minutes||0),finished:false};
+  return true;
+}
+function beginMockDisplay(note){
   document.getElementById('mockSettings').open=false;
   document.getElementById('mockReport').innerHTML='';
-  document.getElementById('mockStatus').textContent=`已恢复进行中的模拟 · ${restored.length} 题`;
-  setMockActive(true);mockTick();mockRender();mockTimerId=setInterval(mockTick,1000);
+  document.getElementById('mockStatus').textContent=`${note} · ${mockState.problems.length} 题`;
+  setMockActive(true);mockTick();mockRender();
+  clearInterval(mockTimerId);mockTimerId=setInterval(mockTick,1000);
+  persistMockState();
+}
+async function restoreMockSession(){
+  let saved=null,remainingMs=null,fromServer=false;
+  if(authStatus==='authenticated'){
+    try{
+      const response=await authenticatedFetch('/api/mock/session',{cache:'no-store'},'恢复模拟进度');
+      if(response.ok){const data=await response.json();if(data&&data.session){saved=data.session;remainingMs=data.remaining_ms;fromServer=true;}}
+    }catch(_error){}
+  }
+  if(!saved){
+    try{saved=JSON.parse(sessionStorage.getItem(MOCK_SESSION_KEY)||'null')}catch(_error){saved=null}
+    if(saved&&saved.version===1)remainingMs=Number(saved.deadline)-Date.now();
+    else saved=null;
+  }
+  if(!saved)return;
+  if(!applyMockSession(saved,remainingMs)){clearMockSession();return}
+  if(mockState.deadline<=Date.now()){mockState.finished=true;mockFinish(true);return}
+  beginMockDisplay(fromServer?'已从账号恢复进行中的模拟':'已恢复进行中的模拟');
 }
 function mockTick(){
   if(!mockState)return;
@@ -1293,19 +1332,19 @@ async function mockStart(){
   // 进行中的模拟不能被静默丢弃：先确认，再开新的一卷
   if(mockState&&!mockState.finished&&!window.confirm('当前有一次进行中的模拟，开始新模拟将放弃本次进度。继续吗？'))return;
   mockInFlight=true;
-  if(mockState&&!mockState.finished){mockState.finished=true;clearInterval(mockTimerId);mockState=null;clearMockSession()}
+  if(mockState&&!mockState.finished){mockState.finished=true;clearInterval(mockTimerId);mockState=null;clearMockSessionRemote()}
   const minutes=Number(document.getElementById('mockMinutes').value);
   document.getElementById('mockStatus').textContent='组卷中…';
   try{
     const response=await authenticatedFetch(mockRequestUrl(),{cache:'no-store'},'使用限时模拟');
     const data=await response.json();
     if(!response.ok)throw new Error(data.error||'组卷失败');
-    mockState={problems:data.problems,index:0,done:[],skip:[],startedAt:Date.now(),deadline:Date.now()+minutes*60000,finished:false};
+    mockState={problems:data.problems,index:0,done:[],skip:[],startedAt:Date.now(),deadline:Date.now()+minutes*60000,minutes,finished:false};
     persistMockState();setMockActive(true);document.getElementById('mockSettings').open=false;
     // 状态条显示：题数 · 时长 · 范围（候选池大小 / 本轮重复题数）
     const scopeLbl=data.scope_label&&data.scope!=='all'?` · ${data.scope_label}（候选 ${data.scope_pool}）`:'';
     const repeatLbl=data.repeated_count>0?` · 重复 ${data.repeated_count}`:'';
-    document.getElementById('mockStatus').textContent=`${data.count} 题 · ${minutes} 分钟${scopeLbl}${repeatLbl}`;
+    document.getElementById('mockStatus').textContent=`${data.count} 题 · ${minutes} 分钟${scopeLbl}${repeatLbl} · 已存入账号`;
     document.getElementById('mockReport').innerHTML='';
     mockTimerId=setInterval(mockTick,1000);mockTick();mockRender();
   }catch(error){
@@ -1336,8 +1375,8 @@ function mockNext(){
   if(mockState.index>=mockState.problems.length){clearInterval(mockTimerId);mockState.finished=true;mockFinish(false)}else{persistMockState();mockRender()}
 }
 function mockAbandon(ask=true){
-  if(!mockState||!ask||window.confirm('确定放弃这次模拟？当前完成/跳过记录只保存在此标签页，不会计入真实刷题记录。')){
-    clearInterval(mockTimerId);mockTimerId=null;clearMockSession();mockState=null;
+  if(!mockState||!ask||window.confirm('确定放弃这次模拟？完成/跳过记录不会计入真实刷题记录，放弃后本次进度会从账号中移除。')){
+    clearInterval(mockTimerId);mockTimerId=null;clearMockSessionRemote();mockState=null;
     document.getElementById('mockList').innerHTML='';document.getElementById('mockTimer').textContent='';document.getElementById('mockTimer').classList.remove('urgent');
     document.getElementById('mockReport').innerHTML='<div class="mock-report">本次模拟已放弃，模拟结果不会计入真实学习记录。</div>';
     document.getElementById('mockStatus').textContent='模拟已放弃';setMockActive(false);
@@ -1355,12 +1394,16 @@ async function mockFinish(timeout){
   if(mockState.done.length){
     showToast(`模拟完成 ${mockState.done.length} 题；真实 AC 会自动计入轮次`,'success');
   }
-  mockState=null;mockTimerId=null;clearMockSession();setMockActive(false);
+  mockState=null;mockTimerId=null;clearMockSessionRemote();setMockActive(false);
 }
 document.getElementById('mockStart').addEventListener('click',mockStart);
 document.getElementById('mockAbandon').addEventListener('click',()=>mockAbandon());
-window.addEventListener('beforeunload',event=>{if(mockState&&!mockState.finished){event.preventDefault();event.returnValue='模拟面试仍在进行，离开将中断当前页面。'}});
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&mockState)mockTick()});
+window.addEventListener('beforeunload',event=>{if(mockState&&!mockState.finished){event.preventDefault();event.returnValue='模拟仍在进行，进度已保存到账号，可在其他设备继续。'}});
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden)return;
+  if(mockState){mockTick();return}
+  if(authStatus==='authenticated'&&!mockInFlight)restoreMockSession();
+});
 document.getElementById('serverRetry').addEventListener('click',()=>refresh());
 [...new Set(problems.map(problem=>problem.category))].forEach(name=>{const option=document.createElement('option');option.value=name;option.textContent=name;document.getElementById('mockCategory').appendChild(option)});
 window.addEventListener('resize',()=>{

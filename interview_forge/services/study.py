@@ -1406,10 +1406,14 @@ def problem_progress(problem_id: int, db_path: Path = DB_PATH) -> dict[str, obje
 
 
 def get_settings(db_path: Path = DB_PATH) -> dict[str, str]:
-    """读取 settings 表全部 KV → {key: value} 字典。"""
+    """读取 settings 表全部 KV → {key: value} 字典（内部 mock_* 状态不外泄）。"""
     with closing(server_runtime.connect(db_path)) as connection:
         rows = connection.execute("SELECT key, value FROM settings").fetchall()
-    return {str(row["key"]): str(row["value"]) for row in rows}
+    return {
+        str(row["key"]): str(row["value"])
+        for row in rows
+        if not str(row["key"]).startswith("mock_")
+    }
 
 
 def set_setting(key: str, value: str, db_path: Path = DB_PATH) -> dict[str, str]:
@@ -1620,6 +1624,145 @@ def _mock_save_history(db_path: Path, rounds: list[list[int]]) -> None:
             (_MOCK_HISTORY_KEY, payload),
         )
         connection.commit()
+
+
+# ---------------------------------------------------------------------------
+# 进行中的限时模拟：按账号保存在 settings KV 中，跨设备可恢复。
+# 之前只写 sessionStorage，换一台设备（手机→电脑）就看不到同一场考试。
+# ---------------------------------------------------------------------------
+_MOCK_SESSION_KEY = "mock_active_session"
+_MOCK_SESSION_MAX_MS = 6 * 60 * 60 * 1000  # 单场上限 6 小时，防御异常大值
+
+
+def _mock_session_normalize(payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        raise ValueError("模拟会话格式不正确")
+    if int(payload.get("version", 1) or 1) != 1:
+        raise ValueError("不支持的模拟会话版本")
+    raw_ids = payload.get("problem_ids", payload.get("problemIds"))
+    if not isinstance(raw_ids, list) or not 1 <= len(raw_ids) <= 20:
+        raise ValueError("模拟会话题目数量不合法")
+    ids: list[int] = []
+    for value in raw_ids:
+        try:
+            pid = int(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("模拟会话题号不合法") from exc
+        if pid not in PROBLEM_BY_ID:
+            raise ValueError("模拟会话包含未知题号")
+        ids.append(pid)
+    if len(set(ids)) != len(ids):
+        raise ValueError("模拟会话题号重复")
+    try:
+        index = int(payload.get("index", 0))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("模拟会话进度不合法") from exc
+    if not 0 <= index < len(ids):
+        raise ValueError("模拟会话进度越界")
+    allowed = set(ids)
+
+    def _ids(name: str) -> list[int]:
+        value = payload.get(name, [])
+        if value is None:
+            return []
+        if not isinstance(value, list):
+            raise ValueError("模拟会话记录不合法")
+        out: list[int] = []
+        for item in value:
+            try:
+                pid = int(item)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("模拟会话记录不合法") from exc
+            if pid not in allowed:
+                raise ValueError("模拟会话记录包含范围外题号")
+            out.append(pid)
+        return out
+
+    done = _ids("done")
+    skip = _ids("skip")
+    try:
+        duration_ms = int(payload.get("duration_ms") or 0)
+        remaining_ms = int(payload.get("remaining_ms") or 0)
+        minutes = int(payload.get("minutes") or 0)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("模拟会话计时不合法") from exc
+    if not 0 < duration_ms <= _MOCK_SESSION_MAX_MS:
+        raise ValueError("模拟会话时长不合法")
+    if not 0 <= remaining_ms <= duration_ms:
+        raise ValueError("模拟会话剩余时间不合法")
+    if not 0 <= minutes <= 180:
+        raise ValueError("模拟会话分钟数不合法")
+    now_ms = int(time.time() * 1000)
+    return {
+        "version": 1,
+        "problem_ids": ids,
+        "index": index,
+        "done": done,
+        "skip": skip,
+        "minutes": minutes,
+        "duration_ms": duration_ms,
+        "remaining_ms": remaining_ms,
+        "expires_at": now_ms + remaining_ms,
+        "updated_at": server_runtime.now_parts()[0],
+    }
+
+
+def save_mock_session(payload: dict, db_path: Path = DB_PATH) -> dict[str, object]:
+    """保存/覆盖当前账号进行中的模拟。"""
+    stored = _mock_session_normalize(payload)
+    raw = json.dumps(stored, ensure_ascii=False)
+    if len(raw) > 20000:
+        raise ValueError("模拟会话过大")
+    with closing(server_runtime.connect(db_path)) as connection:
+        connection.execute(
+            """INSERT INTO settings(key, value) VALUES (?, ?)
+               ON CONFLICT(key) DO UPDATE SET value = excluded.value""",
+            (_MOCK_SESSION_KEY, raw),
+        )
+        connection.commit()
+    return {"saved": True, "remaining_ms": stored["remaining_ms"]}
+
+
+def get_mock_session(db_path: Path = DB_PATH) -> dict[str, object]:
+    """读取当前账号进行中的模拟；剩余时间以服务器时钟重算。"""
+    with closing(server_runtime.connect(db_path)) as connection:
+        row = connection.execute(
+            "SELECT value FROM settings WHERE key = ?", (_MOCK_SESSION_KEY,)
+        ).fetchone()
+        if not row:
+            return {"session": None, "remaining_ms": 0}
+        try:
+            stored = json.loads(str(row["value"]))
+            if not isinstance(stored, dict):
+                raise ValueError
+            problem_ids = [int(x) for x in stored.get("problem_ids", [])]
+            if not problem_ids:
+                raise ValueError
+        except (json.JSONDecodeError, TypeError, ValueError):
+            connection.execute("DELETE FROM settings WHERE key = ?", (_MOCK_SESSION_KEY,))
+            connection.commit()
+            return {"session": None, "remaining_ms": 0}
+    now_ms = int(time.time() * 1000)
+    remaining = max(0, int(stored.get("expires_at", 0) or 0) - now_ms)
+    session = {
+        "version": 1,
+        "problem_ids": problem_ids,
+        "index": int(stored.get("index", 0) or 0),
+        "done": [int(x) for x in stored.get("done", []) or []],
+        "skip": [int(x) for x in stored.get("skip", []) or []],
+        "minutes": int(stored.get("minutes", 0) or 0),
+        "duration_ms": int(stored.get("duration_ms", 0) or 0),
+        "remaining_ms": remaining,
+    }
+    return {"session": session, "remaining_ms": remaining}
+
+
+def clear_mock_session(db_path: Path = DB_PATH) -> dict[str, object]:
+    """放弃/完成模拟后清除账号上的进行中会话。"""
+    with closing(server_runtime.connect(db_path)) as connection:
+        connection.execute("DELETE FROM settings WHERE key = ?", (_MOCK_SESSION_KEY,))
+        connection.commit()
+    return {"cleared": True}
 
 
 def mock_exam(

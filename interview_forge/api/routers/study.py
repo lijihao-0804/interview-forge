@@ -28,6 +28,7 @@ from interview_forge.services.study import (
     export_database_snapshot, get_settings, library_data, mock_exam,
     pin_problem_for_tomorrow, pick_problem,
     problem_marks, problem_progress, set_mark, set_setting, today_plan, weaklist,
+    get_mock_session, save_mock_session, clear_mock_session,
 )
 from interview_forge.analytics.cache import analytics_cached
 from interview_forge.runtime import shared
@@ -267,6 +268,34 @@ def mock(request: Request):
         ))
     except BaseException as exc:
         return _handled(exc)
+
+
+@router.get("/api/mock/session")
+def mock_session_get(request: Request):
+    user, denied = _user(request)
+    if denied is not None:
+        return denied
+    try:
+        return json_response(get_mock_session(user_db(user)))
+    except BaseException as exc:
+        return _handled(exc)
+
+
+@router.post("/api/mock/session")
+async def mock_session_save(request: Request):
+    return await _write_json(request, lambda payload, db: save_mock_session(payload, db))
+
+
+@router.delete("/api/mock/session")
+async def mock_session_delete(request: Request):
+    user, denied = await async_require_user(request)
+    if denied is not None:
+        return denied
+    try:
+        db = user_db(user)
+        return json_response(await run_in_threadpool(clear_mock_session, db))
+    except BaseException as exc:
+        return _handled(exc, write=True)
 
 
 @router.get("/api/plan")
