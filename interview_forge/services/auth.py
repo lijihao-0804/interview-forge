@@ -223,6 +223,17 @@ CREATE TABLE IF NOT EXISTS feedback (
     resolved_note TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS ix_feedback_status ON feedback(status, id DESC);
+CREATE TABLE IF NOT EXISTS feedback_attachments (
+    id INTEGER PRIMARY KEY,
+    feedback_id INTEGER REFERENCES feedback(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    mime TEXT NOT NULL,
+    byte_size INTEGER NOT NULL,
+    data BLOB NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_feedback_attachments_feedback ON feedback_attachments(feedback_id, id);
+CREATE INDEX IF NOT EXISTS ix_feedback_attachments_pending ON feedback_attachments(user_id, feedback_id);
 CREATE TABLE IF NOT EXISTS chat_messages (
     id INTEGER PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

@@ -208,6 +208,76 @@
     });
   }
 
+  var FEEDBACK_IMAGE_MAX = 3;
+  var FEEDBACK_IMAGE_MAX_BYTES = 600 * 1024;
+
+  function compressFeedbackImage(file) {
+    return new Promise(function (resolve) {
+      if (!file || !/^image\//.test(String(file.type || ""))) { resolve(null); return; }
+      if (typeof root.Image !== "function" || !root.URL || typeof root.URL.createObjectURL !== "function") { resolve(null); return; }
+      var objectUrl = root.URL.createObjectURL(file);
+      var image = new root.Image();
+      image.onload = function () {
+        try {
+          var max = 1280;
+          var width = image.naturalWidth || image.width;
+          var height = image.naturalHeight || image.height;
+          var scale = Math.min(1, max / Math.max(width, height));
+          width = Math.max(1, Math.round(width * scale));
+          height = Math.max(1, Math.round(height * scale));
+          var canvas = root.document.createElement("canvas");
+          canvas.width = width; canvas.height = height;
+          var context = canvas.getContext("2d");
+          context.fillStyle = "#fff"; context.fillRect(0, 0, width, height);
+          context.drawImage(image, 0, 0, width, height);
+          var quality = 0.75;
+          var data = canvas.toDataURL("image/jpeg", quality);
+          var bytes = Math.floor((data.length - data.indexOf(",") - 1) * 0.75);
+          while (bytes > FEEDBACK_IMAGE_MAX_BYTES && quality > 0.4) {
+            quality -= 0.1;
+            data = canvas.toDataURL("image/jpeg", quality);
+            bytes = Math.floor((data.length - data.indexOf(",") - 1) * 0.75);
+          }
+          root.URL.revokeObjectURL(objectUrl);
+          resolve(bytes > FEEDBACK_IMAGE_MAX_BYTES ? null : { name: file.name || "image.jpg", data: data, size: bytes });
+        } catch (_) {
+          root.URL.revokeObjectURL(objectUrl);
+          resolve(null);
+        }
+      };
+      image.onerror = function () { root.URL.revokeObjectURL(objectUrl); resolve(null); };
+      image.src = objectUrl;
+    });
+  }
+
+  function uploadFeedbackImages(images, feature) {
+    var ids = [];
+    var chain = Promise.resolve();
+    images.forEach(function (item) {
+      chain = chain.then(function () {
+        return root.fetch("/api/feedback/images", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ data: item.data })
+        }).then(function (response) {
+          if (response && response.status === 401) {
+            markGuest("unauthorized");
+            promptLogin(feature);
+            throw authError(feature);
+          }
+          return readResponse(response).then(function (result) {
+            if (!result.ok) {
+              throw new Error(String(result.data && result.data.error || "图片上传失败"));
+            }
+            ids.push(result.data.id);
+          });
+        });
+      });
+    });
+    return chain.then(function () { return ids; });
+  }
+
   function install() {
     if (installed || !root.document) return false;
     installed = true;
@@ -230,6 +300,16 @@
       "border-radius:8px;font:inherit;background:#fbfcff;box-sizing:border-box}" +
       "#forge-fb-panel input{width:100%;margin-top:8px;padding:7px 10px;border:1px solid #dfe4ee;border-radius:8px;" +
       "font:inherit;background:#fbfcff;box-sizing:border-box}" +
+      "#forge-fb-panel .fap-images{margin-top:8px}" +
+      "#forge-fb-panel .fap-add{display:inline-flex;align-items:center;gap:4px;padding:6px 10px;border:1px dashed #c7cede;" +
+      "border-radius:8px;color:#4543bd;background:#fbfcff;cursor:pointer;font-size:13px;font-weight:600}" +
+      "#forge-fb-panel .fap-add:hover{border-color:#5654d4;background:#f4f3ff}" +
+      "#forge-fb-panel .fap-preview{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}" +
+      "#forge-fb-panel .fap-thumb{position:relative;width:60px;height:60px;border:1px solid #dfe4ee;border-radius:7px;overflow:hidden;background:#f4f6fb}" +
+      "#forge-fb-panel .fap-thumb img{width:100%;height:100%;object-fit:cover;display:block}" +
+      "#forge-fb-panel .fap-thumb button{position:absolute;top:0;right:0;width:19px;height:19px;padding:0;border:0;border-radius:0 0 0 6px;" +
+      "background:rgba(12,18,30,.62);color:#fff;font-size:13px;line-height:19px;cursor:pointer}" +
+      "#forge-fb-panel .fap-tip{font-size:11px;color:#66748a;margin-top:4px}" +
       "#forge-fb-panel .fap-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}" +
       "#forge-fb-panel button{border:0;border-radius:8px;padding:7px 14px;font:inherit;font-weight:600;cursor:pointer}" +
       "#forge-fb-panel .fap-send{background:#5654d4;color:#fff}#forge-fb-panel .fap-send:hover{background:#4543bd}" +
@@ -283,6 +363,8 @@
       panel.querySelector(".fap-close").disabled = sending;
       panel.querySelector("#fb-content").readOnly = sending;
       panel.querySelector("#fb-contact").readOnly = sending;
+      var imageInput = panel.querySelector("#fb-images");
+      if (imageInput) imageInput.disabled = sending;
       send.disabled = Boolean(sending);
       send.textContent = sending ? "提交中…" : "提交反馈";
     }
@@ -320,6 +402,9 @@
         '<div class="fap-page"></div>' +
         '<textarea aria-label="问题描述" id="fb-content" placeholder="遇到什么问题？（必填，1~2000 字）&#10;例如：某某页面打不开 / 复习日期不对 / 显示错乱…"></textarea>' +
         '<input aria-label="联系方式（选填）" id="fb-contact" placeholder="联系方式（选填：QQ / 微信 / 邮箱）" autocomplete="off">' +
+        '<div class="fap-images"><label class="fap-add">＋ 添加图片<input type="file" id="fb-images" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden></label></div>' +
+        '<div class="fap-preview" id="fb-preview"></div>' +
+        '<div class="fap-tip">最多 3 张，单张压缩后 ≤600KB</div>' +
         '<div class="fap-actions"><button class="fap-close" type="button">取消</button>' +
         '<button class="fap-send" type="button">提交反馈</button></div>' +
         '<div class="fap-hint" id="fb-hint" role="status"></div>' +
@@ -337,6 +422,38 @@
       details.ontoggle = function () { showReplies(details); };
       panel.querySelector("#fb-content").value = draft.content;
       panel.querySelector("#fb-contact").value = draft.contact;
+      var selectedImages = [];
+      var previewNode = panel.querySelector("#fb-preview");
+      function renderPreview() {
+        previewNode.textContent = "";
+        selectedImages.forEach(function (item, index) {
+          var wrap = document.createElement("span");
+          wrap.className = "fap-thumb";
+          var pic = document.createElement("img");
+          pic.src = item.data; pic.alt = item.name;
+          var remove = document.createElement("button");
+          remove.type = "button"; remove.textContent = "×"; remove.title = "移除图片";
+          remove.setAttribute("aria-label", "移除图片");
+          remove.onclick = function () { selectedImages.splice(index, 1); renderPreview(); };
+          wrap.appendChild(pic); wrap.appendChild(remove); previewNode.appendChild(wrap);
+        });
+      }
+      panel.querySelector("#fb-images").onchange = function (event) {
+        var files = Array.prototype.slice.call(event.target.files || []);
+        event.target.value = "";
+        if (!files.length) return;
+        var room = FEEDBACK_IMAGE_MAX - selectedImages.length;
+        if (room <= 0) { setHint("最多上传 " + FEEDBACK_IMAGE_MAX + " 张图片", "err"); return; }
+        if (files.length > room) { files = files.slice(0, room); setHint("最多上传 " + FEEDBACK_IMAGE_MAX + " 张图片", "err"); }
+        else setHint("正在压缩图片…");
+        Promise.all(files.map(compressFeedbackImage)).then(function (results) {
+          var failed = 0;
+          results.forEach(function (item) { if (item) selectedImages.push(item); else failed += 1; });
+          renderPreview();
+          if (failed) setHint(failed + " 张图片无法处理或过大，已跳过", "err");
+          else if (panel) setHint("");
+        });
+      };
       panel.querySelector(".fap-close").onclick = closePanel;
       panel.addEventListener("keydown", function (event) {
         if (event.key !== "Escape" || event.isComposing || btn.disabled) return;
@@ -357,14 +474,21 @@
         rememberDraft();
         setSending(true);
         setHint("提交中…");
-        submitFeedback({
-          content: content,
-          contact: draft.contact,
-          page: sourcePage
-        }, "提交反馈").then(function (result) {
+        var pendingImages = selectedImages.slice();
+        uploadFeedbackImages(pendingImages, "提交反馈").then(function (imageIds) {
+          if (imageIds.length) setHint("图片已上传，正在提交反馈…");
+          return submitFeedback({
+            content: content,
+            contact: draft.contact,
+            page: sourcePage,
+            image_ids: imageIds
+          }, "提交反馈");
+        }).then(function (result) {
           if (result.ok) {
             clearDraft();
             setSending(false);
+            selectedImages = [];
+            renderPreview();
             var submittedPanel = panel;
             panel.querySelector("#fb-content").value = "";
             panel.querySelector("#fb-contact").value = "";
@@ -389,7 +513,8 @@
             setHint("登录后提交反馈；已保留填写内容，登录返回后可重新提交。", "err");
             return;
           }
-          setHint("网络错误，请稍后再试", "err");
+          var detail = String(error && error.message || "").slice(0, 120);
+          setHint(detail && detail !== "Failed to fetch" ? detail : "网络错误，请稍后再试", "err");
         });
       };
     }

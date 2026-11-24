@@ -7,6 +7,7 @@ import binascii
 import html
 import json
 import re
+import sqlite3
 import threading
 import time
 from contextlib import closing
@@ -28,6 +29,8 @@ _CHAT_SEND_LOG: dict[int, list[float]] = {}
 _CHAT_SEND_LOCK = threading.Lock()
 SOLUTION_LANGS = ("java", "cpp", "python", "go", "c")
 _AVATAR_MAX_BYTES = 150 * 1024
+_FEEDBACK_IMAGE_MAX_BYTES = 600 * 1024
+_FEEDBACK_IMAGE_MAX_COUNT = 3
 _SEARCH_INDEX: list[dict] | None = None
 _SEARCH_LOCK = threading.Lock()
 
@@ -46,20 +49,80 @@ def feedback_rate_limit_record(ip: str) -> None:
         _FEEDBACK_ATTEMPTS.setdefault(ip, []).append(time.time())
 
 
-def submit_feedback(content: str, contact: str, page: str, user_agent: str, username: str = "") -> dict[str, object]:
+def submit_feedback(content: str, contact: str, page: str, user_agent: str, username: str = "",
+                    *, user_id: int | None = None, image_ids: list[int] | None = None) -> dict[str, object]:
     runtime = server_runtime
     content = content.strip()
     if not (1 <= len(content) <= 2000):
         raise ValueError("反馈内容需为 1~2000 字")
     if len(contact) > 120 or len(page) > 500:
         raise ValueError("联系方式或页面地址过长")
+    ids: list[int] = []
+    for value in image_ids or []:
+        try:
+            ids.append(int(value))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("图片附件参数不合法") from exc
+    ids = list(dict.fromkeys(ids))
+    if len(ids) > _FEEDBACK_IMAGE_MAX_COUNT:
+        raise ValueError(f"最多上传 {_FEEDBACK_IMAGE_MAX_COUNT} 张图片")
+    if ids and user_id is None:
+        raise ValueError("图片附件需要登录后提交")
     with closing(runtime.connect_auth()) as connection:
+        if ids:
+            placeholders = ",".join("?" for _ in ids)
+            owned = connection.execute(
+                f"SELECT id FROM feedback_attachments WHERE id IN ({placeholders}) "
+                "AND feedback_id IS NULL AND user_id = ?",
+                (*ids, user_id),
+            ).fetchall()
+            if len(owned) != len(ids):
+                raise ValueError("图片附件无效或已提交")
         cursor = connection.execute(
             "INSERT INTO feedback(content, username, contact, page, user_agent, status, created_at) "
             "VALUES (?, ?, ?, ?, ?, 'open', ?)",
             (content, username[:64], contact[:120], page[:500], user_agent[:300], runtime.now_iso()),
         )
-    return {"id": cursor.lastrowid, "submitted": True}
+        if ids:
+            connection.execute(
+                f"UPDATE feedback_attachments SET feedback_id = ? WHERE id IN ({','.join('?' for _ in ids)})",
+                (cursor.lastrowid, *ids),
+            )
+    return {"id": cursor.lastrowid, "submitted": True, "images": len(ids)}
+
+
+def save_feedback_image(user_id: int, data_url: str) -> dict[str, object]:
+    """保存反馈图片（data URL，前端已压缩）；返回待关联的附件 id。"""
+    runtime = server_runtime
+    match = re.match(r"^data:image/(png|jpeg|webp|gif);base64,([A-Za-z0-9+/=]+)$", str(data_url or ""))
+    if not match:
+        raise ValueError("图片格式不支持（仅 png/jpeg/webp/gif）")
+    try:
+        blob = base64.b64decode(match.group(2), validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise ValueError("图片数据不是合法的 Base64") from exc
+    if not 1 <= len(blob) <= _FEEDBACK_IMAGE_MAX_BYTES:
+        raise ValueError("图片过大（压缩后需小于 600KB）")
+    mime = "image/" + match.group(1)
+    with closing(runtime.connect_auth()) as connection:
+        cursor = connection.execute(
+            "INSERT INTO feedback_attachments(feedback_id, user_id, mime, byte_size, data, created_at) "
+            "VALUES (NULL, ?, ?, ?, ?, ?)",
+            (user_id, mime, len(blob), blob, runtime.now_iso()),
+        )
+    return {"id": cursor.lastrowid, "mime": mime, "size": len(blob)}
+
+
+def get_feedback_image(image_id: int) -> tuple[str, bytes] | None:
+    runtime = server_runtime
+    with closing(runtime.connect_auth()) as connection:
+        row = connection.execute(
+            "SELECT mime, data FROM feedback_attachments WHERE id = ? AND feedback_id IS NOT NULL",
+            (image_id,),
+        ).fetchone()
+    if row is None:
+        return None
+    return str(row["mime"]), bytes(row["data"])
 
 
 def _feedback_page_title(path: str, *, private_reader: bool) -> str:
@@ -97,8 +160,24 @@ def list_feedback(status: str = "", *, viewer=None) -> list[dict[str, object]]:
         sql += " WHERE status = ?"
         params.append(status)
     sql += " ORDER BY id DESC LIMIT 500"
+    images_by: dict[int, list[dict[str, object]]] = {}
     with closing(runtime.connect_auth()) as connection:
         items = [dict(row) for row in connection.execute(sql, params)]
+        if items:
+            placeholders = ",".join("?" for _ in items)
+            try:
+                for row in connection.execute(
+                    "SELECT id, feedback_id, mime, byte_size FROM feedback_attachments "
+                    f"WHERE feedback_id IN ({placeholders}) ORDER BY id",
+                    [item["id"] for item in items],
+                ):
+                    images_by.setdefault(int(row["feedback_id"]), []).append(
+                        {"id": int(row["id"]), "mime": str(row["mime"]), "size": int(row["byte_size"])}
+                    )
+            except sqlite3.OperationalError:
+                images_by = {}
+    for item in items:
+        item["images"] = images_by.get(int(item["id"]), [])
     titles = {}
     agenthub_chapters = None
     private_reader = effective_role(viewer) == "super_admin"

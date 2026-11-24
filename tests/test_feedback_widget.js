@@ -7,6 +7,9 @@ const vm = require("vm");
 const source = fs.readFileSync(path.join(__dirname, "..", "assets", "feedback-widget.js"), "utf8");
 assert.match(source, /sessionStorage\.setItem\(draftKey/, "auth-gated drafts should survive the same-tab login round trip");
 assert.match(source, /clearDraft\(\);/, "a successful submission should remove the local draft");
+assert.match(source, /id="fb-images"/, "feedback form should offer an image file input");
+assert.match(source, /\/api\/feedback\/images/, "feedback images should upload to the dedicated endpoint");
+assert.match(source, /image_ids/, "feedback submission must carry uploaded image ids");
 
 function loadWidget() {
   let resolveReady;

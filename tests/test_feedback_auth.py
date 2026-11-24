@@ -152,6 +152,8 @@ class FeedbackAuthTests(unittest.TestCase):
             "/cockpit.html?tab=plan",
             "feedback-regression",
             "alice",
+            user_id=7,
+            image_ids=[],
         )
 
     def test_legacy_feedback_is_known_but_anonymous_post_gets_401(self) -> None:
@@ -184,7 +186,7 @@ class FeedbackAuthTests(unittest.TestCase):
             thread.join(timeout=5)
 
     def test_server_injects_the_new_feedback_script_version(self) -> None:
-        self.assertIn("/assets/feedback-widget.js?v=6", study_server.StudyHandler.WIDGET_SCRIPTS)
+        self.assertIn("/assets/feedback-widget.js?v=7", study_server.StudyHandler.WIDGET_SCRIPTS)
         self.assertNotIn("/assets/feedback-widget.js?v=3", study_server.StudyHandler.WIDGET_SCRIPTS)
 
 

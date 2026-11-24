@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 
 from fastapi import APIRouter, Request
+from fastapi.responses import Response
 
 from interview_forge.api.support import async_require_admin, error_response, json_response, read_json, require_admin, service_error
 from interview_forge.services.auth import (
@@ -12,7 +13,7 @@ from interview_forge.services.auth import (
     revoke_invite_code, set_user_active, set_user_role,
     set_fsrs_desired_retention,
 )
-from interview_forge.services.community import list_feedback, resolve_feedback
+from interview_forge.services.community import get_feedback_image, list_feedback, resolve_feedback
 
 router = APIRouter()
 
@@ -52,6 +53,21 @@ def feedback_list(request: Request):
         return json_response({"items": list_feedback(request.query_params.get("status", ""), viewer=user)})
     except BaseException as exc:
         return _handled(exc)
+
+
+@router.get("/api/admin/feedback/images/{image_id}")
+def feedback_image(request: Request, image_id: int):
+    user, denied = require_admin(request)
+    if denied is not None:
+        return denied
+    try:
+        value = get_feedback_image(image_id)
+        if value is None:
+            return error_response("图片不存在", 404)
+        mime, blob = value
+        return Response(content=blob, media_type=mime, headers={"Cache-Control": "private, no-store"})
+    except (ValueError, TypeError):
+        return error_response("图片不存在", 404)
 
 
 @router.get("/api/admin/settings/fsrs-retention")

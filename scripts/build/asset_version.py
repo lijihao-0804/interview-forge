@@ -15,7 +15,7 @@ DELIVERED_ASSET_VERSIONS = {
     "site.js": SITE_JS_VERSION,
     "solution-progress.js": SOLUTION_PROGRESS_VERSION,
     "auth-widget.js": "10",
-    "feedback-widget.js": "6",
+    "feedback-widget.js": "7",
     "theme-toggle.js": "3",
     "guest-auth.js": "3",
     "ai-assistant.js": "20",

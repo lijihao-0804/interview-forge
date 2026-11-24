@@ -19,7 +19,7 @@ from interview_forge.services.auth import (
 )
 from interview_forge.services.community import (
     feedback_rate_limit_ok, feedback_rate_limit_record, feedback_replies, get_avatar, get_profile,
-    set_profile, submit_feedback,
+    save_feedback_image, set_profile, submit_feedback,
 )
 from interview_forge.services.registration import (
     captcha_config, confirm_email_change, registration_email_executor,
@@ -306,21 +306,39 @@ def my_feedback_replies(request: Request):
     return json_response({"items": feedback_replies(int(user["id"]))}, headers={"Cache-Control": "private, no-store"})
 
 
+@router.post("/api/feedback/images")
+async def feedback_image(request: Request):
+    user, denied = await async_require_user(request)
+    if denied is not None:
+        return denied
+    try:
+        payload = await read_json(request, max_length=1_000_000, too_large_message="图片过大")
+        result = await asyncio.to_thread(
+            save_feedback_image, int(user["id"]), str(payload.get("data", ""))
+        )
+        return json_response(result, 201)
+    except BaseException as exc:
+        return _handled(exc, write=True)
+
+
 @router.post("/api/feedback")
 async def feedback(request: Request):
     user, denied = await async_require_user(request)
     if denied is not None:
         return denied
     try:
-        payload = await read_json(request)
+        payload = await read_json(request, max_length=16384)
         ip = client_ip(request)
         if not feedback_rate_limit_ok(ip):
             raise ValueError("提交过于频繁，请稍后再试")
         feedback_rate_limit_record(ip)
+        image_ids = payload.get("image_ids") or []
+        if not isinstance(image_ids, list):
+            raise ValueError("图片附件参数不合法")
         result = await asyncio.to_thread(
             submit_feedback, str(payload.get("content", "")), str(payload.get("contact", "")),
             str(payload.get("page", "")), request.headers.get("user-agent", ""),
-            str(user["username"]),
+            str(user["username"]), user_id=int(user["id"]), image_ids=image_ids,
         )
         return json_response(result, 201)
     except BaseException as exc:
