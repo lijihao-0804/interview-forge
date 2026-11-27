@@ -97,6 +97,8 @@ LIBRARY_MODULES = [
      "about": "全部课程收尾课：40 道全科八股自测总表定位薄弱点，STAR 法准备项目与简历，系统设计答题框架与秒杀/短链/IM 三母题，模拟面试高频问答与一周冲刺计划，最后给出完整学习闭环与参考资料。"},
     {"id": "python", "title": "Python 实用入门与 AI 开发", "category": "编程基础与训练", "source": "Python/Python实用入门与AI开发：语法、API、并发及工程实践.md",
      "about": "从语法、容器与类型标注讲到调用大模型 API、FastAPI 服务和并发，最后落到完整 AI 项目结构；想用 Python 做 AI 开发可一路顺读。"},
+    {"id": "python-interview", "title": "Python 八股：经典面试题", "category": "编程基础与训练", "source": "Python八股/Python八股经典面试题.md",
+     "about": "整理自 GitHub taizilongxu/interview_python（约 17.4k stars，仓库未声明 LICENSE，仅作个人学习记录）的「Python语言特性」30 题：函数参数传递、元类、staticmethod/classmethod、类变量、自省、推导式、下划线约定、字符串格式化、迭代器与生成器、*args/**kwargs、装饰器、鸭子类型、重载、新式类、__new__/__init__、单例、作用域、GIL、协程、闭包、lambda、函数式、拷贝、垃圾回收、List、is、readlines、Py2/3 差异、super、range 等。"},
     {"id": "acm-io", "title": "ACM 输入输出专题：Java + Python", "category": "编程基础与训练", "source": "ACM输入输出专题/ACM输入输出专题.md",
      "about": "面向机考和在线判题的基础专题：先讲清 ACM 与 LeetCode 核心代码的区别，再从单组、T 组、EOF、数组、矩阵、含空格整行、超大数据等高频输入模型，分别给出 Java 和 Python 的从浅入深写法、输出格式与常见坑。适合作为刷题前的输入输出热身，也适合考前快速查模板。"},
     {"id": "ai-math-review", "title": "AI 岗数学复习手册：线代与概率速查", "category": "编程基础与训练", "source": "机器学习/AI岗数学复习手册.md",
@@ -230,6 +232,7 @@ MODULE_ORDER = [
     "interview-sprint",
     # AI 主线
     "python",
+    "python-interview",
     "ai-math-review",
     "ai-basics",
     "machine-learning",
